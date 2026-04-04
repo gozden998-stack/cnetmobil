@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// 1. Sadece test edilecek mağazanın IP adresi
+// 1. Yetkili Şubelerin Statik IP Adresleri (VIP Liste)
 const ALLOWED_IPS = [
-  '95.70.226.118'
-  '78.188.91.172'
+  '95.70.226.118',
+  '78.188.91.172',
   '31.155.79.145'
-
 ]
 
 export function middleware(request: NextRequest) {
@@ -23,7 +22,7 @@ export function middleware(request: NextRequest) {
       value: 'aktif',
       path: '/',
       httpOnly: true,
-      secure: true, // Vercel üzerinde çalıştığı için güvenli (HTTPS)
+      secure: true, 
       maxAge: 60 * 60 * 24 * 365 // 1 Yıl geçerli
     })
     return response
@@ -79,7 +78,6 @@ export function middleware(request: NextRequest) {
           function adminLogin() {
             var pass = prompt("Lütfen yönetici şifrenizi giriniz:");
             if (pass === "cnet1905") {
-              // Şifre doğruysa sistemi otomatik olarak bypass linkine yönlendir
               window.location.href = "/?patron=cnet1905";
             } else if (pass) {
               alert("Hatalı şifre girişi!");
