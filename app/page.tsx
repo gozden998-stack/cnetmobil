@@ -131,10 +131,14 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   }, [status, selectedCapacity, config]);
 
-  const handleFinalProcess = async (actionType: 'print' | 'whatsapp') => {
+  // GÜNCELLENEN FONKSİYON: "ALINDI / ALINMADI" Durumunu Parametre Olarak Alıyor
+  const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'ALINDI' | 'ALINMADI') => {
     const now = new Date();
     const dateTime = `${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}`;
     
+    // Alındı veya Alınmadı ise model isminin yanına ekleyerek panele gönderiyoruz
+    const statusLabel = (actionType === 'ALINDI' || actionType === 'ALINMADI') ? ` [${actionType}]` : "";
+
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -143,19 +147,23 @@ export default function CnetmobilCmrFinalUltimate() {
           type: "SAVE_ALIM",
           branch: selectedBranch,
           customer: customer.name,
-          device: `${selectedModelName} (${selectedCapacity?.cap})`,
+          device: `${selectedModelName} (${selectedCapacity?.cap})${statusLabel}`,
           imei: customer.imei,
           cash: prices.cash,
           trade: prices.trade,
           date: dateTime
         })
       });
+
+      if(actionType === 'ALINDI' || actionType === 'ALINMADI') {
+         alert(`İşlem Yönetim Paneline Bildirildi: ${actionType}`);
+      }
       loadData();
     } catch (e) { console.error(e); }
 
     if (actionType === 'print') {
       window.print();
-    } else {
+    } else if (actionType === 'whatsapp') {
       const branch = branches.find(b => b.name === selectedBranch);
       const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})%0A💰 *NAKİT:* ${prices.cash.toLocaleString()} TL%0A🔄 *TAKAS:* ${prices.trade.toLocaleString()} TL`;
       window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
@@ -364,7 +372,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {/* MARKA LİSTELEME GÜNCELLENDİ: BOŞ MARKA FİLTRESİ VE YAKINDA ÖZELLİĞİ EKLENDİ */}
                {Array.from(new Set([...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
                  .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka")
                  .map(brand => {
@@ -573,6 +580,22 @@ export default function CnetmobilCmrFinalUltimate() {
                 <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-900/40' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
                    WHATSAPP & KAYDET
                 </button>
+
+                {/* YENİ EKLENEN BÖLÜM: PERSONEL ALINDI / ALINMADI BUTONLARI */}
+                <div className="pt-4 mt-2 border-t border-slate-800 flex gap-3">
+                    <button 
+                        disabled={!canProceed} 
+                        onClick={() => handleFinalProcess('ALINDI')} 
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        ✓ ALINDI
+                    </button>
+                    <button 
+                        disabled={!canProceed} 
+                        onClick={() => handleFinalProcess('ALINMADI')} 
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-rose-500 text-white hover:bg-rose-600' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        ✕ ALINMADI
+                    </button>
+                </div>
               </div>
             </div>
           </div>
