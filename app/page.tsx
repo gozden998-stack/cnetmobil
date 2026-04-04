@@ -17,6 +17,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedModelName, setSelectedModelName] = useState('');
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
+  
+  // YENİ EKLENEN: Arama Çubuğu State'i
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ 
@@ -52,6 +55,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedBrand('');
     setSelectedModelName('');
     setSelectedCapacity(null);
+    setSearchQuery(''); // Aramayı sıfırla
     setCustomer({ name: '', phone: '', imei: '' });
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
     setIsAdmin(false);
@@ -60,6 +64,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const resetSelection = () => {
     setSelectedCapacity(null);
+    setSearchQuery(''); // Aramayı sıfırla
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -239,7 +244,6 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
         
         <div className="flex items-center gap-3 md:gap-4">
-          {/* YENİ EKLENEN GÜVENLİK ROZETİ (SAĞ ÜST) */}
           <div className="hidden md:flex items-center gap-1.5 bg-green-50 px-3 py-1.5 rounded-full border border-green-200 shadow-sm">
             <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -274,7 +278,6 @@ export default function CnetmobilCmrFinalUltimate() {
              ) : (
                <div className="space-y-10">
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    {/* FİYAT YÜZDELERİ PANELİ */}
                     <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                       <h2 className="text-xs font-black italic text-orange-600 mb-6 uppercase tracking-widest flex items-center gap-2">
                         <span className="w-2 h-2 bg-orange-600 rounded-full animate-pulse"></span>
@@ -301,7 +304,6 @@ export default function CnetmobilCmrFinalUltimate() {
                       </div>
                     </div>
 
-                    {/* CİHAZ EKLEME PANELİ */}
                     <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                       <h2 className="text-xs font-black italic text-blue-600 mb-6 uppercase tracking-widest flex items-center gap-2">
                          <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
@@ -323,7 +325,6 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
 
-                 {/* ALIM GEÇMİŞİ PANELİ */}
                  <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                    <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4 mb-8">
                       <h2 className="text-xl font-black italic uppercase tracking-tighter">GÜNCEL ALIM KAYITLARI</h2>
@@ -373,7 +374,6 @@ export default function CnetmobilCmrFinalUltimate() {
                      <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                        <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
-                     {/* YENİ EKLENEN MARKA YAZISI */}
                      <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{brand} CİHAZINI SAT</p>
                      
@@ -385,7 +385,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) : step === 2 ? (
            <div className="animate-in slide-in-from-right-8 duration-500">
-             <div className="flex items-center justify-between mb-10">
+             <div className="flex items-center justify-between mb-8">
                 <button onClick={() => {setStep(1); resetSelection();}} className="bg-white shadow-sm border border-slate-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-blue-600 transition-all btn-click flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                   Geri Dön
@@ -395,18 +395,57 @@ export default function CnetmobilCmrFinalUltimate() {
                   <h2 className="text-2xl font-black italic uppercase tracking-tighter">Model Seçimi</h2>
                 </div>
              </div>
-             <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-               {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name))).map(name => (
-                 <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-8 rounded-[40px] shadow-sm cursor-pointer hover:shadow-xl hover:border-blue-500/50 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center">
-                   <div className="h-32 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-500">
-                      <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
-                   </div>
-                   {/* YENİ EKLENEN MODEL YAZISI */}
-                   <p className="font-black text-[11px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
-                   <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
-                 </div>
-               ))}
+
+             {/* YENİ EKLENEN ARAMA ÇUBUĞU */}
+             <div className="flex justify-center mb-10">
+               <div className="relative w-full max-w-xl">
+                 <input
+                   type="text"
+                   placeholder="Modellerde ara..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="w-full p-5 pl-14 bg-white rounded-3xl text-sm font-black border border-slate-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm transition-all text-slate-700 placeholder-slate-400"
+                 />
+                 <svg className="w-6 h-6 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+               </div>
              </div>
+
+             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+               {/* MODELLERİ ARAMA KELİMESİNE GÖRE FİLTRELEME EKLENDİ */}
+               {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
+                 .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
+                 .map(name => {
+                   
+                   // YENİ EKLENEN: O modele ait en yüksek fiyatı hesapla
+                   const modelMaxPrice = Math.max(...db.filter(i => i.name === name).map(i => i.base));
+
+                   return (
+                     <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-8 rounded-[40px] shadow-sm cursor-pointer hover:shadow-xl hover:border-blue-500/50 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px]">
+                       <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
+                          <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
+                       </div>
+                       
+                       <div className="w-full">
+                         <p className="font-black text-[12px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
+                         
+                         {/* YENİ EKLENEN FİYAT ALTI BİLGİSİ */}
+                         {modelMaxPrice > 0 && (
+                           <p className="text-[10px] font-black text-blue-600 mt-1">{modelMaxPrice.toLocaleString()} TL'ye kadar</p>
+                         )}
+                         
+                         <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
+                       </div>
+                     </div>
+                   );
+                 })}
+             </div>
+             
+             {/* ARAMA SONUCU BULUNAMAZSA GÖSTERİLECEK UYARI */}
+             {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name))).filter(name => name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+               <div className="text-center py-20">
+                 <p className="text-slate-400 font-bold uppercase tracking-widest">Aradığınız model bulunamadı</p>
+               </div>
+             )}
            </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-10 animate-in fade-in duration-700">
@@ -416,7 +455,6 @@ export default function CnetmobilCmrFinalUltimate() {
                  Modellere Dön
               </button>
 
-              {/* GÜVENLİK PANELİ */}
               <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
                    <svg className="w-40 h-40 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45L19.53 19H4.47L12 5.45zM11 16h2v2h-2v-2zm0-7h2v5h-2V9z"/></svg>
@@ -470,7 +508,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               </div>
 
-              {/* SEÇENEKLER KONTEYNERI */}
               <div className="space-y-4">
                 <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
                   <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -505,7 +542,6 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             </div>
 
-            {/* SAĞ PANEL: FİYAT VE AKSİYON */}
             <div className="lg:w-96 space-y-6 sticky top-28 h-fit">
               {isYd ? (
                 <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
