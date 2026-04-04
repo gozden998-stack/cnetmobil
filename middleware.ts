@@ -24,9 +24,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next() 
   }
 
-  // 4. IP Kontrolü
-  let clientIp = request.ip || request.headers.get('x-forwarded-for') || ''
+  // 4. IP Kontrolü (Hata veren kısım düzeltildi, IP'yi Vercel sunucusundan alıyoruz)
+  let clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
   
+  // Bazen IP'ler virgülle ayrılarak birden fazla gelebilir, ilkini alıyoruz
   if (clientIp.includes(',')) {
     clientIp = clientIp.split(',')[0].trim()
   }
