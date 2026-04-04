@@ -17,6 +17,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedModelName, setSelectedModelName] = useState('');
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
+  const [selectedColor, setSelectedColor] = useState('Diğer'); // YENİ: Renk State'i
   
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -54,6 +55,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedBrand('');
     setSelectedModelName('');
     setSelectedCapacity(null);
+    setSelectedColor('Diğer');
     setSearchQuery(''); 
     setCustomer({ name: '', phone: '', imei: '' });
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
@@ -63,6 +65,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const resetSelection = () => {
     setSelectedCapacity(null);
+    setSelectedColor('Diğer');
     setSearchQuery(''); 
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
     if(typeof window !== 'undefined') window.scrollTo(0,0);
@@ -125,19 +128,24 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
 
-      const finalCash = Math.max(Math.round(price), selectedCapacity.minPrice || 0);
+      // YENİ: iPhone 13 Renk Farkı Hesaplama
+      let colorBonus = 1;
+      if (selectedModelName === "iPhone 13" && selectedColor === 'Beyaz') {
+        colorBonus = 1.05; // %5 Artış
+      }
+
+      const finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
     }
-  }, [status, selectedCapacity, config]);
+  }, [status, selectedCapacity, config, selectedColor]);
 
-  // GÜNCELLENEN FONKSİYON: "ALINDI / ALINMADI" Durumunu Parametre Olarak Alıyor
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'ALINDI' | 'ALINMADI') => {
     const now = new Date();
     const dateTime = `${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}`;
     
-    // Alındı veya Alınmadı ise model isminin yanına ekleyerek panele gönderiyoruz
     const statusLabel = (actionType === 'ALINDI' || actionType === 'ALINMADI') ? ` [${actionType}]` : "";
+    const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
 
     try {
       await fetch(SCRIPT_URL, {
@@ -147,7 +155,7 @@ export default function CnetmobilCmrFinalUltimate() {
           type: "SAVE_ALIM",
           branch: selectedBranch,
           customer: customer.name,
-          device: `${selectedModelName} (${selectedCapacity?.cap})${statusLabel}`,
+          device: `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel}`,
           imei: customer.imei,
           cash: prices.cash,
           trade: prices.trade,
@@ -165,7 +173,7 @@ export default function CnetmobilCmrFinalUltimate() {
       window.print();
     } else if (actionType === 'whatsapp') {
       const branch = branches.find(b => b.name === selectedBranch);
-      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})%0A💰 *NAKİT:* ${prices.cash.toLocaleString()} TL%0A🔄 *TAKAS:* ${prices.trade.toLocaleString()} TL`;
+      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A💰 *NAKİT:* ${prices.cash.toLocaleString()} TL%0A🔄 *TAKAS:* ${prices.trade.toLocaleString()} TL`;
       window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
     }
   };
@@ -273,6 +281,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <main className="max-w-7xl mx-auto p-6 mt-4 print:hidden">
         {step === 99 ? (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+             {/* Admin Bölümü Değişmedi */}
              {!isAdmin ? (
                <div className="max-w-md mx-auto bg-white p-12 rounded-[48px] shadow-2xl text-center border border-slate-100">
                  <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
@@ -526,6 +535,21 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                 </div>
 
+                {/* YENİ: Sadece iPhone 13 İçin Renk Seçimi Bölümü */}
+                {selectedModelName === "iPhone 13" && (
+                  <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+                    <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-4 h-[2px] bg-blue-600"></span>
+                      Renk Seçimi (Beyaz +%5)
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {['Diğer', 'Beyaz'].map(color => (
+                        <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {[
                   { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
                   { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
@@ -581,7 +605,6 @@ export default function CnetmobilCmrFinalUltimate() {
                    WHATSAPP & KAYDET
                 </button>
 
-                {/* YENİ EKLENEN BÖLÜM: PERSONEL ALINDI / ALINMADI BUTONLARI */}
                 <div className="pt-4 mt-2 border-t border-slate-800 flex gap-3">
                     <button 
                         disabled={!canProceed} 
@@ -607,6 +630,7 @@ export default function CnetmobilCmrFinalUltimate() {
       </footer>
 
       <div id="print-area">
+          {/* Çıktı alanında model isminin yanına rengi de ekliyoruz */}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
             <div>
               <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></h1>
@@ -630,7 +654,7 @@ export default function CnetmobilCmrFinalUltimate() {
             <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
               <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Ekspertiz</h3>
               <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Model: <span style={{fontWeight:'900', fontSize:'14px'}}>{selectedModelName} {selectedCapacity?.cap}</span></p>
+                <p>Model: <span style={{fontWeight:'900', fontSize:'14px'}}>{selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" ? `(${selectedColor})` : ''}</span></p>
                 <p>IMEI: <span style={{fontWeight:'900', fontSize:'13px'}}>{customer.imei || '________________'}</span></p>
               </div>
             </div>
