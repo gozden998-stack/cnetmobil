@@ -8,7 +8,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeB
 
 export default function CnetmobilCmrFinalUltimate() {
   const [db, setDb] = useState<any[]>([]);
-  const [brandDb, setBrandDb] = useState<any[]>([]); // Yeni: Dinamik Markalar
+  const [brandDb, setBrandDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
   const [alimlar, setAlimlar] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,6 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR SARAY", phone: "905416801905" }
   ];
 
-  // Yedek logolar (Eğer Google Sheets'ten okuyamazsa bunları kullanacak)
   const brandAssets: any = {
     "Apple": { logo: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" },
     "Samsung": { logo: "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg" },
@@ -78,7 +77,6 @@ export default function CnetmobilCmrFinalUltimate() {
       const alimRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Alimlar!A2:H500?key=${API_KEY}`);
       const alimData = await alimRes.json();
 
-      // Yeni: Markalar sekmesini güvenli bir şekilde çekmeyi deniyoruz
       let brandData: any = {};
       try {
         const brandRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Markalar!A2:B50?key=${API_KEY}`);
@@ -108,7 +106,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   useEffect(() => { loadData(); }, [step]);
 
-  // Yeni: Fiyat hesaplama sistemini hatalara karşı || 0 ile korumaya aldık
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
       let price = selectedCapacity.base;
@@ -360,13 +357,12 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
                {Array.from(new Set(db.map(i => i.brand))).map(brand => {
-                 // Google Sheets "Markalar" sekmesinden gelen logoyu ara, bulamazsa yedeği kullan
                  const dbLogo = brandDb.find(b => b.name === brand)?.logo;
                  const finalLogo = dbLogo || brandAssets[brand]?.logo || "";
 
                  return (
                    <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
-                     <div className="h-24 w-full flex items-center justify-center mb-8 grayscale group-hover:grayscale-0 transition-all duration-500 transform group-hover:scale-110">
+                     <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                        <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
                      <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
