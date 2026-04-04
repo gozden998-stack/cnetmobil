@@ -364,33 +364,19 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {/* MARKA LİSTELEME GÜNCELLENDİ: FİLTRELEME VE YAKINDA ÖZELLİĞİ EKLENDİ */}
-               {brandDb
-                 .filter(b => b.name && b.name.trim() !== "" && b.name.toLowerCase() !== "marka")
-                 .map(brandRow => {
-                 const brand = brandRow.name;
-                 const hasModels = db.some(i => i.brand === brand);
-                 const finalLogo = brandRow.logo || brandAssets[brand]?.logo || "";
+               {Array.from(new Set(db.map(i => i.brand))).map(brand => {
+                 const dbLogo = brandDb.find(b => b.name === brand)?.logo;
+                 const finalLogo = dbLogo || brandAssets[brand]?.logo || "";
 
                  return (
-                   <div key={brand} 
-                        onClick={() => {
-                          if(hasModels) {
-                            setSelectedBrand(brand); 
-                            setStep(2); 
-                            resetSelection();
-                          }
-                        }} 
-                        className={`bg-white p-10 rounded-[48px] shadow-sm transition-all border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group ${hasModels ? 'hover:shadow-2xl hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed'}`}>
+                   <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
                      <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
-                       <img src={finalLogo} className={`max-h-full max-w-[140px] object-contain ${!hasModels && 'grayscale'}`} alt={brand} />
+                       <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
                      <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
-                     <p className={`text-[10px] font-black uppercase tracking-widest ${hasModels ? 'text-slate-400' : 'text-orange-600 animate-pulse'}`}>
-                        {hasModels ? `${brand} CİHAZINI SAT` : 'ÇOK YAKINDA'}
-                     </p>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{brand} CİHAZINI SAT</p>
                      
-                     <div className={`w-10 h-1 transition-all rounded-full mt-3 ${hasModels ? 'bg-slate-100 group-hover:w-20 group-hover:bg-blue-600' : 'bg-slate-200'}`}></div>
+                     <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-3"></div>
                    </div>
                  );
                })}
