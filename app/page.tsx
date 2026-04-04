@@ -8,6 +8,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeB
 
 export default function CnetmobilCmrFinalUltimate() {
   const [db, setDb] = useState<any[]>([]);
+  const [brandDb, setBrandDb] = useState<any[]>([]); // Yeni: Dinamik Markalar
   const [config, setConfig] = useState<any>({});
   const [alimlar, setAlimlar] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR SARAY", phone: "905416801905" }
   ];
 
+  // Yedek logolar (Eğer Google Sheets'ten okuyamazsa bunları kullanacak)
   const brandAssets: any = {
     "Apple": { logo: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" },
     "Samsung": { logo: "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg" },
@@ -76,6 +78,13 @@ export default function CnetmobilCmrFinalUltimate() {
       const alimRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Alimlar!A2:H500?key=${API_KEY}`);
       const alimData = await alimRes.json();
 
+      // Yeni: Markalar sekmesini güvenli bir şekilde çekmeyi deniyoruz
+      let brandData: any = {};
+      try {
+        const brandRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Markalar!A2:B50?key=${API_KEY}`);
+        brandData = await brandRes.json();
+      } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
+
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
           brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -90,29 +99,33 @@ export default function CnetmobilCmrFinalUltimate() {
       if (alimData.values) {
         setAlimlar(alimData.values.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
       }
+      if (brandData.values) {
+        setBrandDb(brandData.values.map((row: any) => ({ name: row[0], logo: row[1] })));
+      }
       setLoading(false);
     } catch (e) { setLoading(false); }
   };
 
   useEffect(() => { loadData(); }, [step]);
 
+  // Yeni: Fiyat hesaplama sistemini hatalara karşı || 0 ile korumaya aldık
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
       let price = selectedCapacity.base;
-      if (status.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100));
-      if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - (config.Ekran_Kirik / 100));
-      if (status.screen === 'Çizikler var') price *= (1 - (config.Ekran_Cizik / 100));
-      if (status.cosmetic === 'İyi') price *= (1 - (config.Kasa_Iyi / 100));
-      if (status.cosmetic === 'Kötü') price *= (1 - (config.Kasa_Kotu / 100));
-      if (status.faceId === 'Hayır') price *= (1 - (config.FaceID_Bozuk / 100));
-      if (status.battery === '0-85') price *= (1 - (config.Pil_Dusuk / 100));
+      if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
+      if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - ((config.Ekran_Kirik || 0) / 100));
+      if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
+      if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
+      if (status.cosmetic === 'Kötü') price *= (1 - ((config.Kasa_Kotu || 0) / 100));
+      if (status.faceId === 'Hayır') price *= (1 - ((config.FaceID_Bozuk || 0) / 100));
+      if (status.battery === '0-85') price *= (1 - ((config.Pil_Dusuk || 0) / 100));
       if (status.battery === 'Bilinmeyen Parça') price *= (1 - ((config.Bilinmeyen_Batarya || 15) / 100));
-      if (status.sim === 'Fiziksel + eSIM (YD)') price *= (1 - (config.Yurt_Disi / 100));
+      if (status.sim === 'Fiziksel + eSIM (YD)') price *= (1 - ((config.Yurt_Disi || 0) / 100));
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
 
       const finalCash = Math.max(Math.round(price), selectedCapacity.minPrice || 0);
-      const finalTrade = Math.round(finalCash * (1 + (config.Takas_Destegi / 100)));
+      const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
     }
   }, [status, selectedCapacity, config]);
@@ -346,15 +359,21 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {Array.from(new Set(db.map(i => i.brand))).map(brand => (
-                 <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
-                   <div className="h-24 w-full flex items-center justify-center mb-8 grayscale group-hover:grayscale-0 transition-all duration-500 transform group-hover:scale-110">
-                     <img src={brandAssets[brand]?.logo || ""} className="max-h-full max-w-[140px] object-contain" alt={brand} />
+               {Array.from(new Set(db.map(i => i.brand))).map(brand => {
+                 // Google Sheets "Markalar" sekmesinden gelen logoyu ara, bulamazsa yedeği kullan
+                 const dbLogo = brandDb.find(b => b.name === brand)?.logo;
+                 const finalLogo = dbLogo || brandAssets[brand]?.logo || "";
+
+                 return (
+                   <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
+                     <div className="h-24 w-full flex items-center justify-center mb-8 grayscale group-hover:grayscale-0 transition-all duration-500 transform group-hover:scale-110">
+                       <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
+                     </div>
+                     <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
+                     <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-2"></div>
                    </div>
-                   <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
-                   <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-2"></div>
-                 </div>
-               ))}
+                 );
+               })}
              </div>
            </div>
         ) : step === 2 ? (
