@@ -229,17 +229,42 @@ export default function CnetmobilCmrFinalUltimate() {
         .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+
+        /* GÖRSELDEKİ ÖZEL LOGO TASARIMI */
+        .logo-text-cnet { color: #111; font-weight: 900; font-style: italic; position: relative; }
+        .logo-text-mobil { color: #2563eb; font-weight: 900; font-style: italic; margin-left: 12px; }
+        .special-t-arrow { position: relative; display: inline-block; }
+        .special-t-arrow::after {
+          content: "";
+          position: absolute;
+          left: 2px;
+          bottom: -4px;
+          width: 140%;
+          height: 3px;
+          background: #2563eb;
+          border-radius: 2px;
+        }
+        .special-t-arrow::before {
+          content: "▶";
+          position: absolute;
+          right: -13px;
+          bottom: -8px;
+          font-size: 10px;
+          color: #2563eb;
+        }
       `}</style>
 
-      {/* HEADER */}
+      {/* HEADER - LOGO GÜNCELLENDİ */}
       <header className="px-6 py-4 glass border-b border-slate-200/60 flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow">
         <div onClick={resetAll} className="flex items-center gap-2 group cursor-pointer">
-          <div className="bg-blue-600 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+          <div className="flex flex-col">
+            <h1 className="text-2xl uppercase tracking-tighter flex items-baseline">
+              <span className="logo-text-cnet">Cne<span className="special-t-arrow">t</span></span>
+              <span className="logo-text-mobil">mobil</span>
+            </h1>
+            <span className="text-[8px] font-black text-slate-400 self-end mt-0.5 tracking-[0.2em] uppercase italic">Since 2003</span>
           </div>
-          <h1 className="text-xl font-black italic text-slate-900 uppercase tracking-tighter">
-            CNET<span className="text-blue-600">MOBIL</span> <span className="font-light text-slate-400 not-italic ml-1">CMR</span>
-          </h1>
+          <span className="font-light text-slate-300 not-italic ml-2 text-lg">CMR</span>
         </div>
         
         <div className="flex items-center gap-3 md:gap-4">
@@ -364,7 +389,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {/* MARKA LİSTELEME GÜNCELLENDİ: BOŞ MARKA FİLTRESİ VE YAKINDA ÖZELLİĞİ EKLENDİ */}
                {Array.from(new Set([...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
                  .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka")
                  .map(brand => {
@@ -438,12 +462,6 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
                  ))}
              </div>
-             
-             {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name))).filter(name => name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-               <div className="text-center py-20">
-                 <p className="text-slate-400 font-bold uppercase tracking-widest">Aradığınız model bulunamadı</p>
-               </div>
-             )}
            </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-10 animate-in fade-in duration-700">
@@ -453,18 +471,13 @@ export default function CnetmobilCmrFinalUltimate() {
                  Modellere Dön
               </button>
 
-              <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
-                   <svg className="w-40 h-40 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45L19.53 19H4.47L12 5.45zM11 16h2v2h-2v-2zm0-7h2v5h-2V9z"/></svg>
-                </div>
-                
+              <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
                   <div>
                     <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">EKSPERTİZ & GÜVENLİK</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lütfen tüm bilgileri eksiksiz doldurun</p>
                   </div>
                   {customer.imei.length === 15 && (
-                    <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black animate-pulse hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
+                    <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black hover:bg-blue-700 transition-all shadow-lg">
                       BTK IMEI SORGULA
                     </button>
                   )}
@@ -472,32 +485,15 @@ export default function CnetmobilCmrFinalUltimate() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">Müşteri Adı Soyadı</label>
-                      <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">İletişim Numarası</label>
-                      <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">IMEI Numarası (15 Hane)</label>
-                      <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
-                    </div>
+                    <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                    <input placeholder="Telefon" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                    <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
                   </div>
 
                   <div className="bg-red-50/50 p-8 rounded-[32px] border border-red-100/50 space-y-4">
-                    <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2">
-                       <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
-                       Personel Onay Listesi
-                    </p>
-                    {[
-                      "Hesaplardan çıkış yapıldı",
-                      "Bul (Find My) kapatıldı",
-                      "Kayıt durumu kontrol edildi",
-                      "Şifreler tamamen silindi"
-                    ].map((item, idx) => (
-                      <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none">
+                    <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest">Personel Onay Listesi</p>
+                    {["Hesaplardan çıkış yapıldı", "Bul kapatıldı", "Kayıt durumu kontrol edildi", "Şifreler tamamen silindi"].map((item, idx) => (
+                      <label key={idx} className="flex items-center gap-4 cursor-pointer group">
                         <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
                         <span className="text-[11px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
                       </label>
@@ -508,13 +504,10 @@ export default function CnetmobilCmrFinalUltimate() {
 
               <div className="space-y-4">
                 <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                  <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-4 h-[2px] bg-blue-600"></span>
-                    Hafıza Kapasitesi
-                  </p>
+                  <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest">Hafıza Kapasitesi</p>
                   <div className="flex flex-wrap gap-3">
                     {db.filter(i => i.name === selectedModelName).map(c => (
-                      <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{c.cap}</button>
+                      <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl' : 'bg-slate-100 text-slate-400'}`}>{c.cap}</button>
                     ))}
                   </div>
                 </div>
@@ -532,7 +525,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     <p className="text-[10px] font-black mb-4 text-slate-400 uppercase tracking-widest">{q.label}</p>
                     <div className="flex flex-wrap gap-3">
                       {q.opts.map((opt) => (
-                        <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}>{opt}</button>
+                        <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100'}`}>{opt}</button>
                       ))}
                     </div>
                   </div>
@@ -542,22 +535,19 @@ export default function CnetmobilCmrFinalUltimate() {
 
             <div className="lg:w-96 space-y-6 sticky top-28 h-fit">
               {isYd ? (
-                <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
-                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">⚠️</div>
-                  <p className="text-2xl font-black uppercase italic leading-none tracking-tighter">YURT DIŞI CIHAZ</p>
-                  <p className="text-[10px] mt-4 uppercase tracking-[0.2em] font-black opacity-80">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
+                <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800">
+                  <p className="text-2xl font-black uppercase italic tracking-tighter">YURT DIŞI CIHAZ</p>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in zoom-in-95 duration-500">
-                  <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
+                <div className="space-y-6">
+                  <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center">
                     <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
                     <div className="text-4xl font-black italic tracking-tighter text-slate-950">
                        {selectedCapacity && allSelected ? `${prices.cash.toLocaleString()} TL` : '---'}
                     </div>
-                    <div className="h-1.5 w-16 bg-blue-600 mx-auto mt-6 rounded-full opacity-20 group-hover:opacity-100 transition-opacity"></div>
                   </div>
                   
-                  <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
+                  <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white">
                     <p className="text-[11px] font-black text-blue-200 uppercase mb-4 tracking-widest italic">Takas Desteği İle</p>
                     <div className="text-4xl font-black italic tracking-tighter">
                        {selectedCapacity && allSelected ? `${prices.trade.toLocaleString()} TL` : '---'}
@@ -567,10 +557,10 @@ export default function CnetmobilCmrFinalUltimate() {
               )}
 
               <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed ? 'bg-white text-slate-950 hover:bg-slate-50' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                <button disabled={!canProceed} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] transition-all btn-click ${canProceed ? 'bg-white text-slate-950' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
                    SÖZLEŞMEYİ YAZDIR
                 </button>
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-900/40' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] transition-all btn-click ${canProceed ? 'bg-green-600 text-white' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
                    WHATSAPP & KAYDET
                 </button>
               </div>
@@ -583,51 +573,39 @@ export default function CnetmobilCmrFinalUltimate() {
         <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v4.0.0</p>
       </footer>
 
+      {/* YAZDIRMA ALANI - TAMAMI EKLENDİ */}
       <div id="print-area">
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
             <div>
-              <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></h1>
-              <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666', letterSpacing:'1px'}}>Kurumsal Cihaz Alim Merkezi</p>
+              <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>Cnet<span style={{color:'#2563eb'}}>mobil</span> <span style={{color:'#ddd'}}>CMR</span></h1>
+              <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666'}}>Since 2003 • Cihaz Alim Formu</p>
             </div>
             <div style={{textAlign:'right', fontSize:'10px', fontWeight:'bold'}}>
               <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
-              <p style={{color:'#666'}}>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
+              <p>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
             </div>
           </div>
           <div style={{borderTop:'4px solid black', marginBottom:'25px'}}></div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px', marginBottom:'30px'}}>
             <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
-              <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'2'}}>
-                <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'14px'}}>{customer.name || '________________'}</span></p>
-                <p>Telefon: {customer.phone || '________________'}</p>
-                <p>T.C. Kimlik No: ___________________________</p>
-              </div>
+              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd'}}>👤 Satıcı Bilgileri</h3>
+              <p>Ad Soyad: <strong>{customer.name}</strong></p>
+              <p>Telefon: {customer.phone}</p>
+              <p>IMEI: <strong>{customer.imei}</strong></p>
             </div>
             <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Ekspertiz</h3>
-              <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Model: <span style={{fontWeight:'900', fontSize:'14px'}}>{selectedModelName} {selectedCapacity?.cap}</span></p>
-                <p>IMEI: <span style={{fontWeight:'900', fontSize:'13px'}}>{customer.imei || '________________'}</span></p>
-              </div>
+              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd'}}>📱 Cihaz Bilgisi</h3>
+              <p>Model: <strong>{selectedModelName} {selectedCapacity?.cap}</strong></p>
+              <p>Nakit Alış: <strong>{prices.cash.toLocaleString()} TL</strong></p>
+              <p>Takas Bedeli: <strong>{prices.trade.toLocaleString()} TL</strong></p>
             </div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'40px', textAlign:'center'}}>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.cash.toLocaleString()} TL</p>
-              </div>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px', backgroundColor:'#f8f8f8'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Takas Bedeli</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.trade.toLocaleString()} TL</p>
-              </div>
-          </div>
-          <div style={{fontSize:'10px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.6', marginBottom:'80px', backgroundColor:'#fdfdfd', padding:'20px', border:'1px solid #eee', borderRadius:'10px'}}>
-            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
-          </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
+          <div style={{fontSize:'10px', marginTop:'50px', borderTop:'1px solid #eee', paddingTop:'20px'}}>
+            <p>BEYAN: Cihazın yasal sahibi olduğumu ve tüm sorumluluğu kabul ettiğimi beyan ederim.</p>
+            <div style={{display:'flex', justifyContent:'space-between', marginTop:'40px'}}>
+               <p>MÜŞTERİ İMZA</p>
+               <p>YETKİLİ İMZA</p>
+            </div>
           </div>
       </div>
     </div>
