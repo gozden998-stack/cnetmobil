@@ -35,14 +35,15 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR SARAY", phone: "905416801905" }
   ];
 
+  // LOGOLAR DÜZELTİLDİ: Wikipedia'nın en stabil PNG kaynakları eklendi
   const brandAssets: any = {
-    "Apple": { logo: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" },
-    "Samsung": { logo: "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg" },
-    "Huawei": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e8/Huawei_logo.svg" },
-    "Xiaomi": { logo: "https://upload.wikimedia.org/wikipedia/commons/a/ae/Xiaomi_logo_%282021-%29.svg" },
-    "Oppo": { logo: "https://upload.wikimedia.org/wikipedia/commons/0/0d/Oppo_Logo.svg" },
-    "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
-    "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
+    "Apple": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/1024px-Apple_logo_black.svg.png" },
+    "Samsung": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Samsung_Logo.svg/1024px-Samsung_Logo.svg.png" },
+    "Huawei": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Huawei_logo.svg/1024px-Huawei_logo.svg.png" },
+    "Xiaomi": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Xiaomi_logo_%282021-%29.svg/1024px-Xiaomi_logo_%282021-%29.svg.png" },
+    "Oppo": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Oppo_Logo.svg/1024px-Oppo_Logo.svg.png" },
+    "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Realme-Logo.png/1024px-Realme-Logo.png" },
+    "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Vivo_logo.svg/1024px-Vivo_logo.svg.png" },
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
   };
 
@@ -150,6 +151,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const deleteAlim = async (sheetIdx: number) => {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
+    // Anında UI'dan siliyoruz (Kullanıcı beklemesin)
     setAlimlar(prev => prev.filter(item => item.sheetIndex !== sheetIdx));
     try {
       await fetch(SCRIPT_URL, { 
@@ -163,9 +165,11 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const deleteAllAlimlar = async () => {
     if(!confirm("DİKKAT! Tüm alım geçmişi kalıcı olarak silinecek. Emin misiniz?")) return;
+    // Anında UI'ı temizliyoruz (Kullanıcı çalışmadığını düşünmesin)
+    setAlimlar([]); 
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) });
-      alert("Geçmiş temizlendi.");
+      alert("Tüm geçmiş temizlendi.");
       loadData();
     } catch (e) { console.error(e); }
   };
@@ -173,16 +177,16 @@ export default function CnetmobilCmrFinalUltimate() {
   const updateConfig = async (key: string, val: string) => {
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) });
-      alert(`${key} oranı %${val} olarak güncellendi.`);
+      alert("Güncellendi: " + key);
       setConfig((prev: any) => ({...prev, [key]: parseFloat(val)}));
     } catch (e) { console.error(e); }
   };
 
   const adminAddDevice = async () => {
-    if(!newDevice.name || !newDevice.base) return alert("Hata: Model adı ve baz fiyat zorunludur.");
+    if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) });
-      alert("Cihaz veritabanına başarıyla eklendi.");
+      alert("Cihaz Eklendi!");
       setNewDevice({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
       setTimeout(loadData, 1500);
     } catch (e) { console.error(e); }
@@ -193,426 +197,336 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
 
   if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
-      <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em] animate-pulse">SİSTEM HAZIRLANIYOR</div>
+    <div className="h-screen flex items-center justify-center bg-slate-50">
+       <div className="font-bold text-slate-500 uppercase tracking-widest text-sm animate-pulse">Sistem Yükleniyor...</div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] pb-20 font-sans text-slate-900 selection:bg-blue-200 selection:text-blue-900">
+    <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-900">
       <style>{`
         #print-area { display: none !important; }
         @media print {
           header, main, footer, .print\\:hidden { display: none !important; }
-          #print-area { display: block !important; visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: white !important; color: black !important; margin: 0 !important; padding: 40px !important; }
+          body { background: white !important; }
+          #print-area { display: block !important; visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: white !important; color: black !important; margin: 0 !important; padding: 20px !important; }
           #print-area * { visibility: visible !important; }
         }
-        .btn-click { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
-        .btn-click:active { transform: scale(0.96); }
-        .btn-disabled { opacity: 0.15; cursor: not-allowed !important; pointer-events: none; filter: grayscale(1); }
-        .card-shadow { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
-        .glass-header { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); }
-        .admin-card { background: white; border-radius: 24px; padding: 2rem; border: 1px solid #e2e8f0; }
+        .btn-click { transition: all 0.15s ease; cursor: pointer; }
+        .btn-click:active { transform: scale(0.97); }
+        .btn-disabled { opacity: 0.4; cursor: not-allowed !important; pointer-events: none; }
       `}</style>
 
-      {/* HEADER */}
-      <header className="px-8 py-5 glass-header border-b border-slate-200 flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow">
-        <div onClick={resetAll} className="flex items-center gap-3 group cursor-pointer">
-          <div className="bg-blue-600 p-2 rounded-xl group-hover:rotate-12 transition-transform shadow-lg shadow-blue-200">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-          </div>
-          <h1 className="text-2xl font-black italic text-slate-950 uppercase tracking-tighter">
-            CNET<span className="text-blue-600">MOBIL</span> <span className="font-light text-slate-400 not-italic ml-1">CMR</span>
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-6">
-          <button onClick={() => setStep(99)} className="text-xs font-black uppercase text-slate-400 hover:text-blue-600 tracking-widest transition-colors">YÖNETİCİ PANELİ</button>
-          <div className="relative">
-            <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-slate-100 hover:bg-slate-200 px-5 py-3 pr-10 rounded-2xl text-[11px] font-black outline-none border-none transition-all cursor-pointer">
-              {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
-            </div>
-          </div>
+      {/* HEADER - KURUMSAL VE SADE */}
+      <header className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center sticky top-0 z-50 print:hidden shadow-sm">
+        <h1 className="text-lg font-black text-blue-700 tracking-tight cursor-pointer" onClick={resetAll}>
+          CNETMOBIL <span className="text-slate-800">CMR</span>
+        </h1>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setStep(99)} className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">Yönetim Paneli</button>
+          <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-slate-100 px-3 py-2 rounded-lg text-xs font-bold outline-none border border-slate-200 cursor-pointer">
+            {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+          </select>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-8 mt-4 print:hidden">
+      <main className="max-w-6xl mx-auto p-6 mt-4 print:hidden">
         {step === 99 ? (
-           <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
+           <div className="animate-in fade-in duration-300">
              {!isAdmin ? (
-               <div className="max-w-md mx-auto bg-white p-16 rounded-[56px] shadow-2xl text-center border border-slate-100 mt-20">
-                 <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-8">
-                    <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
-                 </div>
-                 <h2 className="text-2xl font-black italic mb-10 uppercase tracking-widest text-slate-900 leading-tight">YÖNETİCİ<br/>KİMLİK DOĞRULAMA</h2>
-                 <input type="password" placeholder="Giriş Şifresi" className="w-full p-6 bg-slate-50 rounded-2xl mb-6 text-center font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all text-xl" onChange={(e) => setAdminPass(e.target.value)} />
-                 <button onClick={() => adminPass === 'cnet1905' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-slate-900 text-white px-10 py-6 rounded-2xl font-black uppercase w-full btn-click shadow-2xl shadow-slate-300 tracking-widest">SİSTEME ERİŞİM SAĞLA</button>
+               <div className="max-w-sm mx-auto bg-white p-8 rounded-2xl shadow-lg border border-slate-200 mt-20">
+                 <h2 className="text-xl font-bold mb-6 text-center text-slate-800">Yönetici Girişi</h2>
+                 <input type="password" placeholder="Şifrenizi Girin" className="w-full p-4 bg-slate-50 rounded-xl mb-4 text-center font-bold outline-none border border-slate-200 focus:border-blue-500" onChange={(e) => setAdminPass(e.target.value)} />
+                 <button onClick={() => adminPass === 'cnet1905' ? setIsAdmin(true) : alert("Hatalı Şifre!")} className="bg-slate-900 text-white px-6 py-4 rounded-xl font-bold w-full btn-click">Sisteme Gir</button>
                </div>
              ) : (
-               <div className="space-y-12">
-                 {/* ADMIN DASHBOARD TOP HEADER */}
-                 <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+               <div className="space-y-6">
+                 <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div>
-                        <h2 className="text-4xl font-black italic tracking-tighter uppercase">CMR DASHBOARD</h2>
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">Sistem Parametreleri ve Veritabanı Yönetimi</p>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Kontrol Paneli</h2>
+                        <p className="text-sm text-slate-500">Sistem ayarları ve geçmiş kayıtlar</p>
                     </div>
-                    <button onClick={() => {setStep(1); setIsAdmin(false);}} className="bg-red-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs btn-click shadow-lg shadow-red-200">GÜVENLİ ÇIKIŞ YAP</button>
+                    <button onClick={() => {setStep(1); setIsAdmin(false);}} className="text-sm bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 btn-click">Çıkış Yap</button>
                  </div>
-
-                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-                    {/* SOL PANEL: FİYAT AYARLARI */}
-                    <div className="admin-card xl:col-span-1 shadow-sm">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* FİYAT YÜZDELERİ */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Fiyat Kesinti Oranları (%)</h3>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                        {Object.keys(config).map(key => (
+                          <div key={key} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span className="text-xs font-bold text-slate-600 uppercase">{key.replace(/_/g,' ')}</span>
+                            <div className="flex gap-2">
+                                <input type="number" className="w-20 p-2 bg-white rounded border border-slate-200 text-right font-bold text-sm" value={config[key]} 
+                                    onChange={(e) => setConfig({...config, [key]: e.target.value})} />
+                                <button onClick={() => updateConfig(key, config[key])} className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 btn-click">
+                                    Kaydet
+                                </button>
                             </div>
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Fiyat Kesinti Oranları</h3>
-                        </div>
-                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                            {Object.keys(config).map(key => (
-                            <div key={key} className="group bg-slate-50 p-4 rounded-2xl flex flex-col gap-3 border border-transparent hover:border-orange-200 transition-all">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">{key.replace(/_/g,' ')}</span>
-                                <div className="flex items-center gap-2">
-                                    <div className="relative flex-1">
-                                        <input type="number" className="w-full p-3 pl-8 bg-white border border-slate-200 rounded-xl font-black text-slate-900 outline-none focus:ring-2 focus:ring-orange-500/20 transition-all" 
-                                            value={config[key]} 
-                                            onChange={(e) => setConfig({...config, [key]: e.target.value})}
-                                        />
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-300">%</span>
-                                    </div>
-                                    <button onClick={() => updateConfig(key, config[key])} className="bg-white border border-slate-200 text-orange-600 p-3 rounded-xl hover:bg-orange-600 hover:text-white transition-all shadow-sm">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    </button>
-                                </div>
-                            </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* ORTA PANEL: CİHAZ EKLEME */}
-                    <div className="admin-card xl:col-span-2 shadow-sm h-full">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                            </div>
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Veritabanına Cihaz Ekle</h3>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Marka</label>
-                                    <input placeholder="Apple, Samsung..." className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.brand} onChange={(e)=>setNewDevice({...newDevice, brand: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Model Adı</label>
-                                    <input placeholder="iPhone 15 Pro Max" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.name} onChange={(e)=>setNewDevice({...newDevice, name: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Hafıza</label>
-                                    <input placeholder="256 GB, 512 GB..." className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.cap} onChange={(e)=>setNewDevice({...newDevice, cap: e.target.value})} />
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Baz Alış Fiyatı (TL)</label>
-                                    <input placeholder="Örn: 45000" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.base} onChange={(e)=>setNewDevice({...newDevice, base: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Minimum Alış (TL)</label>
-                                    <input placeholder="Örn: 15000" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.minPrice} onChange={(e)=>setNewDevice({...newDevice, minPrice: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Görsel URL Linki</label>
-                                    <input placeholder="https://image-link.com/photo.png" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-black border border-slate-100 outline-none focus:bg-white transition-all" value={newDevice.img} onChange={(e)=>setNewDevice({...newDevice, img: e.target.value})} />
-                                </div>
-                            </div>
-                        </div>
-                        <button onClick={adminAddDevice} className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm btn-click shadow-xl shadow-blue-100 mt-8 tracking-widest">YENİ CİHAZI KAYDET</button>
-                    </div>
-                 </div>
-
-                 {/* ALT PANEL: ALIM GEÇMİŞİ */}
-                 <div className="admin-card shadow-sm">
-                   <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-100 pb-6 mb-8">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <h2 className="text-xl font-black italic uppercase tracking-tighter leading-none">İŞLEM GEÇMİŞİ</h2>
+                          </div>
+                        ))}
                       </div>
-                      <button onClick={deleteAllAlimlar} className="bg-red-50 text-red-600 px-8 py-3 rounded-2xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-100 tracking-widest">TÜM KAYITLARI SIFIRLA</button>
-                   </div>
-                   <div className="space-y-4 max-h-[800px] overflow-y-auto pr-4 custom-scrollbar">
-                     {[...alimlar].reverse().map((item, i) => (
-                       <div key={i} className="group bg-slate-50 p-6 rounded-[32px] border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-white hover:shadow-xl hover:border-blue-100 transition-all">
-                         <div className="flex flex-col md:flex-row items-center gap-6 flex-1">
-                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm font-black text-blue-600 italic">#{item.sheetIndex}</div>
-                            <div className="text-center md:text-left space-y-1">
-                                <div className="flex items-center gap-2 justify-center md:justify-start">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.data[7] || 'Tarih Bilgisi Yok'}</span>
-                                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase">{item.data[0]}</span>
-                                </div>
-                                <p className="font-black text-slate-900 text-lg uppercase tracking-tight leading-none">{item.data[1]}</p>
-                                <p className="text-slate-500 font-bold text-xs uppercase italic">{item.data[3]} | <span className="text-blue-500">{item.data[2]}</span></p>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-slate-200 pt-4 md:pt-0">
-                            <div className="text-center md:text-right">
-                               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Net Ödeme</p>
-                               <p className="font-black text-2xl italic text-slate-950 tracking-tighter">{parseInt(item.data[5]||0).toLocaleString()} TL</p>
-                            </div>
-                            <button onClick={() => deleteAlim(item.sheetIndex)} className="bg-white text-red-500 hover:bg-red-500 hover:text-white p-4 rounded-2xl shadow-sm transition-all border border-slate-100">
-                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                         </div>
-                       </div>
-                     ))}
-                   </div>
+                    </div>
+
+                    {/* YENİ CİHAZ EKLE */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Yeni Cihaz Tanımla</h3>
+                      <div className="space-y-3">
+                        <input placeholder="Marka (Örn: Apple)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.brand} onChange={(e)=>setNewDevice({...newDevice, brand: e.target.value})} />
+                        <input placeholder="Model (Örn: iPhone 13 Pro)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.name} onChange={(e)=>setNewDevice({...newDevice, name: e.target.value})} />
+                        <input placeholder="Hafıza (Örn: 128 GB)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.cap} onChange={(e)=>setNewDevice({...newDevice, cap: e.target.value})} />
+                        <input placeholder="Max Alış Fiyatı (TL)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.base} onChange={(e)=>setNewDevice({...newDevice, base: e.target.value})} />
+                        <input placeholder="Minimum Alış Fiyatı (TL)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.minPrice} onChange={(e)=>setNewDevice({...newDevice, minPrice: e.target.value})} />
+                        <input placeholder="Görsel URL (Link)" className="w-full p-3 bg-slate-50 rounded-lg text-sm font-semibold border border-slate-200 outline-none" value={newDevice.img} onChange={(e)=>setNewDevice({...newDevice, img: e.target.value})} />
+                        <button onClick={adminAddDevice} className="w-full py-4 bg-slate-900 text-white rounded-lg font-bold text-sm btn-click mt-2">Veritabanına Ekle</button>
+                      </div>
+                    </div>
+                 </div>
+
+                 {/* ALIM GEÇMİŞİ */}
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 className="text-sm font-bold text-slate-800">Son İşlem Kayıtları</h3>
+                        <button onClick={deleteAllAlimlar} className="text-xs bg-red-100 text-red-600 px-4 py-2 rounded font-bold hover:bg-red-600 hover:text-white transition-colors btn-click">Tüm Geçmişi Temizle</button>
+                    </div>
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                        {[...alimlar].reverse().map((item, i) => (
+                           <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div>
+                                 <p className="text-xs text-slate-500 font-semibold">{item.data[7]}</p>
+                                 <p className="text-slate-900 font-bold text-sm">{item.data[1]}</p>
+                                 <p className="text-slate-600 text-xs">{item.data[3]} - {item.data[2]}</p>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                 <div className="text-right">
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Ödenen Fiyat</p>
+                                    <p className="font-black text-lg text-slate-900">{parseInt(item.data[5]||0).toLocaleString()} TL</p>
+                                 </div>
+                                 <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-400 hover:text-red-600 p-2 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                 </button>
+                              </div>
+                           </div>
+                        ))}
+                    </div>
                  </div>
                </div>
              )}
            </div>
         ) : step === 1 ? (
-           <div className="space-y-16 py-12">
-             <div className="text-center space-y-4 animate-in fade-in slide-in-from-top-10 duration-1000">
-                <h2 className="text-6xl md:text-8xl font-black italic tracking-[ -0.05em] text-slate-950 uppercase leading-none">
-                  TEKNOLOJİ <br/> <span className="text-blue-600">ALIM</span> MERKEZİ
-                </h2>
-                <p className="text-slate-400 font-bold uppercase tracking-[0.4em] text-[10px]">İşlem yapmak istediğiniz markayı seçin</p>
+           // GİRİŞ EKRANI - SADE VE KURUMSAL
+           <div className="space-y-10 py-10">
+             <div className="text-center space-y-2">
+                <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Cihaz Alım Sistemi</h2>
+                <p className="text-slate-500 font-medium text-sm">İşlem yapmak istediğiniz markayı seçiniz</p>
              </div>
-             <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-1000 delay-300">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
                {Array.from(new Set(db.map(i => i.brand))).map(brand => (
-                 <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-12 rounded-[56px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100 flex flex-col items-center justify-center text-center h-80 group btn-click">
-                   <div className="h-28 w-full flex items-center justify-center mb-10 grayscale group-hover:grayscale-0 transition-all duration-700 transform group-hover:scale-110">
-                     <img src={brandAssets[brand]?.logo || ""} className="max-h-full max-w-[160px] object-contain" alt={brand} />
+                 <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-slate-200 flex flex-col items-center justify-center text-center h-48 btn-click">
+                   <div className="h-20 w-full flex items-center justify-center mb-4">
+                     <img src={brandAssets[brand]?.logo || ""} className="max-h-full max-w-[100px] object-contain opacity-80" alt={brand} />
                    </div>
-                   <h2 className="font-black text-2xl mb-1 uppercase italic tracking-tighter text-slate-900 leading-none">{brand}</h2>
-                   <div className="w-8 h-1.5 bg-slate-100 group-hover:w-24 group-hover:bg-blue-600 transition-all rounded-full mt-4"></div>
+                   <h2 className="font-bold text-lg text-slate-700">{brand}</h2>
                  </div>
                ))}
              </div>
            </div>
         ) : step === 2 ? (
-           <div className="animate-in slide-in-from-right-10 duration-500">
-             <div className="flex items-center justify-between mb-12">
-                <button onClick={() => {setStep(1); resetSelection();}} className="bg-white shadow-sm border border-slate-200 px-8 py-4 rounded-[20px] text-[11px] font-black uppercase text-slate-500 hover:text-blue-600 transition-all btn-click flex items-center gap-3">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
-                  ANA MENÜ
+           // MODEL SEÇİM EKRANI
+           <div className="animate-in slide-in-from-right-4 duration-300">
+             <div className="flex items-center justify-between mb-8 border-b border-slate-200 pb-4">
+                <button onClick={() => {setStep(1); resetSelection();}} className="text-blue-600 font-bold text-sm flex items-center gap-2 hover:text-blue-800 transition-colors btn-click">
+                  ← Markalara Dön
                 </button>
                 <div className="text-right">
-                  <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">{selectedBrand}</span>
-                  <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none mt-1">MODEL KATALOĞU</h2>
+                  <span className="text-xs font-bold text-slate-500 uppercase">{selectedBrand}</span>
+                  <h2 className="text-2xl font-black text-slate-900">Model Seçimi</h2>
                 </div>
              </div>
-             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name))).map(name => (
-                 <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm cursor-pointer hover:shadow-2xl hover:border-blue-500/30 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center">
-                   <div className="h-40 flex items-center justify-center mb-8 transform group-hover:scale-110 transition-transform duration-700">
-                      <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
-                   </div>
-                   <p className="font-black text-sm uppercase text-slate-900 tracking-tighter leading-tight">{name}</p>
+                 <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-6 rounded-2xl shadow-sm cursor-pointer hover:border-blue-500 border border-slate-200 transition-colors text-center btn-click">
+                   <img src={db.find(i => i.name === name)?.img} className="h-24 mx-auto mb-4 object-contain" />
+                   <p className="font-bold text-xs text-slate-800 leading-snug">{name}</p>
                  </div>
                ))}
              </div>
            </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-12 animate-in fade-in duration-700">
-            <div className="flex-1 space-y-8">
-              <button onClick={() => {setStep(2); resetSelection();}} className="bg-white shadow-sm border border-slate-200 px-8 py-4 rounded-[20px] text-[11px] font-black uppercase text-slate-500 hover:text-blue-600 transition-all btn-click flex items-center gap-3">
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
-                 KATALOĞA DÖN
+          // FİYAT VE EKSPERTİZ EKRANI
+          <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-300">
+            <div className="flex-1 space-y-6">
+              <button onClick={() => {setStep(2); resetSelection();}} className="text-blue-600 font-bold text-sm flex items-center gap-2 hover:text-blue-800 transition-colors btn-click mb-2">
+                 ← Modellere Dön
               </button>
 
-              {/* EKSPERTİZ PANELİ */}
-              <div className="bg-white p-12 rounded-[56px] shadow-sm border border-slate-100 relative overflow-hidden">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 border-b border-slate-100 pb-8">
-                  <div>
-                    <h3 className="text-3xl font-black italic tracking-tighter text-slate-950 uppercase leading-none">EKSPERTİZ RAPORU</h3>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Cihaz durumunu işaretleyin ve IMEI kontrolü yapın</p>
-                  </div>
-                  {customer.imei.length === 15 && (
-                    <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black animate-pulse hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl shadow-blue-200">
-                      BTK IMEI SORGULA
-                    </button>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest leading-none">Müşteri Adı Soyadı</label>
-                      <input placeholder="Yazınız..." className="w-full p-5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest leading-none">İrtibat Numarası</label>
-                      <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest leading-none">Cihaz IMEI (15 Hane)</label>
-                      <input placeholder="Sorgula..." className="w-full p-5 bg-slate-50 rounded-2xl text-sm outline-none border-2 border-transparent font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-900 p-10 rounded-[40px] space-y-5 shadow-2xl">
-                    <p className="text-[11px] font-black text-blue-400 uppercase italic tracking-widest flex items-center gap-3 mb-2">
-                       <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-ping"></span>
-                       PERSONEL GÜVENLİK ADIMLARI
-                    </p>
-                    {[
-                      "ICLOUD / GOOGLE HESABI ÇIKIŞI",
-                      "BUL (FIND MY) ÖZELLİĞİ KAPALI",
-                      "KAYIT DURUMU VE BTK KONTROLÜ",
-                      "TÜM VERİLER VE ŞİFRELER SİLİNDİ"
-                    ].map((item, idx) => (
-                      <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none py-1 border-b border-white/5 hover:border-white/20 transition-all">
-                        <input type="checkbox" className="w-6 h-6 accent-blue-600 rounded-lg cursor-pointer bg-white/10 border-none" />
-                        <span className="text-[11px] font-black text-slate-300 group-hover:text-white transition-colors uppercase italic">{item}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* SEÇENEKLER KONTEYNERI */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 col-span-1 md:col-span-2">
-                  <p className="text-[11px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-3">
-                    <span className="w-6 h-1 bg-blue-600 rounded-full"></span>
-                    Hafıza Kapasite Seçimi
-                  </p>
-                  <div className="flex flex-wrap gap-4">
-                    {db.filter(i => i.name === selectedModelName).map(c => (
-                      <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-12 py-6 rounded-2xl font-black text-sm transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 ring-8 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}>{c.cap}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {[
-                  { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
-                  { label: "Garanti Durumu", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
-                  { label: "Ekran / Cam Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Yan Sanayi'] },
-                  { label: "Kozmetik (Kasa) Durumu", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
-                  { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
-                  { label: "Batarya (Pil) Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
-                  { label: "Pasaport Kayıt", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
-                ].map(q => (
-                  <div key={q.field} className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                    <p className="text-[10px] font-black mb-5 text-slate-400 uppercase tracking-widest italic">{q.label}</p>
-                    <div className="flex flex-wrap gap-3">
-                      {q.opts.map((opt) => (
-                        <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[11px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`}>{opt}</button>
+              {/* GÜVENLİK BİLGİLERİ KUTUSU */}
+              <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                <h3 className="text-lg font-black text-slate-800 mb-6">Müşteri ve Cihaz Bilgileri</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-4">
+                        <input placeholder="Müşteri Ad Soyad" className="w-full p-4 bg-slate-50 rounded-xl text-sm font-semibold border border-slate-200 outline-none focus:border-blue-500" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                        <input placeholder="Telefon Numarası" className="w-full p-4 bg-slate-50 rounded-xl text-sm font-semibold border border-slate-200 outline-none focus:border-blue-500" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                        <div className="flex gap-2">
+                           <input placeholder="IMEI Numarası (15 Hane)" className="w-full p-4 bg-slate-50 rounded-xl text-sm font-semibold border border-slate-200 outline-none focus:border-blue-500" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                           {customer.imei.length === 15 && (
+                             <button onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-slate-900 text-white px-4 rounded-xl text-xs font-bold whitespace-nowrap btn-click">BTK Sorgula</button>
+                           )}
+                        </div>
+                   </div>
+                   <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-3">
+                      <p className="text-xs font-bold text-slate-500 uppercase border-b pb-2 mb-4">Ekspertiz Onay Listesi</p>
+                      {["iCloud / Google Çıkış Yapıldı", "Bul Özelliği Kapatıldı", "Kayıt Kontrolü Yapıldı", "Cihaz Sıfırlandı"].map(item => (
+                         <label key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-700 cursor-pointer">
+                            <input type="checkbox" className="w-5 h-5 accent-blue-600 rounded border-slate-300" /> {item}
+                         </label>
                       ))}
-                    </div>
-                  </div>
-                ))}
+                   </div>
+                </div>
               </div>
+
+              {/* SEÇİM KUTULARI */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <p className="text-xs font-bold mb-3 text-slate-500 uppercase">Hafıza Kapasitesi</p>
+                <div className="flex flex-wrap gap-3">
+                  {db.filter(i => i.name === selectedModelName).map(c => (
+                    <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-6 py-3 rounded-lg font-bold text-sm transition-colors btn-click ${selectedCapacity?.cap === c.cap ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{c.cap}</button>
+                  ))}
+                </div>
+              </div>
+
+              {[
+                { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
+                { label: "Garanti Durumu", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
+                { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
+                { label: "Kasa Kozmetik Durumu", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
+                { label: "Biyometrik (Face ID / Touch ID)", field: "faceId", opts: ['Evet', 'Hayır'] },
+                { label: "Pil Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
+                { label: "Cihaz Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
+              ].map(q => (
+                <div key={q.field} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                  <p className="text-xs font-bold mb-3 text-slate-500 uppercase">{q.label}</p>
+                  <div className="flex flex-wrap gap-3">
+                    {q.opts.map((opt) => (
+                      <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-3 px-5 rounded-lg text-sm font-bold border transition-colors btn-click ${status[q.field] === opt ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* SAĞ PANEL: FİYAT VE AKSİYON */}
-            <div className="lg:w-[400px] space-y-8 sticky top-32 h-fit">
+            {/* SAĞ PANEL: OKUNAKLI VE DÜZGÜN FİYATLAMA */}
+            <div className="lg:w-80 space-y-6 sticky top-24 h-fit">
               {isYd ? (
-                <div className="bg-red-600 p-12 rounded-[56px] shadow-2xl text-white text-center border-b-[16px] border-red-800 animate-pulse ring-8 ring-red-50">
-                  <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl">!</div>
-                  <p className="text-3xl font-black uppercase italic leading-none tracking-tighter">YURT DIŞI</p>
-                  <p className="text-[12px] mt-6 uppercase tracking-[0.3em] font-black opacity-90 leading-tight">BU İŞLEM SADECE <br/> YÖNETİCİ ONAYI İLE YAPILABİLİR</p>
+                <div className="bg-red-50 p-6 rounded-2xl border border-red-200 text-center">
+                  <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">!</div>
+                  <p className="text-lg font-black text-red-700 uppercase">Yurtdışı Cihaz</p>
+                  <p className="text-xs font-bold text-red-500 mt-2">Alım işlemi için yönetici onayı gereklidir.</p>
                 </div>
               ) : (
-                <div className="space-y-8 animate-in zoom-in-95 duration-500">
-                  <div className="bg-white p-12 rounded-[56px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
-                    <p className="text-[12px] font-black text-slate-400 uppercase mb-5 tracking-[0.2em] italic">Net Nakit Ödeme</p>
-                    <div className="text-6xl font-black italic tracking-tighter text-slate-950">
+                <div className="space-y-4">
+                  {/* NAKİT KUTUSU */}
+                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <p className="text-xs font-bold text-slate-500 uppercase mb-2">Nakit Ödeme Tutarı</p>
+                    <div className="text-4xl font-black text-slate-900 tracking-tight">
                        {selectedCapacity && allSelected ? `${prices.cash.toLocaleString()} TL` : '---'}
                     </div>
-                    <div className="h-2 w-20 bg-blue-600 mx-auto mt-8 rounded-full opacity-10 group-hover:opacity-100 group-hover:w-32 transition-all duration-500"></div>
                   </div>
-                  
-                  <div className="bg-blue-600 p-12 rounded-[56px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
-                    <div className="absolute -right-6 -top-6 opacity-10 rotate-12 transition-transform group-hover:rotate-45 duration-1000 scale-150">
-                       <svg className="w-40 h-40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45L19.53 19H4.47L12 5.45zM11 16h2v2h-2v-2zm0-7h2v5h-2V9z"/></svg>
-                    </div>
-                    <p className="text-[12px] font-black text-blue-100 uppercase mb-5 tracking-[0.2em] italic opacity-80">Takas Değişim Değeri</p>
-                    <div className="text-6xl font-black italic tracking-tighter leading-none">
+                  {/* TAKAS KUTUSU */}
+                  <div className="bg-blue-600 p-8 rounded-2xl shadow-sm border border-blue-700 text-center text-white">
+                    <p className="text-xs font-bold text-blue-200 uppercase mb-2">Takas / Hediye Çeki Değeri</p>
+                    <div className="text-4xl font-black tracking-tight">
                        {selectedCapacity && allSelected ? `${prices.trade.toLocaleString()} TL` : '---'}
                     </div>
-                    <p className="text-[10px] font-bold mt-6 uppercase tracking-widest text-blue-200 opacity-60">MAĞAZA İÇİ ALIŞVERİŞLERDE GEÇERLİ</p>
                   </div>
                 </div>
               )}
 
-              <div className="bg-slate-950 p-12 rounded-[56px] space-y-5 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.4)]">
-                <div className="flex items-center gap-4 mb-8 px-2 border-l-4 border-blue-600 pl-4 py-1">
-                   <p className="text-[11px] text-slate-400 font-bold leading-tight uppercase italic tracking-wider">
-                      VERİLERİ DOĞRULADIKTAN <br/> SONRA İŞLEMİ TAMAMLAYIN
-                   </p>
-                </div>
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('print')} className={`w-full py-7 rounded-3xl font-black uppercase text-xs tracking-[0.2em] transition-all btn-click flex items-center justify-center gap-4 shadow-xl ${canProceed ? 'bg-white text-slate-950 hover:bg-slate-100' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                   SÖZLEŞMEYİ OLUŞTUR
-                </button>
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-7 rounded-3xl font-black uppercase text-xs tracking-[0.2em] transition-all btn-click flex items-center justify-center gap-4 shadow-xl ${canProceed ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-900/30' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                   BULUTA KAYDET & WA
-                </button>
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-3">
+                <button disabled={!canProceed} onClick={() => handleFinalProcess('print')} className={`w-full py-4 rounded-xl font-bold text-sm transition-colors btn-click ${canProceed ? 'bg-slate-900 text-white hover:bg-slate-800' : 'btn-disabled bg-slate-300 text-slate-500'}`}>Sözleşme Yazdır</button>
+                <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-4 rounded-xl font-bold text-sm transition-colors btn-click ${canProceed ? 'bg-green-600 text-white hover:bg-green-700' : 'btn-disabled bg-slate-300 text-slate-500'}`}>Sisteme Kaydet & WhatsApp</button>
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* FOOTER */}
-      <footer className="max-w-7xl mx-auto px-8 py-16 text-center print:hidden border-t border-slate-200 mt-20">
-        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.6em]">CNETMOBIL • CMR TERMINAL v5.0.0</p>
-        <p className="text-[9px] text-slate-300 font-bold mt-2 uppercase">Google Sheets Entegrasyonlu Kurumsal Alım Arayüzü</p>
+      <footer className="max-w-6xl mx-auto px-6 py-12 text-center print:hidden border-t border-slate-200 mt-12">
+        <p className="text-xs font-bold text-slate-400">CNETMOBIL CMR Bilişim Sistemleri</p>
       </footer>
 
-      {/* PRINT AREA - BOZMADIM, OLDUĞU GİBİ DURUYOR */}
+      {/* SÖZLEŞME ÇIKTISI - RESMİ VE DETAYLI */}
       <div id="print-area">
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', borderBottom:'2px solid black', paddingBottom:'15px', marginBottom:'20px'}}>
             <div>
-              <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></h1>
-              <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666', letterSpacing:'1px'}}>Kurumsal Cihaz Alim Merkezi</p>
+              <h1 style={{fontSize:'28px', fontWeight:'900', margin:0}}>CNETMOBIL BİLİŞİM</h1>
+              <p style={{fontSize:'12px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#333'}}>İkinci El Cihaz Alım - Satım ve Teslim Tesellüm Tutanağı</p>
             </div>
-            <div style={{textAlign:'right', fontSize:'10px', fontWeight:'bold'}}>
-              <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
-              <p style={{color:'#666'}}>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
+            <div style={{textAlign:'right', fontSize:'11px', fontWeight:'bold'}}>
+              <p style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
+              <p>Tarih: {new Date().toLocaleDateString('tr-TR')}</p>
+              <p>Saat: {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
             </div>
           </div>
-          <div style={{borderTop:'4px solid black', marginBottom:'25px'}}></div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px', marginBottom:'30px'}}>
-            <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
-              <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'2'}}>
-                <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'14px'}}>{customer.name || '________________'}</span></p>
-                <p>Telefon: {customer.phone || '________________'}</p>
-                <p>T.C. Kimlik No: ___________________________</p>
-              </div>
-            </div>
-            <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Ekspertiz</h3>
+          
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', marginBottom:'20px'}}>
+            <div style={{border:'1px solid black', padding:'15px', borderRadius:'8px'}}>
+              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', marginBottom:'10px', borderBottom:'1px solid #ccc', paddingBottom:'5px'}}>SATICI (MÜŞTERİ) BİLGİLERİ</h3>
               <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Model: <span style={{fontWeight:'900', fontSize:'14px'}}>{selectedModelName} {selectedCapacity?.cap}</span></p>
-                <p>IMEI: <span style={{fontWeight:'900', fontSize:'13px'}}>{customer.imei || '________________'}</span></p>
+                <p>Ad Soyad: <span style={{textTransform:'uppercase'}}>{customer.name || '___________________________'}</span></p>
+                <p>İrtibat No: {customer.phone || '___________________________'}</p>
+                <p>T.C. Kimlik No: ___________________________</p>
+                <p>İmza: </p>
+              </div>
+            </div>
+            
+            <div style={{border:'1px solid black', padding:'15px', borderRadius:'8px'}}>
+              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', marginBottom:'10px', borderBottom:'1px solid #ccc', paddingBottom:'5px'}}>CİHAZ VE EKSPERTİZ BİLGİLERİ</h3>
+              <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.6'}}>
+                <p>Cihaz Modeli: <span style={{fontSize:'13px', fontWeight:'900'}}>{selectedModelName} {selectedCapacity?.cap}</span></p>
+                <p>IMEI Numarası: <span style={{fontSize:'13px', fontWeight:'900'}}>{customer.imei || '___________________________'}</span></p>
+                <div style={{marginTop:'10px', borderTop:'1px dashed #999', paddingTop:'10px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
+                   <p>Güç Durumu: <span>{status.power || '___'}</span></p>
+                   <p>Ekran: <span>{status.screen || '___'}</span></p>
+                   <p>Kasa Kozmetik: <span>{status.cosmetic || '___'}</span></p>
+                   <p>Face/Touch ID: <span>{status.faceId || '___'}</span></p>
+                   <p>Pil Sağlığı: <span>{status.battery || '___'}</span></p>
+                   <p>Garanti: <span>{status.warranty || '___'}</span></p>
+                   <p>Kayıt: <span>{status.sim || '___'}</span></p>
+                </div>
               </div>
             </div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'40px', textAlign:'center'}}>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.cash.toLocaleString()} TL</p>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
+              <div style={{border:'2px solid black', padding:'15px', borderRadius:'8px'}}>
+                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', margin:'0 0 5px 0'}}>Ödenecek Nakit Tutarı</p>
+                <p style={{fontSize:'24px', fontWeight:'900', margin:0}}>{prices.cash.toLocaleString()} TL</p>
               </div>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px', backgroundColor:'#f8f8f8'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Takas Bedeli</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.trade.toLocaleString()} TL</p>
+              <div style={{border:'2px solid black', padding:'15px', borderRadius:'8px', backgroundColor:'#f5f5f5'}}>
+                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', margin:'0 0 5px 0'}}>Takas Bedeli</p>
+                <p style={{fontSize:'24px', fontWeight:'900', margin:0}}>{prices.trade.toLocaleString()} TL</p>
               </div>
           </div>
-          <div style={{fontSize:'10px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.6', marginBottom:'80px', backgroundColor:'#fdfdfd', padding:'20px', border:'1px solid #eee', borderRadius:'10px'}}>
-            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
+
+          <div style={{fontSize:'10px', fontWeight:'bold', textAlign:'justify', lineHeight:'1.5', border:'1px solid black', padding:'15px', borderRadius:'8px', marginBottom:'40px'}}>
+            <p style={{fontWeight:'900', marginBottom:'5px', fontSize:'11px', textTransform:'uppercase'}}>HUKUKİ BEYAN VE TAAHHÜTNAME</p>
+            Yukarıda marka, model ve IMEI/Seri numarası belirtilen cihazı CNETMOBIL yetkilisine kendi rızamla, belirtilen bedel mukabilinde sattığımı/teslim ettiğimi beyan ederim. 
+            Cihazın mülkiyetinin tamamen şahsıma ait olduğunu, üzerinde herhangi bir haciz, rehin veya hukuki kısıtlama bulunmadığını, çalıntı veya suç unsuru taşımadığını kabul ve taahhüt ederim. 
+            Cihazın daha önce veya tarafımdan kullanıldığı süre zarfında herhangi bir yasadışı işleme (Bilişim suçları, dolandırıcılık, terör vb.) karışmış olması durumunda tüm cezai ve hukuki sorumluluğun şahsıma ait olduğunu, firmanın bu tür durumlardan doğacak maddi/manevi zararlarını karşılayacağımı beyan ederim. 
+            Cihaz içerisinde bulunan tüm kişisel verilerimin, hesaplarımın ve şifrelerimin yedeğini aldığımı, cihazın sıfırlanmasına onay verdiğimi ve veri kaybından dolayı firmadan hiçbir hak talep etmeyeceğimi kabul ve beyan ederim.
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
+
+          <div style={{display:'flex', justifyContent:'space-between', padding:'0 50px', textAlign:'center'}}>
+            <div>
+              <p style={{fontWeight:'900', fontSize:'14px', textTransform:'uppercase'}}>CİHAZI SATAN (MÜŞTERİ)</p>
+              <p style={{fontSize:'11px', marginTop:'5px'}}>Ad Soyad / İmza</p>
+            </div>
+            <div>
+              <p style={{fontWeight:'900', fontSize:'14px', textTransform:'uppercase'}}>TESLİM ALAN YETKİLİ</p>
+              <p style={{fontSize:'11px', marginTop:'5px'}}>Kaşe / İmza</p>
+            </div>
           </div>
       </div>
     </div>
