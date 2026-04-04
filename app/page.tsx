@@ -31,7 +31,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
 
   const branches = [
-    { name: "CMR ÇERKEZKÖY", phone: "905443214534" },
+    { name: "CMR CADDE", phone: "905443214534" },
     { name: "CMR MERKEZ", phone: "905416801905" },
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" }
