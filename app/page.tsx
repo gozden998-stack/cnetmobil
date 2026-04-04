@@ -102,7 +102,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100));
       if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - (config.Ekran_Kirik / 100));
       if (status.screen === 'Çizikler var') price *= (1 - (config.Ekran_Cizik / 100));
-      if (status.cosmetic === 'İyi') price *= (1 - (config.Kasa_Iyi / 100));
+      if (status.cosmetic === 'İyi') price *= (1 - (config.Kasa_lyi / 100));
       if (status.cosmetic === 'Kötü') price *= (1 - (config.Kasa_Kotu / 100));
       if (status.faceId === 'Hayır') price *= (1 - (config.FaceID_Bozuk / 100));
       if (status.battery === '0-85') price *= (1 - (config.Pil_Dusuk / 100));
