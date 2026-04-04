@@ -4,6 +4,9 @@ import type { NextRequest } from 'next/server'
 // 1. Sadece test edilecek mağazanın IP adresi
 const ALLOWED_IPS = [
   '95.70.226.118'
+  '78.188.91.172'
+  '31.155.79.145'
+
 ]
 
 export function middleware(request: NextRequest) {
