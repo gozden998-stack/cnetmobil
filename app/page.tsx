@@ -563,7 +563,11 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
           </div>
           <div style={{fontSize:'10px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.6', marginBottom:'80px', backgroundColor:'#fdfdfd', padding:'20px', border:'1px solid #eee', borderRadius:'10px'}}>
-            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
+           Yukarıda marka, model ve IMEI/Seri numarası belirtilen cihazı CNETMOBIL yetkilisine kendi rızamla, belirtilen bedel mukabilinde sattığımı/teslim ettiğimi beyan ederim. 
+            Cihazın mülkiyetinin tamamen şahsıma ait olduğunu, üzerinde herhangi bir haciz, rehin veya hukuki kısıtlama bulunmadığını, çalıntı veya suç unsuru taşımadığını kabul ve taahhüt ederim. 
+            Cihazın daha önce veya tarafımdan kullanıldığı süre zarfında herhangi bir yasadışı işleme (Bilişim suçları, dolandırıcılık, terör vb.) karışmış olması durumunda tüm cezai ve hukuki sorumluluğun şahsıma ait olduğunu, firmanın bu tür durumlardan doğacak maddi/manevi zararlarını karşılayacağımı beyan ederim. 
+            Cihaz içerisinde bulunan tüm kişisel verilerimin, hesaplarımın ve şifrelerimin yedeğini aldığımı, cihazın sıfırlanmasına onay verdiğimi ve veri kaybından dolayı firmadan hiçbir hak talep etmeyeceğimi kabul ve beyan ederim.
+          </div>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
             <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
