@@ -18,7 +18,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
   
-  // YENİ EKLENEN: Arama Çubuğu State'i
   const [searchQuery, setSearchQuery] = useState('');
 
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
@@ -55,7 +54,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedBrand('');
     setSelectedModelName('');
     setSelectedCapacity(null);
-    setSearchQuery(''); // Aramayı sıfırla
+    setSearchQuery(''); 
     setCustomer({ name: '', phone: '', imei: '' });
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
     setIsAdmin(false);
@@ -64,7 +63,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const resetSelection = () => {
     setSelectedCapacity(null);
-    setSearchQuery(''); // Aramayı sıfırla
+    setSearchQuery(''); 
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -396,7 +395,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
              </div>
 
-             {/* YENİ EKLENEN ARAMA ÇUBUĞU */}
              <div className="flex justify-center mb-10">
                <div className="relative w-full max-w-xl">
                  <input
@@ -411,36 +409,22 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
 
              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-               {/* MODELLERİ ARAMA KELİMESİNE GÖRE FİLTRELEME EKLENDİ */}
                {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                  .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
-                 .map(name => {
-                   
-                   // YENİ EKLENEN: O modele ait en yüksek fiyatı hesapla
-                   const modelMaxPrice = Math.max(...db.filter(i => i.name === name).map(i => i.base));
-
-                   return (
-                     <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-8 rounded-[40px] shadow-sm cursor-pointer hover:shadow-xl hover:border-blue-500/50 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px]">
-                       <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
-                          <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
-                       </div>
-                       
-                       <div className="w-full">
-                         <p className="font-black text-[12px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
-                         
-                         {/* YENİ EKLENEN FİYAT ALTI BİLGİSİ */}
-                         {modelMaxPrice > 0 && (
-                           <p className="text-[10px] font-black text-blue-600 mt-1">{modelMaxPrice.toLocaleString()} TL'ye kadar</p>
-                         )}
-                         
-                         <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
-                       </div>
+                 .map(name => (
+                   <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-8 rounded-[40px] shadow-sm cursor-pointer hover:shadow-xl hover:border-blue-500/50 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px]">
+                     <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
+                        <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
                      </div>
-                   );
-                 })}
+                     
+                     <div className="w-full">
+                       <p className="font-black text-[12px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
+                       <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
+                     </div>
+                   </div>
+                 ))}
              </div>
              
-             {/* ARAMA SONUCU BULUNAMAZSA GÖSTERİLECEK UYARI */}
              {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name))).filter(name => name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
                <div className="text-center py-20">
                  <p className="text-slate-400 font-bold uppercase tracking-widest">Aradığınız model bulunamadı</p>
