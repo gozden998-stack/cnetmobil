@@ -36,6 +36,17 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR SARAY", phone: "905416801905" }
   ];
 
+  const brandAssets: any = {
+    "Apple": { logo: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" },
+    "Samsung": { logo: "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg" },
+    "Huawei": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e8/Huawei_logo.svg" },
+    "Xiaomi": { logo: "https://upload.wikimedia.org/wikipedia/commons/a/ae/Xiaomi_logo_%282021-%29.svg" },
+    "Oppo": { logo: "https://upload.wikimedia.org/wikipedia/commons/0/0d/Oppo_Logo.svg" },
+    "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
+    "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
+    "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
+  };
+
   const resetAll = () => {
     setStep(1);
     setSelectedBrand('');
@@ -359,7 +370,7 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
                    <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand.name}</h2>
                    {/* YENİ EKLENEN: MARKA CİHAZINI SAT YAZISI */}
-                   <p className="text-[9px] font-black text-slate-400 mt-1 uppercase tracking-widest">{brand.name} MARKA CİHAZINI SAT</p>
+                   <p className="text-[9px] font-black text-slate-400 mt-2 uppercase tracking-widest">{brand.name} MARKA CİHAZINI SAT</p>
                    <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-3"></div>
                  </div>
                ))}
