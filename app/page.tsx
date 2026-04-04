@@ -231,6 +231,7 @@ export default function CnetmobilCmrFinalUltimate() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
 
+      {/* HEADER */}
       <header className="px-6 py-4 glass border-b border-slate-200/60 flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow">
         <div onClick={resetAll} className="flex items-center gap-2 group cursor-pointer">
           <div className="bg-blue-600 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
@@ -363,13 +364,13 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {/* MARKA LİSTELEME GÜNCELLENDİ: BOŞLUKLAR ENGELLENDİ VE YAKINDA MODU EKLENDİ */}
-               {brandDb
-                 .filter(b => b.name && b.name.trim() !== "" && b.name.toLowerCase() !== "marka")
-                 .map(brandRow => {
-                 const brand = brandRow.name;
+               {/* MARKA LİSTELEME GÜNCELLENDİ: BOŞ MARKA FİLTRESİ VE YAKINDA ÖZELLİĞİ EKLENDİ */}
+               {Array.from(new Set([...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
+                 .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka")
+                 .map(brand => {
+                 const brandInfo = brandDb.find(b => b.name === brand);
                  const hasModels = db.some(i => i.brand === brand);
-                 const finalLogo = brandRow.logo || brandAssets[brand]?.logo || "";
+                 const finalLogo = brandInfo?.logo || brandAssets[brand]?.logo || "";
 
                  return (
                    <div key={brand} 
@@ -380,12 +381,12 @@ export default function CnetmobilCmrFinalUltimate() {
                             resetSelection();
                           }
                         }} 
-                        className={`bg-white p-10 rounded-[48px] shadow-sm transition-all border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group ${hasModels ? 'hover:shadow-2xl hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed grayscale'}`}>
+                        className={`bg-white p-10 rounded-[48px] shadow-sm border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group transition-all ${hasModels ? 'hover:shadow-2xl hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed grayscale'}`}>
                      <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                        <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
                      <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
-                     <p className={`text-[10px] font-bold uppercase tracking-widest ${hasModels ? 'text-slate-400' : 'text-orange-600 animate-pulse'}`}>
+                     <p className={`text-[10px] font-black uppercase tracking-widest ${hasModels ? 'text-slate-400' : 'text-orange-600 animate-pulse'}`}>
                         {hasModels ? `${brand} CİHAZINI SAT` : 'ÇOK YAKINDA'}
                      </p>
                      
