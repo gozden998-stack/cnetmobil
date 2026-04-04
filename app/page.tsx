@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -239,7 +238,15 @@ export default function CnetmobilCmrFinalUltimate() {
           </h1>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          {/* YENİ EKLENEN GÜVENLİK ROZETİ (SAĞ ÜST) */}
+          <div className="hidden md:flex items-center gap-1.5 bg-green-50 px-3 py-1.5 rounded-full border border-green-200 shadow-sm">
+            <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">CNETMOBİL'DE GÜVENDESİNİZ</span>
+          </div>
+
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           <div className="relative">
             <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-slate-100 hover:bg-slate-200 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border-none transition-colors">
@@ -366,8 +373,11 @@ export default function CnetmobilCmrFinalUltimate() {
                      <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                        <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
+                     {/* YENİ EKLENEN MARKA YAZISI */}
                      <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
-                     <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-2"></div>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{brand} CİHAZINI SAT</p>
+                     
+                     <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-3"></div>
                    </div>
                  );
                })}
@@ -391,7 +401,9 @@ export default function CnetmobilCmrFinalUltimate() {
                    <div className="h-32 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-500">
                       <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
                    </div>
+                   {/* YENİ EKLENEN MODEL YAZISI */}
                    <p className="font-black text-[11px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
+                   <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
                  </div>
                ))}
              </div>
