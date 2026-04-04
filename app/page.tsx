@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -119,7 +120,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.battery === 'Bilinmeyen Parça') price *= (1 - ((config.Bilinmeyen_Batarya || 15) / 100));
       if (status.sim === 'Fiziksel + eSIM (YD)') price *= (1 - ((config.Yurt_Disi || 0) / 100));
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
-      if (status.warranty === 'İthalatçı Garantili') price *= (1 - ((config.Ithalatci_Garanti || 0) / 100)); // Yeni eklendi
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
 
       const finalCash = Math.max(Math.round(price), selectedCapacity.minPrice || 0);
@@ -239,13 +239,7 @@ export default function CnetmobilCmrFinalUltimate() {
           </h1>
         </div>
         
-        <div className="flex items-center gap-3 md:gap-4">
-          {/* YENİ EKLENEN: GÜVEN ROZETİ */}
-          <div className="hidden md:flex items-center gap-1.5 bg-green-50 px-4 py-2 rounded-full border border-green-100 shadow-sm">
-            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">CNETMOBİL İLE GÜVENDESİNİZ</span>
-          </div>
-
+        <div className="flex items-center gap-4">
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           <div className="relative">
             <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-slate-100 hover:bg-slate-200 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border-none transition-colors">
@@ -363,17 +357,20 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {brandDb.map(brand => (
-                 <div key={brand.name} onClick={() => {setSelectedBrand(brand.name); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
-                   <div className="h-24 w-full flex items-center justify-center mb-6 transition-all duration-500 transform group-hover:scale-110">
-                     <img src={brand.logo} className="max-h-full max-w-[140px] object-contain" alt={brand.name} />
+               {Array.from(new Set(db.map(i => i.brand))).map(brand => {
+                 const dbLogo = brandDb.find(b => b.name === brand)?.logo;
+                 const finalLogo = dbLogo || brandAssets[brand]?.logo || "";
+
+                 return (
+                   <div key={brand} onClick={() => {setSelectedBrand(brand); setStep(2); resetSelection();}} className="bg-white p-10 rounded-[48px] shadow-sm hover:shadow-2xl hover:scale-[1.05] transition-all cursor-pointer border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group btn-click">
+                     <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
+                       <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
+                     </div>
+                     <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
+                     <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-2"></div>
                    </div>
-                   <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand.name}</h2>
-                   {/* YENİ EKLENEN: MARKA CİHAZINI SAT YAZISI */}
-                   <p className="text-[9px] font-black text-slate-400 mt-2 uppercase tracking-widest">{brand.name} MARKA CİHAZINI SAT</p>
-                   <div className="w-10 h-1 bg-slate-100 group-hover:w-20 group-hover:bg-blue-600 transition-all rounded-full mt-3"></div>
-                 </div>
-               ))}
+                 );
+               })}
              </div>
            </div>
         ) : step === 2 ? (
@@ -395,8 +392,6 @@ export default function CnetmobilCmrFinalUltimate() {
                       <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
                    </div>
                    <p className="font-black text-[11px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
-                   {/* YENİ EKLENEN: TELEFONUNU SAT YAZISI */}
-                   <p className="text-[9px] font-black text-blue-600 mt-2 uppercase tracking-widest opacity-70 group-hover:opacity-100 transition-opacity">TELEFONUNU SAT</p>
                  </div>
                ))}
              </div>
@@ -479,8 +474,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                 {[
                   { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
-                  // YENİ EKLENEN: İthalatçı Garantili Seçeneği
-                  { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'İthalatçı Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
+                  { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
                   { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
                   { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
                   { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
