@@ -364,7 +364,9 @@ export default function CnetmobilCmrFinalUltimate() {
                 <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
-               {Array.from(new Set(db.map(i => i.brand))).map(brand => {
+               {Array.from(new Set(db.map(i => i.brand)))
+                 .filter(brand => brand && brand.trim() !== "" && brand !== "MARKA") // YENİ EKLENEN FİLTRE
+                 .map(brand => {
                  const dbLogo = brandDb.find(b => b.name === brand)?.logo;
                  const finalLogo = dbLogo || brandAssets[brand]?.logo || "";
 
