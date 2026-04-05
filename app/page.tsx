@@ -28,6 +28,10 @@ export default function CnetmobilCmrFinalUltimate() {
   });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
 
+  // PERSONEL MANUEL FİYAT DÜŞÜRME STATELERİ
+  const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
+  const [customOffer, setCustomOffer] = useState<string>('');
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
@@ -63,6 +67,8 @@ export default function CnetmobilCmrFinalUltimate() {
     setSearchQuery(''); 
     setCustomer({ name: '', phone: '', imei: '' });
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
+    setIsCustomOfferActive(false);
+    setCustomOffer('');
     setIsAdmin(false);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -72,6 +78,8 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedColor('Diğer');
     setSearchQuery(''); 
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
+    setIsCustomOfferActive(false);
+    setCustomOffer('');
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
@@ -132,7 +140,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
 
-      // Ahize/Buzzer Kesintileri
       if (status.speaker === 'Cızırtı var') price -= 500;
       if (status.speaker === 'Arızalı') price -= 1000;
 
@@ -150,8 +157,18 @@ export default function CnetmobilCmrFinalUltimate() {
       const finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
+      
+      // Fiyat yeniden hesaplandığında mevcut manuel revizeyi (eğer sistem fiyatını aşmışsa) iptal et
+      if (customOffer && parseInt(customOffer) > finalCash) {
+         setCustomOffer(finalCash.toString());
+      }
     }
   }, [status, selectedCapacity, config, selectedColor, selectedModelName]);
+
+
+  // DİNAMİK FİYAT HESAPLAMA (Eğer personel özel fiyat girdiyse onu kullan, girmediyse sistem fiyatını kullan)
+  const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
+  const finalTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'ALINDI' | 'ALINMADI') => {
     const now = new Date();
@@ -170,8 +187,8 @@ export default function CnetmobilCmrFinalUltimate() {
           customer: customer.name,
           device: `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel}`,
           imei: customer.imei,
-          cash: prices.cash,
-          trade: prices.trade,
+          cash: finalCashPrice,
+          trade: finalTradePrice,
           date: dateTime
         })
       });
@@ -186,7 +203,7 @@ export default function CnetmobilCmrFinalUltimate() {
       window.print();
     } else if (actionType === 'whatsapp') {
       const branch = branches.find(b => b.name === selectedBranch);
-      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A💰 *NAKİT:* ${prices.cash.toLocaleString()} TL%0A🔄 *TAKAS:* ${prices.trade.toLocaleString()} TL`;
+      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A💰 *NAKİT:* ${finalCashPrice.toLocaleString()} TL%0A🔄 *TAKAS:* ${finalTradePrice.toLocaleString()} TL`;
       window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
     }
   };
@@ -618,15 +635,53 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
                     <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
                     <div className="text-4xl font-black italic tracking-tighter text-slate-950">
-                       {selectedCapacity && allSelected ? `${prices.cash.toLocaleString()} TL` : '---'}
+                       {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
                     </div>
+                    
+                    {/* YENİ: PERSONEL FİYAT REVİZE ALANI */}
+                    {selectedCapacity && allSelected && (
+                      <div className="mt-4">
+                        {!isCustomOfferActive ? (
+                          <button onClick={() => setIsCustomOfferActive(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-xl transition-colors">
+                            Teklifi Revize Et (Düşür)
+                          </button>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number" 
+                                value={customOffer} 
+                                onChange={(e) => {
+                                  const valStr = e.target.value;
+                                  if (valStr === '') { setCustomOffer(''); return; }
+                                  const val = parseInt(valStr) || 0;
+                                  if (val > prices.cash) {
+                                    alert(`Sistem teklifinden (${prices.cash} TL) yüksek bir fiyat giremezsiniz!`);
+                                    setCustomOffer(prices.cash.toString());
+                                  } else {
+                                    setCustomOffer(valStr);
+                                  }
+                                }} 
+                                placeholder="Yeni Tutar" 
+                                className="w-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-center outline-none focus:border-blue-500"
+                              />
+                              <button onClick={() => {setIsCustomOfferActive(false); setCustomOffer('');}} className="bg-red-50 text-red-600 p-3 rounded-xl hover:bg-red-100 transition-colors" title="İptal">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">* Sadece sistem fiyatından düşük girilebilir</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="h-1.5 w-16 bg-blue-600 mx-auto mt-6 rounded-full opacity-20 group-hover:opacity-100 transition-opacity"></div>
                   </div>
                   
                   <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
                     <p className="text-[11px] font-black text-blue-200 uppercase mb-4 tracking-widest italic">Takas Desteği İle</p>
                     <div className="text-4xl font-black italic tracking-tighter">
-                       {selectedCapacity && allSelected ? `${prices.trade.toLocaleString()} TL` : '---'}
+                       {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
                     </div>
                   </div>
                 </div>
@@ -846,11 +901,11 @@ export default function CnetmobilCmrFinalUltimate() {
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
               <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
                 <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.cash.toLocaleString()} TL</p>
+                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalCashPrice.toLocaleString()} TL</p>
               </div>
               <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
                 <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
-                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.trade.toLocaleString()} TL</p>
+                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalTradePrice.toLocaleString()} TL</p>
               </div>
           </div>
 
