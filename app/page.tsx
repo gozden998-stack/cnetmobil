@@ -208,9 +208,15 @@ export default function CnetmobilCmrFinalUltimate() {
       });
 
       if(actionType === 'ALINDI' || actionType === 'ALINMADI') {
-         alert(`İşlem Yönetim Paneline Bildirildi: ${actionType}`);
+         alert(`İşlem Yönetim Paneline Bildirildi: ${actionType}\n\n(Verilerin Google Sheets'e işlenip istatistiklere yansıması 1-2 saniye sürebilir.)`);
       }
-      loadData();
+      
+      // DÜZELTME: Google Sheets'in veriyi satıra kaydetmesi 1-2 saniye sürebilir.
+      // Bu yüzden verileri anında değil, 2.5 saniye bekledikten sonra güncelliyoruz.
+      setTimeout(() => {
+        loadData();
+      }, 2500);
+
     } catch (e) { console.error(e); }
 
     if (actionType === 'print') {
