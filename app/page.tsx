@@ -24,7 +24,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ 
     power: null, screen: null, cosmetic: null, faceId: null, 
-    battery: null, sim: null, warranty: null, speaker: null  
+    battery: null, sim: null, warranty: null, speaker: null
   });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
 
@@ -810,39 +810,57 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           </div>
           <div style={{borderTop:'4px solid black', marginBottom:'25px'}}></div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px', marginBottom:'30px'}}>
-            <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
-              <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'2'}}>
-                <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'14px'}}>{customer.name || '________________'}</span></p>
+          
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', marginBottom:'20px'}}>
+            <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
+              <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
+              <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
+                <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'13px'}}>{customer.name || '________________'}</span></p>
                 <p>Telefon: {customer.phone || '________________'}</p>
                 <p>T.C. Kimlik No: ___________________________</p>
               </div>
             </div>
-            <div style={{border:'2px solid black', padding:'20px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'15px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Ekspertiz</h3>
-              <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Model: <span style={{fontWeight:'900', fontSize:'14px'}}>{selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" ? `(${selectedColor})` : ''}</span></p>
-                <p>IMEI: <span style={{fontWeight:'900', fontSize:'13px'}}>{customer.imei || '________________'}</span></p>
+            <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
+              <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Bilgileri</h3>
+              <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
+                <p>Model: <span style={{fontWeight:'900', fontSize:'13px'}}>{selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" ? `(${selectedColor})` : ''}</span></p>
+                <p>IMEI: <span style={{fontWeight:'900', fontSize:'12px'}}>{customer.imei || '________________'}</span></p>
               </div>
             </div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'40px', textAlign:'center'}}>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.cash.toLocaleString()} TL</p>
+
+          <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px', marginBottom:'20px'}}>
+            <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>🛠️ Teknik Ekspertiz Raporu</h3>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 40px', fontSize:'10px', fontWeight:'bold'}}>
+               <p>Cihaz Açılıyor mu: <span style={{fontWeight:'900'}}>{status.power}</span></p>
+               <p>Ekran Durumu: <span style={{fontWeight:'900'}}>{status.screen}</span></p>
+               <p>Kozmetik Durum: <span style={{fontWeight:'900'}}>{status.cosmetic}</span></p>
+               <p>Face ID / Touch ID: <span style={{fontWeight:'900'}}>{status.faceId}</span></p>
+               <p>Ahize / Buzzer: <span style={{fontWeight:'900'}}>{status.speaker}</span></p>
+               <p>Batarya Sağlığı: <span style={{fontWeight:'900'}}>{status.battery}</span></p>
+               <p>Kayıt Durumu: <span style={{fontWeight:'900'}}>{status.sim}</span></p>
+               <p>Garanti ve Durum: <span style={{fontWeight:'900'}}>{status.warranty}</span></p>
+            </div>
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
+              <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
+                <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
+                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.cash.toLocaleString()} TL</p>
               </div>
-              <div style={{border:'4px solid black', padding:'25px', borderRadius:'20px', backgroundColor:'#f8f8f8'}}>
-                <p style={{fontSize:'11px', fontWeight:'900', textTransform:'uppercase', marginBottom:'5px', color:'#666'}}>Takas Bedeli</p>
-                <p style={{fontSize:'38px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.trade.toLocaleString()} TL</p>
+              <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
+                <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
+                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{prices.trade.toLocaleString()} TL</p>
               </div>
           </div>
-          <div style={{fontSize:'10px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.6', marginBottom:'80px', backgroundColor:'#fdfdfd', padding:'20px', border:'1px solid #eee', borderRadius:'10px'}}>
-            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
+
+          <div style={{fontSize:'9px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.5', marginBottom:'60px', backgroundColor:'#fdfdfd', padding:'15px', border:'1px solid #eee', borderRadius:'10px'}}>
+            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, yukarıda belirtilen teknik durumun doğruluğunu ve tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
           </div>
+          
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'14px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
+            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
+            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
           </div>
       </div>
     </div>
