@@ -24,7 +24,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ 
     power: null, screen: null, cosmetic: null, faceId: null, 
-    battery: null, sim: null, warranty: null  
+    battery: null, sim: null, warranty: null, speaker: null  
   });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
 
@@ -62,7 +62,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedColor('Diğer');
     setSearchQuery(''); 
     setCustomer({ name: '', phone: '', imei: '' });
-    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
+    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsAdmin(false);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -71,7 +71,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedCapacity(null);
     setSelectedColor('Diğer');
     setSearchQuery(''); 
-    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null });
+    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
@@ -131,6 +131,10 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.sim === 'Fiziksel + eSIM (YD)') price *= (1 - ((config.Yurt_Disi || 0) / 100));
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
+
+      // Ahize/Buzzer Kesintileri
+      if (status.speaker === 'Cızırtı var') price -= 500;
+      if (status.speaker === 'Arızalı') price -= 1000;
 
       let colorBonus = 1;
       
@@ -586,6 +590,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
                   { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
                   { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
+                  { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
                   { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
                   { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
                 ].map(q => (
