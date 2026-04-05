@@ -32,7 +32,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [adminPass, setAdminPass] = useState('');
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
 
-  // YENİ EKLENEN DURUMLAR (TAKSİT HESAPLAYICI İÇİN)
+  // TAKSİT EKRANI STATELERİ
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
 
@@ -132,7 +132,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.warranty === 'Yenilenmiş Cihaz') price *= (1 - ((config.Yenilenmis || 0) / 100));
       if (status.warranty === 'Garanti Yok') price *= (1 - ((config.Garanti_Yok || 0) / 100));
 
-      // EKSTRA GÜVENLİK VE PİL SINIRI KONTROLÜ
       let colorBonus = 1;
       
       const isPerfectCondition = 
@@ -141,7 +140,7 @@ export default function CnetmobilCmrFinalUltimate() {
         (status.battery === '95-100' || status.battery === '85-95');
 
       if (selectedModelName === "iPhone 13" && selectedColor === 'Beyaz' && isPerfectCondition) {
-        colorBonus = 1.05; // Sadece şartlar uyuyorsa %5 Artış
+        colorBonus = 1.05; 
       }
 
       const finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
@@ -276,12 +275,11 @@ export default function CnetmobilCmrFinalUltimate() {
             <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">CNETMOBİL'DE GÜVENDESİNİZ</span>
           </div>
 
-          {/* TAKSİT HESAPLA BUTONU EKLENDİ */}
           <button 
             onClick={() => setIsInstallmentModalOpen(true)} 
-            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-full shadow-sm transition-colors btn-click"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl shadow-lg shadow-slate-200 transition-colors btn-click"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">TAKSİT HESAPLA</span>
           </button>
 
@@ -643,70 +641,105 @@ export default function CnetmobilCmrFinalUltimate() {
         )}
       </main>
 
-      {/* YENİ EKLENEN KREDİ KARTI TAKSİT HESAPLAYICI MODAL'I */}
+      {/* YENİ VE DAHA PROFESYONEL TAKSİT HESAPLAYICI MODAL'I */}
       {isInstallmentModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm print:hidden p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-md relative animate-in fade-in zoom-in duration-300 border border-slate-100">
-            <button 
-              onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} 
-              className="absolute top-6 right-6 bg-slate-100 p-2 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
             
-            <h2 className="text-2xl font-black italic mb-8 text-slate-900 uppercase tracking-tighter flex items-center gap-3">
-              💳 Kredi Kartı <span className="text-blue-600">Taksit</span>
-            </h2>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">İşlem Tutarı (TL)</label>
-                <div className="relative mt-2">
-                  <input
-                    type="number"
-                    placeholder="Örn: 15000"
-                    value={installmentAmount}
-                    onChange={(e) => setInstallmentAmount(e.target.value)}
-                    className="w-full p-5 bg-slate-50 rounded-2xl text-xl font-black border border-slate-200 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all text-slate-800"
-                  />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black">TL</span>
+            {/* Modal Başlık Bölümü */}
+            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="bg-blue-50 text-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Taksit Hesaplama</h2>
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Özel Oranlar (+%2 Komisyon Dahil)</p>
                 </div>
               </div>
+              <button 
+                onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} 
+                className="bg-slate-100 p-3 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            {/* Tutar Giriş Bölümü */}
+            <div className="mb-8 shrink-0">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                  <span className="text-slate-400 font-black text-xl">₺</span>
+                </div>
+                <input
+                  type="number"
+                  placeholder="İşlem Tutarını Giriniz..."
+                  value={installmentAmount}
+                  onChange={(e) => setInstallmentAmount(e.target.value)}
+                  className="w-full py-6 pl-12 pr-6 bg-slate-50 rounded-3xl text-2xl font-black border border-slate-200 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all text-slate-800"
+                />
+              </div>
+            </div>
 
-              {installmentAmount && Number(installmentAmount) > 0 && (
-                <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2 pt-2">
+            {/* Taksit Listesi (İki Sütunlu Izgara Yapısı) */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+              {installmentAmount && Number(installmentAmount) > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    // Örnek Komisyon Oranları (Bunları banka anlaşmanıza göre değiştirebilirsiniz)
-                    { month: 2, rate: 1.05 }, // %5 Vade Farkı
-                    { month: 3, rate: 1.08 }, // %8 Vade Farkı
-                    { month: 6, rate: 1.15 }, // %15 Vade Farkı
-                    { month: 9, rate: 1.22 }, // %22 Vade Farkı
-                    { month: 12, rate: 1.30 }, // %30 Vade Farkı
+                    // GÖRSELDEN ALINAN ORANLAR (İçeride %2 eklenecek)
+                    { month: 2, baseRate: 3.23 },
+                    { month: 3, baseRate: 5.00 },
+                    { month: 4, baseRate: 6.97 },
+                    { month: 5, baseRate: 8.83 },
+                    { month: 6, baseRate: 10.60 },
+                    { month: 7, baseRate: 12.57 },
+                    { month: 8, baseRate: 14.44 },
+                    { month: 9, baseRate: 16.31 },
+                    { month: 10, baseRate: 18.18 },
+                    { month: 11, baseRate: 20.05 },
+                    { month: 12, baseRate: 21.92 },
                   ].map((inst) => {
-                    const total = Number(installmentAmount) * inst.rate;
+                    const totalPercentage = inst.baseRate + 2; // Gelen orana %2 kâr eklemesi
+                    const multiplier = 1 + (totalPercentage / 100);
+                    const total = Number(installmentAmount) * multiplier;
                     const monthly = total / inst.month;
+                    
                     return (
-                      <div key={inst.month} className="flex justify-between items-center bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group">
-                        <div className="flex items-center gap-4">
-                          <span className="bg-blue-50 group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 w-12 h-12 flex items-center justify-center rounded-2xl font-black text-lg">
-                            {inst.month}
-                          </span>
-                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Taksit</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-black italic text-slate-900 tracking-tighter">
-                            {monthly.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL x {inst.month}
+                      <div key={inst.month} className="flex justify-between items-center bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-lg transition-all group cursor-default">
+                        <div className="flex items-center gap-5">
+                          <div className="bg-slate-900 group-hover:bg-blue-600 transition-colors text-white w-14 h-14 flex flex-col items-center justify-center rounded-[20px] shadow-md">
+                            <span className="font-black text-xl leading-none">{inst.month}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-80">Taksit</span>
                           </div>
-                          <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">
-                            Toplam: {total.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+                          <div>
+                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Maliyet: %{totalPercentage.toFixed(2)}
+                            </div>
+                            <div className="text-xl font-black italic text-slate-900 tracking-tighter">
+                              {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right border-l border-slate-100 pl-5">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                            Toplam
+                          </div>
+                          <div className="text-lg font-black text-slate-700">
+                            {total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                           </div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
+                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
+                </div>
               )}
             </div>
+            
           </div>
         </div>
       )}
