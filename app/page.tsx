@@ -654,7 +654,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Taksit Hesaplama</h2>
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Özel Oranlar (+%2 Komisyon Dahil)</p>
                 </div>
               </div>
               <button 
@@ -686,21 +685,20 @@ export default function CnetmobilCmrFinalUltimate() {
               {installmentAmount && Number(installmentAmount) > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    // GÖRSELDEN ALINAN ORANLAR (İçeride %2 eklenecek)
-                    { month: 2, baseRate: 3.23 },
-                    { month: 3, baseRate: 5.00 },
-                    { month: 4, baseRate: 6.97 },
-                    { month: 5, baseRate: 8.83 },
-                    { month: 6, baseRate: 10.60 },
-                    { month: 7, baseRate: 12.57 },
-                    { month: 8, baseRate: 14.44 },
-                    { month: 9, baseRate: 16.31 },
-                    { month: 10, baseRate: 18.18 },
-                    { month: 11, baseRate: 20.05 },
-                    { month: 12, baseRate: 21.92 },
+                    // GÜNCELLENMİŞ ORANLAR
+                    { month: 2, rate: 7.83 },
+                    { month: 3, rate: 10.05 },
+                    { month: 4, rate: 12.36 },
+                    { month: 5, rate: 14.76 },
+                    { month: 6, rate: 17.55 },
+                    { month: 7, rate: 20.19 },
+                    { month: 8, rate: 22.96 },
+                    { month: 9, rate: 25.85 },
+                    { month: 10, rate: 28.88 },
+                    { month: 11, rate: 32.07 },
+                    { month: 12, rate: 35.41 },
                   ].map((inst) => {
-                    const totalPercentage = inst.baseRate + 2; // Gelen orana %2 kâr eklemesi
-                    const multiplier = 1 + (totalPercentage / 100);
+                    const multiplier = 1 + (inst.rate / 100);
                     const total = Number(installmentAmount) * multiplier;
                     const monthly = total / inst.month;
                     
@@ -712,9 +710,6 @@ export default function CnetmobilCmrFinalUltimate() {
                             <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-80">Taksit</span>
                           </div>
                           <div>
-                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Maliyet: %{totalPercentage.toFixed(2)}
-                            </div>
                             <div className="text-xl font-black italic text-slate-900 tracking-tighter">
                               {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                             </div>
