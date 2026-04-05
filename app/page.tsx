@@ -6,7 +6,7 @@ const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
 
-// ŞUBE IP ADRESLERİ - TAM KİLİTLİ LİSTE (Sadece kendi şubesini görebilenler)
+// ŞUBE IP ADRESLERİ - TAM KİLİTLİ LİSTE
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
   "46.197.252.143": "CMR KAPAKLI",
@@ -14,13 +14,13 @@ const IP_HARITASI: any = {
   "149.0.18.162": "CMR CADDE"
 };
 
-// PATRON / YÖNETİCİ IP ADRESLERİ (Kilitlenmeyen, tüm şubeleri seçebilen serbest IP'ler)
+// PATRON / YÖNETİCİ IP ADRESLERİ
 const MASTER_IPLER = [
   "95.70.226.118",
   "148.0.18.162"
 ];
 
-// --- YENİ: ŞUBE ŞİFRELERİ ---
+// --- GÜNCEL ŞUBE ŞİFRELERİ ---
 const BRANCH_PASSWORDS: Record<string, string> = {
   "1905": "CMR MERKEZ",
   "2003": "CMR CADDE",
@@ -29,9 +29,13 @@ const BRANCH_PASSWORDS: Record<string, string> = {
 };
 
 export default function CnetmobilCmrFinalUltimate() {
-  // --- YENİ: GİRİŞ EKRANI STATELERİ ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  
+  // --- YENİ: GİRİŞ MODU VE YÖNETİCİ YETKİSİ ---
+  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
+  const [isMasterAccess, setIsMasterAccess] = useState(false);
 
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
@@ -42,30 +46,18 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedModelName, setSelectedModelName] = useState('');
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
-  const [selectedBranch, setSelectedBranch] = useState(''); // Başlangıçta boş, şifre ile dolacak
+  const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
-  
   const [searchQuery, setSearchQuery] = useState('');
-
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
-  const [status, setStatus] = useState<any>({ 
-    power: null, screen: null, cosmetic: null, faceId: null, 
-    battery: null, sim: null, warranty: null, speaker: null
-  });
+  const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
-
-  // PERSONEL MANUEL FİYAT DÜŞÜRME STATELERİ
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
-
-  // İŞLEM TÜRÜ (Seçildikten sonra değiştirilmemesi için ALINMADI durumu da eklendi)
   const [purchaseType, setPurchaseType] = useState<'NAKİT' | 'TAKAS' | 'ALINMADI' | null>(null);
-
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
-
-  // TAKSİT EKRANI STATELERİ
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
 
@@ -87,15 +79,61 @@ export default function CnetmobilCmrFinalUltimate() {
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
   };
 
-  // --- YENİ: GİRİŞ YAPMA FONKSİYONU ---
-  const handleLogin = () => {
-    const matchedBranch = BRANCH_PASSWORDS[entryPass];
-    if (matchedBranch) {
-      setSelectedBranch(matchedBranch);
-      setIsLoggedIn(true);
-    } else {
-      alert("Hatalı Şube Şifresi!");
+  // --- AKILLI GİRİŞ KONTROL SİSTEMİ ---
+  const handleLogin = async () => {
+    if(!entryPass) return;
+    setLoginLoading(true);
+
+    try {
+      // 1. YÖNETİCİ GİRİŞİ (IP BAEĞIMSIZ)
+      if (loginMode === 'yonetici') {
+        if (entryPass === 'cnet1905.*') {
+           setIsMasterAccess(true);
+           setIsAdmin(true); // Yönetici paneline de otomatik yetki verilir
+           setSelectedBranch('CMR MERKEZ'); // Varsayılan şube
+           setIsLoggedIn(true);
+        } else {
+           alert("Hatalı Yönetici Şifresi!");
+        }
+        setLoginLoading(false);
+        return;
+      }
+
+      // 2. PERSONEL GİRİŞİ (IP KONTROLLÜ)
+      const matchedBranch = BRANCH_PASSWORDS[entryPass];
+      
+      if (!matchedBranch) {
+        alert("Hatalı Şube Şifresi!");
+        setLoginLoading(false);
+        return;
+      }
+
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      const currentIp = data.ip;
+
+      if (MASTER_IPLER.includes(currentIp)) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        setLoginLoading(false);
+        return;
+      }
+
+      const expectedBranchForThisIp = IP_HARITASI[currentIp];
+
+      if (expectedBranchForThisIp === matchedBranch) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+      } else {
+        alert(`GÜVENLİK UYARISI: Bu şifreyi (${matchedBranch}) bu mağazanın interneti dışında kullanamazsınız! Lütfen şube Wi-Fi ağına bağlanın. (Mevcut IP'niz: ${currentIp})`);
+      }
+    } catch (error) {
+      alert("Bağlantı Hatası: Güvenlik IP kontrolü yapılamadı. İnternet bağlantınızı kontrol edin.");
     }
+    
+    setLoginLoading(false);
   };
 
   const resetAll = () => {
@@ -110,7 +148,6 @@ export default function CnetmobilCmrFinalUltimate() {
     setIsCustomOfferActive(false);
     setCustomOffer('');
     setPurchaseType(null);
-    setIsAdmin(false);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
@@ -222,7 +259,6 @@ export default function CnetmobilCmrFinalUltimate() {
     const statusLabel = ` [${actionLabel}]`;
     const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
 
-    // MÜKERRER KAYDI ÖNLEMEK İÇİN SADECE SEÇİM AŞAMASINDA KAYDET
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
           await fetch(SCRIPT_URL, {
@@ -249,7 +285,7 @@ export default function CnetmobilCmrFinalUltimate() {
     if (actionType === 'print') {
       window.print();
     } else if (actionType === 'whatsapp') {
-      const branch = branches.find(b => b.name === selectedBranch);
+      const branch = branches.find(b => b.name === selectedBranch) || branches[0];
       const priceText = purchaseType === 'NAKİT' 
           ? `💰 *NAKİT ALIM:* ${finalCashPrice.toLocaleString()} TL` 
           : `🔄 *TAKAS ALIM:* ${finalTradePrice.toLocaleString()} TL`;
@@ -345,8 +381,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
   const canProceed = allSelected;
-
-  // Belgelerin (yazdır/whatsapp) görünüp görünmeyeceğini belirleyen durum (Alınmadıysa açılmaz)
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
   if (loading) return (
@@ -356,7 +390,7 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
-  // --- YENİ: GİRİŞ YAPILMAMIŞSA ŞİFRE EKRANINI GÖSTER ---
+  // --- YENİ EKRAN: GİRİŞ VE YÖNETİCİ SEÇİMİ ---
   if (!isLoggedIn) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
@@ -364,18 +398,29 @@ export default function CnetmobilCmrFinalUltimate() {
            <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/20">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
            </div>
-           <h1 className="text-2xl font-black italic uppercase mb-2">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-10">Lütfen Şube Şifresini Giriniz</p>
+           <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
+           
+           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
+               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
+               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
+           </div>
            
            <input 
               type="password" 
-              placeholder="Şube Şifresi" 
+              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
               value={entryPass}
               onChange={(e) => setEntryPass(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white" 
+              disabled={loginLoading}
+              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
            />
-           <button onClick={handleLogin} className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all">TERMINALI AC</button>
+           <button 
+             onClick={handleLogin} 
+             disabled={loginLoading}
+             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
+           >
+             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
+           </button>
         </div>
       </div>
     );
@@ -399,7 +444,6 @@ export default function CnetmobilCmrFinalUltimate() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
 
-      {/* HEADER */}
       <header className="px-6 py-4 glass border-b border-slate-200/60 flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow">
         <div onClick={resetAll} className="flex items-center gap-2 group cursor-pointer">
           <div className="bg-blue-600 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
@@ -428,12 +472,24 @@ export default function CnetmobilCmrFinalUltimate() {
 
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           
-          {/* YENİ: KİLİTLİ ŞUBE EKRANI */}
-          <div className="bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
-             <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
-             {selectedBranch}
-          </div>
-          <button onClick={() => {setIsLoggedIn(false); setEntryPass('');}} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
+          {/* YENİ: YÖNETİCİYE ÖZEL ŞUBE SEÇİCİ VEYA PERSONELE KİLİTLİ GÖRÜNÜM */}
+          {isMasterAccess ? (
+            <div className="relative">
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border border-blue-200 transition-colors cursor-pointer uppercase shadow-sm">
+                {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+              </select>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-700">
+                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
+               <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+               {selectedBranch}
+            </div>
+          )}
+
+          <button onClick={() => {setIsLoggedIn(false); setEntryPass(''); setIsMasterAccess(false); setIsAdmin(false); setLoginMode('personel');}} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
 
         </div>
       </header>
@@ -448,7 +504,7 @@ export default function CnetmobilCmrFinalUltimate() {
                  </div>
                  <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-slate-900">Admin Girişi</h2>
                  <input type="password" placeholder="••••••••" className="w-full p-5 bg-slate-50 rounded-2xl mb-4 text-center font-black outline-none border border-slate-200 focus:border-blue-500 transition-all" onChange={(e) => setAdminPass(e.target.value)} />
-                 <button onClick={() => adminPass === 'cnet1905' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-slate-200">SISTEME GIRIS YAP</button>
+                 <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-slate-200">SISTEME GIRIS YAP</button>
                </div>
              ) : (
                <div className="space-y-10">
@@ -560,7 +616,7 @@ export default function CnetmobilCmrFinalUltimate() {
                      ))}
                    </div>
                  </div>
-                 <button onClick={() => {setStep(1); setIsAdmin(false);}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK</button>
+                 <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) {setIsLoggedIn(false); setEntryPass(''); setIsMasterAccess(false); setLoginMode('personel');}}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK</button>
                </div>
              )}
            </div>
@@ -779,7 +835,6 @@ export default function CnetmobilCmrFinalUltimate() {
                        {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
                     </div>
                     
-                    {/* PERSONEL FİYAT REVİZE ALANI (Sadece Seçim Yapılmadan Önce Görünür) */}
                     {selectedCapacity && allSelected && !purchaseType && (
                       <div className="mt-4">
                         {!isCustomOfferActive ? (
@@ -828,7 +883,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               )}
 
-              {/* SAĞ ALT MENÜ VE KİLİT SİSTEMİ */}
               <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
                 
@@ -863,7 +917,6 @@ export default function CnetmobilCmrFinalUltimate() {
                     ✕ ALINMADI
                 </button>
 
-                {/* YAZDIR VE WHATSAPP (Sadece NAKİT veya TAKAS Seçilirse Açılır) */}
                 <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${showDocs ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
                     <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
@@ -998,7 +1051,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
-                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
                 </div>
               )}
@@ -1057,7 +1110,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           </div>
 
-          {/* DİNAMİK YAZDIRMA ALANI: Seçime göre tek fiyat çıkacak */}
           <div style={{display:'grid', gridTemplateColumns: purchaseType ? '1fr' : '1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
               {purchaseType === 'NAKİT' && (
                 <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
