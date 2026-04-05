@@ -20,7 +20,19 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// --- YENİ: ŞUBE ŞİFRELERİ ---
+const BRANCH_PASSWORDS: Record<string, string> = {
+  "1905": "CMR MERKEZ",
+  "1906": "CMR CADDE",
+  "1907": "CMR KAPAKLI",
+  "1908": "CMR SARAY"
+};
+
 export default function CnetmobilCmrFinalUltimate() {
+  // --- YENİ: GİRİŞ EKRANI STATELERİ ---
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [entryPass, setEntryPass] = useState('');
+
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
@@ -30,7 +42,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedModelName, setSelectedModelName] = useState('');
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
-  const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
+  const [selectedBranch, setSelectedBranch] = useState(''); // Başlangıçta boş, şifre ile dolacak
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +85,17 @@ export default function CnetmobilCmrFinalUltimate() {
     "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
     "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
+  };
+
+  // --- YENİ: GİRİŞ YAPMA FONKSİYONU ---
+  const handleLogin = () => {
+    const matchedBranch = BRANCH_PASSWORDS[entryPass];
+    if (matchedBranch) {
+      setSelectedBranch(matchedBranch);
+      setIsLoggedIn(true);
+    } else {
+      alert("Hatalı Şube Şifresi!");
+    }
   };
 
   const resetAll = () => {
@@ -333,6 +356,31 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
+  // --- YENİ: GİRİŞ YAPILMAMIŞSA ŞİFRE EKRANINI GÖSTER ---
+  if (!isLoggedIn) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
+        <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
+           <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/20">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+           </div>
+           <h1 className="text-2xl font-black italic uppercase mb-2">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-10">Lütfen Şube Şifresini Giriniz</p>
+           
+           <input 
+              type="password" 
+              placeholder="Şube Şifresi" 
+              value={entryPass}
+              onChange={(e) => setEntryPass(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white" 
+           />
+           <button onClick={handleLogin} className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all">TERMINALI AC</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900 selection:bg-blue-100 relative">
       <style>{`
@@ -379,14 +427,14 @@ export default function CnetmobilCmrFinalUltimate() {
           </button>
 
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
-          <div className="relative">
-            <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-slate-100 hover:bg-slate-200 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border-none transition-colors">
-              {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-            </select>
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
-            </div>
+          
+          {/* YENİ: KİLİTLİ ŞUBE EKRANI */}
+          <div className="bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
+             <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+             {selectedBranch}
           </div>
+          <button onClick={() => {setIsLoggedIn(false); setEntryPass('');}} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
+
         </div>
       </header>
 
