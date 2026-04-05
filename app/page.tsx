@@ -172,7 +172,6 @@ export default function CnetmobilCmrFinalUltimate() {
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
       
-      // Fiyat yeniden hesaplandığında mevcut manuel revizeyi (eğer sistem fiyatını aşmışsa) iptal et
       if (customOffer && parseInt(customOffer) > finalCash) {
          setCustomOffer(finalCash.toString());
       }
@@ -180,7 +179,6 @@ export default function CnetmobilCmrFinalUltimate() {
   }, [status, selectedCapacity, config, selectedColor, selectedModelName]);
 
 
-  // DİNAMİK FİYAT HESAPLAMA (Eğer personel özel fiyat girdiyse onu kullan, girmediyse sistem fiyatını kullan)
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
   const finalTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
 
@@ -207,12 +205,11 @@ export default function CnetmobilCmrFinalUltimate() {
         })
       });
 
+      // İSTENİLEN UYARI MESAJI DEĞİŞİKLİĞİ
       if(actionType === 'ALINDI' || actionType === 'ALINMADI') {
-         alert(`İşlem Yönetim Paneline Bildirildi: ${actionType}\n\n(Verilerin Google Sheets'e işlenip istatistiklere yansıması 1-2 saniye sürebilir.)`);
+         alert("Yönetici paneline gönderildi");
       }
       
-      // DÜZELTME: Google Sheets'in veriyi satıra kaydetmesi 1-2 saniye sürebilir.
-      // Bu yüzden verileri anında değil, 2.5 saniye bekledikten sonra güncelliyoruz.
       setTimeout(() => {
         loadData();
       }, 2500);
@@ -268,46 +265,51 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  // TAKSİT WHATSAPP GÖNDERME FONKSİYONU
   const handleSendInstallmentToWhatsApp = (month: number, totalAmount: number) => {
     if (!customer.name || !customer.phone) {
       alert("Lütfen önce yukarıdaki Müşteri Adı Soyadı ve Telefon Numarası alanlarını doldurunuz.");
       return;
     }
-
     const formatliTutar = totalAmount.toLocaleString('tr-TR', { maximumFractionDigits: 0 });
     const message = `Müşteri: ${customer.name}\nTel: ${customer.phone}\nTaksit: ${month} Taksit ${formatliTutar} TL`;
-    
-    // Tıklandığında WhatsApp paylaşım penceresi (Kişi veya grup seçimi) açılır.
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  // YENİ EKLENEN FONKSİYON: ŞUBELERE GÖRE İSTATİSTİK HESAPLAMA
+  // İSTATİSTİK HATASI İÇİN GÜNCELLENMİŞ FONKSİYON
   const getBranchStats = () => {
     const stats: any = {};
     
-    // Önce tüm şubeleri sıfırla
+    // Önce bilinen tüm şubeleri tanımla ve sıfırla
     branches.forEach(b => {
       stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
     });
     
-    // Alımları say
+    // Gelen verileri tara
     alimlar.forEach(item => {
-      const branchName = item.data[0]; // Şube Adı
-      const deviceStr = item.data[2] || ""; // Cihaz bilgisi (İçinde [ALINDI] vb. yazar)
+      let foundBranch = null;
       
-      if (!stats[branchName]) {
-        stats[branchName] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
+      // Satır içindeki tüm hücrelere bakarak şube adını bulmaya çalışır. (Hangi sütunda olduğu fark etmez)
+      for (let i = 0; i < item.data.length; i++) {
+        if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) {
+            foundBranch = item.data[i];
+            break;
+        }
       }
-      
-      stats[branchName].total += 1;
-      
-      if (deviceStr.includes('[ALINDI]')) {
-         stats[branchName].alindi += 1;
-      } else if (deviceStr.includes('[ALINMADI]')) {
-         stats[branchName].alinmadi += 1;
-      } else {
-         stats[branchName].diger += 1;
+
+      // Eğer kayıtlı şubelerimizden biriyse istatistiğe ekle
+      if (foundBranch && stats[foundBranch]) {
+         stats[foundBranch].total += 1;
+         
+         // Tüm satır verisini metne dönüştürerek durum etiketini kontrol eder
+         const rowDataString = item.data.join(" ");
+         
+         if (rowDataString.includes('[ALINDI]')) {
+            stats[foundBranch].alindi += 1;
+         } else if (rowDataString.includes('[ALINMADI]')) {
+            stats[foundBranch].alinmadi += 1;
+         } else {
+            stats[foundBranch].diger += 1;
+         }
       }
     });
     
@@ -444,7 +446,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
 
-                 {/* YENİ EKLENEN BÖLÜM: ŞUBE İŞLEM İSTATİSTİKLERİ */}
+                 {/* GÜNCELLENMİŞ BÖLÜM: ŞUBE İŞLEM İSTATİSTİKLERİ */}
                  <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                     <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
                        📊 ŞUBE İŞLEM İSTATİSTİKLERİ
