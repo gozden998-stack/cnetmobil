@@ -6,6 +6,19 @@ const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
 
+// ŞUBE IP ADRESLERİ - TAM KİLİTLİ LİSTE (Sadece kendi şubesini görebilenler)
+const IP_HARITASI: any = {
+  "78.188.91.172": "CMR SARAY",
+  "46.197.252.143": "CMR KAPAKLI",
+  "31.55.79.145": "CMR MERKEZ",
+  "149.0.18.162": "CMR CADDE"
+};
+
+// PATRON / YÖNETİCİ IP ADRESLERİ (Kilitlenmeyen, tüm şubeleri seçebilen serbest IP'ler)
+const MASTER_IPLER = [
+  "95.70.226.118"
+];
+
 export default function CnetmobilCmrFinalUltimate() {
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
