@@ -20,7 +20,7 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
-// --- GÜNCEL ŞUBE ŞİFRELERİ ---
+// GÜNCEL ŞUBE ŞİFRELERİ
 const BRANCH_PASSWORDS: Record<string, string> = {
   "1905": "CMR MERKEZ",
   "2003": "CMR CADDE",
@@ -29,11 +29,11 @@ const BRANCH_PASSWORDS: Record<string, string> = {
 };
 
 export default function CnetmobilCmrFinalUltimate() {
+  const [authLoading, setAuthLoading] = useState(true); // YENİ: Oturum kontrolü bekleme ekranı
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
-  // --- YENİ: GİRİŞ MODU VE YÖNETİCİ YETKİSİ ---
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
@@ -79,19 +79,70 @@ export default function CnetmobilCmrFinalUltimate() {
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
   };
 
+  // --- YENİ: SİSTEM İLK AÇILDIĞINDA OTURUM VE IP KONTROLÜ ---
+  useEffect(() => {
+    const verifySession = async () => {
+      if (typeof window === 'undefined') return;
+      const sessionStr = localStorage.getItem('cnet_session');
+      
+      if (!sessionStr) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const session = JSON.parse(sessionStr);
+
+        // Eğer kaydedilmiş oturum "YÖNETİCİ" ise direkt içeri al, IP sorma
+        if (session.mode === 'yonetici') {
+          setIsMasterAccess(true);
+          setIsAdmin(true); 
+          setSelectedBranch(session.branch || 'CMR MERKEZ');
+          setIsLoggedIn(true);
+          setAuthLoading(false);
+          return;
+        }
+
+        // Eğer kaydedilmiş oturum "PERSONEL" ise güncel IP'sini kontrol et
+        if (session.mode === 'personel') {
+          const res = await fetch('https://api.ipify.org?format=json');
+          const data = await res.json();
+          const currentIp = data.ip;
+
+          // IP, kayıtlı şube ile eşleşiyorsa veya Patron IP'si ise içeri al
+          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
+            setSelectedBranch(session.branch);
+            setIsLoggedIn(true);
+          } else {
+            // Wi-Fi değişmiş! Oturumu düşür ve şifre sor.
+            localStorage.removeItem('cnet_session');
+          }
+        }
+      } catch (e) {
+         localStorage.removeItem('cnet_session');
+      }
+      setAuthLoading(false);
+    };
+
+    verifySession();
+  }, []);
+
+
   // --- AKILLI GİRİŞ KONTROL SİSTEMİ ---
   const handleLogin = async () => {
     if(!entryPass) return;
     setLoginLoading(true);
 
     try {
-      // 1. YÖNETİCİ GİRİŞİ (IP BAEĞIMSIZ)
+      // 1. YÖNETİCİ GİRİŞİ (IP BAĞIMSIZ)
       if (loginMode === 'yonetici') {
         if (entryPass === 'cnet1905.*') {
            setIsMasterAccess(true);
-           setIsAdmin(true); // Yönetici paneline de otomatik yetki verilir
-           setSelectedBranch('CMR MERKEZ'); // Varsayılan şube
+           setIsAdmin(true);
+           setSelectedBranch('CMR MERKEZ'); 
            setIsLoggedIn(true);
+           // YÖNETİCİ OTURUMUNU KALICI OLARAK KAYDET
+           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
         } else {
            alert("Hatalı Yönetici Şifresi!");
         }
@@ -116,6 +167,8 @@ export default function CnetmobilCmrFinalUltimate() {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsLoggedIn(true);
+        // PERSONEL OTURUMUNU KAYDET
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
         setLoginLoading(false);
         return;
       }
@@ -126,6 +179,8 @@ export default function CnetmobilCmrFinalUltimate() {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsLoggedIn(true);
+        // PERSONEL OTURUMUNU KAYDET
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
       } else {
         alert(`GÜVENLİK UYARISI: Bu şifreyi (${matchedBranch}) bu mağazanın interneti dışında kullanamazsınız! Lütfen şube Wi-Fi ağına bağlanın. (Mevcut IP'niz: ${currentIp})`);
       }
@@ -134,6 +189,15 @@ export default function CnetmobilCmrFinalUltimate() {
     }
     
     setLoginLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('cnet_session');
+    setIsLoggedIn(false); 
+    setEntryPass(''); 
+    setIsMasterAccess(false); 
+    setIsAdmin(false); 
+    setLoginMode('personel');
   };
 
   const resetAll = () => {
@@ -383,14 +447,23 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  if (loading) return (
+
+  // --- YENİ YÜKLEME EKRANI: OTURUM KONTROLÜ İÇİN ---
+  if (authLoading) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="font-black text-white italic uppercase tracking-[0.3em]">OTURUM KONTROL EDİLİYOR...</div>
+    </div>
+  );
+
+  if (loading && isLoggedIn) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">CMR SISTEMI YUKLENIYOR</div>
     </div>
   );
 
-  // --- YENİ EKRAN: GİRİŞ VE YÖNETİCİ SEÇİMİ ---
+  // --- GİRİŞ VE YÖNETİCİ SEÇİMİ ---
   if (!isLoggedIn) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
@@ -472,7 +545,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           
-          {/* YENİ: YÖNETİCİYE ÖZEL ŞUBE SEÇİCİ VEYA PERSONELE KİLİTLİ GÖRÜNÜM */}
           {isMasterAccess ? (
             <div className="relative">
               <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border border-blue-200 transition-colors cursor-pointer uppercase shadow-sm">
@@ -489,7 +561,7 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           )}
 
-          <button onClick={() => {setIsLoggedIn(false); setEntryPass(''); setIsMasterAccess(false); setIsAdmin(false); setLoginMode('personel');}} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
+          <button onClick={handleLogout} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
 
         </div>
       </header>
@@ -616,7 +688,7 @@ export default function CnetmobilCmrFinalUltimate() {
                      ))}
                    </div>
                  </div>
-                 <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) {setIsLoggedIn(false); setEntryPass(''); setIsMasterAccess(false); setLoginMode('personel');}}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK</button>
+                 <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
                </div>
              )}
            </div>
@@ -1051,7 +1123,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
-                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
                 </div>
               )}
