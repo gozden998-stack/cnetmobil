@@ -46,8 +46,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
 
-  // NAKİT / TAKAS SEÇİM DURUMU
-  const [purchaseType, setPurchaseType] = useState<'NAKİT' | 'TAKAS' | null>(null);
+  // İŞLEM TÜRÜ (Seçildikten sonra değiştirilmemesi için ALINMADI durumu da eklendi)
+  const [purchaseType, setPurchaseType] = useState<'NAKİT' | 'TAKAS' | 'ALINMADI' | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPass, setAdminPass] = useState('');
@@ -86,7 +86,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
-    setPurchaseType(null); // Sıfırla
+    setPurchaseType(null);
     setIsAdmin(false);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -98,7 +98,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
-    setPurchaseType(null); // Sıfırla
+    setPurchaseType(null);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
@@ -191,7 +191,6 @@ export default function CnetmobilCmrFinalUltimate() {
     const now = new Date();
     const dateTime = `${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}`;
     
-    // Hangi işlemin yapıldığını belirle (Yazdır veya WhatsApp'a basıldıysa seçilmiş olan Nakit/Takas durumunu baz alır)
     let actionLabel = actionType;
     if (actionType === 'print' || actionType === 'whatsapp') {
         actionLabel = purchaseType === 'NAKİT' ? 'NAKİT ALINDI' : 'TAKAS ALINDI';
@@ -200,7 +199,7 @@ export default function CnetmobilCmrFinalUltimate() {
     const statusLabel = ` [${actionLabel}]`;
     const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
 
-    // MÜKERRER KAYDI ÖNLEMEK İÇİN: Yalnızca Ana Butonlara Tıklanınca (Yani durumu ilk belirlerken) Sheets'e kaydet.
+    // MÜKERRER KAYDI ÖNLEMEK İÇİN SADECE SEÇİM AŞAMASINDA KAYDET
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
           await fetch(SCRIPT_URL, {
@@ -218,12 +217,8 @@ export default function CnetmobilCmrFinalUltimate() {
             })
           });
 
-          // SADECE GEREKLİ YERDE UYARI VER
           alert("Yönetici paneline gönderildi");
-          
-          setTimeout(() => {
-            loadData();
-          }, 2500);
+          setTimeout(() => { loadData(); }, 2500);
 
         } catch (e) { console.error(e); }
     }
@@ -232,8 +227,6 @@ export default function CnetmobilCmrFinalUltimate() {
       window.print();
     } else if (actionType === 'whatsapp') {
       const branch = branches.find(b => b.name === selectedBranch);
-      
-      // WhatsApp Mesajında sadece seçili olan fiyat gösterilecek
       const priceText = purchaseType === 'NAKİT' 
           ? `💰 *NAKİT ALIM:* ${finalCashPrice.toLocaleString()} TL` 
           : `🔄 *TAKAS ALIM:* ${finalTradePrice.toLocaleString()} TL`;
@@ -303,7 +296,6 @@ export default function CnetmobilCmrFinalUltimate() {
     
     alimlar.forEach(item => {
       let foundBranch = null;
-      
       for (let i = 0; i < item.data.length; i++) {
         if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) {
             foundBranch = item.data[i];
@@ -314,8 +306,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (foundBranch && stats[foundBranch]) {
          stats[foundBranch].total += 1;
          const rowDataString = item.data.join(" ");
-         
-         // Nakit Alındı, Takas Alındı ve Eski "Alındı" verilerini doğru sayması için güncellendi
          if (rowDataString.includes('[NAKİT ALINDI]') || rowDataString.includes('[TAKAS ALINDI]') || rowDataString.includes('[ALINDI]')) {
             stats[foundBranch].alindi += 1;
          } else if (rowDataString.includes('[ALINMADI]')) {
@@ -332,6 +322,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
   const canProceed = allSelected;
+
+  // Belgelerin (yazdır/whatsapp) görünüp görünmeyeceğini belirleyen durum (Alınmadıysa açılmaz)
+  const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
@@ -738,8 +731,8 @@ export default function CnetmobilCmrFinalUltimate() {
                        {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
                     </div>
                     
-                    {/* PERSONEL FİYAT REVİZE ALANI */}
-                    {selectedCapacity && allSelected && (
+                    {/* PERSONEL FİYAT REVİZE ALANI (Sadece Seçim Yapılmadan Önce Görünür) */}
+                    {selectedCapacity && allSelected && !purchaseType && (
                       <div className="mt-4">
                         {!isCustomOfferActive ? (
                           <button onClick={() => setIsCustomOfferActive(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-xl transition-colors">
@@ -787,38 +780,48 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               )}
 
-              {/* YENİ GELİŞTİRİLMİŞ SAĞ ALT MENÜ */}
+              {/* SAĞ ALT MENÜ VE KİLİT SİSTEMİ */}
               <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                
                 <div className="flex gap-3">
                     <button 
-                        disabled={!canProceed} 
+                        disabled={!canProceed || purchaseType !== null} 
                         onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? (purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30' : 'bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white') : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
+                        ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                        ${purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30 cursor-default' : ''} 
+                        ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white' : ''}`}>
                         ✓ NAKİT ALINDI
                     </button>
                     <button 
-                        disabled={!canProceed} 
+                        disabled={!canProceed || purchaseType !== null} 
                         onClick={() => { setPurchaseType('TAKAS'); handleFinalProcess('TAKAS ALINDI'); }} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? (purchaseType === 'TAKAS' ? 'bg-purple-500 text-white ring-4 ring-purple-500/30' : 'bg-slate-800 text-slate-300 hover:bg-purple-500 hover:text-white') : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
+                        ${!canProceed || (purchaseType && purchaseType !== 'TAKAS') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                        ${purchaseType === 'TAKAS' ? 'bg-purple-500 text-white ring-4 ring-purple-500/30 cursor-default' : ''} 
+                        ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-purple-500 hover:text-white' : ''}`}>
                         🔄 TAKAS ALINDI
                     </button>
                 </div>
                 
                 <button 
-                    disabled={!canProceed} 
-                    onClick={() => handleFinalProcess('ALINMADI')} 
-                    className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-slate-800 text-rose-400 hover:bg-rose-500 hover:text-white' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                    disabled={!canProceed || purchaseType !== null} 
+                    onClick={() => { setPurchaseType('ALINMADI'); handleFinalProcess('ALINMADI'); }} 
+                    className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all 
+                    ${!canProceed || (purchaseType && purchaseType !== 'ALINMADI') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                    ${purchaseType === 'ALINMADI' ? 'bg-rose-500 text-white ring-4 ring-rose-500/30 cursor-default' : ''} 
+                    ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-rose-400 hover:bg-rose-500 hover:text-white' : ''}`}>
                     ✕ ALINMADI
                 </button>
 
-                {/* YAZDIR VE WHATSAPP (Sadece Seçim Yapıldıysa Açılır) */}
-                <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${purchaseType ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
+                {/* YAZDIR VE WHATSAPP (Sadece NAKİT veya TAKAS Seçilirse Açılır) */}
+                <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${showDocs ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
-                    <button disabled={!canProceed || !purchaseType} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed && purchaseType ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
-                       SÖZLEŞMEYİ YAZDIR {purchaseType ? `(${purchaseType})` : ''}
+                    <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
+                       SÖZLEŞMEYİ YAZDIR {purchaseType && purchaseType !== 'ALINMADI' ? `(${purchaseType})` : ''}
                     </button>
-                    <button disabled={!canProceed || !purchaseType} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed && purchaseType ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
+                    <button disabled={!showDocs} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
                        WHATSAPP'A GÖNDER
                     </button>
                 </div>
@@ -828,7 +831,7 @@ export default function CnetmobilCmrFinalUltimate() {
         )}
       </main>
 
-      {/* TAKSİT MODALI (Aynı) */}
+      {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
