@@ -46,6 +46,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
 
+  // NAKİT / TAKAS SEÇİM DURUMU
+  const [purchaseType, setPurchaseType] = useState<'NAKİT' | 'TAKAS' | null>(null);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPass, setAdminPass] = useState('');
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
@@ -83,6 +86,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
+    setPurchaseType(null); // Sıfırla
     setIsAdmin(false);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -94,6 +98,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
+    setPurchaseType(null); // Sıfırla
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
@@ -182,45 +187,59 @@ export default function CnetmobilCmrFinalUltimate() {
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
   const finalTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
 
-  const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'ALINDI' | 'ALINMADI') => {
+  const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
     const now = new Date();
     const dateTime = `${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}`;
     
-    const statusLabel = (actionType === 'ALINDI' || actionType === 'ALINMADI') ? ` [${actionType}]` : "";
+    // Hangi işlemin yapıldığını belirle (Yazdır veya WhatsApp'a basıldıysa seçilmiş olan Nakit/Takas durumunu baz alır)
+    let actionLabel = actionType;
+    if (actionType === 'print' || actionType === 'whatsapp') {
+        actionLabel = purchaseType === 'NAKİT' ? 'NAKİT ALINDI' : 'TAKAS ALINDI';
+    }
+
+    const statusLabel = ` [${actionLabel}]`;
     const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
 
-    try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify({
-          type: "SAVE_ALIM",
-          branch: selectedBranch,
-          customer: customer.name,
-          device: `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel}`,
-          imei: customer.imei,
-          cash: finalCashPrice,
-          trade: finalTradePrice,
-          date: dateTime
-        })
-      });
+    // MÜKERRER KAYDI ÖNLEMEK İÇİN: Yalnızca Ana Butonlara Tıklanınca (Yani durumu ilk belirlerken) Sheets'e kaydet.
+    if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
+        try {
+          await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+              type: "SAVE_ALIM",
+              branch: selectedBranch,
+              customer: customer.name,
+              device: `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel}`,
+              imei: customer.imei,
+              cash: finalCashPrice,
+              trade: finalTradePrice,
+              date: dateTime
+            })
+          });
 
-      // İSTENİLEN UYARI MESAJI DEĞİŞİKLİĞİ
-      if(actionType === 'ALINDI' || actionType === 'ALINMADI') {
-         alert("Yönetici paneline gönderildi");
-      }
-      
-      setTimeout(() => {
-        loadData();
-      }, 2500);
+          // SADECE GEREKLİ YERDE UYARI VER
+          alert("Yönetici paneline gönderildi");
+          
+          setTimeout(() => {
+            loadData();
+          }, 2500);
 
-    } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); }
+    }
 
     if (actionType === 'print') {
       window.print();
     } else if (actionType === 'whatsapp') {
       const branch = branches.find(b => b.name === selectedBranch);
-      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A💰 *NAKİT:* ${finalCashPrice.toLocaleString()} TL%0A🔄 *TAKAS:* ${finalTradePrice.toLocaleString()} TL`;
+      
+      // WhatsApp Mesajında sadece seçili olan fiyat gösterilecek
+      const priceText = purchaseType === 'NAKİT' 
+          ? `💰 *NAKİT ALIM:* ${finalCashPrice.toLocaleString()} TL` 
+          : `🔄 *TAKAS ALIM:* ${finalTradePrice.toLocaleString()} TL`;
+          
+      const message = `📱 *CMR CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A${priceText}`;
+      
       window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
     }
   };
@@ -275,20 +294,16 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  // İSTATİSTİK HATASI İÇİN GÜNCELLENMİŞ FONKSİYON
   const getBranchStats = () => {
     const stats: any = {};
     
-    // Önce bilinen tüm şubeleri tanımla ve sıfırla
     branches.forEach(b => {
       stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
     });
     
-    // Gelen verileri tara
     alimlar.forEach(item => {
       let foundBranch = null;
       
-      // Satır içindeki tüm hücrelere bakarak şube adını bulmaya çalışır. (Hangi sütunda olduğu fark etmez)
       for (let i = 0; i < item.data.length; i++) {
         if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) {
             foundBranch = item.data[i];
@@ -296,14 +311,12 @@ export default function CnetmobilCmrFinalUltimate() {
         }
       }
 
-      // Eğer kayıtlı şubelerimizden biriyse istatistiğe ekle
       if (foundBranch && stats[foundBranch]) {
          stats[foundBranch].total += 1;
-         
-         // Tüm satır verisini metne dönüştürerek durum etiketini kontrol eder
          const rowDataString = item.data.join(" ");
          
-         if (rowDataString.includes('[ALINDI]')) {
+         // Nakit Alındı, Takas Alındı ve Eski "Alındı" verilerini doğru sayması için güncellendi
+         if (rowDataString.includes('[NAKİT ALINDI]') || rowDataString.includes('[TAKAS ALINDI]') || rowDataString.includes('[ALINDI]')) {
             stats[foundBranch].alindi += 1;
          } else if (rowDataString.includes('[ALINMADI]')) {
             stats[foundBranch].alinmadi += 1;
@@ -446,7 +459,6 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
 
-                 {/* GÜNCELLENMİŞ BÖLÜM: ŞUBE İŞLEM İSTATİSTİKLERİ */}
                  <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                     <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
                        📊 ŞUBE İŞLEM İSTATİSTİKLERİ
@@ -726,7 +738,7 @@ export default function CnetmobilCmrFinalUltimate() {
                        {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
                     </div>
                     
-                    {/* YENİ: PERSONEL FİYAT REVİZE ALANI */}
+                    {/* PERSONEL FİYAT REVİZE ALANI */}
                     {selectedCapacity && allSelected && (
                       <div className="mt-4">
                         {!isCustomOfferActive ? (
@@ -775,26 +787,39 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               )}
 
+              {/* YENİ GELİŞTİRİLMİŞ SAĞ ALT MENÜ */}
               <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed ? 'bg-white text-slate-950 hover:bg-slate-50' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                   SÖZLEŞMEYİ YAZDIR
-                </button>
-                <button disabled={!canProceed} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-900/40' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                   WHATSAPP & KAYDET
-                </button>
-
-                <div className="pt-4 mt-2 border-t border-slate-800 flex gap-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                <div className="flex gap-3">
                     <button 
                         disabled={!canProceed} 
-                        onClick={() => handleFinalProcess('ALINDI')} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                        ✓ ALINDI
+                        onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? (purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30' : 'bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white') : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        ✓ NAKİT ALINDI
                     </button>
                     <button 
                         disabled={!canProceed} 
-                        onClick={() => handleFinalProcess('ALINMADI')} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-rose-500 text-white hover:bg-rose-600' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
-                        ✕ ALINMADI
+                        onClick={() => { setPurchaseType('TAKAS'); handleFinalProcess('TAKAS ALINDI'); }} 
+                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? (purchaseType === 'TAKAS' ? 'bg-purple-500 text-white ring-4 ring-purple-500/30' : 'bg-slate-800 text-slate-300 hover:bg-purple-500 hover:text-white') : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                        🔄 TAKAS ALINDI
+                    </button>
+                </div>
+                
+                <button 
+                    disabled={!canProceed} 
+                    onClick={() => handleFinalProcess('ALINMADI')} 
+                    className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all btn-click ${canProceed ? 'bg-slate-800 text-rose-400 hover:bg-rose-500 hover:text-white' : 'btn-disabled bg-slate-800 text-slate-600'}`}>
+                    ✕ ALINMADI
+                </button>
+
+                {/* YAZDIR VE WHATSAPP (Sadece Seçim Yapıldıysa Açılır) */}
+                <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${purchaseType ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
+                    <button disabled={!canProceed || !purchaseType} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed && purchaseType ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
+                       SÖZLEŞMEYİ YAZDIR {purchaseType ? `(${purchaseType})` : ''}
+                    </button>
+                    <button disabled={!canProceed || !purchaseType} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${canProceed && purchaseType ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
+                       WHATSAPP'A GÖNDER
                     </button>
                 </div>
               </div>
@@ -803,12 +828,11 @@ export default function CnetmobilCmrFinalUltimate() {
         )}
       </main>
 
-      {/* YENİ VE DAHA PROFESYONEL TAKSİT HESAPLAYICI MODAL'I */}
+      {/* TAKSİT MODALI (Aynı) */}
       {isInstallmentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
             
-            {/* Modal Başlık Bölümü */}
             <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
               <div className="flex items-center gap-4">
                 <div className="bg-blue-50 text-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center">
@@ -826,7 +850,6 @@ export default function CnetmobilCmrFinalUltimate() {
               </button>
             </div>
             
-            {/* Müşteri Bilgileri ve Tutar Giriş Bölümü */}
             <div className="mb-6 shrink-0 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-blue-500 focus-within:bg-white transition-all">
@@ -865,12 +888,10 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             </div>
 
-            {/* Taksit Listesi (İki Sütunlu Izgara Yapısı) */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
               {installmentAmount && Number(installmentAmount) > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    // GÜNCELLENMİŞ ORANLAR
                     { month: 2, rate: 7.83 },
                     { month: 3, rate: 10.05 },
                     { month: 4, rate: 12.36 },
@@ -910,7 +931,6 @@ export default function CnetmobilCmrFinalUltimate() {
                               {total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                             </div>
                           </div>
-                          {/* WHATSAPP GÖNDER BUTONU */}
                           <button
                             onClick={() => handleSendInstallmentToWhatsApp(inst.month, total)}
                             className="bg-[#25D366] hover:bg-[#128C7E] text-white w-12 h-12 rounded-[18px] flex items-center justify-center transition-all shadow-md shadow-green-200 btn-click shrink-0"
@@ -986,15 +1006,20 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           </div>
 
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
-              <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
-                <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalCashPrice.toLocaleString()} TL</p>
-              </div>
-              <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
-                <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
-                <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalTradePrice.toLocaleString()} TL</p>
-              </div>
+          {/* DİNAMİK YAZDIRMA ALANI: Seçime göre tek fiyat çıkacak */}
+          <div style={{display:'grid', gridTemplateColumns: purchaseType ? '1fr' : '1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
+              {purchaseType === 'NAKİT' && (
+                <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
+                  <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
+                  <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalCashPrice.toLocaleString()} TL</p>
+                </div>
+              )}
+              {purchaseType === 'TAKAS' && (
+                <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
+                  <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
+                  <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalTradePrice.toLocaleString()} TL</p>
+                </div>
+              )}
           </div>
 
           <div style={{fontSize:'9px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.5', marginBottom:'60px', backgroundColor:'#fdfdfd', padding:'15px', border:'1px solid #eee', borderRadius:'10px'}}>
