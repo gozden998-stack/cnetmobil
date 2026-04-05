@@ -16,7 +16,8 @@ const IP_HARITASI: any = {
 
 // PATRON / YÖNETİCİ IP ADRESLERİ (Kilitlenmeyen, tüm şubeleri seçebilen serbest IP'ler)
 const MASTER_IPLER = [
-  "95.70.226.118"
+  "95.70.226.118",
+  "148.0.18.162"
 ];
 
 export default function CnetmobilCmrFinalUltimate() {
@@ -275,6 +276,38 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  // YENİ EKLENEN FONKSİYON: ŞUBELERE GÖRE İSTATİSTİK HESAPLAMA
+  const getBranchStats = () => {
+    const stats: any = {};
+    
+    // Önce tüm şubeleri sıfırla
+    branches.forEach(b => {
+      stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
+    });
+    
+    // Alımları say
+    alimlar.forEach(item => {
+      const branchName = item.data[0]; // Şube Adı
+      const deviceStr = item.data[2] || ""; // Cihaz bilgisi (İçinde [ALINDI] vb. yazar)
+      
+      if (!stats[branchName]) {
+        stats[branchName] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
+      }
+      
+      stats[branchName].total += 1;
+      
+      if (deviceStr.includes('[ALINDI]')) {
+         stats[branchName].alindi += 1;
+      } else if (deviceStr.includes('[ALINMADI]')) {
+         stats[branchName].alinmadi += 1;
+      } else {
+         stats[branchName].diger += 1;
+      }
+    });
+    
+    return stats;
+  };
+
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
   const canProceed = allSelected;
@@ -402,6 +435,40 @@ export default function CnetmobilCmrFinalUltimate() {
                         </div>
                       </div>
                       <button onClick={adminAddDevice} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs btn-click shadow-lg shadow-blue-100 mt-6">CİHAZI VERİTABANINA EKLE</button>
+                    </div>
+                 </div>
+
+                 {/* YENİ EKLENEN BÖLÜM: ŞUBE İŞLEM İSTATİSTİKLERİ */}
+                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
+                    <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
+                       📊 ŞUBE İŞLEM İSTATİSTİKLERİ
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {Object.entries(getBranchStats()).map(([branchName, stat]: any) => (
+                         <div key={branchName} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                           <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-5 text-center bg-white py-2 rounded-xl border border-slate-100">{branchName}</h3>
+                           
+                           <div className="space-y-3">
+                             <div className="flex justify-between items-center text-xs">
+                               <span className="text-slate-500 font-bold">ALINDI</span>
+                               <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-black">{stat.alindi}</span>
+                             </div>
+                             <div className="flex justify-between items-center text-xs">
+                               <span className="text-slate-500 font-bold">ALINMADI</span>
+                               <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-lg font-black">{stat.alinmadi}</span>
+                             </div>
+                             <div className="flex justify-between items-center text-xs">
+                               <span className="text-slate-500 font-bold">BEKLEYEN/DİĞER</span>
+                               <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-black">{stat.diger}</span>
+                             </div>
+                           </div>
+                           
+                           <div className="mt-5 pt-4 border-t border-slate-200 flex justify-between items-center">
+                               <span className="text-[10px] font-black text-slate-400 uppercase">Toplam İşlem</span>
+                               <span className="text-blue-600 font-black text-xl">{stat.total}</span>
+                           </div>
+                         </div>
+                      ))}
                     </div>
                  </div>
 
