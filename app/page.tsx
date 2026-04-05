@@ -23,9 +23,9 @@ const MASTER_IPLER = [
 // --- YENİ: ŞUBE ŞİFRELERİ ---
 const BRANCH_PASSWORDS: Record<string, string> = {
   "1905": "CMR MERKEZ",
-  "1906": "CMR CADDE",
-  "1907": "CMR KAPAKLI",
-  "1908": "CMR SARAY"
+  "2003": "CMR CADDE",
+  "1071": "CMR KAPAKLI",
+  "1453": "CMR SARAY"
 };
 
 export default function CnetmobilCmrFinalUltimate() {
