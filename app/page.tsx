@@ -32,6 +32,10 @@ export default function CnetmobilCmrFinalUltimate() {
   const [adminPass, setAdminPass] = useState('');
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
 
+  // YENİ EKLENEN DURUMLAR (TAKSİT HESAPLAYICI İÇİN)
+  const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
+  const [installmentAmount, setInstallmentAmount] = useState('');
+
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
     { name: "CMR MERKEZ", phone: "905416801905" },
@@ -236,7 +240,7 @@ export default function CnetmobilCmrFinalUltimate() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900 selection:bg-blue-100">
+    <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900 selection:bg-blue-100 relative">
       <style>{`
         #print-area { display: none !important; }
         @media print {
@@ -271,6 +275,15 @@ export default function CnetmobilCmrFinalUltimate() {
             </svg>
             <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">CNETMOBİL'DE GÜVENDESİNİZ</span>
           </div>
+
+          {/* TAKSİT HESAPLA BUTONU EKLENDİ */}
+          <button 
+            onClick={() => setIsInstallmentModalOpen(true)} 
+            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-1.5 rounded-full shadow-sm transition-colors btn-click"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">TAKSİT HESAPLA</span>
+          </button>
 
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           <div className="relative">
@@ -540,7 +553,6 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                 </div>
 
-                {/* YENİ: Sadece iPhone 13 İçin Renk Seçimi Bölümü */}
                 {selectedModelName === "iPhone 13" && (
                   <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -552,7 +564,6 @@ export default function CnetmobilCmrFinalUltimate() {
                         <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
                       ))}
                     </div>
-                    {/* Personel Bilgilendirme Notu */}
                     <p className="text-[9px] text-orange-600 font-bold mt-3">* %5 prim sadece mükemmel durumdaki (Kozmetik: Mükemmel, Ekran: Sağlam, Pil: 85+) cihazlar için geçerlidir.</p>
                   </div>
                 )}
@@ -631,6 +642,74 @@ export default function CnetmobilCmrFinalUltimate() {
           </div>
         )}
       </main>
+
+      {/* YENİ EKLENEN KREDİ KARTI TAKSİT HESAPLAYICI MODAL'I */}
+      {isInstallmentModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm print:hidden p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-md relative animate-in fade-in zoom-in duration-300 border border-slate-100">
+            <button 
+              onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} 
+              className="absolute top-6 right-6 bg-slate-100 p-2 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <h2 className="text-2xl font-black italic mb-8 text-slate-900 uppercase tracking-tighter flex items-center gap-3">
+              💳 Kredi Kartı <span className="text-blue-600">Taksit</span>
+            </h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">İşlem Tutarı (TL)</label>
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    placeholder="Örn: 15000"
+                    value={installmentAmount}
+                    onChange={(e) => setInstallmentAmount(e.target.value)}
+                    className="w-full p-5 bg-slate-50 rounded-2xl text-xl font-black border border-slate-200 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all text-slate-800"
+                  />
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-black">TL</span>
+                </div>
+              </div>
+
+              {installmentAmount && Number(installmentAmount) > 0 && (
+                <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2 pt-2">
+                  {[
+                    // Örnek Komisyon Oranları (Bunları banka anlaşmanıza göre değiştirebilirsiniz)
+                    { month: 2, rate: 1.05 }, // %5 Vade Farkı
+                    { month: 3, rate: 1.08 }, // %8 Vade Farkı
+                    { month: 6, rate: 1.15 }, // %15 Vade Farkı
+                    { month: 9, rate: 1.22 }, // %22 Vade Farkı
+                    { month: 12, rate: 1.30 }, // %30 Vade Farkı
+                  ].map((inst) => {
+                    const total = Number(installmentAmount) * inst.rate;
+                    const monthly = total / inst.month;
+                    return (
+                      <div key={inst.month} className="flex justify-between items-center bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group">
+                        <div className="flex items-center gap-4">
+                          <span className="bg-blue-50 group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 w-12 h-12 flex items-center justify-center rounded-2xl font-black text-lg">
+                            {inst.month}
+                          </span>
+                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Taksit</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-black italic text-slate-900 tracking-tighter">
+                            {monthly.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL x {inst.month}
+                          </div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">
+                            Toplam: {total.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="max-w-6xl mx-auto px-6 py-10 text-center print:hidden">
         <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v4.0.0</p>
