@@ -37,14 +37,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU (ALIM, SERVİS, CEP_TABLET, YNA_LIST)
+  // UYGULAMA MODU
   const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list'>('alim');
   
-  // YENI EKLENEN VERİ STATE'LERİ (GOOGLE SHEETS'TEN)
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
 
-  // EKRAN TİPLERİ VE KASA/ARKA CAM İÇİN GÜNCELLENMİŞ SERVİS STATE'İ
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
 
@@ -244,7 +242,6 @@ export default function CnetmobilCmrFinalUltimate() {
         brandData = await brandRes.json();
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
 
-      // YENİ SAYFALARI ÇEKME KISMI (CEP+TABLET A'dan I'ya kadar)
       try {
         const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:I1000?key=${API_KEY}`);
         const ctData = await ctRes.json();
@@ -275,7 +272,6 @@ export default function CnetmobilCmrFinalUltimate() {
         setBrandDb(brandData.values.map((row: any) => ({ name: row[0], logo: row[1] })));
       }
       
-      // Google Sheets'ten güncel teknik servis fiyatlarını çekme
       try {
         const servisRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Servis_Fiyatlari!A2:G1000?key=${API_KEY}`);
         const servisData = await servisRes.json();
@@ -559,7 +555,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
         <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
            <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/20">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
            
@@ -711,9 +707,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const isBomba = row[0] && row[0].includes('BOMBA');
-                        const hasKampanya = row[1] && row[1].trim() !== '-' && row[1].trim() !== '';
-                        const isHighlighted = isBomba || hasKampanya;
+                        const cellName = (row[0] || '').toUpperCase();
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
                           <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
                              <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
@@ -742,9 +737,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const isBomba = row[5] && row[5].includes('BOMBA');
-                        const hasKampanya = row[6] && row[6].trim() !== '-' && row[6].trim() !== '';
-                        const isHighlighted = isBomba || hasKampanya;
+                        const cellName = (row[5] || '').toUpperCase();
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
                           <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
                              <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
@@ -789,14 +783,15 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const isBomba = row[0] && row[0].includes('BOMBA');
+                        const cellName = (row[0] || '').toUpperCase();
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
-                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isBomba ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                           <div className={`flex-[3] flex items-center ${isBomba ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
-                              {isBomba && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                              {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                            </div>
-                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isBomba ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
+                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                         </div>
                      )})}
                      {ynaData.length === 0 && (
@@ -813,14 +808,15 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const isBomba = row[3] && row[3].includes('BOMBA');
+                        const cellName = (row[3] || '').toUpperCase();
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
-                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isBomba ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                           <div className={`flex-[3] flex items-center ${isBomba ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
-                              {isBomba && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                              {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[3]}
                            </div>
-                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isBomba ? 'text-yellow-400' : 'text-white'}`}>{row[4] || '-'}</div>
+                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[4] || '-'}</div>
                         </div>
                      )})}
                      {ynaData.length === 0 && (
