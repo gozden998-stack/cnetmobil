@@ -37,9 +37,13 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU (ALIM VEYA SERVİS)
-  const [appMode, setAppMode] = useState<'alim' | 'servis'>('alim');
+  // UYGULAMA MODU EKLENDİ (ALIM, SERVİS, CEP_TABLET, YNA_LIST)
+  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list'>('alim');
   
+  // YENI EKLENEN VERİ STATE'LERİ
+  const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
+  const [ynaData, setYnaData] = useState<any[][]>([]);
+
   // EKRAN TİPLERİ VE KASA/ARKA CAM İÇİN GÜNCELLENMİŞ SERVİS STATE'İ
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -239,6 +243,19 @@ export default function CnetmobilCmrFinalUltimate() {
         const brandRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Markalar!A2:B50?key=${API_KEY}`);
         brandData = await brandRes.json();
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
+
+      // YENİ SAYFALARI ÇEKME KISMI
+      try {
+        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/CEP + TABLET+IOT SAAT LIST!A1:J1000?key=${API_KEY}`);
+        const ctData = await ctRes.json();
+        if (ctData.values) setCepTabletData(ctData.values);
+      } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi."); }
+
+      try {
+        const ynaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/YNA LİST!A1:E1000?key=${API_KEY}`);
+        const ynaData = await ynaRes.json();
+        if (ynaData.values) setYnaData(ynaData.values);
+      } catch(e) { console.warn("YNA LIST tablosu çekilemedi."); }
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
@@ -485,7 +502,6 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!sFiyat) return alert("Bu cihaz için fiyat girilmemiş.");
     const branch = branches.find(b => b.name === selectedBranch) || branches[0];
     
-    // Geriye dönük uyumluluk: Eğer sadece "ekran" girilmişse onu "Orijinal" kabul et
     const orjinalEkran = sFiyat.ekranOrj || sFiyat.ekran || '-';
     
     let ekranText = `📱 Ekran (Orijinal): ${orjinalEkran !== '-' ? orjinalEkran + ' TL' : '-'}%0A📱 Ekran (OLED): ${sFiyat.ekranOled ? sFiyat.ekranOled + ' TL' : '-'}`;
@@ -573,8 +589,10 @@ export default function CnetmobilCmrFinalUltimate() {
     );
   }
 
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list';
+
   return (
-    <div className={`min-h-screen pb-20 font-sans selection:bg-blue-100 relative transition-colors duration-500 ${appMode === 'servis' ? 'bg-[#FFF8F1] text-orange-950' : 'bg-[#F8FAFC] text-slate-900'}`}>
+    <div className={`min-h-screen pb-20 font-sans selection:bg-blue-100 relative transition-colors duration-500 ${isDarkAppMode ? 'bg-[#111111] text-white' : appMode === 'servis' ? 'bg-[#FFF8F1] text-orange-950' : 'bg-[#F8FAFC] text-slate-900'}`}>
       <style>{`
         #print-area { display: none !important; }
         @media print {
@@ -586,32 +604,39 @@ export default function CnetmobilCmrFinalUltimate() {
         .btn-click:active { transform: scale(0.96); }
         .btn-disabled { opacity: 0.2; cursor: not-allowed !important; pointer-events: none; grayscale: 100%; }
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); }
-        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .glass { background: ${isDarkAppMode ? 'rgba(30,30,45, 0.9)' : 'rgba(255, 255, 255, 0.8)'}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
 
-      <header className={`px-6 py-4 glass border-b flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow transition-colors ${appMode === 'servis' ? 'border-orange-200/60' : 'border-slate-200/60'}`}>
+      <header className={`px-6 py-4 glass border-b flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow transition-colors ${isDarkAppMode ? 'border-[#2a2a3d]' : appMode === 'servis' ? 'border-orange-200/60' : 'border-slate-200/60'}`}>
         <div onClick={resetAll} className="flex items-center gap-2 group cursor-pointer">
-          <div className={`${appMode === 'servis' ? 'bg-orange-600' : 'bg-blue-600'} p-1.5 rounded-lg group-hover:rotate-12 transition-transform`}>
+          <div className={`${appMode === 'servis' ? 'bg-orange-600' : isDarkAppMode ? 'bg-[#3498db]' : 'bg-blue-600'} p-1.5 rounded-lg group-hover:rotate-12 transition-transform`}>
             {appMode === 'servis' ? (
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             ) : (
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
             )}
           </div>
-          <h1 className="text-xl font-black italic uppercase tracking-tighter">
-            CNET<span className={appMode === 'servis' ? 'text-orange-600' : 'text-blue-600'}>MOBIL</span> <span className="font-light opacity-50 not-italic ml-1">CMR</span>
+          <h1 className={`text-xl font-black italic uppercase tracking-tighter ${isDarkAppMode ? 'text-white' : ''}`}>
+            CNET<span className={appMode === 'servis' ? 'text-orange-600' : isDarkAppMode ? 'text-[#3498db]' : 'text-blue-600'}>MOBIL</span> <span className="font-light opacity-50 not-italic ml-1">CMR</span>
           </h1>
         </div>
         
+        {/* ÜST MENÜ EKLENEN BUTONLARLA BİRLİKTE */}
         {step < 99 && (
-          <div className="hidden sm:flex bg-slate-200/60 p-1.5 rounded-2xl items-center shadow-inner relative z-50">
-            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700'}`}>
+          <div className={`hidden md:flex p-1.5 rounded-2xl items-center shadow-inner relative z-50 ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
+            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                CİHAZ ALIM
             </button>
-            <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                TEKNİK SERVİS
+            </button>
+            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               CEP+TABLET+IOT
+            </button>
+            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               YNA LİST
             </button>
           </div>
         )}
@@ -619,17 +644,17 @@ export default function CnetmobilCmrFinalUltimate() {
         <div className="flex items-center gap-3 md:gap-4">
           <button 
             onClick={() => setIsInstallmentModalOpen(true)} 
-            className={`flex items-center gap-1.5 text-white px-4 py-2 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200'}`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 text-white' : isDarkAppMode ? 'bg-[#2ecc71] hover:bg-green-600 text-white' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200 text-white'}`}
           >
             <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">TAKSİT</span>
           </button>
 
-          <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
+          <button onClick={() => setStep(99)} className={`text-[10px] font-bold uppercase transition-colors ${isDarkAppMode ? 'text-slate-400 hover:text-[#3498db]' : 'text-slate-400 hover:text-blue-600'}`}>YÖNETİCİ</button>
           
           {isMasterAccess ? (
             <div className="relative">
-              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`appearance-none hover:bg-opacity-80 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border transition-colors cursor-pointer uppercase shadow-sm ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`appearance-none hover:bg-opacity-80 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border transition-colors cursor-pointer uppercase shadow-sm ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-200' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                 {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
               </select>
               <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
@@ -637,8 +662,8 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             </div>
           ) : (
-            <div className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-               <span className={`w-2 h-2 rounded-full animate-pulse ${appMode === 'servis' ? 'bg-orange-600' : 'bg-blue-600'}`}></span>
+            <div className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-100' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+               <span className={`w-2 h-2 rounded-full animate-pulse ${appMode === 'servis' ? 'bg-orange-600' : isDarkAppMode ? 'bg-[#2ecc71]' : 'bg-blue-600'}`}></span>
                {selectedBranch}
             </div>
           )}
@@ -648,17 +673,140 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </header>
 
+      {/* MOBİL YENİ BUTONLAR GÖRÜNÜMÜ */}
       {step < 99 && (
-        <div className="sm:hidden p-4 pb-0 animate-in fade-in">
-           <div className="flex bg-slate-200/60 p-1.5 rounded-2xl items-center shadow-inner">
-              <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>CİHAZ ALIM</button>
-              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
+        <div className={`md:hidden p-4 pb-0 animate-in fade-in`}>
+           <div className={`flex flex-wrap gap-2 p-1.5 rounded-2xl items-center shadow-inner ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
+              <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CİHAZ ALIM</button>
+              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
+              <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
+              <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
            </div>
         </div>
       )}
 
       <main className="max-w-7xl mx-auto p-6 mt-4 print:hidden">
-        {step === 99 ? (
+        {/* ------------ YENİ CEP + TABLET EKRANI (DARK MODE) ------------ */}
+        {appMode === 'cep_tablet' && step < 99 ? (
+           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#3498db]">CANLI FİYAT BORSASI</h2>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
+                </div>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-auto">
+                   <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               {/* SOL SÜTUN - APPLE */}
+               <div>
+                  <div className="bg-[#4472c4] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[2]">MODEL (APPLE)</div>
+                     <div className="flex-1 text-right">KAMPANYA</div>
+                     <div className="flex-1 text-right">SATIŞ</div>
+                  </div>
+                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                     {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
+                           <div className="flex-[2] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
+                           <div className="flex-1 text-right text-[#ff7675] font-black">{row[1]}</div>
+                           <div className="flex-1 text-right text-[#dfe6e9]">{row[2]}</div>
+                        </div>
+                     ))}
+                     {cepTabletData.length === 0 && (
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                     )}
+                  </div>
+               </div>
+               
+               {/* SAĞ SÜTUN - ANDROID / DİĞER */}
+               <div>
+                  <div className="bg-[#2ecc71] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[2]">MODEL (ANDROID / DİĞER)</div>
+                     <div className="flex-1 text-right">KAMPANYA</div>
+                     <div className="flex-1 text-right">SATIŞ</div>
+                  </div>
+                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                     {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const isBomba = row[5].includes('BOMBA');
+                        return (
+                          <div key={i} className={`flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center ${isBomba ? 'bg-[#f1c40f]/10' : ''}`}>
+                             <div className={`flex-[2] ${isBomba ? 'text-[#f1c40f] animate-pulse' : 'text-slate-300'}`}>{row[5]}</div>
+                             <div className="flex-1 text-right text-[#ff7675] font-black">{row[6]}</div>
+                             <div className="flex-1 text-right text-[#dfe6e9]">{row[7]}</div>
+                          </div>
+                        )
+                     })}
+                     {cepTabletData.length === 0 && (
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                     )}
+                  </div>
+               </div>
+             </div>
+           </div>
+        ) : 
+        
+        /* ------------ YENİ YNA LİST EKRANI (DARK MODE) ------------ */
+        appMode === 'yna_list' && step < 99 ? (
+           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#9b59b6]">YENİ NESİL AKSESUAR</h2>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
+                </div>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-auto">
+                   <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               {/* SOL SÜTUN YNA */}
+               <div>
+                  <div className="bg-[#8e44ad] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[3]">ÜRÜN ADI</div>
+                     <div className="flex-1 text-right">FİYATI (TL)</div>
+                  </div>
+                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                     {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
+                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
+                           <div className="flex-1 text-right text-white font-black text-sm">{row[1]}</div>
+                        </div>
+                     ))}
+                     {ynaData.length === 0 && (
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                     )}
+                  </div>
+               </div>
+               
+               {/* SAĞ SÜTUN YNA */}
+               <div>
+                  <div className="bg-[#8e44ad] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[3]">ÜRÜN ADI</div>
+                     <div className="flex-1 text-right">FİYATI (TL)</div>
+                  </div>
+                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                     {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
+                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[3]}</div>
+                           <div className="flex-1 text-right text-white font-black text-sm">{row[4]}</div>
+                        </div>
+                     ))}
+                     {ynaData.length === 0 && (
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                     )}
+                  </div>
+               </div>
+             </div>
+           </div>
+        ) :
+        
+        /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ ---------------- */
+        step === 99 ? (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
              {!isAdmin ? (
                <div className="max-w-md mx-auto bg-white p-12 rounded-[48px] shadow-2xl text-center border border-slate-100">
@@ -666,14 +814,14 @@ export default function CnetmobilCmrFinalUltimate() {
                     <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                  </div>
                  <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-slate-900">Admin Girişi</h2>
-                 <input type="password" placeholder="••••••••" className="w-full p-5 bg-slate-50 rounded-2xl mb-4 text-center font-black outline-none border border-slate-200 focus:border-blue-500 transition-all" onChange={(e) => setAdminPass(e.target.value)} />
+                 <input type="password" placeholder="••••••••" className="w-full p-5 bg-slate-50 rounded-2xl mb-4 text-center font-black outline-none border border-slate-200 focus:border-blue-500 transition-all text-slate-900" onChange={(e) => setAdminPass(e.target.value)} />
                  <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-slate-200">SISTEME GIRIS YAP</button>
                </div>
              ) : (
                <div className="space-y-10">
                  
                  {/* TEKNİK SERVİS FİYAT YÖNETİMİ (MARKAYA DUYARLI) */}
-                 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-10 rounded-[40px] shadow-sm border border-orange-100">
+                 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-10 rounded-[40px] shadow-sm border border-orange-100 text-slate-900">
                     <h2 className="text-xl font-black italic text-orange-800 mb-2 uppercase tracking-tighter flex items-center gap-2">
                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                        TEKNİK SERVİS FİYAT YÖNETİMİ
@@ -696,7 +844,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 arkaCam: existing.arkaCam||'', 
                                 kasa: existing.kasa||''
                              });
-                          }} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none uppercase shadow-sm">
+                          }} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none uppercase shadow-sm text-slate-800">
                           <option value="">Model Seçiniz</option>
                           {Array.from(new Set(db.map(i => i.name))).sort().map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
@@ -732,21 +880,21 @@ export default function CnetmobilCmrFinalUltimate() {
 
                       <div>
                         <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Batarya Fiyatı (TL)</label>
-                        <input type="number" placeholder="Örn: 1200" value={servisForm.batarya} onChange={e => setServisForm({...servisForm, batarya: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                        <input type="number" placeholder="Örn: 1200" value={servisForm.batarya} onChange={e => setServisForm({...servisForm, batarya: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm text-slate-800" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Arka Cam (TL)</label>
-                        <input type="number" placeholder="Örn: 1800" value={servisForm.arkaCam} onChange={e => setServisForm({...servisForm, arkaCam: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                        <input type="number" placeholder="Örn: 1800" value={servisForm.arkaCam} onChange={e => setServisForm({...servisForm, arkaCam: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm text-slate-800" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Kasa (TL)</label>
-                        <input type="number" placeholder="Örn: 2500" value={servisForm.kasa} onChange={e => setServisForm({...servisForm, kasa: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                        <input type="number" placeholder="Örn: 2500" value={servisForm.kasa} onChange={e => setServisForm({...servisForm, kasa: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm text-slate-800" />
                       </div>
                     </div>
                     <button onClick={saveServisFiyat} className="w-full py-5 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black uppercase text-xs btn-click shadow-lg shadow-orange-200 mt-6 transition-colors">FİYATLARI KAYDET</button>
                  </div>
 
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 text-slate-900">
                     <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                       <h2 className="text-xs font-black italic text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
                         <span className="w-2 h-2 bg-slate-800 rounded-full"></span>
@@ -794,7 +942,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
 
-                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
+                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 text-slate-900">
                     <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
                        📊 ŞUBE İŞLEM İSTATİSTİKLERİ
                     </h2>
@@ -827,7 +975,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
 
-                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
+                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 text-slate-900">
                    <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4 mb-8">
                       <h2 className="text-xl font-black italic uppercase tracking-tighter">GÜNCEL ALIM KAYITLARI</h2>
                       <button onClick={deleteAllAlimlar} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-100">Tüm Geçmişi Temizle</button>
@@ -859,7 +1007,7 @@ export default function CnetmobilCmrFinalUltimate() {
              )}
            </div>
         ) : step === 1 ? (
-           <div className="space-y-12">
+           <div className="space-y-12 text-slate-900">
              <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
                 <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase">
                   {appMode === 'alim' ? (
@@ -903,7 +1051,7 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
            </div>
         ) : step === 2 ? (
-           <div className="animate-in slide-in-from-right-8 duration-500">
+           <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900">
              <div className="flex items-center justify-between mb-8">
                 <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800' : 'border-slate-200 text-slate-500 hover:text-blue-600'}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
@@ -954,7 +1102,7 @@ export default function CnetmobilCmrFinalUltimate() {
              )}
            </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-10 animate-in fade-in duration-700">
+          <div className="flex flex-col lg:flex-row gap-10 animate-in fade-in duration-700 text-slate-900">
             {/* SOL KISIM */}
             <div className="flex-1 space-y-6">
               <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700' : 'border-slate-200 text-slate-500 hover:text-blue-600'}`}>
@@ -1400,7 +1548,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   })}
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-40 py-10">
+                <div className="h-full flex flex-col items-center justify-center opacity-40 py-10 text-slate-900">
                   <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
                 </div>
