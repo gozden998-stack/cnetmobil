@@ -10,7 +10,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeB
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
   "46.197.252.143": "CMR KAPAKLI",
-  "31.55.79.145": "CMR MERKEZ",
+  "31.155.79.145": "CMR MERKEZ",
   "149.0.18.162": "CMR CADDE"
 };
 
