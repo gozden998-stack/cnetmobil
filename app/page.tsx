@@ -10,7 +10,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeB
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
   "46.197.252.143": "CMR KAPAKLI",
-  "31.155.79.145": "CMR MERKEZ",
+  "31.55.79.145": "CMR MERKEZ",
   "149.0.18.162": "CMR CADDE"
 };
 
@@ -29,13 +29,20 @@ const BRANCH_PASSWORDS: Record<string, string> = {
 };
 
 export default function CnetmobilCmrFinalUltimate() {
-  const [authLoading, setAuthLoading] = useState(true); // YENİ: Oturum kontrolü bekleme ekranı
+  const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
+
+  // UYGULAMA MODU (ALIM VEYA SERVİS)
+  const [appMode, setAppMode] = useState<'alim' | 'servis'>('alim');
+  
+  // EKRAN TİPLERİ VE KASA/ARKA CAM İÇİN GÜNCELLENMİŞ SERVİS STATE'İ
+  const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
+  const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
 
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
@@ -79,12 +86,16 @@ export default function CnetmobilCmrFinalUltimate() {
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
   };
 
-  // --- YENİ: SİSTEM İLK AÇILDIĞINDA OTURUM VE IP KONTROLÜ ---
   useEffect(() => {
     const verifySession = async () => {
       if (typeof window === 'undefined') return;
-      const sessionStr = localStorage.getItem('cnet_session');
       
+      const kayitliServis = localStorage.getItem('cnet_servis');
+      if (kayitliServis) {
+         setServisFiyatlari(JSON.parse(kayitliServis));
+      }
+
+      const sessionStr = localStorage.getItem('cnet_session');
       if (!sessionStr) {
         setAuthLoading(false);
         return;
@@ -93,7 +104,6 @@ export default function CnetmobilCmrFinalUltimate() {
       try {
         const session = JSON.parse(sessionStr);
 
-        // Eğer kaydedilmiş oturum "YÖNETİCİ" ise direkt içeri al, IP sorma
         if (session.mode === 'yonetici') {
           setIsMasterAccess(true);
           setIsAdmin(true); 
@@ -103,18 +113,15 @@ export default function CnetmobilCmrFinalUltimate() {
           return;
         }
 
-        // Eğer kaydedilmiş oturum "PERSONEL" ise güncel IP'sini kontrol et
         if (session.mode === 'personel') {
           const res = await fetch('https://api.ipify.org?format=json');
           const data = await res.json();
           const currentIp = data.ip;
 
-          // IP, kayıtlı şube ile eşleşiyorsa veya Patron IP'si ise içeri al
           if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
           } else {
-            // Wi-Fi değişmiş! Oturumu düşür ve şifre sor.
             localStorage.removeItem('cnet_session');
           }
         }
@@ -127,21 +134,17 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
-
-  // --- AKILLI GİRİŞ KONTROL SİSTEMİ ---
   const handleLogin = async () => {
     if(!entryPass) return;
     setLoginLoading(true);
 
     try {
-      // 1. YÖNETİCİ GİRİŞİ (IP BAĞIMSIZ)
       if (loginMode === 'yonetici') {
         if (entryPass === 'cnet1905.*') {
            setIsMasterAccess(true);
            setIsAdmin(true);
            setSelectedBranch('CMR MERKEZ'); 
            setIsLoggedIn(true);
-           // YÖNETİCİ OTURUMUNU KALICI OLARAK KAYDET
            localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
         } else {
            alert("Hatalı Yönetici Şifresi!");
@@ -150,7 +153,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // 2. PERSONEL GİRİŞİ (IP KONTROLLÜ)
       const matchedBranch = BRANCH_PASSWORDS[entryPass];
       
       if (!matchedBranch) {
@@ -167,7 +169,6 @@ export default function CnetmobilCmrFinalUltimate() {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsLoggedIn(true);
-        // PERSONEL OTURUMUNU KAYDET
         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
         setLoginLoading(false);
         return;
@@ -179,7 +180,6 @@ export default function CnetmobilCmrFinalUltimate() {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsLoggedIn(true);
-        // PERSONEL OTURUMUNU KAYDET
         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
       } else {
         alert(`GÜVENLİK UYARISI: Bu şifreyi (${matchedBranch}) bu mağazanın interneti dışında kullanamazsınız! Lütfen şube Wi-Fi ağına bağlanın. (Mevcut IP'niz: ${currentIp})`);
@@ -400,6 +400,30 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
+  const saveServisFiyat = () => {
+    if(!servisForm.model) return alert("Lütfen bir model seçin!");
+    const existing = servisFiyatlari[servisForm.model] || {};
+    const yeniFiyatlar = {
+       ...servisFiyatlari, 
+       [servisForm.model]: {
+         ...existing,
+         ekran: servisForm.ekran, 
+         ekranOrj: servisForm.ekranOrj,
+         ekranOled: servisForm.ekranOled,
+         ekranCipli: servisForm.ekranCipli,
+         batarya: servisForm.batarya, 
+         arkaCam: servisForm.arkaCam,
+         kasa: servisForm.kasa
+       }
+    };
+    setServisFiyatlari(yeniFiyatlar);
+    localStorage.setItem('cnet_servis', JSON.stringify(yeniFiyatlar));
+    alert(`${servisForm.model} teknik servis fiyatları tarayıcıya kaydedildi!`);
+    
+    // Formu temizle
+    setServisForm({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
+  };
+
   const handleSendInstallmentToWhatsApp = (month: number, totalAmount: number) => {
     if (!customer.name || !customer.phone) {
       alert("Lütfen önce yukarıdaki Müşteri Adı Soyadı ve Telefon Numarası alanlarını doldurunuz.");
@@ -410,22 +434,32 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  const handleServisWhatsApp = () => {
+    const sFiyat = servisFiyatlari[selectedModelName];
+    if (!sFiyat) return alert("Bu cihaz için fiyat girilmemiş.");
+    const branch = branches.find(b => b.name === selectedBranch) || branches[0];
+    
+    // Geriye dönük uyumluluk: Eğer sadece "ekran" girilmişse onu "Orijinal" kabul et
+    const orjinalEkran = sFiyat.ekranOrj || sFiyat.ekran || '-';
+    
+    let ekranText = `📱 Ekran (Orijinal): ${orjinalEkran !== '-' ? orjinalEkran + ' TL' : '-'}%0A📱 Ekran (OLED): ${sFiyat.ekranOled ? sFiyat.ekranOled + ' TL' : '-'}`;
+    
+    if (selectedBrand?.toLowerCase() === 'apple') {
+        ekranText += `%0A📱 Ekran (Çipli): ${sFiyat.ekranCipli ? sFiyat.ekranCipli + ' TL' : '-'}`;
+    }
+
+    const message = `🔧 *CMR TEKNİK SERVİS TEKLİFİ*%0A📱 *Cihaz:* ${selectedModelName}%0A%0A*Onarım Fiyatları:*%0A${ekranText}%0A🔋 Batarya Değişimi: ${sFiyat.batarya || '-'} TL%0A💠 Arka Cam Değişimi: ${sFiyat.arkaCam || '-'} TL%0A🛠 Kasa Değişimi: ${sFiyat.kasa || '-'} TL%0A%0A🕒 _Fiyatlarımız anlık olup değişkenlik gösterebilir._`;
+    window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
+  };
+
   const getBranchStats = () => {
     const stats: any = {};
-    
-    branches.forEach(b => {
-      stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
-    });
-    
+    branches.forEach(b => { stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 }; });
     alimlar.forEach(item => {
       let foundBranch = null;
       for (let i = 0; i < item.data.length; i++) {
-        if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) {
-            foundBranch = item.data[i];
-            break;
-        }
+        if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) { foundBranch = item.data[i]; break; }
       }
-
       if (foundBranch && stats[foundBranch]) {
          stats[foundBranch].total += 1;
          const rowDataString = item.data.join(" ");
@@ -433,12 +467,9 @@ export default function CnetmobilCmrFinalUltimate() {
             stats[foundBranch].alindi += 1;
          } else if (rowDataString.includes('[ALINMADI]')) {
             stats[foundBranch].alinmadi += 1;
-         } else {
-            stats[foundBranch].diger += 1;
-         }
+         } else { stats[foundBranch].diger += 1; }
       }
     });
-    
     return stats;
   };
 
@@ -447,8 +478,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-
-  // --- YENİ YÜKLEME EKRANI: OTURUM KONTROLÜ İÇİN ---
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -463,7 +492,6 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
-  // --- GİRİŞ VE YÖNETİCİ SEÇİMİ ---
   if (!isLoggedIn) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
@@ -500,7 +528,7 @@ export default function CnetmobilCmrFinalUltimate() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900 selection:bg-blue-100 relative">
+    <div className={`min-h-screen pb-20 font-sans selection:bg-blue-100 relative transition-colors duration-500 ${appMode === 'servis' ? 'bg-[#FFF8F1] text-orange-950' : 'bg-[#F8FAFC] text-slate-900'}`}>
       <style>{`
         #print-area { display: none !important; }
         @media print {
@@ -517,46 +545,54 @@ export default function CnetmobilCmrFinalUltimate() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
 
-      <header className="px-6 py-4 glass border-b border-slate-200/60 flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow">
+      <header className={`px-6 py-4 glass border-b flex justify-between items-center sticky top-0 z-50 print:hidden card-shadow transition-colors ${appMode === 'servis' ? 'border-orange-200/60' : 'border-slate-200/60'}`}>
         <div onClick={resetAll} className="flex items-center gap-2 group cursor-pointer">
-          <div className="bg-blue-600 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+          <div className={`${appMode === 'servis' ? 'bg-orange-600' : 'bg-blue-600'} p-1.5 rounded-lg group-hover:rotate-12 transition-transform`}>
+            {appMode === 'servis' ? (
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            ) : (
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            )}
           </div>
-          <h1 className="text-xl font-black italic text-slate-900 uppercase tracking-tighter">
-            CNET<span className="text-blue-600">MOBIL</span> <span className="font-light text-slate-400 not-italic ml-1">CMR</span>
+          <h1 className="text-xl font-black italic uppercase tracking-tighter">
+            CNET<span className={appMode === 'servis' ? 'text-orange-600' : 'text-blue-600'}>MOBIL</span> <span className="font-light opacity-50 not-italic ml-1">CMR</span>
           </h1>
         </div>
         
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="hidden md:flex items-center gap-1.5 bg-green-50 px-3 py-1.5 rounded-full border border-green-200 shadow-sm">
-            <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">CNETMOBİL'DE GÜVENDESİNİZ</span>
+        {step < 99 && (
+          <div className="hidden sm:flex bg-slate-200/60 p-1.5 rounded-2xl items-center shadow-inner relative z-50">
+            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700'}`}>
+               CİHAZ ALIM
+            </button>
+            <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700'}`}>
+               TEKNİK SERVİS
+            </button>
           </div>
+        )}
 
+        <div className="flex items-center gap-3 md:gap-4">
           <button 
             onClick={() => setIsInstallmentModalOpen(true)} 
-            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl shadow-lg shadow-slate-200 transition-colors btn-click"
+            className={`flex items-center gap-1.5 text-white px-4 py-2 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200'}`}
           >
-            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">TAKSİT HESAPLA</span>
+            <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">TAKSİT</span>
           </button>
 
           <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400 hover:text-blue-600 transition-colors">YÖNETİCİ</button>
           
           {isMasterAccess ? (
             <div className="relative">
-              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="appearance-none bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border border-blue-200 transition-colors cursor-pointer uppercase shadow-sm">
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`appearance-none hover:bg-opacity-80 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border transition-colors cursor-pointer uppercase shadow-sm ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                 {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
               </select>
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-700">
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
               </div>
             </div>
           ) : (
-            <div className="bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
-               <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+            <div className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+               <span className={`w-2 h-2 rounded-full animate-pulse ${appMode === 'servis' ? 'bg-orange-600' : 'bg-blue-600'}`}></span>
                {selectedBranch}
             </div>
           )}
@@ -565,6 +601,15 @@ export default function CnetmobilCmrFinalUltimate() {
 
         </div>
       </header>
+
+      {step < 99 && (
+        <div className="sm:hidden p-4 pb-0 animate-in fade-in">
+           <div className="flex bg-slate-200/60 p-1.5 rounded-2xl items-center shadow-inner">
+              <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>CİHAZ ALIM</button>
+              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
+           </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto p-6 mt-4 print:hidden">
         {step === 99 ? (
@@ -580,13 +625,88 @@ export default function CnetmobilCmrFinalUltimate() {
                </div>
              ) : (
                <div className="space-y-10">
+                 
+                 {/* TEKNİK SERVİS FİYAT YÖNETİMİ (MARKAYA DUYARLI) */}
+                 <div className="bg-gradient-to-br from-orange-50 to-red-50 p-10 rounded-[40px] shadow-sm border border-orange-100">
+                    <h2 className="text-xl font-black italic text-orange-800 mb-2 uppercase tracking-tighter flex items-center gap-2">
+                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                       TEKNİK SERVİS FİYAT YÖNETİMİ
+                    </h2>
+                    <p className="text-[10px] font-bold text-orange-600/60 uppercase tracking-widest mb-8">Buradan girilen fiyatlar sadece bu tarayıcıya (cihaza) kaydedilir.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <div className="lg:col-span-1">
+                        <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Cihaz Modeli</label>
+                        <select value={servisForm.model} onChange={(e) => {
+                             const selModel = e.target.value;
+                             const existing = servisFiyatlari[selModel] || {ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''};
+                             setServisForm({
+                                model: selModel, 
+                                ekran: existing.ekran||'', 
+                                ekranOrj: existing.ekranOrj||'', 
+                                ekranOled: existing.ekranOled||'', 
+                                ekranCipli: existing.ekranCipli||'', 
+                                batarya: existing.batarya||'', 
+                                arkaCam: existing.arkaCam||'', 
+                                kasa: existing.kasa||''
+                             });
+                          }} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none uppercase shadow-sm">
+                          <option value="">Model Seçiniz</option>
+                          {Array.from(new Set(db.map(i => i.name))).sort().map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      
+                      {db.find(i => i.name === servisForm.model)?.brand?.toLowerCase() === 'apple' ? (
+                        <>
+                           <div>
+                             <label className="text-[10px] font-black text-blue-800 uppercase tracking-widest ml-2">Ekran (Orjinal) (TL)</label>
+                             <input type="number" placeholder="Örn: 3500" value={servisForm.ekranOrj} onChange={e => setServisForm({...servisForm, ekranOrj: e.target.value})} className="w-full mt-2 p-4 bg-blue-50/50 rounded-2xl text-xs font-black border border-blue-200 outline-none shadow-sm text-blue-900" />
+                           </div>
+                           <div>
+                             <label className="text-[10px] font-black text-green-800 uppercase tracking-widest ml-2">Ekran (OLED) (TL)</label>
+                             <input type="number" placeholder="Örn: 2200" value={servisForm.ekranOled} onChange={e => setServisForm({...servisForm, ekranOled: e.target.value})} className="w-full mt-2 p-4 bg-green-50/50 rounded-2xl text-xs font-black border border-green-200 outline-none shadow-sm text-green-900" />
+                           </div>
+                           <div>
+                             <label className="text-[10px] font-black text-red-800 uppercase tracking-widest ml-2">Ekran (Çipli) (TL)</label>
+                             <input type="number" placeholder="Örn: 1500" value={servisForm.ekranCipli} onChange={e => setServisForm({...servisForm, ekranCipli: e.target.value})} className="w-full mt-2 p-4 bg-red-50/50 rounded-2xl text-xs font-black border border-red-200 outline-none shadow-sm text-red-900" />
+                           </div>
+                        </>
+                      ) : (
+                        <>
+                           <div>
+                             <label className="text-[10px] font-black text-blue-800 uppercase tracking-widest ml-2">Ekran (Orjinal) (TL)</label>
+                             <input type="number" placeholder="Örn: 2500" value={servisForm.ekranOrj} onChange={e => setServisForm({...servisForm, ekranOrj: e.target.value})} className="w-full mt-2 p-4 bg-blue-50/50 rounded-2xl text-xs font-black border border-blue-200 outline-none shadow-sm text-blue-900" />
+                           </div>
+                           <div>
+                             <label className="text-[10px] font-black text-green-800 uppercase tracking-widest ml-2">Ekran (OLED) (TL)</label>
+                             <input type="number" placeholder="Örn: 1500" value={servisForm.ekranOled} onChange={e => setServisForm({...servisForm, ekranOled: e.target.value})} className="w-full mt-2 p-4 bg-green-50/50 rounded-2xl text-xs font-black border border-green-200 outline-none shadow-sm text-green-900" />
+                           </div>
+                        </>
+                      )}
+
+                      <div>
+                        <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Batarya Fiyatı (TL)</label>
+                        <input type="number" placeholder="Örn: 1200" value={servisForm.batarya} onChange={e => setServisForm({...servisForm, batarya: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Arka Cam (TL)</label>
+                        <input type="number" placeholder="Örn: 1800" value={servisForm.arkaCam} onChange={e => setServisForm({...servisForm, arkaCam: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest ml-2">Kasa (TL)</label>
+                        <input type="number" placeholder="Örn: 2500" value={servisForm.kasa} onChange={e => setServisForm({...servisForm, kasa: e.target.value})} className="w-full mt-2 p-4 bg-white rounded-2xl text-xs font-black border border-orange-200 outline-none shadow-sm" />
+                      </div>
+                    </div>
+                    <button onClick={saveServisFiyat} className="w-full py-5 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black uppercase text-xs btn-click shadow-lg shadow-orange-200 mt-6 transition-colors">FİYATLARI KAYDET</button>
+                 </div>
+
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
-                      <h2 className="text-xs font-black italic text-orange-600 mb-6 uppercase tracking-widest flex items-center gap-2">
-                        <span className="w-2 h-2 bg-orange-600 rounded-full animate-pulse"></span>
-                        Fiyat Kesinti Oranları (%)
+                      <h2 className="text-xs font-black italic text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-2 h-2 bg-slate-800 rounded-full"></span>
+                        Alım - Fiyat Kesinti Oranları (%)
                       </h2>
-                      <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
+                      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                         {Object.keys(config).map(key => (
                           <div key={key} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl gap-4">
                             <span className="text-[11px] font-bold text-slate-500 uppercase flex-1">{key.replace(/_/g,' ')}</span>
@@ -610,7 +730,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100">
                       <h2 className="text-xs font-black italic text-blue-600 mb-6 uppercase tracking-widest flex items-center gap-2">
                          <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                         Sisteme Cihaz Tanımla
+                         Sisteme Yeni Cihaz Tanımla
                       </h2>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
@@ -695,10 +815,14 @@ export default function CnetmobilCmrFinalUltimate() {
         ) : step === 1 ? (
            <div className="space-y-12">
              <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
-                <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter text-slate-900 uppercase">
-                  CIHAZ <span className="text-blue-600">ALIM</span> SISTEMI
+                <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase">
+                  {appMode === 'alim' ? (
+                    <span className="text-slate-900">CIHAZ <span className="text-blue-600">ALIM</span> SISTEMI</span>
+                  ) : (
+                    <span className="text-orange-950">TEKNIK <span className="text-orange-600">SERVIS</span> MERKEZI</span>
+                  )}
                 </h2>
-                <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">Lütfen işlem yapılacak markayı seçin</p>
+                <p className={`font-bold uppercase tracking-[0.2em] text-xs ${appMode === 'servis' ? 'text-orange-800/60' : 'text-slate-400'}`}>Lütfen işlem yapılacak markayı seçin</p>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
                {Array.from(new Set([...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
@@ -717,16 +841,16 @@ export default function CnetmobilCmrFinalUltimate() {
                             resetSelection();
                           }
                         }} 
-                        className={`bg-white p-10 rounded-[48px] shadow-sm border border-slate-100/50 flex flex-col items-center justify-center text-center h-72 group transition-all ${hasModels ? 'hover:shadow-2xl hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed grayscale'}`}>
+                        className={`bg-white p-10 rounded-[48px] shadow-sm border flex flex-col items-center justify-center text-center h-72 group transition-all ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100/50 hover:shadow-2xl'} ${hasModels ? 'hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed grayscale'}`}>
                      <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                        <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                      </div>
-                     <h2 className="font-black text-xl mb-1 uppercase italic tracking-tighter text-slate-800">{brand}</h2>
-                     <p className={`text-[10px] font-black uppercase tracking-widest ${hasModels ? 'text-slate-400' : 'text-orange-600 animate-pulse'}`}>
-                        {hasModels ? `${brand} CİHAZINI SAT` : 'ÇOK YAKINDA'}
+                     <h2 className={`font-black text-xl mb-1 uppercase italic tracking-tighter ${appMode === 'servis' ? 'text-orange-950' : 'text-slate-800'}`}>{brand}</h2>
+                     <p className={`text-[10px] font-black uppercase tracking-widest ${hasModels ? (appMode==='servis'?'text-orange-400':'text-slate-400') : 'text-red-500 animate-pulse'}`}>
+                        {hasModels ? (appMode === 'servis' ? 'SERVIS ISLEMLERI' : `${brand} CİHAZINI SAT`) : 'ÇOK YAKINDA'}
                      </p>
                      
-                     <div className={`w-10 h-1 transition-all rounded-full mt-3 ${hasModels ? 'bg-slate-100 group-hover:w-20 group-hover:bg-blue-600' : 'bg-slate-200'}`}></div>
+                     <div className={`w-10 h-1 transition-all rounded-full mt-3 ${hasModels ? (appMode === 'servis' ? 'bg-orange-100 group-hover:w-20 group-hover:bg-orange-500' : 'bg-slate-100 group-hover:w-20 group-hover:bg-blue-600') : 'bg-slate-200'}`}></div>
                    </div>
                  );
                })}
@@ -735,12 +859,12 @@ export default function CnetmobilCmrFinalUltimate() {
         ) : step === 2 ? (
            <div className="animate-in slide-in-from-right-8 duration-500">
              <div className="flex items-center justify-between mb-8">
-                <button onClick={() => {setStep(1); resetSelection();}} className="bg-white shadow-sm border border-slate-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-blue-600 transition-all btn-click flex items-center gap-2">
+                <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800' : 'border-slate-200 text-slate-500 hover:text-blue-600'}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                   Geri Dön
                 </button>
                 <div className="text-right">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{selectedBrand}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-600' : 'text-blue-600'}`}>{selectedBrand}</span>
                   <h2 className="text-2xl font-black italic uppercase tracking-tighter">Model Seçimi</h2>
                 </div>
              </div>
@@ -752,9 +876,9 @@ export default function CnetmobilCmrFinalUltimate() {
                    placeholder="Modellerde ara..."
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
-                   className="w-full p-5 pl-14 bg-white rounded-3xl text-sm font-black border border-slate-200 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm transition-all text-slate-700 placeholder-slate-400"
+                   className={`w-full p-5 pl-14 bg-white rounded-3xl text-sm font-black border outline-none focus:ring-4 shadow-sm transition-all placeholder-opacity-50 ${appMode === 'servis' ? 'border-orange-200 focus:border-orange-500 focus:ring-orange-50 text-orange-950 placeholder-orange-300' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-50 text-slate-700 placeholder-slate-400'}`}
                  />
-                 <svg className="w-6 h-6 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                 <svg className={`w-6 h-6 absolute left-5 top-1/2 -translate-y-1/2 ${appMode === 'servis' ? 'text-orange-300' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                </div>
              </div>
 
@@ -762,14 +886,16 @@ export default function CnetmobilCmrFinalUltimate() {
                {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                  .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
                  .map(name => (
-                   <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-8 rounded-[40px] shadow-sm cursor-pointer hover:shadow-xl hover:border-blue-500/50 border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px]">
+                   <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className={`bg-white p-8 rounded-[40px] shadow-sm cursor-pointer border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px] ${appMode === 'servis' ? 'hover:shadow-xl hover:shadow-orange-100 hover:border-orange-400/50' : 'hover:shadow-xl hover:border-blue-500/50'}`}>
                      <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
                         <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-2xl" />
                      </div>
                      
                      <div className="w-full">
-                       <p className="font-black text-[12px] uppercase text-slate-800 tracking-tighter leading-tight">{name}</p>
-                       <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">TELEFONUNU SAT</p>
+                       <p className={`font-black text-[12px] uppercase tracking-tighter leading-tight ${appMode === 'servis' ? 'text-orange-950' : 'text-slate-800'}`}>{name}</p>
+                       <p className={`text-[9px] font-bold mt-2 uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-400' : 'text-slate-400'}`}>
+                          {appMode === 'servis' ? 'SERVİS SEÇENEKLERİ' : 'TELEFONUNU SAT'}
+                       </p>
                      </div>
                    </div>
                  ))}
@@ -783,222 +909,328 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-10 animate-in fade-in duration-700">
+            {/* SOL KISIM */}
             <div className="flex-1 space-y-6">
-              <button onClick={() => {setStep(2); resetSelection();}} className="bg-white shadow-sm border border-slate-200 px-6 py-3 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-blue-600 transition-all btn-click flex items-center gap-2">
+              <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700' : 'border-slate-200 text-slate-500 hover:text-blue-600'}`}>
                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                  Modellere Dön
               </button>
 
-              <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
-                   <svg className="w-40 h-40 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45L19.53 19H4.47L12 5.45zM11 16h2v2h-2v-2zm0-7h2v5h-2V9z"/></svg>
-                </div>
-                
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
-                  <div>
-                    <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">EKSPERTİZ & GÜVENLİK</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lütfen tüm bilgileri eksiksiz doldurun</p>
-                  </div>
-                  {customer.imei.length === 15 && (
-                    <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black animate-pulse hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
-                      BTK IMEI SORGULA
-                    </button>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">Müşteri Adı Soyadı</label>
-                      <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">İletişim Numarası</label>
-                      <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">IMEI Numarası (15 Hane)</label>
-                      <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
-                    </div>
-                  </div>
+              {appMode === 'servis' ? (
+                /* ---------------- TEKNİK SERVİS EKRANI ---------------- */
+                <div className="bg-white p-10 rounded-[48px] shadow-xl border border-orange-100 relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                      <svg className="w-40 h-40 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                   </div>
+                   
+                   <div className="flex flex-col md:flex-row items-center gap-8 mb-10">
+                      <div className="w-40 h-40 shrink-0 bg-orange-50 rounded-3xl p-4 flex items-center justify-center border border-orange-100">
+                         <img src={db.find(i => i.name === selectedModelName)?.img} className="max-h-full object-contain drop-shadow-xl" alt="Device" />
+                      </div>
+                      <div>
+                         <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{selectedBrand}</span>
+                         <h2 className="text-4xl font-black italic mt-3 uppercase tracking-tighter text-orange-950">{selectedModelName}</h2>
+                         <p className="text-orange-500/80 font-bold uppercase tracking-widest text-[10px] mt-2">Teknik Servis Onarım Fiyatları</p>
+                      </div>
+                   </div>
 
-                  <div className="bg-red-50/50 p-8 rounded-[32px] border border-red-100/50 space-y-4">
-                    <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2">
-                       <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
-                       Personel Onay Listesi
-                    </p>
-                    {[
-                      "Hesaplardan çıkış yapıldı",
-                      "Bul (Find My) kapatıldı",
-                      "Kayıt durumu kontrol edildi",
-                      "Şifreler tamamen silindi"
-                    ].map((item, idx) => (
-                      <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none">
-                        <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
-                        <span className="text-[11px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      
+                      {/* EKRAN KARTI */}
+                      <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
+                         <div>
+                            <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">📱</div>
+                            <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Ekran Değişimi</p>
+                         </div>
+                         
+                         <div className="flex flex-col gap-2 mt-4 text-left bg-white/60 p-4 rounded-2xl border border-orange-200/50">
+                            <div className="flex justify-between items-center border-b border-orange-100 pb-1">
+                               <span className="text-[10px] font-black text-orange-900 uppercase">Orjinal:</span> 
+                               <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran ? `${Number(servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran).toLocaleString()} TL` : '-'}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b border-orange-100 pb-1">
+                               <span className="text-[10px] font-black text-orange-900 uppercase">OLED:</span> 
+                               <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranOled ? `${Number(servisFiyatlari[selectedModelName]?.ekranOled).toLocaleString()} TL` : '-'}</span>
+                            </div>
+                            {selectedBrand?.toLowerCase() === 'apple' && (
+                            <div className="flex justify-between items-center">
+                               <span className="text-[10px] font-black text-orange-900 uppercase">Çipli:</span> 
+                               <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranCipli ? `${Number(servisFiyatlari[selectedModelName]?.ekranCipli).toLocaleString()} TL` : '-'}</span>
+                            </div>
+                            )}
+                         </div>
+                      </div>
 
-              <div className="space-y-4">
-                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                  <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-4 h-[2px] bg-blue-600"></span>
-                    Hafıza Kapasitesi
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {db.filter(i => i.name === selectedModelName).map(c => (
-                      <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{c.cap}</button>
-                    ))}
-                  </div>
-                </div>
+                      {/* BATARYA KARTI */}
+                      <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
+                         <div>
+                            <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🔋</div>
+                            <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Batarya Değişimi</p>
+                         </div>
+                         <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
+                            {servisFiyatlari[selectedModelName]?.batarya ? `${Number(servisFiyatlari[selectedModelName]?.batarya).toLocaleString()} TL` : 'Fiyat Yok'}
+                         </div>
+                      </div>
 
-                {selectedModelName === "iPhone 13" && (
-                  <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                    <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <span className="w-4 h-[2px] bg-blue-600"></span>
-                      Renk Seçimi (Beyaz +%5)
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      {['Diğer', 'Beyaz'].map(color => (
-                        <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
-                      ))}
-                    </div>
-                    <p className="text-[9px] text-orange-600 font-bold mt-3">* %5 prim sadece mükemmel durumdaki (Kozmetik: Mükemmel, Ekran: Sağlam, Pil: 85+) cihazlar için geçerlidir.</p>
-                  </div>
-                )}
+                      {/* ARKA CAM KARTI */}
+                      <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
+                         <div>
+                            <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">💠</div>
+                            <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Arka Cam</p>
+                         </div>
+                         <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
+                            {servisFiyatlari[selectedModelName]?.arkaCam ? `${Number(servisFiyatlari[selectedModelName]?.arkaCam).toLocaleString()} TL` : 'Fiyat Yok'}
+                         </div>
+                      </div>
 
-                {[
-                  { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
-                  { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
-                  { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
-                  { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
-                  { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
-                  { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
-                  { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
-                  { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
-                ].map(q => (
-                  <div key={q.field} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
-                    <p className="text-[10px] font-black mb-4 text-slate-400 uppercase tracking-widest">{q.label}</p>
-                    <div className="flex flex-wrap gap-3">
-                      {q.opts.map((opt) => (
-                        <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}>{opt}</button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                      {/* KASA KARTI */}
+                      <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
+                         <div>
+                            <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🛠</div>
+                            <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Kasa Değişimi</p>
+                         </div>
+                         <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
+                            {servisFiyatlari[selectedModelName]?.kasa ? `${Number(servisFiyatlari[selectedModelName]?.kasa).toLocaleString()} TL` : 'Fiyat Yok'}
+                         </div>
+                      </div>
 
-            <div className="lg:w-96 space-y-6 sticky top-28 h-fit">
-              {isYd ? (
-                <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
-                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">⚠️</div>
-                  <p className="text-2xl font-black uppercase italic leading-none tracking-tighter">YURT DIŞI CIHAZ</p>
-                  <p className="text-[10px] mt-4 uppercase tracking-[0.2em] font-black opacity-80">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
+                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in zoom-in-95 duration-500">
-                  <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
-                    <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
-                    <div className="text-4xl font-black italic tracking-tighter text-slate-950">
-                       {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
+                /* ---------------- EKSPERTİZ EKRANI (CİHAZ ALIM) ---------------- */
+                <>
+                  <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
+                       <svg className="w-40 h-40 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.45L19.53 19H4.47L12 5.45zM11 16h2v2h-2v-2zm0-7h2v5h-2V9z"/></svg>
                     </div>
                     
-                    {selectedCapacity && allSelected && !purchaseType && (
-                      <div className="mt-4">
-                        {!isCustomOfferActive ? (
-                          <button onClick={() => setIsCustomOfferActive(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-xl transition-colors">
-                            Teklifi Revize Et (Düşür)
-                          </button>
-                        ) : (
-                          <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
-                            <div className="flex items-center gap-2">
-                              <input 
-                                type="number" 
-                                value={customOffer} 
-                                onChange={(e) => {
-                                  const valStr = e.target.value;
-                                  if (valStr === '') { setCustomOffer(''); return; }
-                                  const val = parseInt(valStr) || 0;
-                                  if (val > prices.cash) {
-                                    alert(`Sistem teklifinden (${prices.cash} TL) yüksek bir fiyat giremezsiniz!`);
-                                    setCustomOffer(prices.cash.toString());
-                                  } else {
-                                    setCustomOffer(valStr);
-                                  }
-                                }} 
-                                placeholder="Yeni Tutar" 
-                                className="w-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-center outline-none focus:border-blue-500"
-                              />
-                              <button onClick={() => {setIsCustomOfferActive(false); setCustomOffer('');}} className="bg-red-50 text-red-600 p-3 rounded-xl hover:bg-red-100 transition-colors" title="İptal">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                              </button>
-                            </div>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">* Sadece sistem fiyatından düşük girilebilir</p>
-                          </div>
-                        )}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+                      <div>
+                        <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">EKSPERTİZ & GÜVENLİK</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lütfen tüm bilgileri eksiksiz doldurun</p>
+                      </div>
+                      {customer.imei.length === 15 && (
+                        <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black animate-pulse hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
+                          BTK IMEI SORGULA
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">Müşteri Adı Soyadı</label>
+                          <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">İletişim Numarası</label>
+                          <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">IMEI Numarası (15 Hane)</label>
+                          <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                        </div>
+                      </div>
+
+                      <div className="bg-red-50/50 p-8 rounded-[32px] border border-red-100/50 space-y-4">
+                        <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2">
+                           <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
+                           Personel Onay Listesi
+                        </p>
+                        {[
+                          "Hesaplardan çıkış yapıldı",
+                          "Bul (Find My) kapatıldı",
+                          "Kayıt durumu kontrol edildi",
+                          "Şifreler tamamen silindi"
+                        ].map((item, idx) => (
+                          <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none">
+                            <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
+                            <span className="text-[11px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+                      <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-4 h-[2px] bg-blue-600"></span>
+                        Hafıza Kapasitesi
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        {db.filter(i => i.name === selectedModelName).map(c => (
+                          <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{c.cap}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedModelName === "iPhone 13" && (
+                      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+                        <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <span className="w-4 h-[2px] bg-blue-600"></span>
+                          Renk Seçimi (Beyaz +%5)
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                          {['Diğer', 'Beyaz'].map(color => (
+                            <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-orange-600 font-bold mt-3">* %5 prim sadece mükemmel durumdaki (Kozmetik: Mükemmel, Ekran: Sağlam, Pil: 85+) cihazlar için geçerlidir.</p>
                       </div>
                     )}
 
-                    <div className="h-1.5 w-16 bg-blue-600 mx-auto mt-6 rounded-full opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                    {[
+                      { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
+                      { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
+                      { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
+                      { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
+                      { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
+                      { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
+                      { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
+                      { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
+                    ].map(q => (
+                      <div key={q.field} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
+                        <p className="text-[10px] font-black mb-4 text-slate-400 uppercase tracking-widest">{q.label}</p>
+                        <div className="flex flex-wrap gap-3">
+                          {q.opts.map((opt) => (
+                            <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  
-                  <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
-                    <p className="text-[11px] font-black text-blue-200 uppercase mb-4 tracking-widest italic">Takas Desteği İle</p>
-                    <div className="text-4xl font-black italic tracking-tighter">
-                       {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
+                </>
+              )}
+            </div>
+
+            {/* SAĞ KISIM (FİYAT VE BUTONLAR) */}
+            <div className="lg:w-96 space-y-6 sticky top-28 h-fit">
+              
+              {appMode === 'servis' ? (
+                 /* SERVİS MODU SAĞ MENÜ */
+                 <div className="bg-orange-950 p-10 rounded-[48px] space-y-4 shadow-2xl">
+                    <div className="w-16 h-16 bg-orange-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <svg className="w-8 h-8 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                    </div>
+                    <h3 className="text-xl font-black italic text-white uppercase text-center mb-6">Müşteriye İlet</h3>
+                    <p className="text-[10px] font-black text-orange-500/80 uppercase tracking-widest text-center mb-8">Fiyat teklifini direkt WhatsApp üzerinden müşteriye gönderebilirsiniz.</p>
+                    
+                    <button onClick={handleServisWhatsApp} className="w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40">
+                       WHATSAPP'TAN TEKLİF GÖNDER
+                    </button>
+                 </div>
+              ) : (
+                /* ALIM MODU SAĞ MENÜ */
+                <>
+                  {isYd ? (
+                    <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
+                      <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">⚠️</div>
+                      <p className="text-2xl font-black uppercase italic leading-none tracking-tighter">YURT DIŞI CIHAZ</p>
+                      <p className="text-[10px] mt-4 uppercase tracking-[0.2em] font-black opacity-80">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                      <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
+                        <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
+                        <div className="text-4xl font-black italic tracking-tighter text-slate-950">
+                          {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
+                        </div>
+                        
+                        {selectedCapacity && allSelected && !purchaseType && (
+                          <div className="mt-4">
+                            {!isCustomOfferActive ? (
+                              <button onClick={() => setIsCustomOfferActive(true)} className="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-xl transition-colors">
+                                Teklifi Revize Et (Düşür)
+                              </button>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
+                                <div className="flex items-center gap-2">
+                                  <input 
+                                    type="number" 
+                                    value={customOffer} 
+                                    onChange={(e) => {
+                                      const valStr = e.target.value;
+                                      if (valStr === '') { setCustomOffer(''); return; }
+                                      const val = parseInt(valStr) || 0;
+                                      if (val > prices.cash) {
+                                        alert(`Sistem teklifinden (${prices.cash} TL) yüksek bir fiyat giremezsiniz!`);
+                                        setCustomOffer(prices.cash.toString());
+                                      } else {
+                                        setCustomOffer(valStr);
+                                      }
+                                    }} 
+                                    placeholder="Yeni Tutar" 
+                                    className="w-28 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-center outline-none focus:border-blue-500"
+                                  />
+                                  <button onClick={() => {setIsCustomOfferActive(false); setCustomOffer('');}} className="bg-red-50 text-red-600 p-3 rounded-xl hover:bg-red-100 transition-colors" title="İptal">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">* Sadece sistem fiyatından düşük girilebilir</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="h-1.5 w-16 bg-blue-600 mx-auto mt-6 rounded-full opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                      </div>
+                      
+                      <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
+                        <p className="text-[11px] font-black text-blue-200 uppercase mb-4 tracking-widest italic">Takas Desteği İle</p>
+                        <div className="text-4xl font-black italic tracking-tighter">
+                          {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                    
+                    <div className="flex gap-3">
+                        <button 
+                            disabled={!canProceed || purchaseType !== null} 
+                            onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
+                            className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
+                            ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                            ${purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30 cursor-default' : ''} 
+                            ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white' : ''}`}>
+                            ✓ NAKİT ALINDI
+                        </button>
+                        <button 
+                            disabled={!canProceed || purchaseType !== null} 
+                            onClick={() => { setPurchaseType('TAKAS'); handleFinalProcess('TAKAS ALINDI'); }} 
+                            className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
+                            ${!canProceed || (purchaseType && purchaseType !== 'TAKAS') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                            ${purchaseType === 'TAKAS' ? 'bg-purple-500 text-white ring-4 ring-purple-500/30 cursor-default' : ''} 
+                            ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-purple-500 hover:text-white' : ''}`}>
+                            🔄 TAKAS ALINDI
+                        </button>
+                    </div>
+                    
+                    <button 
+                        disabled={!canProceed || purchaseType !== null} 
+                        onClick={() => { setPurchaseType('ALINMADI'); handleFinalProcess('ALINMADI'); }} 
+                        className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all 
+                        ${!canProceed || (purchaseType && purchaseType !== 'ALINMADI') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
+                        ${purchaseType === 'ALINMADI' ? 'bg-rose-500 text-white ring-4 ring-rose-500/30 cursor-default' : ''} 
+                        ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-rose-400 hover:bg-rose-500 hover:text-white' : ''}`}>
+                        ✕ ALINMADI
+                    </button>
+
+                    <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${showDocs ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
+                        <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
+                          SÖZLEŞMEYİ YAZDIR {purchaseType && purchaseType !== 'ALINMADI' ? `(${purchaseType})` : ''}
+                        </button>
+                        <button disabled={!showDocs} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
+                          WHATSAPP'A GÖNDER
+                        </button>
                     </div>
                   </div>
-                </div>
+                </>
               )}
-
-              <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
-                
-                <div className="flex gap-3">
-                    <button 
-                        disabled={!canProceed || purchaseType !== null} 
-                        onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
-                        ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                        ${purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30 cursor-default' : ''} 
-                        ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white' : ''}`}>
-                        ✓ NAKİT ALINDI
-                    </button>
-                    <button 
-                        disabled={!canProceed || purchaseType !== null} 
-                        onClick={() => { setPurchaseType('TAKAS'); handleFinalProcess('TAKAS ALINDI'); }} 
-                        className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
-                        ${!canProceed || (purchaseType && purchaseType !== 'TAKAS') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                        ${purchaseType === 'TAKAS' ? 'bg-purple-500 text-white ring-4 ring-purple-500/30 cursor-default' : ''} 
-                        ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-purple-500 hover:text-white' : ''}`}>
-                        🔄 TAKAS ALINDI
-                    </button>
-                </div>
-                
-                <button 
-                    disabled={!canProceed || purchaseType !== null} 
-                    onClick={() => { setPurchaseType('ALINMADI'); handleFinalProcess('ALINMADI'); }} 
-                    className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all 
-                    ${!canProceed || (purchaseType && purchaseType !== 'ALINMADI') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                    ${purchaseType === 'ALINMADI' ? 'bg-rose-500 text-white ring-4 ring-rose-500/30 cursor-default' : ''} 
-                    ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-rose-400 hover:bg-rose-500 hover:text-white' : ''}`}>
-                    ✕ ALINMADI
-                </button>
-
-                <div className={`pt-6 mt-6 border-t border-slate-800 space-y-4 transition-all duration-500 ${showDocs ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
-                    <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-white text-slate-950 hover:bg-slate-50' : 'bg-slate-800 text-slate-600'}`}>
-                       SÖZLEŞMEYİ YAZDIR {purchaseType && purchaseType !== 'ALINMADI' ? `(${purchaseType})` : ''}
-                    </button>
-                    <button disabled={!showDocs} onClick={() => handleFinalProcess('whatsapp')} className={`w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg ${showDocs ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
-                       WHATSAPP'A GÖNDER
-                    </button>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -1134,78 +1366,80 @@ export default function CnetmobilCmrFinalUltimate() {
       )}
 
       <footer className="max-w-6xl mx-auto px-6 py-10 text-center print:hidden">
-        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v4.0.0</p>
+        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v5.0.0 (TEKNİK SERVİS PLUS)</p>
       </footer>
 
-      <div id="print-area">
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
-            <div>
-              <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></h1>
-              <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666', letterSpacing:'1px'}}>Kurumsal Cihaz Alim Merkezi</p>
-            </div>
-            <div style={{textAlign:'right', fontSize:'10px', fontWeight:'bold'}}>
-              <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
-              <p style={{color:'#666'}}>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
-            </div>
-          </div>
-          <div style={{borderTop:'4px solid black', marginBottom:'25px'}}></div>
-          
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', marginBottom:'20px'}}>
-            <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
-              <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'13px'}}>{customer.name || '________________'}</span></p>
-                <p>Telefon: {customer.phone || '________________'}</p>
-                <p>T.C. Kimlik No: ___________________________</p>
+      {appMode === 'alim' && (
+        <div id="print-area">
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
+              <div>
+                <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></h1>
+                <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666', letterSpacing:'1px'}}>Kurumsal Cihaz Alim Merkezi</p>
+              </div>
+              <div style={{textAlign:'right', fontSize:'10px', fontWeight:'bold'}}>
+                <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
+                <p style={{color:'#666'}}>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
               </div>
             </div>
-            <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
-              <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Bilgileri</h3>
-              <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
-                <p>Model: <span style={{fontWeight:'900', fontSize:'13px'}}>{selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" ? `(${selectedColor})` : ''}</span></p>
-                <p>IMEI: <span style={{fontWeight:'900', fontSize:'12px'}}>{customer.imei || '________________'}</span></p>
+            <div style={{borderTop:'4px solid black', marginBottom:'25px'}}></div>
+            
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', marginBottom:'20px'}}>
+              <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
+                <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>👤 Satıcı Bilgileri</h3>
+                <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
+                  <p>Ad Soyad: <span style={{textTransform:'uppercase', fontWeight:'900', fontSize:'13px'}}>{customer.name || '________________'}</span></p>
+                  <p>Telefon: {customer.phone || '________________'}</p>
+                  <p>T.C. Kimlik No: ___________________________</p>
+                </div>
+              </div>
+              <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px'}}>
+                <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>📱 Cihaz Bilgileri</h3>
+                <div style={{fontSize:'11px', fontWeight:'bold', lineHeight:'1.8'}}>
+                  <p>Model: <span style={{fontWeight:'900', fontSize:'13px'}}>{selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" ? `(${selectedColor})` : ''}</span></p>
+                  <p>IMEI: <span style={{fontWeight:'900', fontSize:'12px'}}>{customer.imei || '________________'}</span></p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px', marginBottom:'20px'}}>
-            <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>🛠️ Teknik Ekspertiz Raporu</h3>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 40px', fontSize:'10px', fontWeight:'bold'}}>
-               <p>Cihaz Açılıyor mu: <span style={{fontWeight:'900'}}>{status.power}</span></p>
-               <p>Ekran Durumu: <span style={{fontWeight:'900'}}>{status.screen}</span></p>
-               <p>Kozmetik Durum: <span style={{fontWeight:'900'}}>{status.cosmetic}</span></p>
-               <p>Face ID / Touch ID: <span style={{fontWeight:'900'}}>{status.faceId}</span></p>
-               <p>Ahize / Buzzer: <span style={{fontWeight:'900'}}>{status.speaker}</span></p>
-               <p>Batarya Sağlığı: <span style={{fontWeight:'900'}}>{status.battery}</span></p>
-               <p>Kayıt Durumu: <span style={{fontWeight:'900'}}>{status.sim}</span></p>
-               <p>Garanti ve Durum: <span style={{fontWeight:'900'}}>{status.warranty}</span></p>
+            <div style={{border:'2px solid black', padding:'15px', borderRadius:'15px', marginBottom:'20px'}}>
+              <h3 style={{fontSize:'12px', fontWeight:'900', textTransform:'uppercase', fontStyle:'italic', marginBottom:'10px', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>🛠️ Teknik Ekspertiz Raporu</h3>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 40px', fontSize:'10px', fontWeight:'bold'}}>
+                 <p>Cihaz Açılıyor mu: <span style={{fontWeight:'900'}}>{status.power}</span></p>
+                 <p>Ekran Durumu: <span style={{fontWeight:'900'}}>{status.screen}</span></p>
+                 <p>Kozmetik Durum: <span style={{fontWeight:'900'}}>{status.cosmetic}</span></p>
+                 <p>Face ID / Touch ID: <span style={{fontWeight:'900'}}>{status.faceId}</span></p>
+                 <p>Ahize / Buzzer: <span style={{fontWeight:'900'}}>{status.speaker}</span></p>
+                 <p>Batarya Sağlığı: <span style={{fontWeight:'900'}}>{status.battery}</span></p>
+                 <p>Kayıt Durumu: <span style={{fontWeight:'900'}}>{status.sim}</span></p>
+                 <p>Garanti ve Durum: <span style={{fontWeight:'900'}}>{status.warranty}</span></p>
+              </div>
             </div>
-          </div>
 
-          <div style={{display:'grid', gridTemplateColumns: purchaseType ? '1fr' : '1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
-              {purchaseType === 'NAKİT' && (
-                <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
-                  <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
-                  <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalCashPrice.toLocaleString()} TL</p>
-                </div>
-              )}
-              {purchaseType === 'TAKAS' && (
-                <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
-                  <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
-                  <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalTradePrice.toLocaleString()} TL</p>
-                </div>
-              )}
-          </div>
+            <div style={{display:'grid', gridTemplateColumns: purchaseType ? '1fr' : '1fr 1fr', gap:'20px', marginBottom:'30px', textAlign:'center'}}>
+                {purchaseType === 'NAKİT' && (
+                  <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px'}}>
+                    <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Ödenecek Nakit Tutarı</p>
+                    <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalCashPrice.toLocaleString()} TL</p>
+                  </div>
+                )}
+                {purchaseType === 'TAKAS' && (
+                  <div style={{border:'3px solid black', padding:'15px', borderRadius:'15px', backgroundColor:'#f8f8f8'}}>
+                    <p style={{fontSize:'10px', fontWeight:'900', textTransform:'uppercase', marginBottom:'3px', color:'#666'}}>Takas Bedeli</p>
+                    <p style={{fontSize:'28px', fontWeight:'900', fontStyle:'italic', margin:0}}>{finalTradePrice.toLocaleString()} TL</p>
+                  </div>
+                )}
+            </div>
 
-          <div style={{fontSize:'9px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.5', marginBottom:'60px', backgroundColor:'#fdfdfd', padding:'15px', border:'1px solid #eee', borderRadius:'10px'}}>
-            BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, yukarıda belirtilen teknik durumun doğruluğunu ve tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
-          </div>
-          
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-            <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
-          </div>
-      </div>
+            <div style={{fontSize:'9px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.5', marginBottom:'60px', backgroundColor:'#fdfdfd', padding:'15px', border:'1px solid #eee', borderRadius:'10px'}}>
+              BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, yukarıda belirtilen teknik durumun doğruluğunu ve tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
+            </div>
+            
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
+              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
+              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }
