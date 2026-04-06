@@ -37,10 +37,10 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU EKLENDİ (ALIM, SERVİS, CEP_TABLET, YNA_LIST)
+  // UYGULAMA MODU (ALIM, SERVİS, CEP_TABLET, YNA_LIST)
   const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list'>('alim');
   
-  // YENI EKLENEN VERİ STATE'LERİ
+  // YENI EKLENEN VERİ STATE'LERİ (GOOGLE SHEETS'TEN)
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
 
@@ -244,18 +244,18 @@ export default function CnetmobilCmrFinalUltimate() {
         brandData = await brandRes.json();
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
 
-      // YENİ SAYFALARI ÇEKME KISMI
+      // YENİ SAYFALARI ÇEKME KISMI (CEP+TABLET A'dan I'ya kadar)
       try {
-        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/CEP + TABLET+IOT SAAT LIST!A1:J1000?key=${API_KEY}`);
+        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:I1000?key=${API_KEY}`);
         const ctData = await ctRes.json();
         if (ctData.values) setCepTabletData(ctData.values);
-      } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi."); }
+      } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi.", e); }
 
       try {
-        const ynaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/YNA LİST!A1:E1000?key=${API_KEY}`);
+        const ynaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('YNA LİST')}!A1:F1000?key=${API_KEY}`);
         const ynaData = await ynaRes.json();
         if (ynaData.values) setYnaData(ynaData.values);
-      } catch(e) { console.warn("YNA LIST tablosu çekilemedi."); }
+      } catch(e) { console.warn("YNA LIST tablosu çekilemedi.", e); }
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
@@ -623,7 +623,7 @@ export default function CnetmobilCmrFinalUltimate() {
           </h1>
         </div>
         
-        {/* ÜST MENÜ EKLENEN BUTONLARLA BİRLİKTE */}
+        {/* ÜST MENÜ */}
         {step < 99 && (
           <div className={`hidden md:flex p-1.5 rounded-2xl items-center shadow-inner relative z-50 ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
             <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -673,7 +673,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </header>
 
-      {/* MOBİL YENİ BUTONLAR GÖRÜNÜMÜ */}
+      {/* MOBİL BUTONLAR GÖRÜNÜMÜ */}
       {step < 99 && (
         <div className={`md:hidden p-4 pb-0 animate-in fade-in`}>
            <div className={`flex flex-wrap gap-2 p-1.5 rounded-2xl items-center shadow-inner ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
@@ -685,35 +685,37 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto p-6 mt-4 print:hidden">
-        {/* ------------ YENİ CEP + TABLET EKRANI (DARK MODE) ------------ */}
+      <main className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-4 print:hidden">
+        {/* ------------ YENİ CEP + TABLET EKRANI (TAM A'DAN I'YA KADAR) ------------ */}
         {appMode === 'cep_tablet' && step < 99 ? (
-           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+           <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                 <div>
                   <h2 className="text-3xl font-black italic tracking-tighter text-[#3498db]">CANLI FİYAT BORSASI</h2>
                   <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
                 </div>
-                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-auto">
-                   <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                   <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
              </div>
              
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               {/* SOL SÜTUN - APPLE */}
+             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+               {/* SOL SÜTUN - APPLE (A, B, C, D) */}
                <div>
-                  <div className="bg-[#4472c4] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
-                     <div className="flex-[2]">MODEL (APPLE)</div>
-                     <div className="flex-1 text-right">KAMPANYA</div>
-                     <div className="flex-1 text-right">SATIŞ</div>
+                  <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
+                     <div className="flex-1 text-center">KAMPANYA</div>
+                     <div className="flex-1 text-center">SATIŞ</div>
+                     <div className="flex-1 text-right">RESMİ FİYAT</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
-                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
-                           <div className="flex-[2] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
-                           <div className="flex-1 text-right text-[#ff7675] font-black">{row[1]}</div>
-                           <div className="flex-1 text-right text-[#dfe6e9]">{row[2]}</div>
+                        <div key={i} className="flex px-4 py-3 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-[11px] sm:text-xs font-bold items-center group">
+                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
+                           <div className="flex-1 text-center text-[#ff7675] font-black">{row[1] || '-'}</div>
+                           <div className="flex-1 text-center text-[#dfe6e9]">{row[2] || '-'}</div>
+                           <div className="flex-1 text-right text-slate-400">{row[3] || '-'}</div>
                         </div>
                      ))}
                      {cepTabletData.length === 0 && (
@@ -722,21 +724,23 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                </div>
                
-               {/* SAĞ SÜTUN - ANDROID / DİĞER */}
+               {/* SAĞ SÜTUN - ANDROID / DİĞER (F, G, H, I) */}
                <div>
-                  <div className="bg-[#2ecc71] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
-                     <div className="flex-[2]">MODEL (ANDROID / DİĞER)</div>
-                     <div className="flex-1 text-right">KAMPANYA</div>
-                     <div className="flex-1 text-right">SATIŞ</div>
+                  <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center">
+                     <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
+                     <div className="flex-1 text-center">KAMPANYA</div>
+                     <div className="flex-1 text-center">SATIŞ</div>
+                     <div className="flex-1 text-right">RESMİ FİYAT</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const isBomba = row[5].includes('BOMBA');
+                        const isBomba = row[5] && row[5].includes('BOMBA');
                         return (
-                          <div key={i} className={`flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center ${isBomba ? 'bg-[#f1c40f]/10' : ''}`}>
-                             <div className={`flex-[2] ${isBomba ? 'text-[#f1c40f] animate-pulse' : 'text-slate-300'}`}>{row[5]}</div>
-                             <div className="flex-1 text-right text-[#ff7675] font-black">{row[6]}</div>
-                             <div className="flex-1 text-right text-[#dfe6e9]">{row[7]}</div>
+                          <div key={i} className={`flex px-4 py-3 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-[11px] sm:text-xs font-bold items-center ${isBomba ? 'bg-[#f1c40f]/10' : ''}`}>
+                             <div className={`flex-[3] ${isBomba ? 'text-[#f1c40f] animate-pulse' : 'text-slate-300'}`}>{row[5]}</div>
+                             <div className="flex-1 text-center text-[#ff7675] font-black">{row[6] || '-'}</div>
+                             <div className="flex-1 text-center text-[#dfe6e9]">{row[7] || '-'}</div>
+                             <div className="flex-1 text-right text-slate-400">{row[8] || '-'}</div>
                           </div>
                         )
                      })}
@@ -749,7 +753,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) : 
         
-        /* ------------ YENİ YNA LİST EKRANI (DARK MODE) ------------ */
+        /* ------------ YENİ YNA LİST EKRANI ------------ */
         appMode === 'yna_list' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -757,8 +761,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   <h2 className="text-3xl font-black italic tracking-tighter text-[#9b59b6]">YENİ NESİL AKSESUAR</h2>
                   <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
                 </div>
-                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-auto">
-                   <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                   <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </div>
              </div>
@@ -773,8 +777,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
                         <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
-                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
-                           <div className="flex-1 text-right text-white font-black text-sm">{row[1]}</div>
+                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors pr-4">{row[0]}</div>
+                           <div className="flex-1 text-right text-white font-black text-sm whitespace-nowrap">{row[1] || '-'}</div>
                         </div>
                      ))}
                      {ynaData.length === 0 && (
@@ -792,8 +796,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
                         <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
-                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[3]}</div>
-                           <div className="flex-1 text-right text-white font-black text-sm">{row[4]}</div>
+                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors pr-4">{row[3]}</div>
+                           <div className="flex-1 text-right text-white font-black text-sm whitespace-nowrap">{row[4] || '-'}</div>
                         </div>
                      ))}
                      {ynaData.length === 0 && (
@@ -805,13 +809,13 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) :
         
-        /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ ---------------- */
+        /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ (DEĞİŞTİRİLMEDİ) ---------------- */
         step === 99 ? (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
              {!isAdmin ? (
                <div className="max-w-md mx-auto bg-white p-12 rounded-[48px] shadow-2xl text-center border border-slate-100">
                  <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                  </div>
                  <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-slate-900">Admin Girişi</h2>
                  <input type="password" placeholder="••••••••" className="w-full p-5 bg-slate-50 rounded-2xl mb-4 text-center font-black outline-none border border-slate-200 focus:border-blue-500 transition-all text-slate-900" onChange={(e) => setAdminPass(e.target.value)} />
