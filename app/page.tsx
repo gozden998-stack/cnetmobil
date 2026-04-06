@@ -343,7 +343,7 @@ export default function CnetmobilCmrFinalUltimate() {
         try {
           await fetch(SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
               type: "SAVE_ALIM",
               branch: selectedBranch,
@@ -382,7 +382,7 @@ export default function CnetmobilCmrFinalUltimate() {
     try {
       await fetch(SCRIPT_URL, { 
         method: 'POST', 
-        mode: 'no-cors', 
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
       setTimeout(loadData, 2000);
@@ -392,7 +392,11 @@ export default function CnetmobilCmrFinalUltimate() {
   const deleteAllAlimlar = async () => {
     if(!confirm("DİKKAT! Tüm alım geçmişi silinecek. Onaylıyor musunuz?")) return;
     try {
-      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) });
+      await fetch(SCRIPT_URL, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
+      });
       alert("Tüm geçmiş temizlendi.");
       loadData();
     } catch (e) { console.error(e); }
@@ -400,7 +404,11 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const updateConfig = async (key: string, val: string) => {
     try {
-      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) });
+      await fetch(SCRIPT_URL, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
+      });
       alert(`${key} Güncellendi!`);
       setConfig((prev: any) => ({...prev, [key]: parseFloat(val)}));
     } catch (e) { console.error(e); }
@@ -409,7 +417,11 @@ export default function CnetmobilCmrFinalUltimate() {
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
     try {
-      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) });
+      await fetch(SCRIPT_URL, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) 
+      });
       alert("Cihaz başarıyla eklendi!");
       setNewDevice({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
       setTimeout(loadData, 1500);
@@ -439,7 +451,7 @@ export default function CnetmobilCmrFinalUltimate() {
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
            type: "SAVE_SERVIS",
            model: servisForm.model,
@@ -1151,7 +1163,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     <p className="text-[10px] font-black text-orange-500/80 uppercase tracking-widest text-center mb-8">Fiyat teklifini direkt WhatsApp üzerinden müşteriye gönderebilirsiniz.</p>
                     
                     <button onClick={handleServisWhatsApp} className="w-full py-6 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-3 shadow-lg bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40">
-                       WHATSAPP'TAN TEKLİF GÖNDER
+                        WHATSAPP'TAN TEKLİF GÖNDER
                     </button>
                  </div>
               ) : (
@@ -1384,7 +1396,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           </button>
                         </div>
                       </div>
-                    )
+                    );
                   })}
                 </div>
               ) : (
