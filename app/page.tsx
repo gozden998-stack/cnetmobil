@@ -90,11 +90,6 @@ export default function CnetmobilCmrFinalUltimate() {
     const verifySession = async () => {
       if (typeof window === 'undefined') return;
       
-      const kayitliServis = localStorage.getItem('cnet_servis');
-      if (kayitliServis) {
-         setServisFiyatlari(JSON.parse(kayitliServis));
-      }
-
       const sessionStr = localStorage.getItem('cnet_session');
       if (!sessionStr) {
         setAuthLoading(false);
@@ -262,6 +257,27 @@ export default function CnetmobilCmrFinalUltimate() {
       if (brandData.values) {
         setBrandDb(brandData.values.map((row: any) => ({ name: row[0], logo: row[1] })));
       }
+      
+      // Google Sheets'ten güncel teknik servis fiyatlarını çekme
+      try {
+        const servisRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Servis_Fiyatlari!A2:G1000?key=${API_KEY}`);
+        const servisData = await servisRes.json();
+        if (servisData.values) {
+          const loadedServis: any = {};
+          servisData.values.forEach((row: any) => {
+             loadedServis[row[0]] = {
+                ekranOrj: row[1] || '',
+                ekranOled: row[2] || '',
+                ekranCipli: row[3] || '',
+                batarya: row[4] || '',
+                arkaCam: row[5] || '',
+                kasa: row[6] || ''
+             };
+          });
+          setServisFiyatlari(loadedServis);
+        }
+      } catch (e) { console.warn("Servis_Fiyatlari tablosu çekilemedi."); }
+
       setLoading(false);
     } catch (e) { setLoading(false); }
   };
@@ -400,8 +416,9 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  const saveServisFiyat = () => {
+  const saveServisFiyat = async () => {
     if(!servisForm.model) return alert("Lütfen bir model seçin!");
+    
     const existing = servisFiyatlari[servisForm.model] || {};
     const yeniFiyatlar = {
        ...servisFiyatlari, 
@@ -416,12 +433,29 @@ export default function CnetmobilCmrFinalUltimate() {
          kasa: servisForm.kasa
        }
     };
-    setServisFiyatlari(yeniFiyatlar);
-    localStorage.setItem('cnet_servis', JSON.stringify(yeniFiyatlar));
-    alert(`${servisForm.model} teknik servis fiyatları tarayıcıya kaydedildi!`);
     
-    // Formu temizle
-    setServisForm({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
+    setServisFiyatlari(yeniFiyatlar);
+    
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({
+           type: "SAVE_SERVIS",
+           model: servisForm.model,
+           ekranOrj: servisForm.ekranOrj || servisForm.ekran, 
+           ekranOled: servisForm.ekranOled,
+           ekranCipli: servisForm.ekranCipli,
+           batarya: servisForm.batarya,
+           arkaCam: servisForm.arkaCam,
+           kasa: servisForm.kasa
+        })
+      });
+      alert(`${servisForm.model} teknik servis fiyatları doğrudan Google Sheets'e kaydedildi!`);
+      setServisForm({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
+    } catch (e) {
+      alert("Fiyatlar kaydedilirken bir hata oluştu. İnternet bağlantınızı kontrol edin.");
+    }
   };
 
   const handleSendInstallmentToWhatsApp = (month: number, totalAmount: number) => {
@@ -632,7 +666,7 @@ export default function CnetmobilCmrFinalUltimate() {
                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                        TEKNİK SERVİS FİYAT YÖNETİMİ
                     </h2>
-                    <p className="text-[10px] font-bold text-orange-600/60 uppercase tracking-widest mb-8">Buradan girilen fiyatlar sadece bu tarayıcıya (cihaza) kaydedilir.</p>
+                    <p className="text-[10px] font-bold text-orange-600/60 uppercase tracking-widest mb-8">Buradaki işlemler doğrudan Google Sheets veritabanına kaydedilir!</p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       <div className="lg:col-span-1">
