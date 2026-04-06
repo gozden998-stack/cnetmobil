@@ -691,7 +691,7 @@ export default function CnetmobilCmrFinalUltimate() {
            <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                 <div>
-                  <h2 className="text-3xl font-black italic tracking-tighter text-[#3498db]">CANLI FİYAT BORSASI</h2>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#3498db]">GÜNCEL FİYATLAR</h2>
                   <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
                 </div>
                 <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
@@ -703,21 +703,29 @@ export default function CnetmobilCmrFinalUltimate() {
              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                {/* SOL SÜTUN - APPLE (A, B, C, D) */}
                <div>
-                  <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center">
+                  <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
                      <div className="flex-1 text-center">KAMPANYA</div>
                      <div className="flex-1 text-center">SATIŞ</div>
                      <div className="flex-1 text-right">RESMİ FİYAT</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
-                     {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
-                        <div key={i} className="flex px-4 py-3 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-[11px] sm:text-xs font-bold items-center group">
-                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors">{row[0]}</div>
-                           <div className="flex-1 text-center text-[#ff7675] font-black">{row[1] || '-'}</div>
-                           <div className="flex-1 text-center text-[#dfe6e9]">{row[2] || '-'}</div>
-                           <div className="flex-1 text-right text-slate-400">{row[3] || '-'}</div>
-                        </div>
-                     ))}
+                     {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const isBomba = row[0] && row[0].includes('BOMBA');
+                        const hasKampanya = row[1] && row[1].trim() !== '-' && row[1].trim() !== '';
+                        const isHighlighted = isBomba || hasKampanya;
+                        return (
+                          <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                             <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
+                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                               {row[0]}
+                             </div>
+                             <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[1] || '-'}</div>
+                             <div className="flex-1 text-center text-[#dfe6e9]">{row[2] || '-'}</div>
+                             <div className="flex-1 text-right text-slate-400">{row[3] || '-'}</div>
+                          </div>
+                        )
+                     })}
                      {cepTabletData.length === 0 && (
                        <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                      )}
@@ -726,7 +734,7 @@ export default function CnetmobilCmrFinalUltimate() {
                
                {/* SAĞ SÜTUN - ANDROID / DİĞER (F, G, H, I) */}
                <div>
-                  <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center">
+                  <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
                      <div className="flex-1 text-center">KAMPANYA</div>
                      <div className="flex-1 text-center">SATIŞ</div>
@@ -735,10 +743,15 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const isBomba = row[5] && row[5].includes('BOMBA');
+                        const hasKampanya = row[6] && row[6].trim() !== '-' && row[6].trim() !== '';
+                        const isHighlighted = isBomba || hasKampanya;
                         return (
-                          <div key={i} className={`flex px-4 py-3 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-[11px] sm:text-xs font-bold items-center ${isBomba ? 'bg-[#f1c40f]/10' : ''}`}>
-                             <div className={`flex-[3] ${isBomba ? 'text-[#f1c40f] animate-pulse' : 'text-slate-300'}`}>{row[5]}</div>
-                             <div className="flex-1 text-center text-[#ff7675] font-black">{row[6] || '-'}</div>
+                          <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                             <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
+                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                               {row[5]}
+                             </div>
+                             <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[6] || '-'}</div>
                              <div className="flex-1 text-center text-[#dfe6e9]">{row[7] || '-'}</div>
                              <div className="flex-1 text-right text-slate-400">{row[8] || '-'}</div>
                           </div>
@@ -770,17 +783,22 @@ export default function CnetmobilCmrFinalUltimate() {
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                {/* SOL SÜTUN YNA */}
                <div>
-                  <div className="bg-[#8e44ad] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                  <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">ÜRÜN ADI</div>
                      <div className="flex-1 text-right">FİYATI (TL)</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
-                     {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
-                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
-                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors pr-4">{row[0]}</div>
-                           <div className="flex-1 text-right text-white font-black text-sm whitespace-nowrap">{row[1] || '-'}</div>
+                     {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const isBomba = row[0] && row[0].includes('BOMBA');
+                        return (
+                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isBomba ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                           <div className={`flex-[3] flex items-center ${isBomba ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                              {isBomba && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                              {row[0]}
+                           </div>
+                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isBomba ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                         </div>
-                     ))}
+                     )})}
                      {ynaData.length === 0 && (
                        <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                      )}
@@ -789,17 +807,22 @@ export default function CnetmobilCmrFinalUltimate() {
                
                {/* SAĞ SÜTUN YNA */}
                <div>
-                  <div className="bg-[#8e44ad] px-5 py-4 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center">
+                  <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">ÜRÜN ADI</div>
                      <div className="flex-1 text-right">FİYATI (TL)</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
-                     {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
-                        <div key={i} className="flex px-5 py-4 border-b border-slate-700/50 hover:bg-white/5 transition-colors text-xs font-bold items-center group">
-                           <div className="flex-[3] text-slate-300 group-hover:text-white transition-colors pr-4">{row[3]}</div>
-                           <div className="flex-1 text-right text-white font-black text-sm whitespace-nowrap">{row[4] || '-'}</div>
+                     {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const isBomba = row[3] && row[3].includes('BOMBA');
+                        return (
+                        <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isBomba ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                           <div className={`flex-[3] flex items-center ${isBomba ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                              {isBomba && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                              {row[3]}
+                           </div>
+                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isBomba ? 'text-yellow-400' : 'text-white'}`}>{row[4] || '-'}</div>
                         </div>
-                     ))}
+                     )})}
                      {ynaData.length === 0 && (
                        <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                      )}
