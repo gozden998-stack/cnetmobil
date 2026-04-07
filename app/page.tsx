@@ -686,16 +686,12 @@ export default function CnetmobilCmrFinalUltimate() {
                  TEKNİK SERVİS
               </button>
             )}
-            {(isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
-              <>
-                <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-                   CEP+TABLET+IOT
-                </button>
-                <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-                   YNA LİST
-                </button>
-              </>
-            )}
+            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               CEP+TABLET+IOT
+            </button>
+            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               YNA LİST
+            </button>
           </div>
         )}
 
@@ -740,12 +736,8 @@ export default function CnetmobilCmrFinalUltimate() {
               {selectedBranch !== 'VODAFONE KANALI' && (
                  <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
               )}
-              {(isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
-                <>
-                  <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
-                  <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
-                </>
-              )}
+              <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
+              <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
            </div>
         </div>
       )}
