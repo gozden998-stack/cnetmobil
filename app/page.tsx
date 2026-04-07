@@ -64,6 +64,11 @@ export default function CnetmobilCmrFinalUltimate() {
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
+  
+  // YENİ TAKAS REVİZE STATELERİ
+  const [isCustomTradeOfferActive, setIsCustomTradeOfferActive] = useState(false);
+  const [customTradeOffer, setCustomTradeOffer] = useState<string>('');
+  
   const [purchaseType, setPurchaseType] = useState<'NAKİT' | 'TAKAS' | 'ALINMADI' | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPass, setAdminPass] = useState('');
@@ -228,6 +233,8 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
+    setIsCustomTradeOfferActive(false);
+    setCustomTradeOffer('');
     setPurchaseType(null);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -239,6 +246,8 @@ export default function CnetmobilCmrFinalUltimate() {
     setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
+    setIsCustomTradeOfferActive(false);
+    setCustomTradeOffer('');
     setPurchaseType(null);
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
@@ -387,12 +396,21 @@ export default function CnetmobilCmrFinalUltimate() {
       if (customOffer && parseInt(customOffer) > finalCash) {
          setCustomOffer(finalCash.toString());
       }
+      
+      if (customTradeOffer && parseInt(customTradeOffer) > finalTrade) {
+         setCustomTradeOffer(finalTrade.toString());
+      }
     }
-  }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); // selectedBrand eklendi
+  }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); 
 
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
-  const finalTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
+  
+  // Takas hesaplaması için temel değer (nakit indirimi yapılmışsa, takas da otomatik o oranda düşer ve üstüne takas primi eklenir)
+  const calculatedTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
+  
+  // Eğer takas teklifi özel olarak aktif edildiyse, bu hesaplanan tutardan da daha aşağı inilebilir.
+  const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
     const now = new Date();
@@ -1409,6 +1427,8 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                   ) : (
                     <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                      
+                      {/* NAKİT FİYAT KARTI */}
                       <div className="bg-white p-10 rounded-[48px] shadow-xl border border-slate-100 text-center group transition-all hover:scale-[1.02]">
                         <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
                         <div className="text-4xl font-black italic tracking-tighter text-slate-950">
@@ -1454,11 +1474,50 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="h-1.5 w-16 bg-blue-600 mx-auto mt-6 rounded-full opacity-20 group-hover:opacity-100 transition-opacity"></div>
                       </div>
                       
+                      {/* TAKAS FİYAT KARTI */}
                       <div className="bg-blue-600 p-10 rounded-[48px] shadow-2xl text-center text-white relative overflow-hidden group hover:scale-[1.02] transition-all">
                         <p className="text-[11px] font-black text-blue-200 uppercase mb-4 tracking-widest italic">Takas Desteği İle</p>
                         <div className="text-4xl font-black italic tracking-tighter">
                           {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
                         </div>
+                        
+                        {/* TAKAS REVİZE ALANI */}
+                        {selectedCapacity && allSelected && !purchaseType && (
+                          <div className="mt-4 relative z-10">
+                            {!isCustomTradeOfferActive ? (
+                              <button onClick={() => setIsCustomTradeOfferActive(true)} className="text-[10px] font-black text-white hover:text-blue-100 uppercase tracking-widest bg-blue-700 px-4 py-2 rounded-xl transition-colors shadow-inner">
+                                Teklifi Revize Et (Düşür)
+                              </button>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
+                                <div className="flex items-center gap-2">
+                                  <input 
+                                    type="number" 
+                                    value={customTradeOffer} 
+                                    onChange={(e) => {
+                                      const valStr = e.target.value;
+                                      if (valStr === '') { setCustomTradeOffer(''); return; }
+                                      const val = parseInt(valStr) || 0;
+                                      if (val > calculatedTradePrice) {
+                                        alert(`Sistem teklifinden (${calculatedTradePrice} TL) yüksek bir fiyat giremezsiniz!`);
+                                        setCustomTradeOffer(calculatedTradePrice.toString());
+                                      } else {
+                                        setCustomTradeOffer(valStr);
+                                      }
+                                    }} 
+                                    placeholder="Yeni Tutar" 
+                                    className="w-28 p-3 bg-blue-700 border border-blue-500 rounded-xl text-sm font-black text-center outline-none focus:border-white text-white placeholder-blue-300"
+                                  />
+                                  <button onClick={() => {setIsCustomTradeOfferActive(false); setCustomTradeOffer('');}} className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-colors" title="İptal">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                                <p className="text-[9px] font-bold text-blue-300 uppercase tracking-widest">* Sadece sistem fiyatından düşük girilebilir</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
                       </div>
                     </div>
                   )}
