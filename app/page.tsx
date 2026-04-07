@@ -38,12 +38,13 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU - "dis_kanal" eklendi
-  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal'>('alim');
+  // UYGULAMA MODU - "ikinci_el" eklendi
+  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el'>('alim');
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
-  const [disKanalData, setDisKanalData] = useState<any[][]>([]); // YENI EKLENEN DIŞ KANAL DATA
+  const [disKanalData, setDisKanalData] = useState<any[][]>([]);
+  const [ikinciElData, setIkinciElData] = useState<any[][]>([]); // YENİ EKLENEN 2.EL LİSTESİ DATA
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -281,12 +282,20 @@ export default function CnetmobilCmrFinalUltimate() {
         if (ynaData.values) setYnaData(ynaData.values);
       } catch(e) { console.warn("YNA LIST tablosu çekilemedi.", e); }
 
-      // YENİ EKLENEN: DIŞ KANAL SATIN ALMA DATASI ÇEKİLİYOR
+      // DIŞ KANAL SATIN ALMA DATASI ÇEKİLİYOR
       try {
         const dkRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('DIŞ KANAL SATIN ALMA')}!A1:C1000?key=${API_KEY}`);
         const dkData = await dkRes.json();
         if (dkData.values) setDisKanalData(dkData.values);
       } catch(e) { console.warn("DIŞ KANAL SATIN ALMA tablosu çekilemedi.", e); }
+
+      // YENİ EKLENEN: 2.EL FİYAT LİSTESİ DATASI ÇEKİLİYOR
+      try {
+        const ieRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('2.EL FİYAT LİSTESİ')}!A1:D1000?key=${API_KEY}`);
+        const ieData = await ieRes.json();
+        if (ieData.values) setIkinciElData(ieData.values);
+      } catch(e) { console.warn("2.EL FİYAT LİSTESİ tablosu çekilemedi.", e); }
+
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
@@ -601,8 +610,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  // YENİ TEMA KONTROLÜ (Dış Kanal da dark mode olsun)
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal';
+  // YENİ TEMA KONTROLÜ (Dış Kanal ve 2.El de dark mode olsun)
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el';
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
@@ -702,10 +711,15 @@ export default function CnetmobilCmrFinalUltimate() {
             <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                YNA LİST
             </button>
-            {/* YENİ DIŞ KANAL BUTONU (MASAÜSTÜ) */}
             <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md shadow-teal-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                DIŞ KANAL
             </button>
+            {/* YENİ 2.EL LİSTESİ BUTONU (MASAÜSTÜ) */}
+            {selectedBranch !== 'VODAFONE KANALI' && (
+              <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'ikinci_el' ? 'bg-[#e67e22] text-white shadow-md shadow-orange-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                 2.EL LİSTESİ
+              </button>
+            )}
           </div>
         )}
 
@@ -750,17 +764,68 @@ export default function CnetmobilCmrFinalUltimate() {
                  <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
               )}
               <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET</button>
-              <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
-              {/* YENİ DIŞ KANAL BUTONU (MOBİL) */}
-              <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>DIŞ KANAL</button>
+              <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
+              <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>DIŞ KANAL</button>
+              {/* YENİ 2.EL LİSTESİ BUTONU (MOBİL) */}
+              {selectedBranch !== 'VODAFONE KANALI' && (
+                 <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'ikinci_el' ? 'bg-[#e67e22] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>2.EL LİSTESİ</button>
+              )}
            </div>
         </div>
       )}
 
       <main className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-4 print:hidden">
         
-        {/* ------------ YENİ DIŞ KANAL EKRANI ------------ */}
-        {appMode === 'dis_kanal' && step < 99 ? (
+        {/* ------------ YENİ 2.EL LİSTESİ EKRANI ------------ */}
+        {appMode === 'ikinci_el' && step < 99 ? (
+           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#e67e22]">2.EL FİYAT LİSTESİ</h2>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
+                </div>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                   <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+             </div>
+             
+             <div className="max-w-6xl mx-auto">
+                <div className="bg-[#d35400] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                   <div className="flex-[3]">CİHAZ BİLGİSİ</div>
+                   <div className="flex-1 text-center">ÖZELLİK/DURUM</div>
+                   <div className="flex-1 text-center">FİYATI (TL)</div>
+                   <div className="flex-[2] text-right">AÇIKLAMA</div>
+                </div>
+                <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                   {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                      const cellName = (row[0] || '').toUpperCase();
+                      const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
+                      return (
+                      <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                         {/* A SÜTUNU */}
+                         <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                            {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                            {row[0]}
+                         </div>
+                         {/* B SÜTUNU */}
+                         <div className={`flex-1 text-center font-bold text-slate-300 group-hover:text-white`}>{row[1] || '-'}</div>
+                         {/* C SÜTUNU */}
+                         <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-[#2ecc71]'}`}>{row[2] || '-'}</div>
+                         {/* D SÜTUNU */}
+                         <div className={`flex-[2] text-right text-slate-400`}>{row[3] || '-'}</div>
+                      </div>
+                   )})}
+                   {ikinciElData.length <= 1 && (
+                     <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                   )}
+                </div>
+             </div>
+           </div>
+        ) :
+
+        /* ------------ YENİ DIŞ KANAL EKRANI ------------ */
+        appMode === 'dis_kanal' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                 <div>
