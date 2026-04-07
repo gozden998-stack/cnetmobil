@@ -1585,7 +1585,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     
                     <button 
                        disabled={!(selectedCapacity && allSelected)}
-                       onClick={() => window.open(`https://wa.me/905416801905?text=Merhaba, web sitenizden ${selectedModelName} cihazım için fiyat aldım. Tahmini teklif: ${finalCashPrice} TL. Cihazımı satmak istiyorum.`, '_blank')} 
+                       onClick={() => window.open(`https://wa.me/905358930451?text=Merhaba, web sitenizden ${selectedModelName} cihazım için fiyat aldım. Tahmini teklif: ${finalCashPrice} TL. Cihazımı satmak istiyorum.`, '_blank')} 
                        className={`w-full py-5 rounded-2xl font-black uppercase text-[12px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg ${selectedCapacity && allSelected ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/30 btn-click' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
                        WHATSAPP İLE İLETİŞİME GEÇ
                     </button>
