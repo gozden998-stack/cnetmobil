@@ -283,6 +283,16 @@ export default function CnetmobilCmrFinalUltimate() {
       if (confData.values) {
         const m: any = {};
         confData.values.forEach((row: any) => { m[row[0]] = parseFloat(row[1]); });
+        
+        // EĞER ANDROID ORANLARI HENÜZ GOOGLE SHEETS'TE YOKSA VARSAYILAN OLARAK ELMA ORANLARINI ATAYALIM.
+        // BÖYLECE YÖNETİCİ PANELİNDE GÖRÜNÜR VE YÖNETİCİ KOLAYCA DEĞİŞTİREBİLİR.
+        if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) {
+           m.Ekran_Kirik_Android = m.Ekran_Kirik;
+        }
+        if (m.Kasa_Kotu_Android === undefined && m.Kasa_Kotu !== undefined) {
+           m.Kasa_Kotu_Android = m.Kasa_Kotu;
+        }
+
         setConfig(m);
       }
       if (alimData.values) {
@@ -321,10 +331,28 @@ export default function CnetmobilCmrFinalUltimate() {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
-      if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - ((config.Ekran_Kirik || 0) / 100));
+
+      // --- EKRAN KIRIK ÖZELLEŞTİRMESİ ---
+      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+      if (selectedBrand?.toLowerCase() !== 'apple') {
+          // Eğer Android/Diğer bir cihazsa Android için ayrılan oranı kullan, yoksa mecburi eskisini kullan
+          ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
+      }
+      if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - (ekranKirikYuzdesi / 100));
+      // ------------------------------------
+
       if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
       if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
-      if (status.cosmetic === 'Kötü') price *= (1 - ((config.Kasa_Kotu || 0) / 100));
+
+      // --- KASA KÖTÜ ÖZELLEŞTİRMESİ ---
+      let kasaKotuYuzdesi = config.Kasa_Kotu || 0;
+      if (selectedBrand?.toLowerCase() !== 'apple') {
+          // Eğer Android/Diğer bir cihazsa Android için ayrılan oranı kullan
+          kasaKotuYuzdesi = config.Kasa_Kotu_Android !== undefined ? config.Kasa_Kotu_Android : (config.Kasa_Kotu || 0);
+      }
+      if (status.cosmetic === 'Kötü') price *= (1 - (kasaKotuYuzdesi / 100));
+      // ------------------------------------
+
       if (status.faceId === 'Hayır') price *= (1 - ((config.FaceID_Bozuk || 0) / 100));
       if (status.battery === '0-85') price *= (1 - ((config.Pil_Dusuk || 0) / 100));
       if (status.battery === 'Bilinmeyen Parça') price *= (1 - ((config.Bilinmeyen_Batarya || 15) / 100));
@@ -360,7 +388,7 @@ export default function CnetmobilCmrFinalUltimate() {
          setCustomOffer(finalCash.toString());
       }
     }
-  }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch]); // selectedBranch eklendi
+  }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); // selectedBrand eklendi
 
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
