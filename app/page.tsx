@@ -25,7 +25,8 @@ const BRANCH_PASSWORDS: Record<string, string> = {
   "1905": "CMR MERKEZ",
   "2003": "CMR CADDE",
   "1071": "CMR KAPAKLI",
-  "1453": "CMR SARAY"
+  "1453": "CMR SARAY",
+  "542542": "VODAFONE KANALI" // YENI EKLENEN KANAL
 };
 
 export default function CnetmobilCmrFinalUltimate() {
@@ -74,7 +75,8 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR CADDE", phone: "905443214534" },
     { name: "CMR MERKEZ", phone: "905416801905" },
     { name: "CMR KAPAKLI", phone: "905327005959" },
-    { name: "CMR SARAY", phone: "905416801905" }
+    { name: "CMR SARAY", phone: "905416801905" },
+    { name: "VODAFONE KANALI", phone: "905425420000" } // YENI EKLENEN
   ];
 
   const brandAssets: any = {
@@ -111,6 +113,14 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         if (session.mode === 'personel') {
+          // VODAFONE KANALI İÇİN IP KONTROLÜNÜ ATLA
+          if (session.branch === 'VODAFONE KANALI') {
+            setSelectedBranch(session.branch);
+            setIsLoggedIn(true);
+            setAuthLoading(false);
+            return;
+          }
+
           const res = await fetch('https://api.ipify.org?format=json');
           const data = await res.json();
           const currentIp = data.ip;
@@ -154,6 +164,16 @@ export default function CnetmobilCmrFinalUltimate() {
       
       if (!matchedBranch) {
         alert("Hatalı Şube Şifresi!");
+        setLoginLoading(false);
+        return;
+      }
+
+      // VODAFONE KANALI GİRİŞİ - IP KONTROLÜ YOK
+      if (matchedBranch === 'VODAFONE KANALI') {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
         setLoginLoading(false);
         return;
       }
@@ -326,7 +346,13 @@ export default function CnetmobilCmrFinalUltimate() {
         colorBonus = 1.05; 
       }
 
-      const finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
+      let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
+
+      // VODAFONE KANALI İÇİN ÖZEL %8 KESİNTİ (Sadece alım fiyatına yansır)
+      if (selectedBranch === 'VODAFONE KANALI') {
+         finalCash = Math.round(finalCash * 0.92);
+      }
+
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
       
@@ -334,7 +360,7 @@ export default function CnetmobilCmrFinalUltimate() {
          setCustomOffer(finalCash.toString());
       }
     }
-  }, [status, selectedCapacity, config, selectedColor, selectedModelName]);
+  }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch]); // selectedBranch eklendi
 
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
@@ -517,6 +543,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let foundBranch = null;
       for (let i = 0; i < item.data.length; i++) {
         if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) { foundBranch = item.data[i]; break; }
+        if (typeof item.data[i] === 'string' && item.data[i].includes("VODAFONE ")) { foundBranch = item.data[i]; break; } // Vodafone loglarda çıksın diye
       }
       if (foundBranch && stats[foundBranch]) {
          stats[foundBranch].total += 1;
@@ -625,15 +652,22 @@ export default function CnetmobilCmrFinalUltimate() {
             <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                CİHAZ ALIM
             </button>
-            <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-               TEKNİK SERVİS
-            </button>
-            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-               CEP+TABLET+IOT
-            </button>
-            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-               YNA LİST
-            </button>
+            {/* VODAFONE KANALINA TEKNİK SERVİS GİZLENDİ */}
+            {selectedBranch !== 'VODAFONE KANALI' && (
+              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                 TEKNİK SERVİS
+              </button>
+            )}
+            {isMasterAccess && (
+              <>
+                <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                   CEP+TABLET+IOT
+                </button>
+                <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                   YNA LİST
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -674,9 +708,16 @@ export default function CnetmobilCmrFinalUltimate() {
         <div className={`md:hidden p-4 pb-0 animate-in fade-in`}>
            <div className={`flex flex-wrap gap-2 p-1.5 rounded-2xl items-center shadow-inner ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
               <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CİHAZ ALIM</button>
-              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
-              <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
-              <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
+              {/* VODAFONE KANALINA TEKNİK SERVİS GİZLENDİ */}
+              {selectedBranch !== 'VODAFONE KANALI' && (
+                 <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
+              )}
+              {isMasterAccess && (
+                <>
+                  <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
+                  <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
+                </>
+              )}
            </div>
         </div>
       )}
@@ -1403,7 +1444,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   )}
 
                   <div className="bg-slate-900 p-10 rounded-[48px] space-y-4 shadow-2xl">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜN SEÇİN</p>
                     
                     <div className="flex gap-3">
                         <button 
