@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
 const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
 // DİKKAT: Orijinal tablo ismindeki boşluk yapısı korundu. Değiştirmeyin.
-const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
+const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
 
 // ŞUBE IP ADRESLERİ - TAM KİLİTLİ LİSTE
@@ -36,7 +36,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
+  // YENİ EKLENEN: 'musteri' modu eklendi ve varsayılan yapıldı.
+  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici' | 'musteri'>('musteri');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
   // UYGULAMA MODU
@@ -45,7 +46,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
-  const [ikinciElData, setIkinciElData] = useState<any[][]>([]); // YENİ EKLENEN DATA
+  const [ikinciElData, setIkinciElData] = useState<any[][]>([]);
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -118,6 +119,15 @@ export default function CnetmobilCmrFinalUltimate() {
           setAuthLoading(false);
           return;
         }
+        
+        if (session.mode === 'musteri') {
+          setSelectedBranch('MÜŞTERİ');
+          setIsMasterAccess(false);
+          setAppMode('alim');
+          setIsLoggedIn(true);
+          setAuthLoading(false);
+          return;
+        }
 
         if (session.mode === 'personel') {
           if (session.branch === 'VODAFONE KANALI') {
@@ -139,7 +149,7 @@ export default function CnetmobilCmrFinalUltimate() {
           }
         }
       } catch (e) {
-         localStorage.removeItem('cnet_session');
+          localStorage.removeItem('cnet_session');
       }
       setAuthLoading(false);
     };
@@ -148,10 +158,24 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
   const handleLogin = async () => {
-    if(!entryPass) return;
     setLoginLoading(true);
 
     try {
+      if (loginMode === 'musteri') {
+        setSelectedBranch('MÜŞTERİ');
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        setAppMode('alim');
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'musteri', branch: 'MÜŞTERİ' }));
+        setLoginLoading(false);
+        return;
+      }
+
+      if(!entryPass) {
+          setLoginLoading(false);
+          return;
+      }
+
       if (loginMode === 'yonetici') {
         if (entryPass === 'cnet1905.*') {
            setIsMasterAccess(true);
@@ -219,7 +243,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setEntryPass(''); 
     setIsMasterAccess(false); 
     setIsAdmin(false); 
-    setLoginMode('personel');
+    setLoginMode('musteri');
   };
 
   const resetAll = () => {
@@ -254,7 +278,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
-      // Orijinal Cihaz Alım Datası (YAPISI KESİNLİKLE DEĞİŞTİRİLMEDİ)
       const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
       const devRes = await fetch(deviceUrl);
       const devData = await devRes.json();
@@ -309,7 +332,6 @@ export default function CnetmobilCmrFinalUltimate() {
         }
       } catch (e) { console.warn("Servis_Fiyatlari tablosu çekilemedi."); }
 
-      // YENİ EKLENEN: 2.EL FİYAT LİSTESİ ÇEKİMİ
       try {
         const ieRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('2.EL FİYAT LİSTESİ')}!A1:D1000?key=${API_KEY}`);
         const ieData = await ieRes.json();
@@ -408,7 +430,6 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     }
   }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); 
-
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
   const calculatedTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
@@ -611,25 +632,27 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  // YENİ TEMA KONTROLÜ (Dış Kanal ve 2.El de dark mode olsun)
   const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el';
 
-  // Hiç marka gelmeme ihtimaline karşı GÜVENLİK yedeği (Apple, Samsung vs her halükarda gözükür)
   const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo", "Vivo", "Realme"];
-  const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
-      .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
+  
+  // MÜŞTERİ MODUNDA SADECE APPLE, SAMSUNG, XIAOMI GÖZÜKSÜN
+  const displayBrands = loginMode === 'musteri'
+    ? ["Apple", "Samsung", "Xiaomi"]
+    : Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
+        .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-white italic uppercase tracking-[0.3em]">OTURUM KONTROL EDİLİYOR...</div>
+      <div className="font-black text-white italic uppercase tracking-[0.3em]">SİSTEM BAŞLATILIYOR...</div>
     </div>
   );
 
   if (loading && isLoggedIn) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">CMR SISTEMI YUKLENIYOR</div>
+      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">CNETMOBIL YUKLENIYOR</div>
     </div>
   );
 
@@ -643,25 +666,29 @@ export default function CnetmobilCmrFinalUltimate() {
            <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
            
            <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
-               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
-               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
+               <button onClick={() => {setLoginMode('musteri'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'musteri' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Müşteri</button>
+               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza</button>
+               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici</button>
            </div>
            
-           <input 
-              type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
-              value={entryPass}
-              onChange={(e) => setEntryPass(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loginLoading}
-              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
-           />
+           {loginMode !== 'musteri' && (
+             <input 
+                type="password" 
+                placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
+                value={entryPass}
+                onChange={(e) => setEntryPass(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                disabled={loginLoading}
+                className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
+             />
+           )}
+
            <button 
              onClick={handleLogin} 
              disabled={loginLoading}
-             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
+             className={`w-full py-6 text-white rounded-2xl font-black uppercase text-sm shadow-xl hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 tracking-widest ${loginMode === 'musteri' ? 'bg-[#25D366] hover:bg-[#128C7E] shadow-green-500/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20'}`}
            >
-             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
+             {loginLoading ? 'KONTROL EDİLİYOR...' : loginMode === 'musteri' ? 'CİHAZINI SAT - FİYAT AL' : 'SİSTEMİ AÇ'}
            </button>
         </div>
       </div>
@@ -700,8 +727,8 @@ export default function CnetmobilCmrFinalUltimate() {
           </h1>
         </div>
         
-        {/* ÜST MENÜ */}
-        {step < 99 && (
+        {/* ÜST MENÜ - MÜŞTERİ MODUNDA GİZLENİR */}
+        {step < 99 && loginMode !== 'musteri' && (
           <div className={`hidden md:flex p-1.5 rounded-2xl items-center shadow-inner relative z-50 ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
             <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                CİHAZ ALIM
@@ -720,7 +747,6 @@ export default function CnetmobilCmrFinalUltimate() {
             <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md shadow-teal-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                DIŞ KANAL
             </button>
-            {/* 2.EL LİSTESİ BUTONU (MASAÜSTÜ) */}
             {selectedBranch !== 'VODAFONE KANALI' && (
               <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'ikinci_el' ? 'bg-[#e67e22] text-white shadow-md shadow-orange-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                  2.EL LİSTESİ
@@ -730,16 +756,20 @@ export default function CnetmobilCmrFinalUltimate() {
         )}
 
         <div className="flex items-center gap-3 md:gap-4">
-          <button 
-            onClick={() => setIsInstallmentModalOpen(true)} 
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 text-white' : isDarkAppMode ? 'bg-[#2ecc71] hover:bg-green-600 text-white' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200 text-white'}`}
-          >
-            <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-            <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">TAKSİT</span>
-          </button>
-
-          <button onClick={() => setStep(99)} className={`text-[10px] font-bold uppercase transition-colors ${isDarkAppMode ? 'text-slate-400 hover:text-[#3498db]' : 'text-slate-400 hover:text-blue-600'}`}>YÖNETİCİ</button>
           
+          {loginMode !== 'musteri' && (
+            <>
+              <button 
+                onClick={() => setIsInstallmentModalOpen(true)} 
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-200 text-white' : isDarkAppMode ? 'bg-[#2ecc71] hover:bg-green-600 text-white' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-200 text-white'}`}
+              >
+                <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">TAKSİT</span>
+              </button>
+              <button onClick={() => setStep(99)} className={`text-[10px] font-bold uppercase transition-colors ${isDarkAppMode ? 'text-slate-400 hover:text-[#3498db]' : 'text-slate-400 hover:text-blue-600'}`}>YÖNETİCİ</button>
+            </>
+          )}
+
           {isMasterAccess ? (
             <div className="relative">
               <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`appearance-none hover:bg-opacity-80 px-4 py-2.5 pr-8 rounded-xl text-[10px] font-black outline-none border transition-colors cursor-pointer uppercase shadow-sm ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-200' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
@@ -749,11 +779,16 @@ export default function CnetmobilCmrFinalUltimate() {
                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
               </div>
             </div>
-          ) : (
+          ) : loginMode !== 'musteri' ? (
             <div className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-100' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                <span className={`w-2 h-2 rounded-full animate-pulse ${appMode === 'servis' ? 'bg-orange-600' : isDarkAppMode ? 'bg-[#2ecc71]' : 'bg-blue-600'}`}></span>
                {selectedBranch}
             </div>
+          ) : (
+             <div className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-100">
+                <span className="w-2 h-2 rounded-full animate-pulse bg-emerald-600"></span>
+                MÜŞTERİ BAĞLANTISI
+             </div>
           )}
 
           <button onClick={handleLogout} className="text-[10px] font-black text-slate-400 hover:text-red-500 ml-1 transition-colors">ÇIKIŞ</button>
@@ -761,8 +796,8 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </header>
 
-      {/* MOBİL BUTONLAR GÖRÜNÜMÜ */}
-      {step < 99 && (
+      {/* MOBİL BUTONLAR GÖRÜNÜMÜ - MÜŞTERİ MODUNDA GİZLENİR */}
+      {step < 99 && loginMode !== 'musteri' && (
         <div className={`md:hidden p-4 pb-0 animate-in fade-in`}>
            <div className={`flex flex-wrap gap-2 p-1.5 rounded-2xl items-center shadow-inner ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
               <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CİHAZ ALIM</button>
@@ -772,7 +807,6 @@ export default function CnetmobilCmrFinalUltimate() {
               <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET</button>
               <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
               <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>DIŞ KANAL</button>
-              {/* 2.EL LİSTESİ BUTONU (MOBİL) */}
               {selectedBranch !== 'VODAFONE KANALI' && (
                  <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'ikinci_el' ? 'bg-[#e67e22] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>2.EL LİSTESİ</button>
               )}
@@ -782,7 +816,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
       <main className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-4 print:hidden">
         
-        {/* ------------ YENİ 2.EL LİSTESİ EKRANI ------------ */}
+        {/* İKİNCİ EL EKRANI */}
         {appMode === 'ikinci_el' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -809,16 +843,12 @@ export default function CnetmobilCmrFinalUltimate() {
                       const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                       return (
                       <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                         {/* A SÜTUNU */}
                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
                             {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                             {row[0]}
                          </div>
-                         {/* B SÜTUNU */}
                          <div className={`flex-1 text-center font-bold text-slate-300 group-hover:text-white`}>{row[1] || '-'}</div>
-                         {/* C SÜTUNU */}
                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-[#2ecc71]'}`}>{row[2] || '-'}</div>
-                         {/* D SÜTUNU */}
                          <div className={`flex-[2] text-right text-slate-400`}>{row[3] || '-'}</div>
                       </div>
                    )})}
@@ -830,7 +860,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) :
 
-        /* ------------ YENİ DIŞ KANAL EKRANI ------------ */
+        /* DIŞ KANAL EKRANI */
         appMode === 'dis_kanal' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -847,7 +877,6 @@ export default function CnetmobilCmrFinalUltimate() {
              <div className="max-w-5xl mx-auto">
                 <div className="bg-[#16a085] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                    <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                   {/* VODAFONE İÇİN B SÜTUNU (FİYAT) GÖSTERİLİYOR */}
                    {selectedBranch === 'VODAFONE KANALI' && <div className="flex-1 text-center">FİYATI (TL)</div>}
                    <div className="flex-1 text-right">DURUM / BİLGİ</div>
                 </div>
@@ -857,16 +886,13 @@ export default function CnetmobilCmrFinalUltimate() {
                       const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                       return (
                       <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                         {/* A SÜTUNU */}
                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
                             {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                             {row[0]}
                          </div>
-                         {/* B SÜTUNU SADECE VODAFONE İÇİN */}
                          {selectedBranch === 'VODAFONE KANALI' && (
                             <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                          )}
-                         {/* C SÜTUNU (HER İKİ TARAF İÇİN) */}
                          <div className={`flex-1 text-right text-slate-400`}>{row[2] || '-'}</div>
                       </div>
                    )})}
@@ -878,7 +904,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) :
 
-        /* ------------ YENİ CEP + TABLET EKRANI ------------ */
+        /* CEP + TABLET EKRANI */
         appMode === 'cep_tablet' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -893,7 +919,6 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
              
              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-               {/* SOL SÜTUN - APPLE */}
                <div>
                   <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
@@ -923,7 +948,6 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                </div>
                
-               {/* SAĞ SÜTUN - ANDROID */}
                <div>
                   <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
@@ -956,7 +980,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) : 
         
-        /* ------------ YENİ YNA LİST EKRANI ------------ */
+        /* YNA LİST EKRANI */
         appMode === 'yna_list' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -971,7 +995,6 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
              
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               {/* SOL SÜTUN YNA */}
                <div>
                   <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">ÜRÜN ADI</div>
@@ -996,7 +1019,6 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                </div>
                
-               {/* SAĞ SÜTUN YNA */}
                <div>
                   <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">ÜRÜN ADI</div>
@@ -1227,16 +1249,27 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) : step === 1 ? (
            <div className="space-y-12 text-slate-900">
-             <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
-                <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase">
-                  {appMode === 'alim' ? (
-                    <span className="text-slate-900">CIHAZ <span className="text-blue-600">ALIM</span> SISTEMI</span>
-                  ) : (
-                    <span className="text-orange-950">TEKNIK <span className="text-orange-600">SERVIS</span> MERKEZI</span>
-                  )}
-                </h2>
-                <p className={`font-bold uppercase tracking-[0.2em] text-xs ${appMode === 'servis' ? 'text-orange-800/60' : 'text-slate-400'}`}>Lütfen işlem yapılacak markayı seçin</p>
-             </div>
+             
+             {/* MÜŞTERİ MODU HERO SECTION */}
+             {loginMode === 'musteri' ? (
+                 <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700 bg-gradient-to-r from-blue-600 to-blue-800 text-white p-12 rounded-[48px] shadow-2xl">
+                    <h2 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase mb-2">Telefonunu Değerinde Sat</h2>
+                    <p className="text-xl md:text-2xl font-bold text-blue-100 mb-2">Güvenle satın alıyoruz, anında ödüyoruz!</p>
+                    <p className="text-sm font-medium text-blue-200/80 uppercase tracking-widest bg-blue-900/30 inline-block px-4 py-2 rounded-full mt-4">Cihaz satmanın en kolay yolu CNETMOBIL</p>
+                 </div>
+             ) : (
+                 <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
+                    <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase">
+                      {appMode === 'alim' ? (
+                        <span className="text-slate-900">CIHAZ <span className="text-blue-600">ALIM</span> SISTEMI</span>
+                      ) : (
+                        <span className="text-orange-950">TEKNIK <span className="text-orange-600">SERVIS</span> MERKEZI</span>
+                      )}
+                    </h2>
+                    <p className={`font-bold uppercase tracking-[0.2em] text-xs ${appMode === 'servis' ? 'text-orange-800/60' : 'text-slate-400'}`}>Lütfen işlem yapılacak markayı seçin</p>
+                 </div>
+             )}
+
              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
                {displayBrands.map(brand => {
                  const brandInfo = brandDb.find(b => b.name === brand);
@@ -1417,99 +1450,104 @@ export default function CnetmobilCmrFinalUltimate() {
                     
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
                       <div>
-                        <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">EKSPERTİZ & GÜVENLİK</h3>
+                        <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">
+                          {loginMode === 'musteri' ? 'CİHAZINIZIN DURUMUNU SEÇİN' : 'EKSPERTİZ & GÜVENLİK'}
+                        </h3>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lütfen tüm bilgileri eksiksiz doldurun</p>
                       </div>
-                      {customer.imei.length === 15 && (
+                      {customer.imei.length === 15 && loginMode !== 'musteri' && (
                         <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black animate-pulse hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
                           BTK IMEI SORGULA
                         </button>
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">Müşteri Adı Soyadı</label>
-                          <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                    {/* PERSONEL GİRİŞİNDE MÜŞTERİ BİLGİLERİ GÖRÜNSÜN */}
+                    {loginMode !== 'musteri' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10">
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">Müşteri Adı Soyadı</label>
+                            <input placeholder="Ad Soyad" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">İletişim Numarası</label>
+                            <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">IMEI Numarası (15 Hane)</label>
+                            <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">İletişim Numarası</label>
-                          <input placeholder="05XX XXX XX XX" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white focus:border-blue-500 transition-all" value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-400 ml-4 uppercase">IMEI Numarası (15 Hane)</label>
-                          <input placeholder="IMEI Giriniz" className="w-full p-5 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white focus:border-blue-500 transition-all" value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
-                        </div>
-                      </div>
 
-                      <div className="bg-red-50/50 p-8 rounded-[32px] border border-red-100/50 space-y-4">
-                        <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2">
-                           <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
-                           Personel Onay Listesi
-                        </p>
-                        {[
-                          "Hesaplardan çıkış yapıldı",
-                          "Bul (Find My) kapatıldı",
-                          "Kayıt durumu kontrol edildi",
-                          "Şifreler tamamen silindi"
-                        ].map((item, idx) => (
-                          <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none">
-                            <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
-                            <span className="text-[11px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                      <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <span className="w-4 h-[2px] bg-blue-600"></span>
-                        Hafıza Kapasitesi
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        {db.filter(i => i.name === selectedModelName).map(c => (
-                          <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{c.cap}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {selectedModelName === "iPhone 13" && (
-                      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-                        <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <span className="w-4 h-[2px] bg-blue-600"></span>
-                          Renk Seçimi (Beyaz +%5)
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                          {['Diğer', 'Beyaz'].map(color => (
-                            <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
+                        <div className="bg-red-50/50 p-8 rounded-[32px] border border-red-100/50 space-y-4">
+                          <p className="text-[10px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2">
+                             <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
+                             Personel Onay Listesi
+                          </p>
+                          {[
+                            "Hesaplardan çıkış yapıldı",
+                            "Bul (Find My) kapatıldı",
+                            "Kayıt durumu kontrol edildi",
+                            "Şifreler tamamen silindi"
+                          ].map((item, idx) => (
+                            <label key={idx} className="flex items-center gap-4 cursor-pointer group select-none">
+                              <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
+                              <span className="text-[11px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
+                            </label>
                           ))}
                         </div>
-                        <p className="text-[9px] text-orange-600 font-bold mt-3">* %5 prim sadece mükemmel durumdaki (Kozmetik: Mükemmel, Ekran: Sağlam, Pil: 85+) cihazlar için geçerlidir.</p>
                       </div>
                     )}
 
-                    {[
-                      { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
-                      { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
-                      { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
-                      { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
-                      { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
-                      { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
-                      { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
-                      { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
-                    ].map(q => (
-                      <div key={q.field} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
-                        <p className="text-[10px] font-black mb-4 text-slate-400 uppercase tracking-widest">{q.label}</p>
+                    <div className="space-y-4">
+                      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+                        <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <span className="w-4 h-[2px] bg-blue-600"></span>
+                          Hafıza Kapasitesi
+                        </p>
                         <div className="flex flex-wrap gap-3">
-                          {q.opts.map((opt) => (
-                            <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}>{opt}</button>
+                          {db.filter(i => i.name === selectedModelName).map(c => (
+                            <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 ring-4 ring-blue-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{c.cap}</button>
                           ))}
                         </div>
                       </div>
-                    ))}
+
+                      {selectedModelName === "iPhone 13" && (
+                        <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+                          <p className="text-[10px] font-black mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <span className="w-4 h-[2px] bg-blue-600"></span>
+                            Renk Seçimi (Beyaz +%5)
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            {['Diğer', 'Beyaz'].map(color => (
+                              <button key={color} onClick={() => setSelectedColor(color)} className={`px-10 py-5 rounded-2xl font-black text-[11px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{color}</button>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-orange-600 font-bold mt-3">* %5 prim sadece mükemmel durumdaki (Kozmetik: Mükemmel, Ekran: Sağlam, Pil: 85+) cihazlar için geçerlidir.</p>
+                        </div>
+                      )}
+
+                      {[
+                        { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
+                        { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
+                        { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
+                        { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
+                        { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
+                        { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
+                        { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
+                        { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] }
+                      ].map(q => (
+                        <div key={q.field} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100">
+                          <p className="text-[10px] font-black mb-4 text-slate-400 uppercase tracking-widest">{q.label}</p>
+                          <div className="flex flex-wrap gap-3">
+                            {q.opts.map((opt) => (
+                              <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-4 px-6 rounded-2xl text-[10px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600'}`}>{opt}</button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </>
               )}
@@ -1531,8 +1569,32 @@ export default function CnetmobilCmrFinalUltimate() {
                         WHATSAPP'TAN TEKLİF GÖNDER
                     </button>
                  </div>
+              ) : loginMode === 'musteri' ? (
+                 /* MÜŞTERİ MODU SAĞ MENÜ (SADECE WHATSAPP) */
+                 <div className="bg-blue-50 p-10 rounded-[48px] space-y-6 shadow-xl border border-blue-100 text-center sticky top-28">
+                    <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-2 shadow-lg shadow-blue-500/30">
+                       <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h3 className="text-2xl font-black text-blue-900 uppercase italic">Tahmini Değer</h3>
+                    <div className="text-4xl font-black italic tracking-tighter text-blue-600 my-4">
+                       {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
+                    </div>
+                    <p className="text-[11px] font-bold text-blue-800/60 leading-relaxed px-4">
+                       Yukarıdaki fiyat ön bilgilendirme amaçlıdır. Kesin fiyat cihazınız mağazamızda fiziki olarak incelendikten sonra belirlenecektir.
+                    </p>
+                    
+                    <button 
+                       disabled={!(selectedCapacity && allSelected)}
+                       onClick={() => window.open(`https://wa.me/905416801905?text=Merhaba, web sitenizden ${selectedModelName} cihazım için fiyat aldım. Tahmini teklif: ${finalCashPrice} TL. Cihazımı satmak istiyorum.`, '_blank')} 
+                       className={`w-full py-5 rounded-2xl font-black uppercase text-[12px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg ${selectedCapacity && allSelected ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/30 btn-click' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                       WHATSAPP İLE İLETİŞİME GEÇ
+                    </button>
+                    <button onClick={() => {setStep(1); resetSelection();}} className="w-full py-4 mt-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all btn-click text-slate-500 hover:bg-white border border-transparent hover:border-slate-200">
+                        BAŞKA CİHAZ SORGULA
+                    </button>
+                 </div>
               ) : (
-                /* ALIM MODU SAĞ MENÜ */
+                /* PERSONEL MODU SAĞ MENÜ (TÜM İŞLEMLER) */
                 <>
                   {isYd ? (
                     <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
@@ -1684,12 +1746,13 @@ export default function CnetmobilCmrFinalUltimate() {
                 </>
               )}
             </div>
+            
           </div>
         )}
       </main>
 
-      {/* TAKSİT MODALI */}
-      {isInstallmentModalOpen && (
+      {/* TAKSİT MODALI (MÜŞTERİ MODUNDA GİZLİ) */}
+      {isInstallmentModalOpen && loginMode !== 'musteri' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
             
@@ -1818,10 +1881,10 @@ export default function CnetmobilCmrFinalUltimate() {
       )}
 
       <footer className="max-w-6xl mx-auto px-6 py-10 text-center print:hidden">
-        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v5.0.0 (TEKNİK SERVİS PLUS)</p>
+        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR TERMINAL v6.0 (MÜŞTERİ + SERVİS PLUS)</p>
       </footer>
 
-      {appMode === 'alim' && (
+      {appMode === 'alim' && loginMode !== 'musteri' && (
         <div id="print-area">
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
               <div>
