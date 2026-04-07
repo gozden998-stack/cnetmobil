@@ -38,11 +38,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU
-  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list'>('alim');
+  // UYGULAMA MODU - "dis_kanal" eklendi
+  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal'>('alim');
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
+  const [disKanalData, setDisKanalData] = useState<any[][]>([]); // YENI EKLENEN DIŞ KANAL DATA
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -65,7 +66,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
   
-  // YENİ TAKAS REVİZE STATELERİ
   const [isCustomTradeOfferActive, setIsCustomTradeOfferActive] = useState(false);
   const [customTradeOffer, setCustomTradeOffer] = useState<string>('');
   
@@ -81,7 +81,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR MERKEZ", phone: "905416801905" },
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" },
-    { name: "VODAFONE KANALI", phone: "905425420000" } // YENI EKLENEN
+    { name: "VODAFONE KANALI", phone: "905425420000" }
   ];
 
   const brandAssets: any = {
@@ -118,7 +118,6 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         if (session.mode === 'personel') {
-          // VODAFONE KANALI İÇİN IP KONTROLÜNÜ ATLA
           if (session.branch === 'VODAFONE KANALI') {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
@@ -173,7 +172,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // VODAFONE KANALI GİRİŞİ - IP KONTROLÜ YOK
       if (matchedBranch === 'VODAFONE KANALI') {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
@@ -283,6 +281,13 @@ export default function CnetmobilCmrFinalUltimate() {
         if (ynaData.values) setYnaData(ynaData.values);
       } catch(e) { console.warn("YNA LIST tablosu çekilemedi.", e); }
 
+      // YENİ EKLENEN: DIŞ KANAL SATIN ALMA DATASI ÇEKİLİYOR
+      try {
+        const dkRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('DIŞ KANAL SATIN ALMA')}!A1:C1000?key=${API_KEY}`);
+        const dkData = await dkRes.json();
+        if (dkData.values) setDisKanalData(dkData.values);
+      } catch(e) { console.warn("DIŞ KANAL SATIN ALMA tablosu çekilemedi.", e); }
+
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
           brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -293,8 +298,6 @@ export default function CnetmobilCmrFinalUltimate() {
         const m: any = {};
         confData.values.forEach((row: any) => { m[row[0]] = parseFloat(row[1]); });
         
-        // EĞER ANDROID ORANLARI HENÜZ GOOGLE SHEETS'TE YOKSA VARSAYILAN OLARAK ELMA ORANLARINI ATAYALIM.
-        // BÖYLECE YÖNETİCİ PANELİNDE GÖRÜNÜR VE YÖNETİCİ KOLAYCA DEĞİŞTİREBİLİR.
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) {
            m.Ekran_Kirik_Android = m.Ekran_Kirik;
         }
@@ -341,26 +344,20 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-      // --- EKRAN KIRIK ÖZELLEŞTİRMESİ ---
       let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
-          // Eğer Android/Diğer bir cihazsa Android için ayrılan oranı kullan, yoksa mecburi eskisini kullan
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
       if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - (ekranKirikYuzdesi / 100));
-      // ------------------------------------
 
       if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
       if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
 
-      // --- KASA KÖTÜ ÖZELLEŞTİRMESİ ---
       let kasaKotuYuzdesi = config.Kasa_Kotu || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
-          // Eğer Android/Diğer bir cihazsa Android için ayrılan oranı kullan
           kasaKotuYuzdesi = config.Kasa_Kotu_Android !== undefined ? config.Kasa_Kotu_Android : (config.Kasa_Kotu || 0);
       }
       if (status.cosmetic === 'Kötü') price *= (1 - (kasaKotuYuzdesi / 100));
-      // ------------------------------------
 
       if (status.faceId === 'Hayır') price *= (1 - ((config.FaceID_Bozuk || 0) / 100));
       if (status.battery === '0-85') price *= (1 - ((config.Pil_Dusuk || 0) / 100));
@@ -385,7 +382,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
       let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
-      // VODAFONE KANALI İÇİN ÖZEL %8 KESİNTİ (Sadece alım fiyatına yansır)
       if (selectedBranch === 'VODAFONE KANALI') {
          finalCash = Math.round(finalCash * 0.92);
       }
@@ -405,11 +401,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
-  
-  // Takas hesaplaması için temel değer (nakit indirimi yapılmışsa, takas da otomatik o oranda düşer ve üstüne takas primi eklenir)
   const calculatedTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
-  
-  // Eğer takas teklifi özel olarak aktif edildiyse, bu hesaplanan tutardan da daha aşağı inilebilir.
   const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
@@ -589,7 +581,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let foundBranch = null;
       for (let i = 0; i < item.data.length; i++) {
         if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) { foundBranch = item.data[i]; break; }
-        if (typeof item.data[i] === 'string' && item.data[i].includes("VODAFONE ")) { foundBranch = item.data[i]; break; } // Vodafone loglarda çıksın diye
+        if (typeof item.data[i] === 'string' && item.data[i].includes("VODAFONE ")) { foundBranch = item.data[i]; break; } 
       }
       if (foundBranch && stats[foundBranch]) {
          stats[foundBranch].total += 1;
@@ -608,6 +600,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
+
+  // YENİ TEMA KONTROLÜ (Dış Kanal da dark mode olsun)
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal';
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
@@ -658,8 +653,6 @@ export default function CnetmobilCmrFinalUltimate() {
     );
   }
 
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list';
-
   return (
     <div className={`min-h-screen pb-20 font-sans selection:bg-blue-100 relative transition-colors duration-500 ${isDarkAppMode ? 'bg-[#111111] text-white' : appMode === 'servis' ? 'bg-[#FFF8F1] text-orange-950' : 'bg-[#F8FAFC] text-slate-900'}`}>
       <style>{`
@@ -695,20 +688,23 @@ export default function CnetmobilCmrFinalUltimate() {
         {/* ÜST MENÜ */}
         {step < 99 && (
           <div className={`hidden md:flex p-1.5 rounded-2xl items-center shadow-inner relative z-50 ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
-            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                CİHAZ ALIM
             </button>
-            {/* VODAFONE KANALINA TEKNİK SERVİS GİZLENDİ */}
             {selectedBranch !== 'VODAFONE KANALI' && (
-              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                  TEKNİK SERVİS
               </button>
             )}
-            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-               CEP+TABLET+IOT
+            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md shadow-blue-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               CEP+TABLET
             </button>
-            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md shadow-purple-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
                YNA LİST
+            </button>
+            {/* YENİ DIŞ KANAL BUTONU (MASAÜSTÜ) */}
+            <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md shadow-teal-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+               DIŞ KANAL
             </button>
           </div>
         )}
@@ -749,20 +745,70 @@ export default function CnetmobilCmrFinalUltimate() {
       {step < 99 && (
         <div className={`md:hidden p-4 pb-0 animate-in fade-in`}>
            <div className={`flex flex-wrap gap-2 p-1.5 rounded-2xl items-center shadow-inner ${isDarkAppMode ? 'bg-[#1e1e2d]' : 'bg-slate-200/60'}`}>
-              <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CİHAZ ALIM</button>
-              {/* VODAFONE KANALINA TEKNİK SERVİS GİZLENDİ */}
+              <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'alim' ? 'bg-white text-blue-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CİHAZ ALIM</button>
               {selectedBranch !== 'VODAFONE KANALI' && (
-                 <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
+                 <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'servis' ? 'bg-white text-orange-600 shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>TEKNİK SERVİS</button>
               )}
-              <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET+IOT</button>
+              <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'cep_tablet' ? 'bg-[#3498db] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>CEP+TABLET</button>
               <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'yna_list' ? 'bg-[#9b59b6] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>YNA LİST</button>
+              {/* YENİ DIŞ KANAL BUTONU (MOBİL) */}
+              <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`flex-1 min-w-[45%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'dis_kanal' ? 'bg-[#1abc9c] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>DIŞ KANAL</button>
            </div>
         </div>
       )}
 
       <main className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-4 print:hidden">
-        {/* ------------ YENİ CEP + TABLET EKRANI (TAM A'DAN I'YA KADAR) ------------ */}
-        {appMode === 'cep_tablet' && step < 99 ? (
+        
+        {/* ------------ YENİ DIŞ KANAL EKRANI ------------ */}
+        {appMode === 'dis_kanal' && step < 99 ? (
+           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#1abc9c]">DIŞ KANAL SATIN ALMA</h2>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
+                </div>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                   <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+             </div>
+             
+             <div className="max-w-5xl mx-auto">
+                <div className="bg-[#16a085] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                   <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
+                   {/* VODAFONE İÇİN B SÜTUNU (FİYAT) GÖSTERİLİYOR */}
+                   {selectedBranch === 'VODAFONE KANALI' && <div className="flex-1 text-center">FİYATI (TL)</div>}
+                   <div className="flex-1 text-right">DURUM / BİLGİ</div>
+                </div>
+                <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                   {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                      const cellName = (row[0] || '').toUpperCase();
+                      const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
+                      return (
+                      <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                         {/* A SÜTUNU */}
+                         <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                            {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                            {row[0]}
+                         </div>
+                         {/* B SÜTUNU SADECE VODAFONE İÇİN */}
+                         {selectedBranch === 'VODAFONE KANALI' && (
+                            <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
+                         )}
+                         {/* C SÜTUNU (HER İKİ TARAF İÇİN) */}
+                         <div className={`flex-1 text-right text-slate-400`}>{row[2] || '-'}</div>
+                      </div>
+                   )})}
+                   {disKanalData.length <= 1 && (
+                     <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                   )}
+                </div>
+             </div>
+           </div>
+        ) :
+
+        /* ------------ YENİ CEP + TABLET EKRANI ------------ */
+        appMode === 'cep_tablet' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                 <div>
@@ -776,7 +822,7 @@ export default function CnetmobilCmrFinalUltimate() {
              </div>
              
              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-               {/* SOL SÜTUN - APPLE (A, B, C, D) */}
+               {/* SOL SÜTUN - APPLE */}
                <div>
                   <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
@@ -801,12 +847,12 @@ export default function CnetmobilCmrFinalUltimate() {
                         )
                      })}
                      {cepTabletData.length === 0 && (
-                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                      )}
                   </div>
                </div>
                
-               {/* SAĞ SÜTUN - ANDROID / DİĞER (F, G, H, I) */}
+               {/* SAĞ SÜTUN - ANDROID */}
                <div>
                   <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
@@ -831,7 +877,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         )
                      })}
                      {cepTabletData.length === 0 && (
-                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                      )}
                   </div>
                </div>
@@ -874,7 +920,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         </div>
                      )})}
                      {ynaData.length === 0 && (
-                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                      )}
                   </div>
                </div>
@@ -899,7 +945,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         </div>
                      )})}
                      {ynaData.length === 0 && (
-                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                      )}
                   </div>
                </div>
@@ -907,7 +953,7 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
         ) :
         
-        /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ (DEĞİŞTİRİLMEDİ) ---------------- */
+        /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ ---------------- */
         step === 99 ? (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
              {!isAdmin ? (
@@ -922,7 +968,7 @@ export default function CnetmobilCmrFinalUltimate() {
              ) : (
                <div className="space-y-10">
                  
-                 {/* TEKNİK SERVİS FİYAT YÖNETİMİ (MARKAYA DUYARLI) */}
+                 {/* TEKNİK SERVİS FİYAT YÖNETİMİ */}
                  <div className="bg-gradient-to-br from-orange-50 to-red-50 p-10 rounded-[40px] shadow-sm border border-orange-100 text-slate-900">
                     <h2 className="text-xl font-black italic text-orange-800 mb-2 uppercase tracking-tighter flex items-center gap-2">
                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -1083,25 +1129,25 @@ export default function CnetmobilCmrFinalUltimate() {
                       <button onClick={deleteAllAlimlar} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-100">Tüm Geçmişi Temizle</button>
                    </div>
                    <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
-                     {[...alimlar].reverse().map((item, i) => (
-                       <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-center text-xs hover:bg-white hover:shadow-md transition-all">
-                         <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.data[7] || 'Tarih Yok'}</span>
-                            <p className="font-black text-slate-900 text-sm uppercase">{item.data[1]}</p>
-                            <p className="text-slate-500 font-medium">{item.data[3]} - {item.data[2]}</p>
-                            <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black w-fit mt-1 uppercase">{item.data[0]}</span>
-                         </div>
-                         <div className="flex items-center gap-6">
-                            <div className="text-right">
-                               <p className="text-[10px] text-slate-400 font-black uppercase">Fiyat</p>
-                               <p className="font-black text-lg italic text-slate-900">{parseInt(item.data[5]||0).toLocaleString()} TL</p>
-                            </div>
-                            <button onClick={() => deleteAlim(item.sheetIndex)} className="text-red-500 hover:bg-red-50 p-3 rounded-2xl transition-all">
-                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                         </div>
-                       </div>
-                     ))}
+                      {[...alimlar].reverse().map((item, i) => (
+                        <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-center text-xs hover:bg-white hover:shadow-md transition-all">
+                          <div className="flex flex-col gap-1">
+                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.data[7] || 'Tarih Yok'}</span>
+                             <p className="font-black text-slate-900 text-sm uppercase">{item.data[1]}</p>
+                             <p className="text-slate-500 font-medium">{item.data[3]} - {item.data[2]}</p>
+                             <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black w-fit mt-1 uppercase">{item.data[0]}</span>
+                          </div>
+                          <div className="flex items-center gap-6">
+                             <div className="text-right">
+                                <p className="text-[10px] text-slate-400 font-black uppercase">Fiyat</p>
+                                <p className="font-black text-lg italic text-slate-900">{parseInt(item.data[5]||0).toLocaleString()} TL</p>
+                             </div>
+                             <button onClick={() => deleteAlim(item.sheetIndex)} className="text-red-500 hover:bg-red-50 p-3 rounded-2xl transition-all">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                             </button>
+                          </div>
+                        </div>
+                      ))}
                    </div>
                  </div>
                  <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
