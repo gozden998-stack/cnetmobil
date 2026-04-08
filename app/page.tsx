@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -122,6 +121,7 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         if (session.mode === 'personel') {
+          // VODAFONE KANALI IP kısıtlamasına takılmaz
           if (session.branch === 'VODAFONE KANALI') {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
@@ -176,6 +176,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
+      // VODAFONE KANALI IP kısıtlamasına takılmaz
       if (matchedBranch === 'VODAFONE KANALI') {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
@@ -323,7 +324,6 @@ export default function CnetmobilCmrFinalUltimate() {
         const imeiDataResp = await imeiRes.json();
         if (imeiDataResp.values) setImeiData(imeiDataResp.values);
       } catch(e) { console.warn("İMEİ LİSTESİ tablosu çekilemedi.", e); }
-
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
@@ -612,6 +612,39 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     });
     return stats;
+  };
+
+  // YÖNETİCİ EKRANI İÇİN TABLO GÖSTERİM YARDIMCI FONKSİYONU
+  const renderAdminTable = (title: string, data: any[][]) => {
+    if (!data || data.length === 0) return (
+      <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+         <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-4">{title}</h3>
+         <p className="text-xs font-bold text-slate-400">Veri bulunamadı.</p>
+      </div>
+    );
+    const headers = data[0] || [];
+    const rows = data.slice(1);
+    return (
+      <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-4">{title}</h3>
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar relative bg-white border border-slate-200 rounded-2xl shadow-inner">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="sticky top-0 bg-slate-800 text-white z-10 shadow-md">
+              <tr>
+                {headers.map((h: any, i: number) => <th key={i} className="p-4 font-black whitespace-nowrap">{h || `Sütun ${i+1}`}</th>)}
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {rows.map((row: any[], i: number) => (
+                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  {headers.map((_, j) => <td key={j} className="p-4 text-slate-600 font-bold whitespace-nowrap">{row[j] || '-'}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
@@ -1096,6 +1129,20 @@ export default function CnetmobilCmrFinalUltimate() {
              ) : (
                <div className="space-y-10">
                  
+                 {/* YENİ EKLENEN: TÜM TABLOLAR GÖRÜNÜMÜ */}
+                 <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 text-slate-900">
+                   <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
+                     🗂️ GOOGLE SHEETS TÜM TABLOLAR
+                   </h2>
+                   <div className="space-y-8">
+                     {renderAdminTable('CEP + TABLET + IOT SAAT LİSTESİ', cepTabletData)}
+                     {renderAdminTable('YNA LİSTESİ', ynaData)}
+                     {renderAdminTable('DIŞ KANAL SATIN ALMA', disKanalData)}
+                     {renderAdminTable('2.EL FİYAT LİSTESİ', ikinciElData)}
+                     {renderAdminTable('İMEİ LİSTESİ', imeiData)}
+                   </div>
+                 </div>
+
                  {/* TEKNİK SERVİS FİYAT YÖNETİMİ */}
                  <div className="bg-gradient-to-br from-orange-50 to-red-50 p-10 rounded-[40px] shadow-sm border border-orange-100 text-slate-900">
                     <h2 className="text-xl font-black italic text-orange-800 mb-2 uppercase tracking-tighter flex items-center gap-2">
