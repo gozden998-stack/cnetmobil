@@ -712,12 +712,14 @@ export default function CnetmobilCmrFinalUltimate() {
 
       {/* 1. MOBİL İÇİN ÜST BAR (Sadece telefonda görünür) */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0B0F19] text-white shadow-md z-40 sticky top-0 border-b border-white/5 print:hidden">
+        {/* MOBİL ÜST BAR LOGOSU - METİN OLARAK GÜNCELLENDİ */}
         <div className="flex items-center gap-3">
-           <img 
-              src="https://i.ibb.co/FbwyMR9B/Cnetmobil-logo-tasar-m-1.png" 
-              alt="Cnetmobil Logo" 
-              className="h-8 w-auto object-contain" 
-           />
+           <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center ring-1 ring-slate-200 shadow-md">
+              <svg className="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+           </div>
+           <h1 className="text-xl font-black tracking-tighter leading-none text-white">
+             Cnet<span className="text-blue-500">mobil</span>
+           </h1>
         </div>
         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 active:scale-95 transition-all">
           <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -742,15 +744,17 @@ export default function CnetmobilCmrFinalUltimate() {
         <div className="p-8 flex flex-col gap-6 relative overflow-hidden mt-2 md:mt-0 shrink-0">
           <div className="absolute top-0 left-0 w-full h-32 bg-blue-600/10 blur-[40px] rounded-full pointer-events-none"></div>
           
-          <div onClick={() => { resetAll(); setIsMobileMenuOpen(false); }} className="flex flex-col gap-2 cursor-pointer group relative z-10 w-fit">
-            <img 
-               src="https://i.ibb.co/FbwyMR9B/Cnetmobil-logo-tasar-m-1.png" 
-               alt="Cnetmobil Logo" 
-               className="h-12 sm:h-14 w-auto object-contain transition-transform duration-300 group-hover:scale-105" 
-            />
-            <p className="text-[10px] font-medium tracking-[0.2em] text-slate-400 uppercase mt-1 pl-1">
-              CMR Dashboard
-            </p>
+          {/* ANA SIDEBAR LOGOSU - METİN OLARAK GÜNCELLENDİ */}
+          <div onClick={() => { resetAll(); setIsMobileMenuOpen(false); }} className="flex items-center gap-4 cursor-pointer group relative z-10 w-fit">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl ring-1 transition-all duration-300 group-hover:scale-105 ${appMode === 'servis' ? 'bg-gradient-to-br from-orange-500 to-orange-700 ring-orange-500/50' : 'bg-gradient-to-br from-blue-500 to-blue-700 ring-blue-500/50'}`}>
+               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter leading-none text-white group-hover:text-slate-200 transition-colors">
+                Cnet<span className={appMode === 'servis' ? 'text-orange-500' : 'text-blue-500'}>mobil</span>
+              </h1>
+              <p className="text-[10px] font-medium tracking-[0.25em] text-slate-400 uppercase mt-2">CMR Dashboard</p>
+            </div>
           </div>
         </div>
 
@@ -1973,15 +1977,4 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
 
             <div style={{fontSize:'9px', fontWeight:'900', fontStyle:'italic', lineHeight:'1.5', marginBottom:'60px', backgroundColor:'#fdfdfd', padding:'15px', border:'1px solid #eee', borderRadius:'10px'}}>
-              BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, yukarıda belirtilen teknik durumun doğruluğunu ve tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
-            </div>
-            
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
-              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
-            </div>
-        </div>
-      )}
-    </div>
-  );
-}
+              BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahs
