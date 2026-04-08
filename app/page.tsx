@@ -1,5 +1,3 @@
-
-
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -41,14 +39,15 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
-  // UYGULAMA MODU (imei_list eklendi)
-  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list'>('alim');
+  // UYGULAMA MODU (imei_list ve imei_list_2 eklendi)
+  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'imei_list_2'>('alim');
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
   const [ikinciElData, setIkinciElData] = useState<any[][]>([]); 
-  const [imeiData, setImeiData] = useState<any[][]>([]); // YENİ EKLENEN İMEİ DATA
+  const [imeiData, setImeiData] = useState<any[][]>([]); 
+  const [imeiData2, setImeiData2] = useState<any[][]>([]); // İMEİ LİST 2 İÇİN YENİ STATE
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -311,20 +310,24 @@ export default function CnetmobilCmrFinalUltimate() {
         }
       } catch (e) { console.warn("Servis_Fiyatlari tablosu çekilemedi."); }
 
-      // 2.EL FİYAT LİSTESİ ÇEKİMİ
       try {
         const ieRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('2.EL FİYAT LİSTESİ')}!A1:D1000?key=${API_KEY}`);
         const ieData = await ieRes.json();
         if (ieData.values) setIkinciElData(ieData.values);
       } catch(e) { console.warn("2.EL FİYAT LİSTESİ tablosu çekilemedi.", e); }
 
-      // YENİ EKLENEN: İMEİ LİSTESİ ÇEKİMİ
       try {
         const imeiRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('İMEİ LİSTESİ')}!A1:B1000?key=${API_KEY}`);
         const imeiDataResp = await imeiRes.json();
         if (imeiDataResp.values) setImeiData(imeiDataResp.values);
       } catch(e) { console.warn("İMEİ LİSTESİ tablosu çekilemedi.", e); }
 
+      // YENİ EKLENEN: İMEİ LİST 2 ÇEKİMİ
+      try {
+        const imei2Res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('İMEİ LİST 2')}!A1:F1000?key=${API_KEY}`);
+        const imei2DataResp = await imei2Res.json();
+        if (imei2DataResp.values) setImeiData2(imei2DataResp.values);
+      } catch(e) { console.warn("İMEİ LİST 2 tablosu çekilemedi.", e); }
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
@@ -620,8 +623,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  // YENİ TEMA KONTROLÜ (Dış Kanal, 2.El ve İMEİ listesinde dark mode olsun)
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list';
+  // YENİ TEMA KONTROLÜ (İMEİ LİST 2 DAHİL)
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || appMode === 'imei_list_2';
 
   // Vivo, Huawei, Oppo, Realme çıkartıldı.
   const baseBrands = ["Apple", "Samsung", "Xiaomi"];
@@ -735,11 +738,16 @@ export default function CnetmobilCmrFinalUltimate() {
                  2.EL LİSTESİ
               </button>
             )}
-            {/* YENİ İMEİ LİSTESİ BUTONU (SADECE VODAFONE MASAÜSTÜ) */}
+            {/* YENİ İMEİ LİSTESİ VE İMEİ LİST 2 BUTONLARI (SADECE VODAFONE MASAÜSTÜ) */}
             {selectedBranch === 'VODAFONE KANALI' && (
-              <button onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'imei_list' ? 'bg-[#f39c12] text-white shadow-md shadow-orange-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
-                 İMEİ LİSTESİ
-              </button>
+              <>
+                <button onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'imei_list' ? 'bg-[#f39c12] text-white shadow-md shadow-orange-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                   İMEİ LİSTESİ
+                </button>
+                <button onClick={() => {setAppMode('imei_list_2'); setStep(1); resetSelection();}} className={`px-3 lg:px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-300 ${appMode === 'imei_list_2' ? 'bg-[#d35400] text-white shadow-md shadow-red-500/20 scale-105' : isDarkAppMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}>
+                   İMEİ LİST 2
+                </button>
+              </>
             )}
           </div>
         )}
@@ -791,9 +799,12 @@ export default function CnetmobilCmrFinalUltimate() {
               {selectedBranch !== 'VODAFONE KANALI' && (
                  <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'ikinci_el' ? 'bg-[#e67e22] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>2.EL LİSTESİ</button>
               )}
-              {/* YENİ İMEİ LİSTESİ BUTONU (SADECE VODAFONE MOBİL) */}
+              {/* YENİ İMEİ LİSTESİ VE İMEİ LİST 2 BUTONLARI (SADECE VODAFONE MOBİL) */}
               {selectedBranch === 'VODAFONE KANALI' && (
-                 <button onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'imei_list' ? 'bg-[#f39c12] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>İMEİ LİSTESİ</button>
+                 <>
+                   <button onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'imei_list' ? 'bg-[#f39c12] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>İMEİ LİSTESİ</button>
+                   <button onClick={() => {setAppMode('imei_list_2'); setStep(1); resetSelection();}} className={`flex-1 min-w-[30%] py-3 rounded-xl text-[10px] font-black uppercase transition-all ${appMode === 'imei_list_2' ? 'bg-[#d35400] text-white shadow-md' : isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>İMEİ LİST 2</button>
+                 </>
               )}
            </div>
         </div>
@@ -801,8 +812,71 @@ export default function CnetmobilCmrFinalUltimate() {
 
       <main className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-4 print:hidden">
         
-        {/* ------------ YENİ İMEİ LİSTESİ EKRANI ------------ */}
-        {appMode === 'imei_list' && step < 99 ? (
+        {/* ------------ YENİ İMEİ LİST 2 EKRANI (HESAPLANAN KULLANILMAYANLAR) ------------ */}
+        {appMode === 'imei_list_2' && step < 99 ? (
+           <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                <div>
+                  <h2 className="text-3xl font-black italic tracking-tighter text-[#d35400]">İMEİ LİST 2 <span className="text-white font-normal">(Kullanılmayanlar)</span></h2>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">A sütununda bulunup, C ve D Sütunlarında bulunmayan cihazlar sisteme ekleniyor</p>
+                </div>
+                <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                   <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                   <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+             </div>
+             
+             <div className="max-w-5xl mx-auto">
+                <div className="bg-[#c0392b] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                   <div className="flex-[2]">MARKA / MODEL</div>
+                   <div className="flex-[3]">KULLANILMAYAN İMEİ (A SÜTUNUNDAN)</div>
+                   <div className="flex-1 text-right">DURUM</div>
+                </div>
+                <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                   {(() => {
+                      // C ve D sütunlarındaki verilerin (Satılmış/Kullanılmış) hızlıca aranabilmesi için Set'e atıyoruz.
+                      const cVeDListesi = new Set(
+                          imeiData2.flatMap(row => [row[2], row[3]]) // index 2 = C sütunu, index 3 = D sütunu
+                          .filter(Boolean)
+                          .map(v => String(v).trim().toLowerCase())
+                      );
+
+                      // A sütununda olan fakat C ve D listesinde bulunmayanları filtrele
+                      const unusedRows = imeiData2.filter((row, idx) => {
+                          if (idx === 0) return false; // Başlık satırını atla
+                          const aVal = String(row[0] || '').trim().toLowerCase(); // index 0 = A sütunu
+                          if (!aVal) return false;
+                          return !cVeDListesi.has(aVal);
+                      });
+
+                      const filteredRows = unusedRows.filter(r => 
+                          (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || 
+                          (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))
+                      );
+
+                      if (filteredRows.length === 0) {
+                          return <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Kriterlere uygun veya kullanılmayan İMEİ bulunamadı.</div>;
+                      }
+
+                      return filteredRows.map((row, i) => (
+                          <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                             {/* B Sütunu (Veya Varsa Diğer Sütun) Marka/Model olarak gösteriliyor */}
+                             <div className={`flex-[2] flex items-center text-slate-300 group-hover:text-white transition-colors pr-4`}>
+                                {row[1] || row[4] || 'Belirtilmemiş Cihaz'}
+                             </div>
+                             {/* A Sütunundaki kullanılmayan İMEİ'yi göster */}
+                             <div className={`flex-[3] font-black text-sm whitespace-nowrap text-[#e74c3c]`}>{row[0] || '-'}</div>
+                             <div className={`flex-1 text-right text-[#2ecc71] text-[9px] sm:text-[10px] uppercase font-black`}>E Sütununda Gösterildi</div>
+                          </div>
+                      ));
+                   })()}
+                </div>
+             </div>
+           </div>
+        ) :
+
+        /* ------------ YENİ İMEİ LİSTESİ EKRANI ------------ */
+        appMode === 'imei_list' && step < 99 ? (
            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                 <div>
