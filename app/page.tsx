@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -36,8 +37,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
-  // vodafone modu eklendi
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici' | 'vodafone'>('personel');
+  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
 
   // UYGULAMA MODU (imei_list eklendi)
@@ -122,7 +122,6 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         if (session.mode === 'personel') {
-          // *** VODAFONE KANALI İÇİN IP KISITLAMASI İPTALİ (BYPASS) ***
           if (session.branch === 'VODAFONE KANALI') {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
@@ -169,20 +168,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // VODAFONE ÖZEL BUTON GİRİŞİ KONTROLÜ
-      if (loginMode === 'vodafone') {
-        if (entryPass === '542542' || entryPass === BRANCH_PASSWORDS['542542']) {
-           setSelectedBranch('VODAFONE KANALI');
-           setIsMasterAccess(false);
-           setIsLoggedIn(true);
-           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: 'VODAFONE KANALI' }));
-        } else {
-           alert("Hatalı Vodafone Şifresi!");
-        }
-        setLoginLoading(false);
-        return;
-      }
-
       const matchedBranch = BRANCH_PASSWORDS[entryPass];
       
       if (!matchedBranch) {
@@ -191,7 +176,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // *** VODAFONE KANALI İÇİN IP KISITLAMASI İPTALİ (BYPASS) ***
       if (matchedBranch === 'VODAFONE KANALI') {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
@@ -666,17 +650,14 @@ export default function CnetmobilCmrFinalUltimate() {
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
            
-           <div className="flex flex-col gap-2 mb-8">
-             <div className="flex bg-slate-700 rounded-2xl p-1">
-                 <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
-                 <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
-             </div>
-             <button onClick={() => {setLoginMode('vodafone'); setEntryPass('');}} className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'vodafone' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-700 text-slate-400 hover:text-white border border-slate-600'}`}>Vodafone Kanalı Girişi</button>
+           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
+               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
+               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
            </div>
            
            <input 
               type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : loginMode === 'yonetici' ? "Yönetici Şifresi" : "Vodafone Şifresi"} 
+              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
               value={entryPass}
               onChange={(e) => setEntryPass(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
