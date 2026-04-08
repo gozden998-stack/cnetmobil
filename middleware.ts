@@ -30,9 +30,28 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // 3. Kapıdaki Kontrol: Bu cihazda Patron izni var mı?
+  // 2.1. VODAFONE MODU: Gizli Link veya Şifre ile Giriş (YENİ EKLENDİ)
+  if (request.nextUrl.searchParams.get('vodafone') === 'vdf123') { // 'vdf123' şifresini isteğinize göre değiştirebilirsiniz
+    const url = request.nextUrl.clone()
+    url.search = '' 
+    const response = NextResponse.redirect(url)
+    
+    response.cookies.set({
+      name: 'vodafone_izni',
+      value: 'aktif',
+      path: '/',
+      httpOnly: true,
+      secure: true, 
+      maxAge: 60 * 60 * 24 * 365 // 1 Yıl geçerli
+    })
+    return response
+  }
+
+  // 3. Kapıdaki Kontrol: Bu cihazda Patron VEYA Vodafone izni var mı?
   const hasPatronCookie = request.cookies.has('patron_izni')
-  if (hasPatronCookie) {
+  const hasVodafoneCookie = request.cookies.has('vodafone_izni')
+
+  if (hasPatronCookie || hasVodafoneCookie) { // İkisinden biri varsa içeri al
     return NextResponse.next() 
   }
 
@@ -62,8 +81,9 @@ export function middleware(request: NextRequest) {
           h1 { color: #dc2626; margin-bottom: 10px; font-weight: 900; }
           p { color: #64748b; font-size: 14px; line-height: 1.5; }
           .ip-box { background: #f1f5f9; padding: 15px; border-radius: 12px; font-family: monospace; font-weight: bold; margin-top: 20px; color: #334155; }
-          .admin-btn { margin-top: 30px; font-size: 12px; color: #94a3b8; background: none; border: none; padding: 10px; cursor: pointer; font-weight: bold; text-decoration: underline; transition: all 0.2s; }
+          .admin-btn { font-size: 12px; color: #94a3b8; background: none; border: none; padding: 10px; cursor: pointer; font-weight: bold; text-decoration: underline; transition: all 0.2s; }
           .admin-btn:hover { color: #2563eb; }
+          .btn-group { margin-top: 30px; display: flex; flex-direction: column; gap: 5px; }
         </style>
       </head>
       <body>
@@ -73,7 +93,10 @@ export function middleware(request: NextRequest) {
           <p>CNETMOBIL CMR sistemine sadece yetkili şube ağlarından (Wi-Fi) erişim sağlanabilir.</p>
           <div class="ip-box">Sizin IP Adresiniz:<br><span style="color:#2563eb; font-size:16px;">${clientIp || 'Bulunamadı'}</span></div>
           
-          <button class="admin-btn" onclick="adminLogin()">Sistem Yöneticisi Girişi</button>
+          <div class="btn-group">
+            <button class="admin-btn" onclick="adminLogin()">Sistem Yöneticisi Girişi</button>
+            <button class="admin-btn" onclick="vodafoneLogin()">Vodafone Kanalı Girişi</button>
+          </div>
         </div>
 
         <script>
@@ -81,6 +104,16 @@ export function middleware(request: NextRequest) {
             var pass = prompt("Lütfen yönetici şifrenizi giriniz:");
             if (pass === "cnet1905") {
               window.location.href = "/?patron=cnet1905";
+            } else if (pass) {
+              alert("Hatalı şifre girişi!");
+            }
+          }
+
+          function vodafoneLogin() {
+            var pass = prompt("Lütfen Vodafone kanalı şifrenizi giriniz:");
+            // Buradaki 'vdf123' şifresini yukarıdaki middleware kontrolündeki ile aynı tutmayı unutmayın.
+            if (pass === "vdf123") {
+              window.location.href = "/?vodafone=vdf123";
             } else if (pass) {
               alert("Hatalı şifre girişi!");
             }
