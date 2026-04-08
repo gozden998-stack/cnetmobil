@@ -121,6 +121,7 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         if (session.mode === 'personel') {
+          // *** VODAFONE KANALI İÇİN IP KISITLAMASI İPTALİ (BYPASS) ***
           if (session.branch === 'VODAFONE KANALI') {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
@@ -175,6 +176,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
+      // *** VODAFONE KANALI İÇİN IP KISITLAMASI İPTALİ (BYPASS) ***
       if (matchedBranch === 'VODAFONE KANALI') {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
