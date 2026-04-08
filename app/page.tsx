@@ -814,7 +814,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </nav>
 
-      {/* 4. ANA İÇERİK ALANI (Tüm mevcut kodlar buranın içinde) */}
+      {/* 4. ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative md:h-screen md:overflow-y-auto custom-scrollbar">
         <main className="max-w-[1400px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
           
@@ -832,7 +832,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
               </div>
               
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[400px]">
                   <div className="bg-[#d35400] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
                     <div className="flex-[2] text-right">İMEİ BİLGİSİ</div>
@@ -853,6 +854,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                     )}
                   </div>
+                </div>
               </div>
             </div>
           ) :
@@ -871,7 +873,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
               </div>
               
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[650px]">
                   <div className="bg-[#d35400] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
                     <div className="flex-1 text-center">ÖZELLİK/DURUM</div>
@@ -894,13 +897,14 @@ export default function CnetmobilCmrFinalUltimate() {
                           {/* C SÜTUNU */}
                           <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-[#2ecc71]'}`}>{row[2] || '-'}</div>
                           {/* D SÜTUNU */}
-                          <div className={`flex-[2] text-right text-slate-400`}>{row[3] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[3] || '-'}</div>
                         </div>
                     )})}
                     {ikinciElData.length <= 1 && (
                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                     )}
                   </div>
+                </div>
               </div>
             </div>
           ) :
@@ -919,12 +923,13 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
               </div>
               
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[500px]">
                   <div className="bg-[#16a085] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
                     {/* VODAFONE İÇİN B SÜTUNU (FİYAT) GÖSTERİLİYOR */}
                     {selectedBranch === 'VODAFONE KANALI' && <div className="flex-1 text-center">FİYATI (TL)</div>}
-                    <div className="flex-1 text-right">DURUM / BİLGİ</div>
+                    <div className="flex-[2] text-right">DURUM / BİLGİ</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
                     {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
@@ -933,7 +938,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
                           {/* A SÜTUNU */}
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
@@ -942,13 +947,14 @@ export default function CnetmobilCmrFinalUltimate() {
                               <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                           )}
                           {/* C SÜTUNU (HER İKİ TARAF İÇİN) */}
-                          <div className={`flex-1 text-right text-slate-400`}>{row[2] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[2] || '-'}</div>
                         </div>
                     )})}
                     {disKanalData.length <= 1 && (
                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
                     )}
                   </div>
+                </div>
               </div>
             </div>
           ) :
@@ -969,7 +975,8 @@ export default function CnetmobilCmrFinalUltimate() {
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 {/* SOL SÜTUN - APPLE */}
-                <div>
+                <div className="overflow-x-auto custom-scrollbar pb-2">
+                  <div className="min-w-[450px]">
                     <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                       <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
                       <div className="flex-1 text-center">KAMPANYA</div>
@@ -982,13 +989,13 @@ export default function CnetmobilCmrFinalUltimate() {
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                           return (
                             <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
+                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2 break-words`}>
                                   {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[0]}
                                 </div>
                                 <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-[#dfe6e9]">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-400">{row[3] || '-'}</div>
+                                <div className="flex-1 text-center text-[#dfe6e9] whitespace-nowrap">{row[2] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-400 whitespace-nowrap pl-2">{row[3] || '-'}</div>
                             </div>
                           )
                       })}
@@ -996,10 +1003,12 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                       )}
                     </div>
+                  </div>
                 </div>
                 
                 {/* SAĞ SÜTUN - ANDROID */}
-                <div>
+                <div className="overflow-x-auto custom-scrollbar pb-2">
+                  <div className="min-w-[450px]">
                     <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
                       <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
                       <div className="flex-1 text-center">KAMPANYA</div>
@@ -1012,13 +1021,13 @@ export default function CnetmobilCmrFinalUltimate() {
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                           return (
                             <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2`}>
+                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2 break-words`}>
                                   {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[5]}
                                 </div>
                                 <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-[#dfe6e9]">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-400">{row[8] || '-'}</div>
+                                <div className="flex-1 text-center text-[#dfe6e9] whitespace-nowrap">{row[7] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-400 whitespace-nowrap pl-2">{row[8] || '-'}</div>
                             </div>
                           )
                       })}
@@ -1026,6 +1035,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                       )}
                     </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1047,7 +1057,8 @@ export default function CnetmobilCmrFinalUltimate() {
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* SOL SÜTUN YNA */}
-                <div>
+                <div className="overflow-x-auto custom-scrollbar pb-2">
+                  <div className="min-w-[350px]">
                     <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                       <div className="flex-[3]">ÜRÜN ADI</div>
                       <div className="flex-1 text-right">FİYATI (TL)</div>
@@ -1058,7 +1069,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                           return (
                           <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
                                 {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[0]}
                             </div>
@@ -1069,10 +1080,12 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                       )}
                     </div>
+                  </div>
                 </div>
                 
                 {/* SAĞ SÜTUN YNA */}
-                <div>
+                <div className="overflow-x-auto custom-scrollbar pb-2">
+                  <div className="min-w-[350px]">
                     <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                       <div className="flex-[3]">ÜRÜN ADI</div>
                       <div className="flex-1 text-right">FİYATI (TL)</div>
@@ -1083,7 +1096,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                           return (
                           <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
+                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
                                 {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[3]}
                             </div>
@@ -1094,6 +1107,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi.</div>
                       )}
                     </div>
+                  </div>
                 </div>
               </div>
             </div>
