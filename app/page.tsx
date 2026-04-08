@@ -694,44 +694,15 @@ export default function CnetmobilCmrFinalUltimate() {
       `}</style>
 
       {/* YENİ DASHBOARD SIDEBAR (SOL MENÜ) */}
-      <nav className={`flex flex-col shrink-0 md:w-72 lg:w-80 border-b md:border-b-0 md:border-r sticky top-0 z-50 print:hidden transition-colors md:h-screen ${
-  isDarkAppMode
-    ? 'bg-[#0f172a] border-slate-800'
-    : appMode === 'servis'
-      ? 'bg-[#fffaf6] border-orange-200/70'
-      : 'bg-white border-slate-200/80'
-} shadow-[0_20px_60px_rgba(15,23,42,0.12)]`}>
-  {/* LOGO ALANI */}
-  <div className={`p-4 md:p-7 flex items-center justify-between md:block border-b md:border-b-0 ${
-    isDarkAppMode ? 'border-slate-800' : 'border-slate-100'
-  }`}>
-    <div className="relative overflow-hidden rounded-[28px] md:mb-8 border border-white/10">
-      <div
-        className={`absolute inset-0 ${
-          appMode === 'servis'
-            ? 'bg-[radial-gradient(circle_at_top_left,_rgba(251,146,60,0.18),_transparent_55%)]'
-            : isDarkAppMode
-              ? 'bg-[radial-gradient(circle_at_top_left,_rgba(52,152,219,0.18),_transparent_55%)]'
-              : 'bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.12),_transparent_55%)]'
-        }`}
-      />
-      <div
-        onClick={resetAll}
-        className={`relative flex items-center gap-4 group cursor-pointer px-5 py-5 ${
-          isDarkAppMode ? 'bg-slate-950/70' : 'bg-white/90'
-        }`}
-      >
-        <div className={`${
-          appMode === 'servis'
-            ? 'bg-orange-600 shadow-orange-500/30'
-            : isDarkAppMode
-              ? 'bg-[#3498db] shadow-blue-500/30'
-              : 'bg-slate-900 shadow-slate-900/20'
-        } p-3 rounded-2xl shadow-lg group-hover:scale-105 transition-transform`}>
+    <nav className="flex flex-col shrink-0 md:w-[280px] border-b md:border-b-0 md:border-r sticky top-0 z-50 print:hidden md:h-screen bg-[#162338] border-[#22324b] shadow-[8px_0_30px_rgba(0,0,0,0.18)]">
+  <div className="px-5 pt-6 pb-4 border-b border-[#22324b]">
+    <div onClick={resetAll} className="cursor-pointer">
+      <div className="flex items-center gap-3 mb-1">
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg ${appMode === 'servis' ? 'bg-[#f28c28]' : 'bg-[#2f9cf4]'}`}>
           {appMode === 'servis' ? (
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           ) : (
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -741,205 +712,88 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
 
         <div>
-          <h1 className={`text-xl font-black tracking-tight leading-none ${
-            isDarkAppMode ? 'text-white' : 'text-slate-900'
-          }`}>
-            CNET<span className={
-              appMode === 'servis'
-                ? 'text-orange-600'
-                : isDarkAppMode
-                  ? 'text-[#3498db]'
-                  : 'text-blue-600'
-            }>MOBIL</span>
+          <h1 className="text-white text-xl font-black tracking-tight leading-none">
+            CNET<span className="text-[#38a3ff]">MOBIL</span>
           </h1>
-          <span className={`text-[10px] font-semibold tracking-[0.24em] uppercase ${
-            isDarkAppMode ? 'text-slate-400' : 'text-slate-500'
-          }`}>
-            CMR Dashboard Paneli
-          </span>
+          <p className="text-[#7f92ad] text-[10px] uppercase tracking-[0.22em] font-bold mt-1">CMR Dashboard</p>
         </div>
       </div>
     </div>
 
-    {/* MOBİL HIZLI AKSİYONLAR */}
-    <div className="md:hidden flex items-center gap-3">
-      <button onClick={() => setIsInstallmentModalOpen(true)} className={`px-2.5 py-2 rounded-lg shadow-sm transition-colors btn-click ${
-        appMode === 'servis' ? 'bg-orange-600 text-white' : isDarkAppMode ? 'bg-[#2ecc71] text-white' : 'bg-slate-900 text-white'
-      }`}>
+    <div className="md:hidden flex items-center gap-3 mt-4">
+      <button onClick={() => setIsInstallmentModalOpen(true)} className="px-2.5 py-2 rounded-lg bg-[#16a34a] text-white shadow-sm btn-click">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
       </button>
-      <button onClick={() => setStep(99)} className={`text-[10px] font-bold uppercase transition-colors ${isDarkAppMode ? 'text-slate-400' : 'text-slate-500'}`}>ADMİN</button>
-      <button onClick={handleLogout} className="text-[10px] font-black text-red-500">ÇIKIŞ</button>
+      <button onClick={() => setStep(99)} className="text-[10px] font-bold uppercase text-slate-400">ADMİN</button>
+      <button onClick={handleLogout} className="text-[10px] font-black text-red-400">ÇIKIŞ</button>
     </div>
   </div>
 
-  {/* MENÜ BUTONLARI */}
-  <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 md:px-5 md:py-5">
+  <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-5">
     {step < 99 && (
-      <div className={`rounded-[30px] border p-3 ${
-        isDarkAppMode
-          ? 'bg-slate-950/50 border-slate-800'
-          : appMode === 'servis'
-            ? 'bg-white border-orange-100'
-            : 'bg-slate-50 border-slate-200'
-      }`}>
-        <div className="hidden md:flex items-center justify-between px-3 pb-3">
-          <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${
-            isDarkAppMode ? 'text-slate-500' : 'text-slate-400'
-          }`}>
-            Modüller
-          </p>
-          <span className={`text-[10px] font-bold ${
-            isDarkAppMode ? 'text-slate-500' : 'text-slate-400'
-          }`}>
-            {selectedBranch}
-          </span>
+      <div className="space-y-6">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#6f84a1] px-2 mb-3">Ana Modüller</p>
+          <div className="space-y-2">
+            <button onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-all border ${appMode === 'alim' ? 'bg-[#2f9cf4] text-white border-[#49a9f8] shadow-[0_8px_20px_rgba(47,156,244,0.35)]' : 'bg-transparent text-white border-transparent hover:bg-white/5'}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${appMode === 'alim' ? 'bg-white/15' : 'bg-white/5'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+              </div>
+              <span className="font-black text-[15px]">Cihaz Alım</span>
+            </button>
+
+            {selectedBranch !== 'VODAFONE KANALI' && (
+              <button onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-all border ${appMode === 'servis' ? 'bg-[#f28c28] text-white border-[#f6a24e] shadow-[0_8px_20px_rgba(242,140,40,0.35)]' : 'bg-transparent text-white border-transparent hover:bg-white/5'}`}>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${appMode === 'servis' ? 'bg-white/15' : 'bg-white/5'}`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </div>
+                <span className="font-black text-[15px]">Teknik Servis</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-2 md:pb-0 scroll-smooth">
-          <button
-            onClick={() => {setAppMode('alim'); setStep(1); resetSelection();}}
-            className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-              appMode === 'alim'
-                ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>Cihaz Alım</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'alim' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-            </div>
-          </button>
-
-          {selectedBranch !== 'VODAFONE KANALI' && (
-            <button
-              onClick={() => {setAppMode('servis'); setStep(1); resetSelection();}}
-              className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-                appMode === 'servis'
-                  ? 'bg-orange-600 text-white border-transparent shadow-lg shadow-orange-500/20'
-                  : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-orange-50 hover:text-orange-700')
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span>Teknik Servis</span>
-                <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'servis' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-              </div>
-            </button>
-          )}
-
-          <button
-            onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}}
-            className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-              appMode === 'cep_tablet'
-                ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>Cep + Tablet</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'cep_tablet' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-            </div>
-          </button>
-
-          <button
-            onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}}
-            className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-              appMode === 'yna_list'
-                ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>YNA List</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'yna_list' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-            </div>
-          </button>
-
-          <button
-            onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}}
-            className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-              appMode === 'dis_kanal'
-                ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>Dış Kanal</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'dis_kanal' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-            </div>
-          </button>
-
-          {selectedBranch !== 'VODAFONE KANALI' && (
-            <button
-              onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}}
-              className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-                appMode === 'ikinci_el'
-                  ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                  : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span>2. El Listesi</span>
-                <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'ikinci_el' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-              </div>
-            </button>
-          )}
-
-          {selectedBranch === 'VODAFONE KANALI' && (
-            <button
-              onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}}
-              className={`shrink-0 text-left px-4 py-3.5 md:px-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.08em] transition-all duration-200 border ${
-                appMode === 'imei_list'
-                  ? (isDarkAppMode ? 'bg-[#3498db] text-white border-transparent shadow-lg shadow-blue-500/20' : 'bg-slate-900 text-white border-transparent shadow-lg shadow-slate-900/10')
-                  : (isDarkAppMode ? 'text-slate-300 border-transparent hover:bg-white/5 hover:text-white' : 'text-slate-600 border-transparent hover:bg-white hover:text-slate-900')
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span>İMEİ Listesi</span>
-                <span className={`w-2.5 h-2.5 rounded-full ${appMode === 'imei_list' ? 'bg-white/90' : isDarkAppMode ? 'bg-slate-600' : 'bg-slate-300'}`} />
-              </div>
-            </button>
-          )}
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#6f84a1] px-2 mb-3">Fiyat Listeleri</p>
+          <div className="space-y-1.5">
+            <button onClick={() => {setAppMode('cep_tablet'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all ${appMode === 'cep_tablet' ? 'bg-white/8 text-white' : 'text-white/90 hover:bg-white/5'}`}><span className="font-bold text-[15px]">Cep + Tablet</span></button>
+            <button onClick={() => {setAppMode('yna_list'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all ${appMode === 'yna_list' ? 'bg-white/8 text-white' : 'text-white/90 hover:bg-white/5'}`}><span className="font-bold text-[15px]">YNA List</span></button>
+            <button onClick={() => {setAppMode('dis_kanal'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all ${appMode === 'dis_kanal' ? 'bg-white/8 text-white' : 'text-white/90 hover:bg-white/5'}`}><span className="font-bold text-[15px]">Dış Kanal</span></button>
+            {selectedBranch !== 'VODAFONE KANALI' && <button onClick={() => {setAppMode('ikinci_el'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all ${appMode === 'ikinci_el' ? 'bg-white/8 text-white' : 'text-white/90 hover:bg-white/5'}`}><span className="font-bold text-[15px]">2. El Listesi</span></button>}
+            {selectedBranch === 'VODAFONE KANALI' && <button onClick={() => {setAppMode('imei_list'); setStep(1); resetSelection();}} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all ${appMode === 'imei_list' ? 'bg-white/8 text-white' : 'text-white/90 hover:bg-white/5'}`}><span className="font-bold text-[15px]">İMEİ Listesi</span></button>}
+          </div>
         </div>
       </div>
     )}
   </div>
 
-  {/* MASAÜSTÜ ALT AKSİYONLAR */}
-  <div className={`hidden md:flex flex-col gap-4 p-6 border-t mt-auto ${isDarkAppMode ? 'border-[#2a2a3d]' : 'border-slate-200/50'}`}>
-    <button onClick={() => setIsInstallmentModalOpen(true)} className={`w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl shadow-lg transition-colors btn-click ${appMode === 'servis' ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-500/20' : isDarkAppMode ? 'bg-[#2ecc71] hover:bg-green-600 text-white shadow-green-500/20' : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20'}`}>
-      <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-      <span className="text-[11px] font-black uppercase tracking-widest">TAKSİT HESAPLA</span>
+  <div className="p-4 border-t border-[#22324b] space-y-3">
+    <button onClick={() => setIsInstallmentModalOpen(true)} className="w-full flex items-center justify-center gap-3 bg-[#10b981] hover:bg-[#0ea371] text-white rounded-xl py-4 font-black text-[13px] uppercase tracking-[0.06em] shadow-[0_10px_24px_rgba(16,185,129,0.28)] transition-all btn-click">
+      TAKSİT HESAPLA
     </button>
 
-    <div className="flex items-center justify-between mt-2 px-1">
-      <button onClick={() => setStep(99)} className={`text-[10px] font-bold uppercase transition-colors ${isDarkAppMode ? 'text-slate-400 hover:text-[#3498db]' : 'text-slate-400 hover:text-blue-600'}`}>YÖNETİCİ</button>
-      <button onClick={handleLogout} className="text-[10px] font-black text-slate-400 hover:text-red-500 transition-colors">ÇIKIŞ YAP</button>
+    <div className="bg-[#22324b] rounded-2xl px-4 py-3 flex items-center justify-between">
+      <div className="leading-tight">
+        <p className="text-[12px] text-[#9db0ca] font-medium">Aktif Şube:</p>
+        {isMasterAccess ? (
+          <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-white font-black text-[16px] outline-none uppercase pr-6">
+            {branches.map(b => <option key={b.name} value={b.name} className="text-black">{b.name}</option>)}
+          </select>
+        ) : (
+          <p className="text-white font-black text-[16px] uppercase">{selectedBranch}</p>
+        )}
+      </div>
+
+      <button onClick={() => setStep(99)} className="text-[#9db0ca] hover:text-white transition-colors p-2 rounded-lg" title="Yönetici Paneli">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" /></svg>
+      </button>
     </div>
 
-    <div className="mt-2">
-      {isMasterAccess ? (
-        <div className="relative">
-          <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`w-full appearance-none px-4 py-3 pr-8 rounded-xl text-[10px] font-black outline-none border transition-colors cursor-pointer uppercase shadow-sm ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-200' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-            {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M19 9l-7 7-7-7" strokeWidth={3} />
-            </svg>
-          </div>
-        </div>
-      ) : (
-        <div className={`w-full px-4 py-3 rounded-xl text-[10px] font-black uppercase shadow-sm border flex items-center gap-2 justify-center ${appMode === 'servis' ? 'bg-orange-50 text-orange-700 border-orange-100' : isDarkAppMode ? 'bg-[#2a2a3d] text-[#3498db] border-[#4472c4]' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-          <span className={`w-2 h-2 rounded-full animate-pulse ${appMode === 'servis' ? 'bg-orange-600' : isDarkAppMode ? 'bg-[#2ecc71]' : 'bg-blue-600'}`}></span>
-          {selectedBranch}
-        </div>
-      )}
-    </div>
+    <button onClick={handleLogout} className="w-full text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#93a7c3] hover:text-red-400 transition-colors py-2">
+      Çıkış Yap
+    </button>
   </div>
 </nav>
 
