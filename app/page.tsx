@@ -271,7 +271,7 @@ export default function CnetmobilCmrFinalUltimate() {
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
 
       try {
-        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:I1000?key=${API_KEY}`,
+        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:I1000?key=${API_KEY}`
         const ctData = await ctRes.json();
         if (ctData.values) setCepTabletData(ctData.values);
       } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi.", e); }
