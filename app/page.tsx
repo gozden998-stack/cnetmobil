@@ -1333,142 +1333,126 @@ export default function CnetmobilCmrFinalUltimate() {
                         </div>
                      </div>
                   </div>
+/* ... (kodun üst kısmındaki state ve useEffect yapıları aynı kalacak, sadece return kısmındaki tabloyu güncelliyorum) ... */
 
-                  {/* ALIM TABLOSU */}
-                  <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
-                        <div>
-                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
-                            <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki cihaz kayıt geçmişi</p>
-                        </div>
-                        {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                           <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
-                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                               Geçmişi Temizle
-                           </button>
-                        )}
-                    </div>
+{/* ALIM TABLOSU */}
+<div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
+    <div>
+      <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
+      <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Yönetici Denetim Paneli</p>
+    </div>
+    {adminSelectedBranch === 'TÜM ŞUBELER' && (
+      <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        TÜM GEÇMİŞİ SİL
+      </button>
+    )}
+  </div>
 
-                    {filteredAlimlar.length === 0 ? (
-                      <div className="text-center py-20 text-slate-500">
-                         <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                         <p className="text-xs font-black uppercase tracking-widest">Bu kriterlere ait işlem kaydı bulunamadı.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto custom-scrollbar pb-4">
-                         <div className="min-w-[1050px] flex flex-col">
-                            {/* HEADER (GRID FORMATI) */}
-                            <div className="grid grid-cols-[130px_150px_120px_1fr_110px_60px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl">
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tarih / Şube</div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Müşteri</div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">İşlem Türü</div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz Marka & Model</div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Tutar</div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">İşlem</div>
-                            </div>
-                            
-                            {/* BODY (GRID FORMATI) */}
-                            <div className="flex flex-col">
-                               {filteredAlimlar.map((item, i) => {
-                                  const rawDevice = item.data[2] || '';
-                                  const parts = rawDevice.split(' #EKSPERTİZ# ');
-                                  const mainDevice = parts[0];
-                                  const ekspertizData = parts.length > 1 ? parts[1] : '';
+  {filteredAlimlar.length === 0 ? (
+    <div className="text-center py-20 text-slate-500">
+      <p className="text-xs font-black uppercase tracking-widest">Kayıt Bulunmuyor</p>
+    </div>
+  ) : (
+    <div className="overflow-x-auto custom-scrollbar pb-4">
+      <div className="min-w-[1100px] flex flex-col">
+        {/* TABLO BAŞLIKLARI */}
+        <div className="grid grid-cols-[140px_180px_130px_1fr_120px_60px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl font-black text-[10px] text-slate-500 uppercase tracking-widest">
+          <div>TARİH / ŞUBE</div>
+          <div>MÜŞTERİ BİLGİSİ</div>
+          <div>İŞLEM TÜRÜ</div>
+          <div>CİHAZ & EKSPERTİZ</div>
+          <div className="text-right">TUTAR</div>
+          <div className="text-center">YÖNET</div>
+        </div>
+        
+        {/* TABLO SATIRLARI */}
+        <div className="flex flex-col">
+          {filteredAlimlar.map((item, i) => {
+            const rawDevice = item.data[2] || '';
+            const parts = rawDevice.split(' #EKSPERTİZ# ');
+            const mainDevice = parts[0];
+            const ekspertizData = parts.length > 1 ? parts[1] : '';
 
-                                  // Tarih Bulma
-                                  let rawDate = item.data[6] || item.data[7] || '';
-                                  for (let j = item.data.length - 1; j >= 0; j--) {
-                                      const val = String(item.data[j] || '');
-                                      if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
-                                          rawDate = val; break;
-                                      }
-                                  }
-                                  let datePart = rawDate || 'Tarih Yok';
-                                  let timePart = '';
-                                  if (rawDate && rawDate.includes(' ')) {
-                                     const dateParts = rawDate.split(' ');
-                                     datePart = dateParts[0];
-                                     timePart = dateParts[1];
-                                  }
+            // Tarih ve Saat Ayrıştırma
+            let rawDate = item.data[6] || item.data[7] || '---';
+            let datePart = rawDate.split(' ')[0];
+            let timePart = rawDate.split(' ')[1] || '';
 
-                                  // Status Badge Rengi (Renklendirilmiş)
-                                  const rowDataString = item.data.join(" ");
-                                  let statusColor = "bg-slate-800 text-slate-400 border-slate-700";
-                                  let statusText = "BEKLEMEDE";
-                                  if (rowDataString.includes('[NAKİT ALINDI]')) { 
-                                      statusColor = "bg-emerald-900/30 text-emerald-400 border-emerald-800/60"; 
-                                      statusText = "NAKİT ALIM"; 
-                                  }
-                                  else if (rowDataString.includes('[TAKAS ALINDI]')) { 
-                                      statusColor = "bg-purple-900/30 text-purple-400 border-purple-800/60"; 
-                                      statusText = "TAKAS ALIM"; 
-                                  }
-                                  else if (rowDataString.includes('[ALINMADI]')) { 
-                                      statusColor = "bg-rose-900/30 text-rose-400 border-rose-800/60"; 
-                                      statusText = "İPTAL EDİLDİ"; 
-                                  }
+            // İşlem Durumu ve Renkleri
+            const rowStr = item.data.join(" ");
+            let statusStyle = "bg-slate-800 text-slate-400 border-slate-700";
+            let statusLabel = "BEKLEMEDE";
+            
+            if (rowStr.includes('[NAKİT ALINDI]')) {
+              statusStyle = "bg-emerald-900/30 text-emerald-400 border-emerald-800/60";
+              statusLabel = "NAKİT ALIM";
+            } else if (rowStr.includes('[TAKAS ALINDI]')) {
+              statusStyle = "bg-purple-900/30 text-purple-400 border-purple-800/60";
+              statusLabel = "TAKAS ALIM";
+            } else if (rowStr.includes('[ALINMADI]')) {
+              statusStyle = "bg-rose-900/30 text-rose-400 border-rose-800/60";
+              statusLabel = "İPTAL";
+            }
 
-                                  return (
-                                     <div key={i} className={`grid grid-cols-[130px_150px_120px_1fr_110px_60px] gap-4 px-6 py-5 border-b border-slate-800 hover:bg-white/[0.02] transition-colors items-start group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
-                                        
-                                        {/* TARIH / SUBE SUTUNU */}
-                                        <div className="flex flex-col gap-1">
-                                           <span className="text-[11px] font-bold text-slate-300">{datePart}</span>
-                                           {timePart && <span className="text-[10px] text-slate-500">{timePart}</span>}
-                                           {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                                              <span className="mt-1.5 w-max px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</span>
-                                           )}
-                                        </div>
-                                        
-                                        {/* MÜŞTERİ SÜTUNU */}
-                                        <div className="flex flex-col gap-1 pr-2">
-                                           <span className="text-[12px] font-black text-white uppercase truncate" title={item.data[1]}>{item.data[1]}</span>
-                                           <span className="text-[10px] font-mono text-slate-500">{item.data[3] || 'IMEI YOK'}</span>
-                                        </div>
-                                        
-                                        {/* İŞLEM TÜRÜ SÜTUNU */}
-                                        <div className="flex items-start">
-                                           <span className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase border tracking-widest shrink-0 ${statusColor}`}>
-                                              {statusText}
-                                           </span>
-                                        </div>
+            return (
+              <div key={i} className={`grid grid-cols-[140px_180px_130px_1fr_120px_60px] gap-4 px-6 py-5 border-b border-slate-800 items-center hover:bg-white/[0.02] transition-colors ${i % 2 === 0 ? '' : 'bg-[#2a2a3d]/10'}`}>
+                
+                {/* 1. SÜTUN: TARİH & ŞUBE */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-white">{datePart}</span>
+                  <span className="text-[10px] text-slate-500 font-medium">{timePart}</span>
+                  <span className="mt-1 text-[9px] font-black text-blue-400 uppercase">{item.data[0]}</span>
+                </div>
 
-                                        {/* CİHAZ MARKA MODEL VE EKSPERTİZ BUTONU */}
-                                        <div className="flex flex-col pr-4 min-w-0 items-start">
-                                           <span className="text-[13px] font-black text-blue-50 tracking-tight leading-tight">{mainDevice}</span>
-                                           {ekspertizData && (
-                                              <button 
-                                                onClick={() => setEkspertizModalData({customer: item.data[1], device: mainDevice, data: ekspertizData})} 
-                                                className="mt-3 text-[9px] font-bold text-slate-400 bg-slate-800/50 hover:bg-slate-700 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-700 tracking-widest uppercase btn-click"
-                                              >
-                                                <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                Ekspertiz Raporunu Gör
-                                              </button>
-                                           )}
-                                        </div>
-                                        
-                                        {/* TUTAR SÜTUNU */}
-                                        <div className="flex justify-end items-start pt-1">
-                                           <span className="text-sm font-black italic text-emerald-400 bg-emerald-900/10 px-3 py-1.5 rounded-lg border border-emerald-900/30 whitespace-nowrap">
-                                              {parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺
-                                           </span>
-                                        </div>
-                                        
-                                        {/* İŞLEM SÜTUNU (SİL) */}
-                                        <div className="flex justify-center items-start pt-1">
-                                           <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 w-8 h-8 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 flex items-center justify-center" title="Kaydı Sil">
-                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                           </button>
-                                        </div>
-                                     </div>
-                                  );
-                               })}
-                            </div>
-                         </div>
-                      </div>
-                    )}
-                  </div>
+                {/* 2. SÜTUN: MÜŞTERİ */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[12px] font-black text-slate-200 uppercase truncate">{item.data[1] || 'İSİMSİZ'}</span>
+                  <span className="text-[9px] font-mono text-slate-500">{item.data[3] || 'IMEI YOK'}</span>
+                </div>
 
+                {/* 3. SÜTUN: İŞLEM TÜRÜ */}
+                <div>
+                  <span className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase border tracking-widest ${statusStyle}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+
+                {/* 4. SÜTUN: CİHAZ VE EKSPERTİZ BUTONU */}
+                <div className="flex flex-col items-start gap-2">
+                  <span className="text-[13px] font-black text-white tracking-tight">{mainDevice}</span>
+                  {ekspertizData && (
+                    <button 
+                      onClick={() => setEkspertizModalData({customer: item.data[1], device: mainDevice, data: ekspertizData})}
+                      className="text-[9px] font-black text-blue-400 bg-blue-500/10 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg transition-all border border-blue-500/20 uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      Ekspertiz Raporunu Gör
+                    </button>
+                  )}
+                </div>
+
+                {/* 5. SÜTUN: TUTAR */}
+                <div className="text-right font-black italic text-emerald-400 text-sm">
+                  {parseInt(item.data[5] || item.data[4] || 0).toLocaleString()} ₺
+                </div>
+
+                {/* 6. SÜTUN: SİLME */}
+                <div className="flex justify-center">
+                  <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-600 hover:text-red-500 transition-colors p-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+           
                 </div>
               )}
             </div>
