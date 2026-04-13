@@ -74,6 +74,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [newDevice, setNewDevice] = useState({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
+  
+  // YENİ: Yönetici Dashboard'u için seçili şube state'i
+  const [adminSelectedBranch, setAdminSelectedBranch] = useState<string>('TÜM ŞUBELER');
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -653,12 +656,39 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  // APP MODUNA 'step === 99' (Admin Paneli) DA EKLENDİ Kİ DASHBOARD GÖRÜNÜMÜNÜ KORUSUN
   const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || step === 99;
 
   const baseBrands = ["Apple", "Samsung", "Xiaomi"];
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
       .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
+
+  // DASHBOARD İSTATİSTİKLERİNİ HAZIRLAMA
+  const rawStats = getBranchStats();
+  let dashboardStats = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
+  
+  if (adminSelectedBranch === 'TÜM ŞUBELER') {
+      Object.values(rawStats).forEach((s: any) => {
+          dashboardStats.alindi += s.alindi;
+          dashboardStats.alinmadi += s.alinmadi;
+          dashboardStats.diger += s.diger;
+          dashboardStats.total += s.total;
+      });
+  } else {
+      dashboardStats = rawStats[adminSelectedBranch] || dashboardStats;
+  }
+
+  // FİLTRELENMİŞ ALIM LİSTESİ
+  const filteredAlimlar = [...alimlar].reverse().filter(item => {
+      if (adminSelectedBranch === 'TÜM ŞUBELER') return true;
+      let foundBranch = null;
+      for (let i = 0; i < item.data.length; i++) {
+          if (typeof item.data[i] === 'string' && (item.data[i].includes("CMR ") || item.data[i].includes("VODAFONE "))) {
+              foundBranch = item.data[i];
+              break;
+          }
+      }
+      return foundBranch === adminSelectedBranch;
+  });
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
@@ -720,7 +750,7 @@ export default function CnetmobilCmrFinalUltimate() {
         }
         .btn-click { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
         .btn-click:active { transform: scale(0.96); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
       `}</style>
 
@@ -1112,7 +1142,7 @@ export default function CnetmobilCmrFinalUltimate() {
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {!isAdmin ? (
-                <div className="max-w-md mx-auto bg-[#1e1e2d] p-12 rounded-[48px] shadow-2xl text-center border border-slate-800">
+                <div className="max-w-md mx-auto bg-[#1e1e2d] p-12 rounded-[48px] shadow-2xl text-center border border-slate-800 mt-20">
                   <div className="w-16 h-16 bg-blue-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
                       <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                   </div>
@@ -1121,144 +1151,203 @@ export default function CnetmobilCmrFinalUltimate() {
                   <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-blue-600/20 hover:bg-blue-500">SİSTEME GİRİŞ YAP</button>
                 </div>
               ) : (
-                <div className="space-y-10">
+                <div className="flex flex-col xl:flex-row gap-8">
                   
-                  {/* İSTATİSTİKLER PANELİ */}
-                  <div className="bg-[#1e1e2d] p-8 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white">
-                      <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-8 border-b border-slate-700 pb-4 text-blue-400">
-                        📊 ŞUBE İŞLEM İSTATİSTİKLERİ
-                      </h2>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {Object.entries(getBranchStats()).map(([branchName, stat]: any) => (
-                          <div key={branchName} className="bg-[#2a2a3d] p-6 rounded-3xl border border-slate-700 shadow-sm hover:border-blue-500/50 transition-all group">
-                            <h3 className="font-black text-white uppercase tracking-widest text-sm mb-5 text-center bg-[#1e1e2d] py-2.5 rounded-xl border border-slate-700 group-hover:border-blue-500/30 transition-all">{branchName}</h3>
-                            
-                            <div className="space-y-3">
-                              <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400 font-bold">ALINDI</span>
-                                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-lg font-black border border-emerald-500/20">{stat.alindi}</span>
-                              </div>
-                              <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400 font-bold">ALINMADI</span>
-                                <span className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-black border border-rose-500/20">{stat.alinmadi}</span>
-                              </div>
-                              <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400 font-bold">BEKLEYEN/DİĞER</span>
-                                <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-lg font-black">{stat.diger}</span>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-5 pt-4 border-t border-slate-700 flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Toplam İşlem</span>
-                                <span className="text-blue-400 font-black text-2xl">{stat.total}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                  </div>
-
-                  {/* GÜNCEL ALIMLAR LİSTESİ */}
-                  <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white">
-                    <div className="flex justify-between items-center border-b border-slate-700 pb-6 mb-8">
-                        <div>
-                            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-emerald-400">GÜNCEL ALIM KAYITLARI</h2>
-                            <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki Tüm Alım ve Takas İşlemleri</p>
+                  {/* SOL MENÜ - ŞUBE SEÇİCİ */}
+                  <div className="w-full xl:w-72 shrink-0">
+                     <div className="bg-[#1e1e2d] p-6 rounded-[40px] shadow-2xl border border-slate-800 xl:sticky xl:top-24">
+                        <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-700/50">
+                           <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20 shrink-0">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                           </div>
+                           <div>
+                              <h3 className="text-sm font-black text-white uppercase tracking-widest">Şube Filtresi</h3>
+                              <p className="text-[10px] text-slate-400 mt-1">İstatistik & Kayıtlar</p>
+                           </div>
                         </div>
-                        <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            Tüm Geçmişi Temizle
-                        </button>
-                    </div>
 
-                    <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-                        {[...alimlar].reverse().map((item, i) => {
-                          const rawDevice = item.data[2] || '';
-                          const parts = rawDevice.split(' #EKSPERTİZ# ');
-                          const mainDevice = parts[0];
-                          const ekspertizData = parts.length > 1 ? parts[1] : '';
-
-                          // AKILLI TARİH ÇEKİMİ: Sütunların kayma ihtimaline karşı sondan başa doğru tarih formatını (DD.MM.YYYY HH:MM:SS) bulur.
-                          let rawDate = item.data[6] || item.data[7] || '';
-                          for (let j = item.data.length - 1; j >= 0; j--) {
-                              const val = String(item.data[j] || '');
-                              if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
-                                  rawDate = val;
-                                  break;
-                              }
-                          }
-                          
-                          let datePart = rawDate || 'Tarih Yok';
-                          let timePart = '';
-                          if (rawDate && rawDate.includes(' ')) {
-                             const dateParts = rawDate.split(' ');
-                             datePart = dateParts[0];
-                             timePart = dateParts[1];
-                          }
-
-                          return (
-                          <div key={i} className="bg-[#2a2a3d] p-5 rounded-[24px] border border-slate-700 flex flex-col md:flex-row items-start md:items-center text-xs hover:border-blue-500/50 hover:bg-[#2f2f45] transition-all gap-6 group shadow-lg">
-                            
-                            {/* ŞUBE VE TARİH */}
-                            <div className="flex-[1.5] w-full md:w-auto border-r border-slate-700/50 pr-4">
-                              <span className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest inline-block mb-3 border border-blue-500/20">{item.data[0]}</span>
-                              <div className="flex items-center gap-2 text-slate-300 mb-1">
-                                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                  <span className="font-bold text-[12px]">{datePart}</span>
-                              </div>
-                              {timePart && (
-                              <div className="flex items-center gap-2 text-slate-400">
-                                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                  <span className="font-bold text-[12px]">{timePart}</span>
-                              </div>
-                              )}
-                            </div>
-
-                            {/* MÜŞTERİ BİLGİSİ */}
-                            <div className="flex-[2] w-full md:w-auto border-r border-slate-700/50 pr-4">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Müşteri</p>
-                              <p className="font-black text-white text-sm uppercase">{item.data[1]}</p>
-                              <div className="flex items-center gap-1.5 mt-2">
-                                 <span className="bg-[#1e1e2d] text-slate-400 px-2 py-1 rounded text-[10px] font-mono tracking-widest border border-slate-700">{item.data[3] || 'IMEI YOK'}</span>
-                              </div>
-                            </div>
-
-                            {/* CİHAZ VE EKSPERTİZ */}
-                            <div className="flex-[3.5] w-full md:w-auto">
-                              <p className="font-black text-slate-200 text-sm mb-3 bg-[#1e1e2d] inline-block px-3 py-1.5 rounded-lg border border-slate-700">{mainDevice}</p>
-                              {ekspertizData && (
-                                <div className="flex flex-wrap gap-1.5 mt-1">
-                                  {ekspertizData.split(' | ').map((detail: string, idx: number) => {
-                                    const [key, val] = detail.split(':');
-                                    return (
-                                      <span key={idx} className="bg-[#1e1e2d] border border-slate-700 text-slate-300 px-2 py-1 rounded-md text-[9px] font-bold uppercase">
-                                        <span className="text-slate-500 mr-1">{key}:</span><span className="text-emerald-400">{val}</span>
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* İŞLEM TUTARI */}
-                            <div className="flex-[1.5] w-full md:w-auto text-left md:text-right pr-4">
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Tutar</p>
-                              <p className="font-black text-2xl italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} TL</p>
-                            </div>
-
-                            {/* SİL BUTONU */}
-                            <div className="w-full md:w-12 text-right shrink-0">
-                              <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-white bg-[#1e1e2d] hover:bg-red-500 p-3 rounded-xl transition-all border border-slate-700 hover:border-red-600 w-full md:w-auto flex justify-center group-hover:border-slate-600">
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            </div>
-
-                          </div>
-                        )})}
-                    </div>
+                        <div className="flex flex-col gap-2">
+                           {['TÜM ŞUBELER', ...branches.map(b => b.name)].map(bName => {
+                              const isActive = adminSelectedBranch === bName;
+                              return (
+                                 <button 
+                                    key={bName}
+                                    onClick={() => setAdminSelectedBranch(bName)}
+                                    className={`px-4 py-3.5 rounded-2xl text-left text-[11px] font-black uppercase tracking-widest transition-all btn-click flex justify-between items-center group
+                                      ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 ring-2 ring-blue-500/50' : 'bg-[#2a2a3d] text-slate-400 hover:text-white hover:bg-[#383852] border border-slate-700/50'}`}
+                                 >
+                                    <span>{bName}</span>
+                                    {isActive && <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>}
+                                 </button>
+                              );
+                           })}
+                        </div>
+                        
+                        <div className="mt-8 pt-6 border-t border-slate-700/50">
+                           <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-4 bg-red-500/10 text-red-500 hover:text-white hover:bg-red-600 rounded-2xl font-black uppercase text-[10px] tracking-widest btn-click border border-red-500/20 transition-all flex justify-center items-center gap-2">
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                             Paneli Kapat
+                           </button>
+                        </div>
+                     </div>
                   </div>
-                  
-                  {/* ÇIKIŞ BUTONU */}
-                  <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-[#2a2a3d] text-slate-300 hover:text-white hover:bg-[#383852] rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl border border-slate-700 transition-all">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
+
+                  {/* SAĞ İÇERİK - DASHBOARD */}
+                  <div className="flex-1 space-y-8 min-w-0">
+                    
+                    {/* STATS HEADER */}
+                    <div className="bg-[#1e1e2d] p-8 rounded-[40px] shadow-2xl border border-slate-800 relative overflow-hidden">
+                       <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                          <svg className="w-48 h-48 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                       </div>
+                       
+                       <div className="relative z-10">
+                          <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">
+                            {adminSelectedBranch} İSTATİSTİKLERİ
+                          </h2>
+                          <p className="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-8">
+                            Seçili şubeye ait güncel işlem özeti
+                          </p>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                             {/* TOPLAM */}
+                             <div className="bg-blue-500/10 border border-blue-500/20 p-5 rounded-[24px]">
+                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Toplam İşlem</p>
+                                <p className="text-3xl font-black text-white">{dashboardStats.total}</p>
+                             </div>
+                             {/* BAŞARILI */}
+                             <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-[24px]">
+                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Başarılı Alım</p>
+                                <p className="text-3xl font-black text-white">{dashboardStats.alindi}</p>
+                             </div>
+                             {/* İPTAL */}
+                             <div className="bg-rose-500/10 border border-rose-500/20 p-5 rounded-[24px]">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">İptal / Alınmadı</p>
+                                <p className="text-3xl font-black text-white">{dashboardStats.alinmadi}</p>
+                             </div>
+                             {/* BEKLEYEN */}
+                             <div className="bg-slate-700/30 border border-slate-600/50 p-5 rounded-[24px]">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bekleyen/Diğer</p>
+                                <p className="text-3xl font-black text-white">{dashboardStats.diger}</p>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* ALIM TABLOSU */}
+                    <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
+                          <div>
+                              <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
+                              <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki cihaz kayıt geçmişi</p>
+                          </div>
+                          {adminSelectedBranch === 'TÜM ŞUBELER' && (
+                             <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
+                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                 Geçmişi Temizle
+                             </button>
+                          )}
+                      </div>
+
+                      {filteredAlimlar.length === 0 ? (
+                        <div className="text-center py-20 text-slate-500">
+                           <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                           <p className="text-xs font-black uppercase tracking-widest">Bu şubeye ait işlem kaydı bulunamadı.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto custom-scrollbar pb-4">
+                           <table className="w-full text-left border-collapse min-w-[900px]">
+                              <thead>
+                                 <tr className="border-b border-slate-700/50">
+                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-40">Tarih / Şube</th>
+                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-48">Müşteri</th>
+                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz & Durum</th>
+                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right w-32">Tutar</th>
+                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-24">İşlem</th>
+                                 </tr>
+                              </thead>
+                              <tbody>
+                                 {filteredAlimlar.map((item, i) => {
+                                    const rawDevice = item.data[2] || '';
+                                    const parts = rawDevice.split(' #EKSPERTİZ# ');
+                                    const mainDevice = parts[0];
+                                    const ekspertizData = parts.length > 1 ? parts[1] : '';
+
+                                    // Tarih Bulma
+                                    let rawDate = item.data[6] || item.data[7] || '';
+                                    for (let j = item.data.length - 1; j >= 0; j--) {
+                                        const val = String(item.data[j] || '');
+                                        if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
+                                            rawDate = val; break;
+                                        }
+                                    }
+                                    let datePart = rawDate || 'Tarih Yok';
+                                    let timePart = '';
+                                    if (rawDate && rawDate.includes(' ')) {
+                                       const dateParts = rawDate.split(' ');
+                                       datePart = dateParts[0];
+                                       timePart = dateParts[1];
+                                    }
+
+                                    // Status Badge Rengi
+                                    const rowDataString = item.data.join(" ");
+                                    let statusColor = "bg-slate-800 text-slate-400 border-slate-700";
+                                    let statusText = "BEKLEMEDE";
+                                    if (rowDataString.includes('[NAKİT ALINDI]')) { statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"; statusText = "NAKİT"; }
+                                    else if (rowDataString.includes('[TAKAS ALINDI]')) { statusColor = "bg-purple-500/10 text-purple-400 border-purple-500/20"; statusText = "TAKAS"; }
+                                    else if (rowDataString.includes('[ALINMADI]')) { statusColor = "bg-rose-500/10 text-rose-400 border-rose-500/20"; statusText = "İPTAL"; }
+
+                                    return (
+                                       <tr key={i} className={`border-b border-slate-800 hover:bg-white/[0.02] transition-colors group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
+                                          <td className="py-4 px-4 align-top">
+                                             <div className="text-[11px] font-bold text-slate-300">{datePart}</div>
+                                             {timePart && <div className="text-[10px] text-slate-500">{timePart}</div>}
+                                             {adminSelectedBranch === 'TÜM ŞUBELER' && (
+                                                <div className="mt-1.5 inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</div>
+                                             )}
+                                          </td>
+                                          <td className="py-4 px-4 align-top">
+                                             <div className="text-[11px] font-black text-white uppercase">{item.data[1]}</div>
+                                             <div className="text-[10px] font-mono text-slate-500 mt-1">{item.data[3] || 'IMEI YOK'}</div>
+                                          </td>
+                                          <td className="py-4 px-4 align-top">
+                                             <div className="flex items-center gap-2 mb-2">
+                                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${statusColor}`}>
+                                                   {statusText}
+                                                </span>
+                                                <span className="text-[12px] font-black text-blue-100">{mainDevice}</span>
+                                             </div>
+                                             {ekspertizData && (
+                                                <div className="flex flex-wrap gap-1">
+                                                   {ekspertizData.split(' | ').map((detail: string, idx: number) => {
+                                                      const [key, val] = detail.split(':');
+                                                      return (
+                                                         <span key={idx} className="bg-[#111111] border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] uppercase">
+                                                            {key}: <span className="text-slate-200 font-bold">{val}</span>
+                                                         </span>
+                                                      );
+                                                   })}
+                                                </div>
+                                             )}
+                                          </td>
+                                          <td className="py-4 px-4 align-top text-right">
+                                             <div className="text-sm font-black italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺</div>
+                                          </td>
+                                          <td className="py-4 px-4 align-top text-center">
+                                             <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 inline-flex items-center justify-center">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                             </button>
+                                          </td>
+                                       </tr>
+                                    );
+                                 })}
+                              </tbody>
+                           </table>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
               )}
             </div>
@@ -1718,7 +1807,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </main>
         
         <footer className="mt-auto max-w-[1400px] w-full mx-auto px-6 py-10 text-center print:hidden">
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR ENTERPRISE DASHBOARD v5.0.0</p>
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (ADMIN SAAS)</p>
         </footer>
       </div>
 
