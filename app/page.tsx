@@ -1355,17 +1355,18 @@ export default function CnetmobilCmrFinalUltimate() {
                       </div>
                     ) : (
                       <div className="overflow-x-auto custom-scrollbar pb-4">
-                         <table className="w-full text-left border-collapse min-w-[900px]">
-                            <thead>
-                               <tr className="border-b border-slate-700/50">
-                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-40">Tarih / Şube</th>
-                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-48">Müşteri</th>
-                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz & Durum</th>
-                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right w-32">Tutar</th>
-                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-24">İşlem</th>
-                               </tr>
-                            </thead>
-                            <tbody>
+                         <div className="min-w-[1000px] flex flex-col">
+                            {/* HEADER (GRID FORMATI) */}
+                            <div className="grid grid-cols-[140px_180px_1fr_130px_70px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl">
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tarih / Şube</div>
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Müşteri</div>
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">İşlem & Cihaz Durumu</div>
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Tutar</div>
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">İşlem</div>
+                            </div>
+                            
+                            {/* BODY (GRID FORMATI) */}
+                            <div className="flex flex-col">
                                {filteredAlimlar.map((item, i) => {
                                   const rawDevice = item.data[2] || '';
                                   const parts = rawDevice.split(' #EKSPERTİZ# ');
@@ -1388,60 +1389,94 @@ export default function CnetmobilCmrFinalUltimate() {
                                      timePart = dateParts[1];
                                   }
 
-                                  // Status Badge Rengi
+                                  // Status Badge Rengi (Renklendirilmiş)
                                   const rowDataString = item.data.join(" ");
                                   let statusColor = "bg-slate-800 text-slate-400 border-slate-700";
                                   let statusText = "BEKLEMEDE";
-                                  if (rowDataString.includes('[NAKİT ALINDI]')) { statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"; statusText = "NAKİT"; }
-                                  else if (rowDataString.includes('[TAKAS ALINDI]')) { statusColor = "bg-purple-500/10 text-purple-400 border-purple-500/20"; statusText = "TAKAS"; }
-                                  else if (rowDataString.includes('[ALINMADI]')) { statusColor = "bg-rose-500/10 text-rose-400 border-rose-500/20"; statusText = "İPTAL"; }
+                                  if (rowDataString.includes('[NAKİT ALINDI]')) { 
+                                      statusColor = "bg-emerald-900/30 text-emerald-400 border-emerald-800/60"; 
+                                      statusText = "NAKİT ALIM"; 
+                                  }
+                                  else if (rowDataString.includes('[TAKAS ALINDI]')) { 
+                                      statusColor = "bg-purple-900/30 text-purple-400 border-purple-800/60"; 
+                                      statusText = "TAKAS ALIM"; 
+                                  }
+                                  else if (rowDataString.includes('[ALINMADI]')) { 
+                                      statusColor = "bg-rose-900/30 text-rose-400 border-rose-800/60"; 
+                                      statusText = "İPTAL EDİLDİ"; 
+                                  }
 
                                   return (
-                                     <tr key={i} className={`border-b border-slate-800 hover:bg-white/[0.02] transition-colors group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
-                                        <td className="py-4 px-4 align-top">
-                                           <div className="text-[11px] font-bold text-slate-300">{datePart}</div>
-                                           {timePart && <div className="text-[10px] text-slate-500">{timePart}</div>}
+                                     <div key={i} className={`grid grid-cols-[140px_180px_1fr_130px_70px] gap-4 px-6 py-5 border-b border-slate-800 hover:bg-white/[0.02] transition-colors items-start group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
+                                        
+                                        {/* TARIH / SUBE SUTUNU */}
+                                        <div className="flex flex-col gap-1">
+                                           <span className="text-[11px] font-bold text-slate-300">{datePart}</span>
+                                           {timePart && <span className="text-[10px] text-slate-500">{timePart}</span>}
                                            {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                                              <div className="mt-1.5 inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</div>
+                                              <span className="mt-1.5 w-max px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</span>
                                            )}
-                                        </td>
-                                        <td className="py-4 px-4 align-top">
-                                           <div className="text-[11px] font-black text-white uppercase">{item.data[1]}</div>
-                                           <div className="text-[10px] font-mono text-slate-500 mt-1">{item.data[3] || 'IMEI YOK'}</div>
-                                        </td>
-                                        <td className="py-4 px-4 align-top">
-                                           <div className="flex items-center gap-2 mb-2">
-                                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${statusColor}`}>
+                                        </div>
+                                        
+                                        {/* MÜŞTERİ SÜTUNU */}
+                                        <div className="flex flex-col gap-1 pr-4">
+                                           <span className="text-[12px] font-black text-white uppercase truncate" title={item.data[1]}>{item.data[1]}</span>
+                                           <span className="text-[10px] font-mono text-slate-500">{item.data[3] || 'IMEI YOK'}</span>
+                                        </div>
+                                        
+                                        {/* CİHAZ VE DURUM SÜTUNU */}
+                                        <div className="flex flex-col pr-4 min-w-0">
+                                           <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                              <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase border tracking-widest shrink-0 ${statusColor}`}>
                                                  {statusText}
                                               </span>
-                                              <span className="text-[12px] font-black text-blue-100">{mainDevice}</span>
+                                              <span className="text-[13px] font-black text-blue-50 tracking-tight">{mainDevice}</span>
                                            </div>
+
                                            {ekspertizData && (
-                                              <div className="flex flex-wrap gap-1">
-                                                 {ekspertizData.split(' | ').map((detail: string, idx: number) => {
-                                                    const [key, val] = detail.split(':');
-                                                    return (
-                                                       <span key={idx} className="bg-[#111111] border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] uppercase">
-                                                          {key}: <span className="text-slate-200 font-bold">{val}</span>
-                                                       </span>
-                                                    );
-                                                 })}
-                                              </div>
+                                              <details className="group mt-1 cursor-pointer">
+                                                 <summary className="text-[10px] font-bold text-slate-400 select-none list-none [&::-webkit-details-marker]:hidden flex items-center gap-1.5 hover:text-blue-400 transition-colors w-max">
+                                                    <svg className="w-3.5 h-3.5 group-open:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                    Ekspertiz Raporunu Gör
+                                                 </summary>
+                                                 <div className="flex flex-wrap gap-1.5 mt-3 p-3 bg-[#111111]/60 rounded-xl border border-slate-800/60 shadow-inner">
+                                                    {ekspertizData.split(' | ').map((detail: string, idx: number) => {
+                                                       const [key, val] = detail.split(':');
+                                                       let valColor = "text-slate-200";
+                                                       if(val === 'Mükemmel' || val === 'Sağlam' || val === 'Evet' || val === '95-100' || val === 'Fiziksel SIM (TR)' || val === 'Üretici Garantili') { valColor = "text-emerald-400"; }
+                                                       else if(val === 'Kötü' || val === 'Kırık / Orijinal Değil' || val === 'Hayır' || val === 'Arızalı' || val === 'Garanti Yok') { valColor = "text-rose-400"; }
+                                                       else if(val === 'İyi' || val === 'Çizikler var' || val === 'Cızırtı var' || val === 'Bilinmeyen Parça') { valColor = "text-amber-400"; }
+                                                       
+                                                       return (
+                                                          <span key={idx} className="bg-[#1e1e2d] border border-slate-700/50 px-2 py-1 rounded-md text-[9px] uppercase flex gap-1 items-center">
+                                                             <span className="text-slate-500 font-bold">{key}:</span>
+                                                             <span className={`font-black ${valColor}`}>{val}</span>
+                                                          </span>
+                                                       );
+                                                    })}
+                                                 </div>
+                                              </details>
                                            )}
-                                        </td>
-                                        <td className="py-4 px-4 align-top text-right">
-                                           <div className="text-sm font-black italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺</div>
-                                        </td>
-                                        <td className="py-4 px-4 align-top text-center">
-                                           <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 inline-flex items-center justify-center">
+                                        </div>
+                                        
+                                        {/* TUTAR SÜTUNU */}
+                                        <div className="flex justify-end items-start pt-1">
+                                           <span className="text-sm font-black italic text-emerald-400 bg-emerald-900/10 px-3 py-1.5 rounded-lg border border-emerald-900/30 whitespace-nowrap">
+                                              {parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺
+                                           </span>
+                                        </div>
+                                        
+                                        {/* İŞLEM SÜTUNU */}
+                                        <div className="flex justify-center items-start pt-1">
+                                           <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 w-8 h-8 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 flex items-center justify-center" title="Kaydı Sil">
                                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                            </button>
-                                        </td>
-                                     </tr>
+                                        </div>
+                                     </div>
                                   );
                                })}
-                            </tbody>
-                         </table>
+                            </div>
+                         </div>
                       </div>
                     )}
                   </div>
