@@ -75,12 +75,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
   
-  // YENİ: Yönetici Dashboard'u için seçili şube ve TARİH filtreleme state'leri
+  // Yönetici Dashboard'u için seçili şube ve TARİH filtreleme state'leri
   const [adminSelectedBranch, setAdminSelectedBranch] = useState<string>('TÜM ŞUBELER');
   const [dateFilterType, setDateFilterType] = useState<string>('TÜM ZAMANLAR');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false); // Dropdown için yeni state
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -613,29 +613,6 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
   };
 
-  const getBranchStats = () => {
-    // Geriye dönük uyumluluk için korundu (Şu an filtrelenmiş istatistikler kullanılıyor)
-    const stats: any = {};
-    branches.forEach(b => { stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 }; });
-    alimlar.forEach(item => {
-      let foundBranch = null;
-      for (let i = 0; i < item.data.length; i++) {
-        if (typeof item.data[i] === 'string' && item.data[i].includes("CMR ")) { foundBranch = item.data[i]; break; }
-        if (typeof item.data[i] === 'string' && item.data[i].includes("VODAFONE ")) { foundBranch = item.data[i]; break; } 
-      }
-      if (foundBranch && stats[foundBranch]) {
-         stats[foundBranch].total += 1;
-         const rowDataString = item.data.join(" ");
-         if (rowDataString.includes('[NAKİT ALINDI]') || rowDataString.includes('[TAKAS ALINDI]') || rowDataString.includes('[ALINDI]')) {
-            stats[foundBranch].alindi += 1;
-         } else if (rowDataString.includes('[ALINMADI]')) {
-            stats[foundBranch].alinmadi += 1;
-         } else { stats[foundBranch].diger += 1; }
-      }
-    });
-    return stats;
-  };
-
   const menuGroups = [
     {
       title: "ANA MODÜLLER",
@@ -849,6 +826,77 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 space-y-8 py-2 custom-scrollbar">
+          
+          {/* SADECE YÖNETİCİ EKRANINDAYKEN GÖZÜKECEK FİLTRELER (Sola Taşınan Kısım) */}
+          {step === 99 && isAdmin && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
+               
+               {/* Şube Filtresi */}
+               <div className="space-y-3">
+                  <h3 className="px-4 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase">Şube Filtresi</h3>
+                  <div className="flex flex-col gap-1 px-2">
+                     {['TÜM ŞUBELER', ...branches.map(b => b.name)].map(bName => {
+                        const isActive = adminSelectedBranch === bName;
+                        return (
+                           <button key={bName} onClick={() => setAdminSelectedBranch(bName)}
+                              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all btn-click
+                              ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'}`}>
+                              <span>{bName}</span>
+                              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>}
+                           </button>
+                        );
+                     })}
+                  </div>
+               </div>
+
+               {/* Tarih Filtresi */}
+               <div className="space-y-3 px-2">
+                  <h3 className="px-2 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase">Tarih Filtresi</h3>
+                  <div className="flex flex-col">
+                     <button onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)} className="w-full flex items-center justify-between px-4 py-3 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20 btn-click">
+                        <span>{dateFilterType}</span>
+                        <svg className={`w-4 h-4 transition-transform duration-300 ${isDateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                     </button>
+                     
+                     {isDateDropdownOpen && (
+                        <div className="mt-2 bg-[#131722] border border-white/5 rounded-xl shadow-inner flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                           {['TÜM ZAMANLAR', 'BUGÜN', 'DÜN', 'ÖNCEKİ GÜN', 'ÖZEL'].map((option) => (
+                              <button key={option} onClick={() => { setDateFilterType(option); setIsDateDropdownOpen(false); }}
+                                 className={`px-4 py-3 text-[11px] font-black text-left uppercase tracking-widest transition-colors
+                                 ${dateFilterType === option ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+                                 {option}
+                              </button>
+                           ))}
+                        </div>
+                     )}
+                  </div>
+
+                  {dateFilterType === 'ÖZEL' && (
+                     <div className="mt-3 p-4 bg-white/5 rounded-xl border border-white/10 flex flex-col gap-4 animate-in fade-in duration-300">
+                        <div className="flex flex-col gap-1.5">
+                           <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Başlangıç</label>
+                           <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-[#131722] text-white text-xs border border-white/10 rounded-lg p-2.5 outline-none focus:border-emerald-500 transition-colors" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                           <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Bitiş</label>
+                           <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-[#131722] text-white text-xs border border-white/10 rounded-lg p-2.5 outline-none focus:border-emerald-500 transition-colors" />
+                        </div>
+                     </div>
+                  )}
+               </div>
+
+               {/* Paneli Kapat */}
+               <div className="px-2 pt-4 border-t border-white/5 pb-4">
+                  <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-3.5 bg-red-500/10 text-red-500 hover:text-white hover:bg-red-600 rounded-xl font-black uppercase text-[10px] tracking-widest btn-click transition-all flex justify-center items-center gap-2 border border-red-500/20">
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                     Paneli Kapat
+                  </button>
+               </div>
+            </div>
+          )}
+
+
+          {/* NORMAL MENÜ (Sadece Personel Ekranındayken) */}
           {step < 99 && menuGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
               <h3 className="px-4 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase mb-3">{group.title}</h3>
@@ -900,7 +948,9 @@ export default function CnetmobilCmrFinalUltimate() {
             </button>
           </div>
           
-          <button onClick={() => { setStep(99); setIsMobileMenuOpen(false); }} className="w-full text-center mt-5 text-[9px] font-semibold text-slate-600 uppercase tracking-[0.2em] hover:text-white transition-colors">Yönetici Paneli</button>
+          {step < 99 && (
+             <button onClick={() => { setStep(99); setIsMobileMenuOpen(false); }} className="w-full text-center mt-5 text-[9px] font-semibold text-slate-600 uppercase tracking-[0.2em] hover:text-white transition-colors">Yönetici Paneli</button>
+          )}
         </div>
       </nav>
 
@@ -1201,273 +1251,201 @@ export default function CnetmobilCmrFinalUltimate() {
                   <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-blue-600/20 hover:bg-blue-500">SİSTEME GİRİŞ YAP</button>
                 </div>
               ) : (
-                <div className="flex flex-col xl:flex-row gap-8">
+                <div className="w-full space-y-10 min-w-0">
                   
-                  {/* SOL MENÜ - ŞUBE ve TARİH SEÇİCİ */}
-                  <div className="w-full xl:w-72 shrink-0">
-                     <div className="bg-[#1e1e2d] p-6 rounded-[40px] shadow-2xl border border-slate-800 xl:sticky xl:top-24">
-                        <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-700/50">
-                           <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20 shrink-0">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  {/* STATS HEADER */}
+                  <div className="mb-6">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                        <div>
+                           <h2 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-white">
+                              {adminSelectedBranch} İSTATİSTİKLERİ
+                           </h2>
+                           <p className="text-[11px] text-slate-400 font-bold tracking-widest mt-1 uppercase">
+                              Tarih Filtresi: <span className="text-white">{dateFilterType}</span>
+                           </p>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* TOPLAM */}
+                        <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 relative overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-blue-500/50 transition-all cursor-default">
+                           <div className="absolute -right-6 -top-6 text-blue-500/5 group-hover:text-blue-500/20 transition-colors">
+                              <svg className="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                            </div>
                            <div>
-                              <h3 className="text-sm font-black text-white uppercase tracking-widest">Şube Filtresi</h3>
-                              <p className="text-[10px] text-slate-400 mt-1">İstatistik & Kayıtlar</p>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 relative z-10">Toplam İşlem</p>
+                              <p className="text-6xl font-black text-white relative z-10 tracking-tighter">{dashboardStats.total}</p>
+                           </div>
+                           <div className="mt-8 pt-4 border-t border-slate-800/50 relative z-10">
+                              <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Tüm Kayıtlar
+                              </span>
                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-2">
-                           {['TÜM ŞUBELER', ...branches.map(b => b.name)].map(bName => {
-                              const isActive = adminSelectedBranch === bName;
-                              return (
-                                 <button 
-                                    key={bName}
-                                    onClick={() => setAdminSelectedBranch(bName)}
-                                    className={`px-4 py-3.5 rounded-2xl text-left text-[11px] font-black uppercase tracking-widest transition-all btn-click flex justify-between items-center group
-                                      ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 ring-2 ring-blue-500/50' : 'bg-[#2a2a3d] text-slate-400 hover:text-white hover:bg-[#383852] border border-slate-700/50'}`}
-                                 >
-                                    <span>{bName}</span>
-                                    {isActive && <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>}
-                                 </button>
-                              );
-                           })}
-                        </div>
-                        
-                        {/* EKLENEN YENİ TARİH FİLTRESİ KISMI */}
-                        <div className="mt-8 pt-6 border-t border-slate-700/50">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Tarih Filtresi</h3>
-                                    <p className="text-[10px] text-slate-400 mt-1">Zaman aralığı seçin</p>
-                                </div>
-                            </div>
-                            
-                            {/* KOMPAKT DROPDOWN (YENİ EKLENEN KISIM) */}
-                            <div className="relative inline-flex shadow-sm rounded-xl w-full">
-                                <button
-                                  type="button"
-                                  onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
-                                  className="flex-1 inline-flex items-center justify-center px-4 py-3 text-[11px] font-black text-white bg-emerald-600 border border-transparent rounded-l-xl hover:bg-emerald-500 focus:outline-none uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20"
-                                >
-                                  {dateFilterType}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
-                                  className="inline-flex items-center px-3 py-3 text-sm font-medium text-slate-300 bg-[#2a2a3d] border-y border-r border-slate-700/50 hover:bg-[#383852] focus:outline-none transition-all"
-                                >
-                                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center px-4 py-3 text-sm font-medium text-slate-300 bg-[#2a2a3d] border-y border-r border-slate-700/50 rounded-r-xl hover:bg-[#383852] focus:outline-none transition-all cursor-default"
-                                >
-                                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                </button>
-
-                                {isDateDropdownOpen && (
-                                  <div className="absolute top-full left-0 z-50 w-full mt-2 bg-[#2a2a3d] border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden">
-                                    <div className="py-1 flex flex-col">
-                                      {['TÜM ZAMANLAR', 'BUGÜN', 'DÜN', 'ÖNCEKİ GÜN', 'ÖZEL'].map((option) => (
-                                        <button
-                                          key={option}
-                                          onClick={() => {
-                                            setDateFilterType(option);
-                                            setIsDateDropdownOpen(false);
-                                          }}
-                                          className={`block w-full px-4 py-3.5 text-[11px] font-black text-left uppercase tracking-widest hover:bg-[#383852] transition-colors ${dateFilterType === option ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-300'}`}
-                                        >
-                                          {option}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
-                            
-                            {/* ÖZEL TARİH SEÇİCİ EKLENTİSİ */}
-                            {dateFilterType === 'ÖZEL' && (
-                                <div className="mt-4 flex flex-col gap-3 p-4 bg-[#2a2a3d]/50 rounded-2xl border border-slate-700/50">
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Başlangıç</label>
-                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-transparent text-white text-xs border border-slate-600 rounded-lg p-2 outline-none focus:border-emerald-500" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Bitiş</label>
-                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-transparent text-white text-xs border border-slate-600 rounded-lg p-2 outline-none focus:border-emerald-500" />
-                                    </div>
-                                </div>
-                            )}
+                        {/* BAŞARILI ALIM */}
+                        <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 relative overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-emerald-500/50 transition-all cursor-default">
+                           <div className="absolute -right-6 -top-6 text-emerald-500/5 group-hover:text-emerald-500/20 transition-colors">
+                              <svg className="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                           </div>
+                           <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 relative z-10">Başarılı Alım</p>
+                              <p className="text-6xl font-black text-emerald-400 relative z-10 tracking-tighter">{dashboardStats.alindi}</p>
+                           </div>
+                           <div className="mt-8 pt-4 border-t border-slate-800/50 relative z-10">
+                              <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]"></span> Nakit + Takas
+                              </span>
+                           </div>
                         </div>
 
-                        <div className="mt-8 pt-6 border-t border-slate-700/50">
-                           <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-4 bg-red-500/10 text-red-500 hover:text-white hover:bg-red-600 rounded-2xl font-black uppercase text-[10px] tracking-widest btn-click border border-red-500/20 transition-all flex justify-center items-center gap-2">
-                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                             Paneli Kapat
-                           </button>
+                        {/* İPTAL */}
+                        <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 relative overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-rose-500/50 transition-all cursor-default">
+                           <div className="absolute -right-6 -top-6 text-rose-500/5 group-hover:text-rose-500/20 transition-colors">
+                              <svg className="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                           </div>
+                           <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 relative z-10">İptal / Alınmadı</p>
+                              <p className="text-6xl font-black text-rose-400 relative z-10 tracking-tighter">{dashboardStats.alinmadi}</p>
+                           </div>
+                           <div className="mt-8 pt-4 border-t border-slate-800/50 relative z-10">
+                              <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Reddedilenler
+                              </span>
+                           </div>
+                        </div>
+
+                        {/* BEKLEYEN / DİĞER */}
+                        <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 relative overflow-hidden shadow-2xl flex flex-col justify-between group hover:border-amber-500/50 transition-all cursor-default">
+                           <div className="absolute -right-6 -top-6 text-amber-500/5 group-hover:text-amber-500/20 transition-colors">
+                              <svg className="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                           </div>
+                           <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 relative z-10">Bekleyen / Diğer</p>
+                              <p className="text-6xl font-black text-amber-400 relative z-10 tracking-tighter">{dashboardStats.diger}</p>
+                           </div>
+                           <div className="mt-8 pt-4 border-t border-slate-800/50 relative z-10">
+                              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> İşlem Görmeyen
+                              </span>
+                           </div>
                         </div>
                      </div>
                   </div>
 
-                  {/* SAĞ İÇERİK - DASHBOARD */}
-                  <div className="flex-1 space-y-8 min-w-0">
-                    
-                    {/* STATS HEADER */}
-                    <div className="bg-[#1e1e2d] p-8 rounded-[40px] shadow-2xl border border-slate-800 relative overflow-hidden">
-                       <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                          <svg className="w-48 h-48 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                       </div>
-                       
-                       <div className="relative z-10">
-                          <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">
-                            {adminSelectedBranch} İSTATİSTİKLERİ
-                          </h2>
-                          <p className="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-8">
-                            Seçili şubeye ve "{dateFilterType}" filtresine ait güncel işlem özeti
-                          </p>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                             {/* TOPLAM */}
-                             <div className="bg-blue-500/10 border border-blue-500/20 p-5 rounded-[24px]">
-                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Toplam İşlem</p>
-                                <p className="text-3xl font-black text-white">{dashboardStats.total}</p>
-                             </div>
-                             {/* BAŞARILI */}
-                             <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-[24px]">
-                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Başarılı Alım</p>
-                                <p className="text-3xl font-black text-white">{dashboardStats.alindi}</p>
-                             </div>
-                             {/* İPTAL */}
-                             <div className="bg-rose-500/10 border border-rose-500/20 p-5 rounded-[24px]">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">İptal / Alınmadı</p>
-                                <p className="text-3xl font-black text-white">{dashboardStats.alinmadi}</p>
-                             </div>
-                             {/* BEKLEYEN */}
-                             <div className="bg-slate-700/30 border border-slate-600/50 p-5 rounded-[24px]">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bekleyen/Diğer</p>
-                                <p className="text-3xl font-black text-white">{dashboardStats.diger}</p>
-                             </div>
-                          </div>
-                       </div>
+                  {/* ALIM TABLOSU */}
+                  <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
+                        <div>
+                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
+                            <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki cihaz kayıt geçmişi</p>
+                        </div>
+                        {adminSelectedBranch === 'TÜM ŞUBELER' && (
+                           <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
+                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                               Geçmişi Temizle
+                           </button>
+                        )}
                     </div>
 
-                    {/* ALIM TABLOSU */}
-                    <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
-                          <div>
-                              <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
-                              <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki cihaz kayıt geçmişi</p>
-                          </div>
-                          {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                             <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
-                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                 Geçmişi Temizle
-                             </button>
-                          )}
+                    {filteredAlimlar.length === 0 ? (
+                      <div className="text-center py-20 text-slate-500">
+                         <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                         <p className="text-xs font-black uppercase tracking-widest">Bu kriterlere ait işlem kaydı bulunamadı.</p>
                       </div>
+                    ) : (
+                      <div className="overflow-x-auto custom-scrollbar pb-4">
+                         <table className="w-full text-left border-collapse min-w-[900px]">
+                            <thead>
+                               <tr className="border-b border-slate-700/50">
+                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-40">Tarih / Şube</th>
+                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-48">Müşteri</th>
+                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz & Durum</th>
+                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right w-32">Tutar</th>
+                                  <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-24">İşlem</th>
+                               </tr>
+                            </thead>
+                            <tbody>
+                               {filteredAlimlar.map((item, i) => {
+                                  const rawDevice = item.data[2] || '';
+                                  const parts = rawDevice.split(' #EKSPERTİZ# ');
+                                  const mainDevice = parts[0];
+                                  const ekspertizData = parts.length > 1 ? parts[1] : '';
 
-                      {filteredAlimlar.length === 0 ? (
-                        <div className="text-center py-20 text-slate-500">
-                           <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                           <p className="text-xs font-black uppercase tracking-widest">Bu kriterlere ait işlem kaydı bulunamadı.</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto custom-scrollbar pb-4">
-                           <table className="w-full text-left border-collapse min-w-[900px]">
-                              <thead>
-                                 <tr className="border-b border-slate-700/50">
-                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-40">Tarih / Şube</th>
-                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-48">Müşteri</th>
-                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz & Durum</th>
-                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right w-32">Tutar</th>
-                                    <th className="py-4 px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center w-24">İşlem</th>
-                                 </tr>
-                              </thead>
-                              <tbody>
-                                 {filteredAlimlar.map((item, i) => {
-                                    const rawDevice = item.data[2] || '';
-                                    const parts = rawDevice.split(' #EKSPERTİZ# ');
-                                    const mainDevice = parts[0];
-                                    const ekspertizData = parts.length > 1 ? parts[1] : '';
+                                  // Tarih Bulma
+                                  let rawDate = item.data[6] || item.data[7] || '';
+                                  for (let j = item.data.length - 1; j >= 0; j--) {
+                                      const val = String(item.data[j] || '');
+                                      if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
+                                          rawDate = val; break;
+                                      }
+                                  }
+                                  let datePart = rawDate || 'Tarih Yok';
+                                  let timePart = '';
+                                  if (rawDate && rawDate.includes(' ')) {
+                                     const dateParts = rawDate.split(' ');
+                                     datePart = dateParts[0];
+                                     timePart = dateParts[1];
+                                  }
 
-                                    // Tarih Bulma
-                                    let rawDate = item.data[6] || item.data[7] || '';
-                                    for (let j = item.data.length - 1; j >= 0; j--) {
-                                        const val = String(item.data[j] || '');
-                                        if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
-                                            rawDate = val; break;
-                                        }
-                                    }
-                                    let datePart = rawDate || 'Tarih Yok';
-                                    let timePart = '';
-                                    if (rawDate && rawDate.includes(' ')) {
-                                       const dateParts = rawDate.split(' ');
-                                       datePart = dateParts[0];
-                                       timePart = dateParts[1];
-                                    }
+                                  // Status Badge Rengi
+                                  const rowDataString = item.data.join(" ");
+                                  let statusColor = "bg-slate-800 text-slate-400 border-slate-700";
+                                  let statusText = "BEKLEMEDE";
+                                  if (rowDataString.includes('[NAKİT ALINDI]')) { statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"; statusText = "NAKİT"; }
+                                  else if (rowDataString.includes('[TAKAS ALINDI]')) { statusColor = "bg-purple-500/10 text-purple-400 border-purple-500/20"; statusText = "TAKAS"; }
+                                  else if (rowDataString.includes('[ALINMADI]')) { statusColor = "bg-rose-500/10 text-rose-400 border-rose-500/20"; statusText = "İPTAL"; }
 
-                                    // Status Badge Rengi
-                                    const rowDataString = item.data.join(" ");
-                                    let statusColor = "bg-slate-800 text-slate-400 border-slate-700";
-                                    let statusText = "BEKLEMEDE";
-                                    if (rowDataString.includes('[NAKİT ALINDI]')) { statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"; statusText = "NAKİT"; }
-                                    else if (rowDataString.includes('[TAKAS ALINDI]')) { statusColor = "bg-purple-500/10 text-purple-400 border-purple-500/20"; statusText = "TAKAS"; }
-                                    else if (rowDataString.includes('[ALINMADI]')) { statusColor = "bg-rose-500/10 text-rose-400 border-rose-500/20"; statusText = "İPTAL"; }
-
-                                    return (
-                                       <tr key={i} className={`border-b border-slate-800 hover:bg-white/[0.02] transition-colors group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
-                                          <td className="py-4 px-4 align-top">
-                                             <div className="text-[11px] font-bold text-slate-300">{datePart}</div>
-                                             {timePart && <div className="text-[10px] text-slate-500">{timePart}</div>}
-                                             {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                                                <div className="mt-1.5 inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</div>
-                                             )}
-                                          </td>
-                                          <td className="py-4 px-4 align-top">
-                                             <div className="text-[11px] font-black text-white uppercase">{item.data[1]}</div>
-                                             <div className="text-[10px] font-mono text-slate-500 mt-1">{item.data[3] || 'IMEI YOK'}</div>
-                                          </td>
-                                          <td className="py-4 px-4 align-top">
-                                             <div className="flex items-center gap-2 mb-2">
-                                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${statusColor}`}>
-                                                   {statusText}
-                                                </span>
-                                                <span className="text-[12px] font-black text-blue-100">{mainDevice}</span>
-                                             </div>
-                                             {ekspertizData && (
-                                                <div className="flex flex-wrap gap-1">
-                                                   {ekspertizData.split(' | ').map((detail: string, idx: number) => {
-                                                      const [key, val] = detail.split(':');
-                                                      return (
-                                                         <span key={idx} className="bg-[#111111] border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] uppercase">
-                                                            {key}: <span className="text-slate-200 font-bold">{val}</span>
-                                                         </span>
-                                                      );
-                                                   })}
-                                                </div>
-                                             )}
-                                          </td>
-                                          <td className="py-4 px-4 align-top text-right">
-                                             <div className="text-sm font-black italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺</div>
-                                          </td>
-                                          <td className="py-4 px-4 align-top text-center">
-                                             <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 inline-flex items-center justify-center">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                             </button>
-                                          </td>
-                                       </tr>
-                                    );
-                                 })}
-                              </tbody>
-                           </table>
-                        </div>
-                      )}
-                    </div>
-
+                                  return (
+                                     <tr key={i} className={`border-b border-slate-800 hover:bg-white/[0.02] transition-colors group ${i % 2 === 0 ? 'bg-transparent' : 'bg-[#2a2a3d]/20'}`}>
+                                        <td className="py-4 px-4 align-top">
+                                           <div className="text-[11px] font-bold text-slate-300">{datePart}</div>
+                                           {timePart && <div className="text-[10px] text-slate-500">{timePart}</div>}
+                                           {adminSelectedBranch === 'TÜM ŞUBELER' && (
+                                              <div className="mt-1.5 inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase bg-[#2a2a3d] text-slate-400 border border-slate-700/50">{item.data[0]}</div>
+                                           )}
+                                        </td>
+                                        <td className="py-4 px-4 align-top">
+                                           <div className="text-[11px] font-black text-white uppercase">{item.data[1]}</div>
+                                           <div className="text-[10px] font-mono text-slate-500 mt-1">{item.data[3] || 'IMEI YOK'}</div>
+                                        </td>
+                                        <td className="py-4 px-4 align-top">
+                                           <div className="flex items-center gap-2 mb-2">
+                                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${statusColor}`}>
+                                                 {statusText}
+                                              </span>
+                                              <span className="text-[12px] font-black text-blue-100">{mainDevice}</span>
+                                           </div>
+                                           {ekspertizData && (
+                                              <div className="flex flex-wrap gap-1">
+                                                 {ekspertizData.split(' | ').map((detail: string, idx: number) => {
+                                                    const [key, val] = detail.split(':');
+                                                    return (
+                                                       <span key={idx} className="bg-[#111111] border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] uppercase">
+                                                          {key}: <span className="text-slate-200 font-bold">{val}</span>
+                                                       </span>
+                                                    );
+                                                 })}
+                                              </div>
+                                           )}
+                                        </td>
+                                        <td className="py-4 px-4 align-top text-right">
+                                           <div className="text-sm font-black italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} ₺</div>
+                                        </td>
+                                        <td className="py-4 px-4 align-top text-center">
+                                           <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20 inline-flex items-center justify-center">
+                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                           </button>
+                                        </td>
+                                     </tr>
+                                  );
+                               })}
+                            </tbody>
+                         </table>
+                      </div>
+                    )}
                   </div>
+
                 </div>
               )}
             </div>
