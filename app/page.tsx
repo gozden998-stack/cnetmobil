@@ -75,8 +75,11 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
   
-  // YENİ: Yönetici Dashboard'u için seçili şube state'i
+  // YENİ: Yönetici Dashboard'u için seçili şube ve TARİH filtreleme state'leri
   const [adminSelectedBranch, setAdminSelectedBranch] = useState<string>('TÜM ŞUBELER');
+  const [dateFilterType, setDateFilterType] = useState<string>('TÜM ZAMANLAR');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -610,6 +613,7 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const getBranchStats = () => {
+    // Geriye dönük uyumluluk için korundu (Şu an filtrelenmiş istatistikler kullanılıyor)
     const stats: any = {};
     branches.forEach(b => { stats[b.name] = { alindi: 0, alinmadi: 0, diger: 0, total: 0 }; });
     alimlar.forEach(item => {
@@ -662,33 +666,78 @@ export default function CnetmobilCmrFinalUltimate() {
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
       .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
 
-  // DASHBOARD İSTATİSTİKLERİNİ HAZIRLAMA
-  const rawStats = getBranchStats();
-  let dashboardStats = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
-  
-  if (adminSelectedBranch === 'TÜM ŞUBELER') {
-      Object.values(rawStats).forEach((s: any) => {
-          dashboardStats.alindi += s.alindi;
-          dashboardStats.alinmadi += s.alinmadi;
-          dashboardStats.diger += s.diger;
-          dashboardStats.total += s.total;
-      });
-  } else {
-      dashboardStats = rawStats[adminSelectedBranch] || dashboardStats;
-  }
+  // YARDIMCI FONKSİYON: Tarih ofsetini YYYY-MM-DD olarak alma
+  const getOffsetDate = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offsetDays);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
-  // FİLTRELENMİŞ ALIM LİSTESİ
+  const todayStr = getOffsetDate(0);
+  const yesterdayStr = getOffsetDate(1);
+  const dayBeforeYesterdayStr = getOffsetDate(2);
+
+  // 1. ADIM: Hem Şube Hem Tarih Filtresini Uygula
   const filteredAlimlar = [...alimlar].reverse().filter(item => {
-      if (adminSelectedBranch === 'TÜM ŞUBELER') return true;
-      let foundBranch = null;
-      for (let i = 0; i < item.data.length; i++) {
-          if (typeof item.data[i] === 'string' && (item.data[i].includes("CMR ") || item.data[i].includes("VODAFONE "))) {
-              foundBranch = item.data[i];
-              break;
+      // -- ŞUBE FİLTRESİ --
+      if (adminSelectedBranch !== 'TÜM ŞUBELER') {
+          let foundBranch = null;
+          for (let i = 0; i < item.data.length; i++) {
+              if (typeof item.data[i] === 'string' && (item.data[i].includes("CMR ") || item.data[i].includes("VODAFONE "))) {
+                  foundBranch = item.data[i];
+                  break;
+              }
+          }
+          if (foundBranch !== adminSelectedBranch) return false;
+      }
+
+      // -- TARİH FİLTRESİ --
+      if (dateFilterType !== 'TÜM ZAMANLAR') {
+          let rawDate = String(item.data[6] || item.data[7] || '');
+          for (let j = item.data.length - 1; j >= 0; j--) {
+              const val = String(item.data[j] || '');
+              if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
+                  rawDate = val; break;
+              }
+          }
+          const datePart = rawDate.split(' ')[0]; // "DD.MM.YYYY"
+          let itemDateFormatted = '';
+          if (datePart && datePart.includes('.')) {
+              const [d, m, y] = datePart.split('.');
+              itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          }
+
+          if (!itemDateFormatted) return false;
+
+          if (dateFilterType === 'BUGÜN' && itemDateFormatted !== todayStr) return false;
+          if (dateFilterType === 'DÜN' && itemDateFormatted !== yesterdayStr) return false;
+          if (dateFilterType === 'ÖNCEKİ GÜN' && itemDateFormatted !== dayBeforeYesterdayStr) return false;
+          if (dateFilterType === 'ÖZEL') {
+              if (customStartDate && itemDateFormatted < customStartDate) return false;
+              if (customEndDate && itemDateFormatted > customEndDate) return false;
           }
       }
-      return foundBranch === adminSelectedBranch;
+
+      return true;
   });
+
+  // 2. ADIM: İstatistikleri SADECE Filtrelenmiş Veriden Hesapla (Tarih ve Şubeye göre dinamik)
+  let dashboardStats = { alindi: 0, alinmadi: 0, diger: 0, total: 0 };
+  filteredAlimlar.forEach(item => {
+      dashboardStats.total += 1;
+      const rowDataString = item.data.join(" ");
+      if (rowDataString.includes('[NAKİT ALINDI]') || rowDataString.includes('[TAKAS ALINDI]') || rowDataString.includes('[ALINDI]')) {
+          dashboardStats.alindi += 1;
+      } else if (rowDataString.includes('[ALINMADI]')) {
+          dashboardStats.alinmadi += 1;
+      } else {
+          dashboardStats.diger += 1;
+      }
+  });
+
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
@@ -1153,7 +1202,7 @@ export default function CnetmobilCmrFinalUltimate() {
               ) : (
                 <div className="flex flex-col xl:flex-row gap-8">
                   
-                  {/* SOL MENÜ - ŞUBE SEÇİCİ */}
+                  {/* SOL MENÜ - ŞUBE ve TARİH SEÇİCİ */}
                   <div className="w-full xl:w-72 shrink-0">
                      <div className="bg-[#1e1e2d] p-6 rounded-[40px] shadow-2xl border border-slate-800 xl:sticky xl:top-24">
                         <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-700/50">
@@ -1183,6 +1232,47 @@ export default function CnetmobilCmrFinalUltimate() {
                            })}
                         </div>
                         
+                        {/* EKLENEN YENİ TARİH FİLTRESİ KISMI */}
+                        <div className="mt-8 pt-6 border-t border-slate-700/50">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Tarih Filtresi</h3>
+                                    <p className="text-[10px] text-slate-400 mt-1">Zaman aralığı seçin</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {['TÜM ZAMANLAR', 'BUGÜN', 'DÜN', 'ÖNCEKİ GÜN', 'ÖZEL'].map(dName => {
+                                    const isActive = dateFilterType === dName;
+                                    return (
+                                        <button
+                                            key={dName}
+                                            onClick={() => setDateFilterType(dName)}
+                                            className={`px-4 py-3.5 rounded-2xl text-left text-[11px] font-black uppercase tracking-widest transition-all btn-click flex justify-between items-center group
+                                            ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/50 ring-2 ring-emerald-500/50' : 'bg-[#2a2a3d] text-slate-400 hover:text-white hover:bg-[#383852] border border-slate-700/50'}`}
+                                        >
+                                            <span>{dName}</span>
+                                            {isActive && <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {dateFilterType === 'ÖZEL' && (
+                                <div className="mt-4 flex flex-col gap-3 p-4 bg-[#2a2a3d]/50 rounded-2xl border border-slate-700/50">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Başlangıç</label>
+                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-transparent text-white text-xs border border-slate-600 rounded-lg p-2 outline-none focus:border-emerald-500" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Bitiş</label>
+                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-transparent text-white text-xs border border-slate-600 rounded-lg p-2 outline-none focus:border-emerald-500" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="mt-8 pt-6 border-t border-slate-700/50">
                            <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-4 bg-red-500/10 text-red-500 hover:text-white hover:bg-red-600 rounded-2xl font-black uppercase text-[10px] tracking-widest btn-click border border-red-500/20 transition-all flex justify-center items-center gap-2">
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
@@ -1206,7 +1296,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             {adminSelectedBranch} İSTATİSTİKLERİ
                           </h2>
                           <p className="text-[11px] text-slate-400 font-bold tracking-widest uppercase mb-8">
-                            Seçili şubeye ait güncel işlem özeti
+                            Seçili şubeye ve "{dateFilterType}" filtresine ait güncel işlem özeti
                           </p>
 
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1252,7 +1342,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       {filteredAlimlar.length === 0 ? (
                         <div className="text-center py-20 text-slate-500">
                            <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                           <p className="text-xs font-black uppercase tracking-widest">Bu şubeye ait işlem kaydı bulunamadı.</p>
+                           <p className="text-xs font-black uppercase tracking-widest">Bu kriterlere ait işlem kaydı bulunamadı.</p>
                         </div>
                       ) : (
                         <div className="overflow-x-auto custom-scrollbar pb-4">
