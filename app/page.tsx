@@ -3,11 +3,9 @@ import React, { useState, useEffect } from 'react';
 
 const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
 const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
-// DİKKAT: Orijinal tablo ismindeki boşluk yapısı korundu. Değiştirmeyin.
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
 
-// ŞUBE IP ADRESLERİ - TAM KİLİTLİ LİSTE
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
   "46.197.252.143": "CMR KAPAKLI",
@@ -15,13 +13,11 @@ const IP_HARITASI: any = {
   "149.0.18.162": "CMR CADDE"
 };
 
-// PATRON / YÖNETİCİ IP ADRESLERİ
 const MASTER_IPLER = [
   "95.70.226.118",
   "148.0.18.162"
 ];
 
-// GÜNCEL ŞUBE ŞİFRELERİ
 const BRANCH_PASSWORDS: Record<string, string> = {
   "1905": "CMR MERKEZ",
   "2003": "CMR CADDE",
@@ -39,10 +35,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
-  // MOBİL MENÜ DURUMU
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // UYGULAMA MODU
   const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list'>('alim');
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
@@ -424,7 +417,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
     
-    // TÜRKİYE SAATİNE GÖRE TAM VE GÜNCEL TARİH OLUŞTURMA (GARANTİLİ YÖNTEM)
     const istanbulTime = new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" });
     const now = new Date(istanbulTime);
     const day = String(now.getDate()).padStart(2, '0');
@@ -443,7 +435,6 @@ export default function CnetmobilCmrFinalUltimate() {
     const statusLabel = ` [${actionLabel}]`;
     const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
 
-    // EKSPERTİZ DETAYLARINI FORMATLAMA
     const ekspertizStr = [
       status.power ? `Güç:${status.power}` : '',
       status.screen ? `Ekran:${status.screen}` : '',
@@ -455,7 +446,6 @@ export default function CnetmobilCmrFinalUltimate() {
       status.warranty ? `Garanti:${status.warranty}` : ''
     ].filter(Boolean).join(' | ');
 
-    // CİHAZ PAYLOADINA EKSPERTİZİ GÖMME
     const devicePayload = `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel} #EKSPERTİZ# ${ekspertizStr}`;
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
@@ -638,7 +628,6 @@ export default function CnetmobilCmrFinalUltimate() {
     return stats;
   };
 
-  // SaaS Dashboard Menü Yapılandırması
   const menuGroups = [
     {
       title: "ANA MODÜLLER",
@@ -664,7 +653,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list';
+  // APP MODUNA 'step === 99' (Admin Paneli) DA EKLENDİ Kİ DASHBOARD GÖRÜNÜMÜNÜ KORUSUN
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || step === 99;
 
   const baseBrands = ["Apple", "Samsung", "Xiaomi"];
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
@@ -734,7 +724,7 @@ export default function CnetmobilCmrFinalUltimate() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
       `}</style>
 
-      {/* 1. MOBİL İÇİN ÜST BAR (Sadece telefonda görünür) */}
+      {/* 1. MOBİL İÇİN ÜST BAR */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0B0F19] text-white shadow-md z-40 sticky top-0 border-b border-white/5 print:hidden">
         <div className="flex items-center gap-3">
            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center ring-1 ring-blue-500/50 shadow-lg">
@@ -749,21 +739,19 @@ export default function CnetmobilCmrFinalUltimate() {
         </button>
       </div>
 
-      {/* 2. MOBİLDE MENÜ AÇIKKEN ARKA PLANI KARARTMA (OVERLAY) */}
+      {/* 2. MOBİL OVERLAY */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden transition-opacity print:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
-      {/* 3. PREMIUM SAAS DASHBOARD SIDEBAR (Mobilde Yandan Kayar, PC'de Sabittir) */}
+      {/* 3. PREMIUM SAAS DASHBOARD SIDEBAR */}
       <nav className={`fixed md:sticky top-0 inset-y-0 left-0 z-[70] flex flex-col w-[280px] md:w-[260px] lg:w-[300px] h-full md:h-screen border-r border-white/5 print:hidden transition-transform duration-300 ease-in-out bg-[#0B0F19] shadow-2xl 
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
-        {/* MOBİL İÇİN MENÜYÜ KAPAT BUTONU */}
         <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden absolute top-6 right-4 p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg border border-white/10 z-50">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
 
-        {/* PREMIUM LOGO ALANI - Glow Efektli */}
         <div className="p-8 flex flex-col gap-6 relative overflow-hidden mt-2 md:mt-0 shrink-0">
           <div className="absolute top-0 left-0 w-full h-32 bg-blue-600/10 blur-[40px] rounded-full pointer-events-none"></div>
           
@@ -780,7 +768,6 @@ export default function CnetmobilCmrFinalUltimate() {
           </div>
         </div>
 
-        {/* PREMIUM MENÜ LİSTESİ */}
         <div className="flex-1 overflow-y-auto px-4 space-y-8 py-2 custom-scrollbar">
           {step < 99 && menuGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
@@ -810,7 +797,6 @@ export default function CnetmobilCmrFinalUltimate() {
           ))}
         </div>
 
-        {/* PREMIUM ALT AKSİYONLAR */}
         <div className="p-6 border-t border-white/5 bg-gradient-to-b from-transparent to-black/20 pb-8 md:pb-6 shrink-0">
           <button onClick={() => { setIsInstallmentModalOpen(true); setIsMobileMenuOpen(false); }} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.15)] transition-all active:scale-95 mb-6 ring-1 ring-emerald-500/50">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
@@ -842,7 +828,6 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="flex-1 w-full min-w-0 flex flex-col relative md:h-screen md:overflow-y-auto custom-scrollbar">
         <main className="max-w-[1400px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
           
-          {/* ------------ YENİ İMEİ LİSTESİ EKRANI ------------ */}
           {appMode === 'imei_list' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -866,11 +851,9 @@ export default function CnetmobilCmrFinalUltimate() {
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          {/* A SÜTUNU */}
                           <div className={`flex-[3] flex items-center text-slate-300 group-hover:text-white transition-colors pr-4`}>
                               {row[0] || '-'}
                           </div>
-                          {/* B SÜTUNU */}
                           <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-[#2ecc71]`}>{row[1] || '-'}</div>
                         </div>
                     )})}
@@ -883,7 +866,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          /* ------------ YENİ 2.EL LİSTESİ EKRANI ------------ */
           appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -911,16 +893,12 @@ export default function CnetmobilCmrFinalUltimate() {
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          {/* A SÜTUNU */}
                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
-                          {/* B SÜTUNU */}
                           <div className={`flex-1 text-center font-bold text-slate-300 group-hover:text-white`}>{row[1] || '-'}</div>
-                          {/* C SÜTUNU */}
                           <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-[#2ecc71]'}`}>{row[2] || '-'}</div>
-                          {/* D SÜTUNU */}
                           <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[3] || '-'}</div>
                         </div>
                     )})}
@@ -933,7 +911,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          /* ------------ YENİ DIŞ KANAL EKRANI ------------ */
           appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -951,7 +928,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="min-w-[500px]">
                   <div className="bg-[#16a085] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    {/* VODAFONE İÇİN B SÜTUNU (FİYAT) GÖSTERİLİYOR */}
                     {selectedBranch === 'VODAFONE KANALI' && <div className="flex-1 text-center">FİYATI (TL)</div>}
                     <div className="flex-[2] text-right">DURUM / BİLGİ</div>
                   </div>
@@ -961,16 +937,13 @@ export default function CnetmobilCmrFinalUltimate() {
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          {/* A SÜTUNU */}
                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
-                          {/* B SÜTUNU SADECE VODAFONE İÇİN */}
                           {selectedBranch === 'VODAFONE KANALI' && (
                               <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                           )}
-                          {/* C SÜTUNU (HER İKİ TARAF İÇİN) */}
                           <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[2] || '-'}</div>
                         </div>
                     )})}
@@ -983,7 +956,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          /* ------------ YENİ CEP + TABLET EKRANI ------------ */
           appMode === 'cep_tablet' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -1065,7 +1037,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) : 
           
-          /* ------------ YENİ YNA LİST EKRANI ------------ */
           appMode === 'yna_list' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
@@ -1137,105 +1108,130 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
           
-          /* ---------------- MEVCUT ALIM VE SERVİS VE YÖNETİCİ GÖRÜNÜMLERİ ---------------- */
+          /* ---------------- YÖNETİCİ GÖRÜNÜMÜ ---------------- */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {!isAdmin ? (
-                <div className="max-w-md mx-auto bg-white p-12 rounded-[48px] shadow-2xl text-center border border-slate-100">
-                  <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                      <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+                <div className="max-w-md mx-auto bg-[#1e1e2d] p-12 rounded-[48px] shadow-2xl text-center border border-slate-800">
+                  <div className="w-16 h-16 bg-blue-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
+                      <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                   </div>
-                  <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-slate-900">Admin Girişi</h2>
-                  <input type="password" placeholder="••••••••" className="w-full p-5 bg-slate-50 rounded-2xl mb-4 text-center font-black outline-none border border-slate-200 focus:border-blue-500 transition-all text-slate-900" onChange={(e) => setAdminPass(e.target.value)} />
-                  <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-slate-200">SISTEME GIRIS YAP</button>
+                  <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-white">Yönetici Terminali</h2>
+                  <input type="password" placeholder="••••••••" className="w-full p-5 bg-[#2a2a3d] rounded-2xl mb-4 text-center font-black outline-none border border-slate-700 focus:border-blue-500 transition-all text-white placeholder-slate-500" onChange={(e) => setAdminPass(e.target.value)} />
+                  <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-blue-600/20 hover:bg-blue-500">SİSTEME GİRİŞ YAP</button>
                 </div>
               ) : (
                 <div className="space-y-10">
                   
-                  <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 text-slate-900">
-                      <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8 border-b-2 border-slate-900 pb-4">
+                  {/* İSTATİSTİKLER PANELİ */}
+                  <div className="bg-[#1e1e2d] p-8 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white">
+                      <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-8 border-b border-slate-700 pb-4 text-blue-400">
                         📊 ŞUBE İŞLEM İSTATİSTİKLERİ
                       </h2>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {Object.entries(getBranchStats()).map(([branchName, stat]: any) => (
-                          <div key={branchName} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                            <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-5 text-center bg-white py-2 rounded-xl border border-slate-100">{branchName}</h3>
+                          <div key={branchName} className="bg-[#2a2a3d] p-6 rounded-3xl border border-slate-700 shadow-sm hover:border-blue-500/50 transition-all group">
+                            <h3 className="font-black text-white uppercase tracking-widest text-sm mb-5 text-center bg-[#1e1e2d] py-2.5 rounded-xl border border-slate-700 group-hover:border-blue-500/30 transition-all">{branchName}</h3>
                             
                             <div className="space-y-3">
                               <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-bold">ALINDI</span>
-                                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-black">{stat.alindi}</span>
+                                <span className="text-slate-400 font-bold">ALINDI</span>
+                                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-lg font-black border border-emerald-500/20">{stat.alindi}</span>
                               </div>
                               <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-bold">ALINMADI</span>
-                                <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-lg font-black">{stat.alinmadi}</span>
+                                <span className="text-slate-400 font-bold">ALINMADI</span>
+                                <span className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-black border border-rose-500/20">{stat.alinmadi}</span>
                               </div>
                               <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-bold">BEKLEYEN/DİĞER</span>
-                                <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-lg font-black">{stat.diger}</span>
+                                <span className="text-slate-400 font-bold">BEKLEYEN/DİĞER</span>
+                                <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-lg font-black">{stat.diger}</span>
                               </div>
                             </div>
                             
-                            <div className="mt-5 pt-4 border-t border-slate-200 flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase">Toplam İşlem</span>
-                                <span className="text-blue-600 font-black text-xl">{stat.total}</span>
+                            <div className="mt-5 pt-4 border-t border-slate-700 flex justify-between items-center">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Toplam İşlem</span>
+                                <span className="text-blue-400 font-black text-2xl">{stat.total}</span>
                             </div>
                           </div>
                         ))}
                       </div>
                   </div>
 
-                  <div className="bg-white p-6 sm:p-10 rounded-[40px] shadow-sm border border-slate-100 text-slate-900">
-                    <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4 mb-8">
-                        <h2 className="text-xl font-black italic uppercase tracking-tighter">GÜNCEL ALIM KAYITLARI</h2>
-                        <button onClick={deleteAllAlimlar} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-100">Tüm Geçmişi Temizle</button>
+                  {/* GÜNCEL ALIMLAR LİSTESİ */}
+                  <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white">
+                    <div className="flex justify-between items-center border-b border-slate-700 pb-6 mb-8">
+                        <div>
+                            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-emerald-400">GÜNCEL ALIM KAYITLARI</h2>
+                            <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki Tüm Alım ve Takas İşlemleri</p>
+                        </div>
+                        <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-6 py-3 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            Tüm Geçmişi Temizle
+                        </button>
                     </div>
 
-                    {/* Kategori Başlıkları (Masaüstü için) */}
-                    <div className="hidden md:flex bg-slate-900 text-white p-4 rounded-t-2xl text-[10px] font-black tracking-widest uppercase mb-2">
-                      <div className="flex-[1.5]">Şube & Tarih</div>
-                      <div className="flex-[2]">Müşteri Bilgisi</div>
-                      <div className="flex-[3]">Cihaz & Ekspertiz</div>
-                      <div className="flex-[1.5] text-right pr-4">İşlem Tutarı</div>
-                      <div className="w-12"></div>
-                    </div>
-
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
                         {[...alimlar].reverse().map((item, i) => {
                           const rawDevice = item.data[2] || '';
                           const parts = rawDevice.split(' #EKSPERTİZ# ');
                           const mainDevice = parts[0];
                           const ekspertizData = parts.length > 1 ? parts[1] : '';
-                          const dateStr = item.data[6] || item.data[7] || 'Tarih Yok';
+
+                          // AKILLI TARİH ÇEKİMİ: Sütunların kayma ihtimaline karşı sondan başa doğru tarih formatını (DD.MM.YYYY HH:MM:SS) bulur.
+                          let rawDate = item.data[6] || item.data[7] || '';
+                          for (let j = item.data.length - 1; j >= 0; j--) {
+                              const val = String(item.data[j] || '');
+                              if (val.includes('.') && val.includes(':') && val.length > 10 && /\d/.test(val)) {
+                                  rawDate = val;
+                                  break;
+                              }
+                          }
+                          
+                          let datePart = rawDate || 'Tarih Yok';
+                          let timePart = '';
+                          if (rawDate && rawDate.includes(' ')) {
+                             const dateParts = rawDate.split(' ');
+                             datePart = dateParts[0];
+                             timePart = dateParts[1];
+                          }
 
                           return (
-                          <div key={i} className="bg-slate-50 p-4 sm:p-5 rounded-2xl md:rounded-xl border border-slate-200 flex flex-col md:flex-row items-start md:items-center text-xs hover:bg-white hover:shadow-lg transition-all gap-4">
+                          <div key={i} className="bg-[#2a2a3d] p-5 rounded-[24px] border border-slate-700 flex flex-col md:flex-row items-start md:items-center text-xs hover:border-blue-500/50 hover:bg-[#2f2f45] transition-all gap-6 group shadow-lg">
                             
                             {/* ŞUBE VE TARİH */}
-                            <div className="flex-[1.5] w-full md:w-auto">
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest md:hidden mb-1">Şube & Tarih</p>
-                              <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-black uppercase inline-block mb-1.5">{item.data[0]}</span>
-                              <p className="text-[10px] font-bold text-slate-500">{dateStr}</p>
+                            <div className="flex-[1.5] w-full md:w-auto border-r border-slate-700/50 pr-4">
+                              <span className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest inline-block mb-3 border border-blue-500/20">{item.data[0]}</span>
+                              <div className="flex items-center gap-2 text-slate-300 mb-1">
+                                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                  <span className="font-bold text-[12px]">{datePart}</span>
+                              </div>
+                              {timePart && (
+                              <div className="flex items-center gap-2 text-slate-400">
+                                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  <span className="font-bold text-[12px]">{timePart}</span>
+                              </div>
+                              )}
                             </div>
 
                             {/* MÜŞTERİ BİLGİSİ */}
-                            <div className="flex-[2] w-full md:w-auto">
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest md:hidden mb-1">Müşteri Bilgisi</p>
-                              <p className="font-black text-slate-900 text-sm uppercase">{item.data[1]}</p>
-                              <p className="text-slate-500 font-medium text-[11px] mt-0.5">{item.data[3]}</p>
+                            <div className="flex-[2] w-full md:w-auto border-r border-slate-700/50 pr-4">
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Müşteri</p>
+                              <p className="font-black text-white text-sm uppercase">{item.data[1]}</p>
+                              <div className="flex items-center gap-1.5 mt-2">
+                                 <span className="bg-[#1e1e2d] text-slate-400 px-2 py-1 rounded text-[10px] font-mono tracking-widest border border-slate-700">{item.data[3] || 'IMEI YOK'}</span>
+                              </div>
                             </div>
 
                             {/* CİHAZ VE EKSPERTİZ */}
-                            <div className="flex-[3] w-full md:w-auto">
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest md:hidden mb-1">Cihaz & Ekspertiz</p>
-                              <p className="font-black text-slate-800 text-xs mb-2 bg-white inline-block px-2 py-1 rounded border border-slate-200">{mainDevice}</p>
+                            <div className="flex-[3.5] w-full md:w-auto">
+                              <p className="font-black text-slate-200 text-sm mb-3 bg-[#1e1e2d] inline-block px-3 py-1.5 rounded-lg border border-slate-700">{mainDevice}</p>
                               {ekspertizData && (
-                                <div className="flex flex-wrap gap-1">
-                            {ekspertizData.split(' | ').map((detail: string, idx: number) => {
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  {ekspertizData.split(' | ').map((detail: string, idx: number) => {
                                     const [key, val] = detail.split(':');
                                     return (
-                                      <span key={idx} className="bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
-                                        <span className="text-slate-400 mr-1">{key}:</span><span className="text-slate-800">{val}</span>
+                                      <span key={idx} className="bg-[#1e1e2d] border border-slate-700 text-slate-300 px-2 py-1 rounded-md text-[9px] font-bold uppercase">
+                                        <span className="text-slate-500 mr-1">{key}:</span><span className="text-emerald-400">{val}</span>
                                       </span>
                                     );
                                   })}
@@ -1245,13 +1241,13 @@ export default function CnetmobilCmrFinalUltimate() {
 
                             {/* İŞLEM TUTARI */}
                             <div className="flex-[1.5] w-full md:w-auto text-left md:text-right pr-4">
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest md:hidden mb-1">İşlem Tutarı</p>
-                              <p className="font-black text-lg italic text-emerald-600">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} TL</p>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Tutar</p>
+                              <p className="font-black text-2xl italic text-emerald-400">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} TL</p>
                             </div>
 
                             {/* SİL BUTONU */}
-                            <div className="w-full md:w-12 text-right">
-                              <button onClick={() => deleteAlim(item.sheetIndex)} className="text-red-400 hover:text-white hover:bg-red-500 p-2.5 rounded-xl transition-all border border-transparent hover:border-red-600 w-full md:w-auto flex justify-center">
+                            <div className="w-full md:w-12 text-right shrink-0">
+                              <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-white bg-[#1e1e2d] hover:bg-red-500 p-3 rounded-xl transition-all border border-slate-700 hover:border-red-600 w-full md:w-auto flex justify-center group-hover:border-slate-600">
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
@@ -1260,7 +1256,9 @@ export default function CnetmobilCmrFinalUltimate() {
                         )})}
                     </div>
                   </div>
-                  <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
+                  
+                  {/* ÇIKIŞ BUTONU */}
+                  <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-[#2a2a3d] text-slate-300 hover:text-white hover:bg-[#383852] rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl border border-slate-700 transition-all">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
                 </div>
               )}
             </div>
@@ -1367,7 +1365,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </button>
 
                 {appMode === 'servis' ? (
-                  /* ---------------- TEKNİK SERVİS EKRANI ---------------- */
                   <div className="bg-white p-10 rounded-[48px] shadow-xl border border-orange-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
                         <svg className="w-40 h-40 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -1386,7 +1383,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         
-                        {/* EKRAN KARTI */}
                         <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
                           <div>
                               <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">📱</div>
@@ -1411,7 +1407,6 @@ export default function CnetmobilCmrFinalUltimate() {
                           </div>
                         </div>
 
-                        {/* BATARYA KARTI */}
                         <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
                           <div>
                               <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🔋</div>
@@ -1422,7 +1417,6 @@ export default function CnetmobilCmrFinalUltimate() {
                           </div>
                         </div>
 
-                        {/* ARKA CAM KARTI */}
                         <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
                           <div>
                               <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">💠</div>
@@ -1433,7 +1427,6 @@ export default function CnetmobilCmrFinalUltimate() {
                           </div>
                         </div>
 
-                        {/* KASA KARTI */}
                         <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
                           <div>
                               <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🛠</div>
@@ -1447,7 +1440,6 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                   </div>
                 ) : (
-                  /* ---------------- EKSPERTİZ EKRANI (CİHAZ ALIM) ---------------- */
                   <>
                     <div className="bg-white p-10 rounded-[48px] shadow-sm border border-slate-100 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:scale-150 transition-transform duration-1000">
@@ -1558,7 +1550,6 @@ export default function CnetmobilCmrFinalUltimate() {
               <div className="lg:w-96 space-y-6 sticky top-28 h-fit">
                 
                 {appMode === 'servis' ? (
-                  /* SERVİS MODU SAĞ MENÜ */
                   <div className="bg-orange-950 p-10 rounded-[48px] space-y-4 shadow-2xl">
                       <div className="w-16 h-16 bg-orange-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
                           <svg className="w-8 h-8 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
@@ -1571,7 +1562,6 @@ export default function CnetmobilCmrFinalUltimate() {
                       </button>
                   </div>
                 ) : (
-                  /* ALIM MODU SAĞ MENÜ */
                   <>
                     {isYd ? (
                       <div className="bg-red-600 p-10 rounded-[48px] shadow-2xl text-white text-center border-b-[12px] border-red-800 animate-pulse">
@@ -1635,7 +1625,6 @@ export default function CnetmobilCmrFinalUltimate() {
                             {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
                           </div>
                           
-                          {/* TAKAS REVİZE ALANI */}
                           {selectedCapacity && allSelected && !purchaseType && (
                             <div className="mt-4 relative z-10">
                               {!isCustomTradeOfferActive ? (
