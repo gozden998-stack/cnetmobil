@@ -423,8 +423,17 @@ export default function CnetmobilCmrFinalUltimate() {
   const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
+    // TÜRKİYE SAATİNE GÖRE TAM VE GÜNCEL TARİH OLUŞTURMA
     const now = new Date();
-    const dateTime = `${now.toLocaleDateString('tr-TR')} ${now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}`;
+    const dateTime = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).format(now);
     
     let actionLabel = actionType;
     if (actionType === 'print' || actionType === 'whatsapp') {
@@ -433,6 +442,21 @@ export default function CnetmobilCmrFinalUltimate() {
 
     const statusLabel = ` [${actionLabel}]`;
     const colorLabel = selectedModelName === "iPhone 13" ? ` - Renk: ${selectedColor}` : "";
+
+    // EKSPERTİZ DETAYLARINI FORMATLAMA
+    const ekspertizStr = [
+      status.power ? `Güç:${status.power}` : '',
+      status.screen ? `Ekran:${status.screen}` : '',
+      status.cosmetic ? `Kasa:${status.cosmetic}` : '',
+      status.battery ? `Pil:${status.battery}` : '',
+      status.faceId ? `FaceID:${status.faceId}` : '',
+      status.speaker ? `Ahize:${status.speaker}` : '',
+      status.sim ? `Kayıt:${status.sim}` : '',
+      status.warranty ? `Garanti:${status.warranty}` : ''
+    ].filter(Boolean).join(' | ');
+
+    // CİHAZ PAYLOADINA EKSPERTİZİ GÖMME (Admin panelinde şık görünmesi için)
+    const devicePayload = `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel} #EKSPERTİZ# ${ekspertizStr}`;
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
@@ -443,7 +467,7 @@ export default function CnetmobilCmrFinalUltimate() {
               type: "SAVE_ALIM",
               branch: selectedBranch,
               customer: customer.name,
-              device: `${selectedModelName} (${selectedCapacity?.cap})${colorLabel}${statusLabel}`,
+              device: devicePayload,
               imei: customer.imei,
               cash: finalCashPrice,
               trade: finalTradePrice,
@@ -1289,25 +1313,47 @@ export default function CnetmobilCmrFinalUltimate() {
                         <button onClick={deleteAllAlimlar} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-100">Tüm Geçmişi Temizle</button>
                     </div>
                     <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
-                        {[...alimlar].reverse().map((item, i) => (
-                          <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-center text-xs hover:bg-white hover:shadow-md transition-all">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.data[7] || 'Tarih Yok'}</span>
+                        {[...alimlar].reverse().map((item, i) => {
+                          const rawDevice = item.data[2] || '';
+                          const parts = rawDevice.split(' #EKSPERTİZ# ');
+                          const mainDevice = parts[0];
+                          const ekspertizData = parts.length > 1 ? parts[1] : '';
+                          const dateStr = item.data[6] || item.data[7] || 'Tarih Yok';
+
+                          return (
+                          <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex justify-between items-start text-xs hover:bg-white hover:shadow-md transition-all flex-col sm:flex-row gap-4 sm:gap-0">
+                            <div className="flex flex-col gap-1 flex-1 pr-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{dateStr}</span>
+                                 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black uppercase">{item.data[0]}</span>
+                              </div>
                               <p className="font-black text-slate-900 text-sm uppercase">{item.data[1]}</p>
-                              <p className="text-slate-500 font-medium">{item.data[3]} - {item.data[2]}</p>
-                              <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[9px] font-black w-fit mt-1 uppercase">{item.data[0]}</span>
+                              <p className="text-slate-500 font-medium">{item.data[3]} - {mainDevice}</p>
+                              
+                              {ekspertizData && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {ekspertizData.split(' | ').map((detail, idx) => {
+                                    const [key, val] = detail.split(':');
+                                    return (
+                                      <span key={idx} className="bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-bold uppercase shadow-sm">
+                                        <span className="text-slate-400 mr-1">{key}:</span><span className="text-slate-800">{val}</span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-6 shrink-0 mt-2 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
                               <div className="text-right">
                                   <p className="text-[10px] text-slate-400 font-black uppercase">Fiyat</p>
-                                  <p className="font-black text-lg italic text-slate-900">{parseInt(item.data[5]||0).toLocaleString()} TL</p>
+                                  <p className="font-black text-lg italic text-slate-900">{parseInt(item.data[5]||item.data[4]||0).toLocaleString()} TL</p>
                               </div>
                               <button onClick={() => deleteAlim(item.sheetIndex)} className="text-red-500 hover:bg-red-50 p-3 rounded-2xl transition-all">
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
                           </div>
-                        ))}
+                        )})}
                     </div>
                   </div>
                   <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-sm btn-click shadow-2xl">YÖNETİCİ MODUNDAN ÇIK VE OTURUMU KAPAT</button>
