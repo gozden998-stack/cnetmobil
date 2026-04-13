@@ -1332,7 +1332,7 @@ export default function CnetmobilCmrFinalUltimate() {
                               
                               {ekspertizData && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {ekspertizData.split(' | ').map((detail, idx) => {
+                            {ekspertizData.split(' | ').map((detail: string, idx: number) => {
                                     const [key, val] = detail.split(':');
                                     return (
                                       <span key={idx} className="bg-white border border-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-bold uppercase shadow-sm">
