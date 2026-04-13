@@ -80,6 +80,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [dateFilterType, setDateFilterType] = useState<string>('TÜM ZAMANLAR');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false); // Dropdown için yeni state
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -1243,22 +1244,51 @@ export default function CnetmobilCmrFinalUltimate() {
                                     <p className="text-[10px] text-slate-400 mt-1">Zaman aralığı seçin</p>
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-2">
-                                {['TÜM ZAMANLAR', 'BUGÜN', 'DÜN', 'ÖNCEKİ GÜN', 'ÖZEL'].map(dName => {
-                                    const isActive = dateFilterType === dName;
-                                    return (
+                            
+                            {/* KOMPAKT DROPDOWN (YENİ EKLENEN KISIM) */}
+                            <div className="relative inline-flex shadow-sm rounded-xl w-full">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+                                  className="flex-1 inline-flex items-center justify-center px-4 py-3 text-[11px] font-black text-white bg-emerald-600 border border-transparent rounded-l-xl hover:bg-emerald-500 focus:outline-none uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20"
+                                >
+                                  {dateFilterType}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+                                  className="inline-flex items-center px-3 py-3 text-sm font-medium text-slate-300 bg-[#2a2a3d] border-y border-r border-slate-700/50 hover:bg-[#383852] focus:outline-none transition-all"
+                                >
+                                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center px-4 py-3 text-sm font-medium text-slate-300 bg-[#2a2a3d] border-y border-r border-slate-700/50 rounded-r-xl hover:bg-[#383852] focus:outline-none transition-all cursor-default"
+                                >
+                                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                </button>
+
+                                {isDateDropdownOpen && (
+                                  <div className="absolute top-full left-0 z-50 w-full mt-2 bg-[#2a2a3d] border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden">
+                                    <div className="py-1 flex flex-col">
+                                      {['TÜM ZAMANLAR', 'BUGÜN', 'DÜN', 'ÖNCEKİ GÜN', 'ÖZEL'].map((option) => (
                                         <button
-                                            key={dName}
-                                            onClick={() => setDateFilterType(dName)}
-                                            className={`px-4 py-3.5 rounded-2xl text-left text-[11px] font-black uppercase tracking-widest transition-all btn-click flex justify-between items-center group
-                                            ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/50 ring-2 ring-emerald-500/50' : 'bg-[#2a2a3d] text-slate-400 hover:text-white hover:bg-[#383852] border border-slate-700/50'}`}
+                                          key={option}
+                                          onClick={() => {
+                                            setDateFilterType(option);
+                                            setIsDateDropdownOpen(false);
+                                          }}
+                                          className={`block w-full px-4 py-3.5 text-[11px] font-black text-left uppercase tracking-widest hover:bg-[#383852] transition-colors ${dateFilterType === option ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-300'}`}
                                         >
-                                            <span>{dName}</span>
-                                            {isActive && <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>}
+                                          {option}
                                         </button>
-                                    );
-                                })}
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                             </div>
+                            
+                            {/* ÖZEL TARİH SEÇİCİ EKLENTİSİ */}
                             {dateFilterType === 'ÖZEL' && (
                                 <div className="mt-4 flex flex-col gap-3 p-4 bg-[#2a2a3d]/50 rounded-2xl border border-slate-700/50">
                                     <div className="flex flex-col gap-1">
