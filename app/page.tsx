@@ -322,10 +322,10 @@ export default function CnetmobilCmrFinalUltimate() {
       } catch(e) { console.warn("2.EL FİYAT LİSTESİ tablosu çekilemedi.", e); }
 
       try {
-        const imeiRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('İMEİ LİSTESİ')}!A1:B1000?key=${API_KEY}`);
+        const imeiRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('DEPO')}!A1:B1000?key=${API_KEY}`);
         const imeiDataResp = await imeiRes.json();
         if (imeiDataResp.values) setImeiData(imeiDataResp.values);
-      } catch(e) { console.warn("İMEİ LİSTESİ tablosu çekilemedi.", e); }
+      } catch(e) { console.warn("DEPO tablosu çekilemedi.", e); }
 
 
       if (devData.values) {
@@ -629,7 +629,7 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'yna_list', label: 'YNA List', icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", visible: true },
         { id: 'dis_kanal', label: 'Dış Kanal', icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z", visible: true },
         { id: 'ikinci_el', label: '2. El Listesi', icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15", visible: selectedBranch !== 'VODAFONE KANALI' },
-        { id: 'imei_list', label: 'İMEİ Listesi', icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", visible: selectedBranch === 'VODAFONE KANALI' }
+        { id: 'imei_list', label: 'DEPO', icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", visible: selectedBranch === 'VODAFONE KANALI' }
       ]
     }
   ];
@@ -969,7 +969,7 @@ export default function CnetmobilCmrFinalUltimate() {
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#f39c12]">İMEİ LİSTESİ</h2>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-[#f39c12]">DEPO</h2>
                     <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
                   </div>
                   <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
