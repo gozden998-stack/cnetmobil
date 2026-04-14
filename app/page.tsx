@@ -279,7 +279,6 @@ export default function CnetmobilCmrFinalUltimate() {
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
 
       try {
-        // A'dan L'ye kadar çektik ki K (10) ve L (11) sütunlarını alabilesiniz.
         const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:L1000?key=${API_KEY}`);
         const ctData = await ctRes.json();
         if (ctData.values) setCepTabletData(ctData.values);
@@ -1108,7 +1107,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="min-w-[500px]">
                   <div className="bg-[#16a085] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    {selectedBranch === 'VODAFONE KANALI' && <div className="flex-1 text-center">FİYATI (TL)</div>}
+                    <div className="flex-1 text-center">FİYATI (TL)</div>
                     <div className="flex-[2] text-right">DURUM / BİLGİ</div>
                   </div>
                   <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
@@ -1121,9 +1120,7 @@ export default function CnetmobilCmrFinalUltimate() {
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
-                          {selectedBranch === 'VODAFONE KANALI' && (
-                              <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
-                          )}
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
                           <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[2] || '-'}</div>
                         </div>
                     )})}
