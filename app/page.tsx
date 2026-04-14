@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect } from 'react';
 
@@ -83,7 +82,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
 
-  // Ekspertiz Modal State (Yeni Eklendi)
+  // Ekspertiz Modal State
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
 
   const branches = [
@@ -428,15 +427,13 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
     
-    const istanbulTime = new Date().toLocaleString("en-US", { timeZone: "Europe/Istanbul" });
-    const now = new Date(istanbulTime);
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const dateTime = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+    // Doğru İstanbul Saat ve Tarihini Almak (Tarayıcı Bağımsız Güvenli Yöntem)
+    const now = new Date();
+    const dateFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const timeFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    const dateStr = dateFormatter.format(now);
+    const timeStr = timeFormatter.format(now).replace(',', '');
+    const dateTime = `${dateStr} ${timeStr}`;
     
     let actionLabel = actionType;
     if (actionType === 'print' || actionType === 'whatsapp') {
@@ -685,11 +682,19 @@ export default function CnetmobilCmrFinalUltimate() {
                   rawDate = val; break;
               }
           }
-          const datePart = rawDate.split(' ')[0]; // "DD.MM.YYYY"
+          
+          const datePart = rawDate.split(' ')[0]; // "DD.MM.YYYY" or "MM/DD/YYYY"
           let itemDateFormatted = '';
+          
           if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
-              itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+              if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          } else if (datePart && datePart.includes('/')) {
+              const parts = datePart.split('/');
+              if (parts.length === 3) {
+                  const [m, d, y] = parts;
+                  itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+              }
           }
 
           if (!itemDateFormatted) return false;
@@ -1336,126 +1341,135 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
 
               {/* ALIM TABLOSU - YÖNETİCİ PANELİ */}
-<div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
-  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
-    <div>
-      <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
-      <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki Cihaz Kayıt Geçmişi</p>
-    </div>
-    {adminSelectedBranch === 'TÜM ŞUBELER' && (
-      <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-        GEÇMİŞİ TEMİZLE
-      </button>
-    )}
-  </div>
-
-  {filteredAlimlar.length === 0 ? (
-    <div className="text-center py-20 text-slate-500">
-      <p className="text-xs font-black uppercase tracking-widest">Kayıt Bulunmuyor</p>
-    </div>
-  ) : (
-    <div className="overflow-x-auto custom-scrollbar pb-4">
-      <div className="min-w-[1100px] flex flex-col">
-        {/* TABLO BAŞLIĞI - SÜTUNLARI BURADAN HİZALADIK */}
-        <div className="grid grid-cols-[140px_200px_130px_1fr_120px_60px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl font-black text-[10px] text-slate-500 uppercase tracking-widest">
-          <div>TARİH / ŞUBE</div>
-          <div>MÜŞTERİ ADI SOYADI</div>
-          <div>İŞLEM TÜRÜ</div>
-          <div>CİHAZ VE EKSPERTİZ</div>
-          <div className="text-right pr-4">TUTAR</div>
-          <div className="text-center">SİL</div>
-        </div>
-        
-        {/* TABLO SATIRLARI */}
-        <div className="flex flex-col">
-          {filteredAlimlar.map((item, i) => {
-            const rawDevice = item.data[2] || '';
-            const parts = rawDevice.split(' #EKSPERTİZ# ');
-            const mainDevice = parts[0];
-            const ekspertizData = parts.length > 1 ? parts[1] : '';
-
-            // Tarih ve Şube Bilgisini Ayıklama
-            let rawDate = item.data[6] || item.data[7] || '---';
-            let datePart = rawDate.split(' ')[0] || '---';
-            let timePart = rawDate.split(' ')[1] || '';
-
-            // İşlem Türü (Nakit/Takas) Belirleme
-            const rowStr = item.data.join(" ");
-            let statusBadge = "bg-slate-800 text-slate-400 border-slate-700";
-            let statusText = "BEKLEMEDE";
-            
-            if (rowStr.includes('[NAKİT ALINDI]')) {
-              statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
-              statusText = "NAKİT ALIM";
-            } else if (rowStr.includes('[TAKAS ALINDI]')) {
-              statusBadge = "bg-blue-500/10 text-blue-400 border-blue-500/30";
-              statusText = "TAKAS ALIM";
-            } else if (rowStr.includes('[ALINMADI]')) {
-              statusBadge = "bg-red-500/10 text-red-400 border-red-500/30";
-              statusText = "İPTAL";
-            }
-
-            return (
-              <div key={i} className={`grid grid-cols-[140px_200px_130px_1fr_120px_60px] gap-4 px-6 py-5 border-b border-slate-800/50 items-center hover:bg-white/[0.03] transition-all ${i % 2 === 0 ? '' : 'bg-[#2a2a3d]/10'}`}>
-                
-                {/* 1. ŞUBE & TARİH */}
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-slate-200">{datePart}</span>
-                  <span className="text-[9px] text-slate-500">{timePart}</span>
-                  <span className="mt-1 text-[9px] font-black text-blue-500 uppercase tracking-tighter">{item.data[0]}</span>
-                </div>
-
-                {/* 2. MÜŞTERİ BİLGİSİ */}
-                <div className="flex flex-col pr-2">
-                  <span className="text-[12px] font-black text-white uppercase truncate" title={item.data[1]}>
-                    {item.data[1] || 'Bilinmiyor'}
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-500 mt-0.5">
-                    {item.data[3] || 'IMEI YOK'}
-                  </span>
-                </div>
-
-                {/* 3. İŞLEM TÜRÜ */}
-                <div>
-                  <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase border tracking-widest ${statusBadge}`}>
-                    {statusText}
-                  </span>
-                </div>
-
-                {/* 4. CİHAZ MARKA MODEL & EKSPERTİZ BUTONU */}
-                <div className="flex flex-col items-start gap-2">
-                  <span className="text-[13px] font-black text-slate-100 tracking-tight leading-none">{mainDevice}</span>
-                  {ekspertizData && (
-                    <button 
-                      onClick={() => setEkspertizModalData({customer: item.data[1], device: mainDevice, data: ekspertizData})}
-                      className="text-[9px] font-black text-blue-400 bg-blue-500/10 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg transition-all border border-blue-500/20 flex items-center gap-2 group/btn"
-                    >
-                      <svg className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                      DETAYLI EKSPERTİZ
+              <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
+                  <div>
+                    <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
+                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki Cihaz Kayıt Geçmişi</p>
+                  </div>
+                  {adminSelectedBranch === 'TÜM ŞUBELER' && (
+                    <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      GEÇMİŞİ TEMİZLE
                     </button>
                   )}
                 </div>
 
-                {/* 5. TUTAR */}
-                <div className="text-right pr-4 font-black italic text-emerald-400 text-sm">
-                  {parseInt(item.data[5] || item.data[4] || 0).toLocaleString()} ₺
-                </div>
+                {filteredAlimlar.length === 0 ? (
+                  <div className="text-center py-20 text-slate-500">
+                    <p className="text-xs font-black uppercase tracking-widest">Kayıt Bulunmuyor</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto custom-scrollbar pb-4">
+                    <div className="min-w-[1100px] flex flex-col">
+                      {/* TABLO BAŞLIĞI - SÜTUNLARI BURADAN HİZALADIK */}
+                      <div className="grid grid-cols-[140px_220px_140px_1fr_120px_80px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl font-black text-[10px] text-slate-500 uppercase tracking-widest items-center">
+                        <div>TARİH / ŞUBE</div>
+                        <div>MÜŞTERİ ADI SOYADI</div>
+                        <div>İŞLEM TÜRÜ</div>
+                        <div>CİHAZ BİLGİSİ</div>
+                        <div className="text-right pr-4">TUTAR</div>
+                        <div className="text-center">İŞLEM</div>
+                      </div>
+                      
+                      {/* TABLO SATIRLARI */}
+                      <div className="flex flex-col">
+                        {filteredAlimlar.map((item, i) => {
+                          const rawDevice = item.data[2] || '';
+                          const parts = rawDevice.split(' #EKSPERTİZ# ');
+                          const mainDevice = parts[0];
+                          
+                          // Cihaz isminden [NAKİT ALINDI] gibi kısımları temizle
+                          const cleanDevice = mainDevice.replace(/\[NAKİT ALINDI\]/g, '').replace(/\[TAKAS ALINDI\]/g, '').replace(/\[ALINMADI\]/g, '').trim();
+                          const ekspertizData = parts.length > 1 ? parts[1] : '';
 
-                {/* 6. SİLME BUTONU */}
-                <div className="flex justify-center">
-                  <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-600 hover:text-red-500 p-2 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                </div>
+                          // Tarih ve Şube Bilgisini Ayıklama
+                          let rawDate = item.data[6] || item.data[7] || '---';
+                          let datePart = rawDate.split(' ')[0] || '---';
+                          let timePart = rawDate.split(' ')[1] || '';
+
+                          // İşlem Türü (Nakit/Takas) Belirleme
+                          const rowStr = item.data.join(" ");
+                          let statusBadge = "bg-slate-800 text-slate-400 border-slate-700";
+                          let statusText = "BEKLEMEDE";
+                          
+                          if (rowStr.includes('[NAKİT ALINDI]')) {
+                            statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                            statusText = "NAKİT ALIM";
+                          } else if (rowStr.includes('[TAKAS ALINDI]')) {
+                            statusBadge = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+                            statusText = "TAKAS ALIM";
+                          } else if (rowStr.includes('[ALINMADI]')) {
+                            statusBadge = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                            statusText = "İPTAL / ALINMADI";
+                          }
+
+                          return (
+                            <div key={i} className={`grid grid-cols-[140px_220px_140px_1fr_120px_80px] gap-4 px-6 py-5 border-b border-slate-800/50 items-center hover:bg-white/[0.03] transition-all ${i % 2 === 0 ? '' : 'bg-[#2a2a3d]/10'}`}>
+                              
+                              {/* 1. ŞUBE & TARİH */}
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[12px] font-bold text-slate-200">{datePart}</span>
+                                <span className="text-[10px] text-slate-500">{timePart}</span>
+                                <span className="mt-1 text-[10px] font-black text-blue-500 uppercase tracking-tighter">{item.data[0]}</span>
+                              </div>
+
+                              {/* 2. MÜŞTERİ BİLGİSİ */}
+                              <div className="flex flex-col gap-1 pr-2">
+                                <span className="text-[13px] font-black text-white uppercase truncate" title={item.data[1]}>
+                                  {item.data[1] || 'Bilinmiyor'}
+                                </span>
+                                <span className="text-[11px] font-mono text-slate-500">
+                                  {item.data[3] || 'IMEI YOK'}
+                                </span>
+                              </div>
+
+                              {/* 3. İŞLEM TÜRÜ */}
+                              <div>
+                                <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border tracking-widest inline-block ${statusBadge}`}>
+                                  {statusText}
+                                </span>
+                              </div>
+
+                              {/* 4. CİHAZ MARKA MODEL & EKSPERTİZ BUTONU */}
+                              <div className="flex flex-col items-start gap-2">
+                                <span className="text-[13px] font-black text-slate-100 tracking-tight leading-snug">{cleanDevice}</span>
+                                {ekspertizData && (
+                                  <button 
+                                    onClick={() => setEkspertizModalData({customer: item.data[1], device: cleanDevice, data: ekspertizData})}
+                                    className="text-[10px] font-black text-blue-400 bg-blue-500/10 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg transition-all border border-blue-500/20 flex items-center gap-2 group/btn"
+                                  >
+                                    <svg className="w-4 h-4 group-hover/btn:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                    PERSONEL SEÇİMLERİ (EKSPERTİZ)
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* 5. TUTAR */}
+                              <div className="text-right pr-4 flex flex-col justify-center">
+                                {statusText === 'İPTAL / ALINMADI' ? (
+                                    <span className="font-black italic text-slate-500 text-sm">---</span>
+                                ) : (
+                                    <span className="font-black italic text-emerald-400 text-sm">
+                                      {parseInt(item.data[5] || item.data[4] || 0).toLocaleString()} ₺
+                                    </span>
+                                )}
+                              </div>
+
+                              {/* 6. SİLME BUTONU */}
+                              <div className="flex justify-center">
+                                <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-xl transition-all" title="Kaydı Sil">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  )}
-</div>
                 </div>
               )}
             </div>
