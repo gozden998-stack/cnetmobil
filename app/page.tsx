@@ -36,7 +36,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list'>('alim');
+  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('alim');
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -279,7 +279,8 @@ export default function CnetmobilCmrFinalUltimate() {
       } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
 
       try {
-        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:I1000?key=${API_KEY}`);
+        // A'dan L'ye kadar çektik ki K (10) ve L (11) sütunlarını alabilesiniz.
+        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:L1000?key=${API_KEY}`);
         const ctData = await ctRes.json();
         if (ctData.values) setCepTabletData(ctData.values);
       } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi.", e); }
@@ -628,6 +629,7 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'cep_tablet', label: 'Cep + Tablet', icon: "M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h-2m-6 0H9", visible: true },
         { id: 'yna_list', label: 'YNA List', icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", visible: true },
         { id: 'dis_kanal', label: 'Dış Kanal', icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z", visible: true },
+        { id: 'kampanya_sifir', label: 'Kampanyalı Sıfır Liste', icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z", visible: selectedBranch !== 'VODAFONE KANALI' },
         { id: 'ikinci_el', label: '2. El Listesi', icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15", visible: selectedBranch !== 'VODAFONE KANALI' },
         { id: 'imei_list', label: 'DEPO', icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", visible: selectedBranch === 'VODAFONE KANALI' }
       ]
@@ -639,7 +641,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || step === 99;
+  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || appMode === 'kampanya_sifir' || step === 99;
 
   const baseBrands = ["Apple", "Samsung", "Xiaomi"];
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
@@ -996,6 +998,47 @@ export default function CnetmobilCmrFinalUltimate() {
                     )})}
                     {imeiData.length <= 1 && (
                       <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri çekilmedi. Google Sheets'i kontrol edin.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) :
+
+          appMode === 'kampanya_sifir' && step < 99 ? (
+            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+                  <div>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-[#e74c3c]">KAMPANYALI SIFIR LİSTE</h2>
+                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
+                  </div>
+                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  </div>
+              </div>
+
+              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[500px]">
+                  <div className="bg-[#c0392b] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                    <div className="flex-[3]">ÜRÜN ADI</div>
+                    <div className="flex-1 text-right">FİYATI (TL)</div>
+                  </div>
+                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                    {cepTabletData.slice(1).filter(r => r[10] && r[10].trim() !== '' && r[10].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const cellName = (row[10] || '').toUpperCase();
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM') || cellName.includes('FIRSAT');
+                        return (
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
+                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
+                              {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                              {row[10]}
+                          </div>
+                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[11] || '-'}</div>
+                        </div>
+                    )})}
+                    {cepTabletData.filter(r => r[10] && r[10].trim() !== '').length === 0 && (
+                      <div className="p-10 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">Henüz veri bulunmuyor. Google Sheets K ve L sütunlarını kontrol edin.</div>
                     )}
                   </div>
                 </div>
