@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import AnaSayfa from './AnaSayfa';
+
 
 const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
 const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
