@@ -541,17 +541,23 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  const updateConfig = async (key: string, val: string) => {
+      const updateConfig = async (key: string, val: string) => {
     try {
       await fetch(SCRIPT_URL, { 
         method: 'POST', 
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
       });
-      alert(`${key} Güncellendi!`);
-      setConfig((prev: any) => ({...prev, [key]: parseFloat(val)}));
+      alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
+      
+      // Eğer girilen değer bir metinse metin olarak, sayıysa sayı olarak kaydet
+      setConfig((prev: any) => {
+         const newVal = isNaN(Number(val)) ? val : parseFloat(val);
+         return {...prev, [key]: newVal};
+      });
     } catch (e) { console.error(e); }
   };
+
 
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
