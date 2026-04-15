@@ -34,11 +34,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
+
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [appMode, setAppMode] = useState<'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('alim');
+  const [appMode, setAppMode] = useState<'alim' 
   
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
