@@ -984,12 +984,20 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </nav>
 
-      {/* 4. ANA İÇERİK ALANI */}
+            {/* 4. ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative md:h-screen md:overflow-y-auto custom-scrollbar">
         <main className="max-w-[1400px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
           
-          {appMode === 'imei_list' && step < 99 ? (
+          {/* YENİ EKLENEN ANA SAYFA KISMI */}
+          {appMode === 'ana_sayfa' && step < 99 ? (
+              <AnaSayfa 
+                  selectedBranch={selectedBranch} 
+                  setAppMode={setAppMode} 
+                  config={config} 
+              />
+          ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
+
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-[#f39c12]">DEPO</h2>
