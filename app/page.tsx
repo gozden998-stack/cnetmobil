@@ -1418,7 +1418,37 @@ export default function CnetmobilCmrFinalUltimate() {
                      </div>
                   </div>
 
-              {/* ALIM TABLOSU - YÖNETİCİ PANELİ */}
+                              {/* YÖNETİCİ DUYURU VE KAMPANYA YÖNETİMİ */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                     <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 shadow-xl">
+                        <h3 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> Sabit Duyuru Yönetimi
+                        </h3>
+                        <textarea 
+                           className="w-full bg-[#1e1e2d] border border-slate-700 rounded-2xl p-5 text-white outline-none focus:border-purple-500 mb-4 h-28 text-sm font-bold resize-none custom-scrollbar transition-all"
+                           placeholder="Personelinizin göreceği sabit duyuru metnini buraya yazın..."
+                           defaultValue={config.Duyuru_Metni || ""}
+                           id="duyuruInput"
+                        ></textarea>
+                        <button onClick={() => updateConfig('Duyuru_Metni', (document.getElementById('duyuruInput') as HTMLTextAreaElement).value)} className="bg-purple-600/20 text-purple-400 hover:bg-purple-600 hover:text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] w-full transition-all tracking-widest btn-click border border-purple-500/20">Duyuruyu Yayınla</button>
+                     </div>
+                     
+                     <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 shadow-xl">
+                        <h3 className="text-[11px] font-black text-orange-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span> Kayar Yazı Kampanya Yönetimi
+                        </h3>
+                        <textarea 
+                           className="w-full bg-[#1e1e2d] border border-slate-700 rounded-2xl p-5 text-white outline-none focus:border-orange-500 mb-4 h-28 text-sm font-bold resize-none custom-scrollbar transition-all"
+                           placeholder="Ana sayfada kayarak geçecek kampanya metnini yazın..."
+                           defaultValue={config.Kampanya_Metni || ""}
+                           id="kampanyaInput"
+                        ></textarea>
+                        <button onClick={() => updateConfig('Kampanya_Metni', (document.getElementById('kampanyaInput') as HTMLTextAreaElement).value)} className="bg-orange-600/20 text-orange-400 hover:bg-orange-600 hover:text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] w-full transition-all tracking-widest btn-click border border-orange-500/20">Kampanyayı Yayınla</button>
+                     </div>
+                  </div>
+
+                  
+                  {/* ALIM TABLOSU - YÖNETİCİ PANELİ */}
               <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
                   <div>
