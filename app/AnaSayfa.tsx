@@ -42,11 +42,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
                     <h3 className="text-xl font-black italic text-white uppercase tracking-tighter">AKTİF KAMPANYALAR</h3>
                 </div>
                 <div className="flex-1 flex items-center bg-orange-500/5 rounded-3xl border border-orange-500/20 overflow-hidden py-10 relative">
-                    <div className="whitespace-nowrap animate-marquee flex gap-10 font-black text-2xl uppercase tracking-widest text-orange-400">
-                        <span>🔥 {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"} 🔥</span>
-                        <span>🔥 {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"} 🔥</span>
-                    </div>
-                </div>
+    <div className="whitespace-nowrap animate-marquee font-black text-3xl uppercase tracking-widest text-orange-400 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">
+        🔥 {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"} 🔥
+    </div>
+</div>
+
             </div>
         </div>
     </div>
