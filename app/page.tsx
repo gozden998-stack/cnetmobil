@@ -338,7 +338,11 @@ export default function CnetmobilCmrFinalUltimate() {
       }
       if (confData.values) {
         const m: any = {};
-        confData.values.forEach((row: any) => { m[row[0]] = parseFloat(row[1]); });
+        confData.values.forEach((row: any) => { 
+    // Eğer veri bir sayıysa sayıya çevir, yazıysa olduğu gibi (yazı olarak) al
+    m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+});
+
         
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) {
            m.Ekran_Kirik_Android = m.Ekran_Kirik;
