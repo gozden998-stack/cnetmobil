@@ -395,7 +395,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
-      if (status.screen === 'Kırık / Orijinal Değil') price *= (1 - (ekranKirikYuzdesi / 100));
+      if (status.screen === 'Kırık' || status.screen === 'Bilinmeyen Parça') price *= (1 - (ekranKirikYuzdesi / 100));
 
       if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
       if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
@@ -1848,7 +1848,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       {[
                         { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
                         { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] },
-                        { label: "Ekran Durumu", field: "screen", opts: ['Sağlam', 'Çizikler var', 'Kırık / Orijinal Değil'] },
+                        { label: "Ekran Durumu", field: "screen", opts: selectedBrand?.toLowerCase() === 'apple' ? ['Sağlam', 'Çizikler var', 'Kırık', 'Bilinmeyen Parça'] : ['Sağlam', 'Çizikler var', 'Kırık'] },
                         { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
                         { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
                         { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
@@ -2200,7 +2200,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     
                     let valColor = "text-slate-200";
                     if (['Mükemmel', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-400";
-                    else if (['Kötü', 'Kırık / Orijinal Değil', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-400";
+                    else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-400";
                     else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-400";
 
                     return (
