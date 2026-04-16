@@ -385,8 +385,29 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error("Versiyon kontrol hatası", e); }
   };
 
+ // Sadece versiyon numarasını kontrol eden hafif fonksiyon
+  const checkUpdate = async () => {
+    try {
+      const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
+      const res = await fetch(configUrl);
+      const data = await res.json();
+      if (data.values) {
+        const configMap: any = {};
+        data.values.forEach((row: any) => configMap[row[0]] = row[1]);
+        
+        // Google Sheets'teki Guncelleme_ID hücresine bakıyoruz
+        const newVersion = parseInt(configMap['Guncelleme_ID']) || 0;
+        
+        // Eğer buluttaki rakam bendekinden büyükse personeli uyar
+        if (currentVersion !== 0 && newVersion > currentVersion) {
+          setHasUpdate(true);
+        }
+      }
+    } catch (e) { console.error("Versiyon kontrol hatası", e); }
+  };
+
   const loadData = async () => {
-    setHasUpdate(false); // Güncelleme yapıldığında bildirimi kaldır
+    setHasUpdate(false); // Güncelleme yapıldığında bildirimi kapat
     try {
       // ... Senin mevcut tüm fetch işlemlerin (Cihazlar, Alımlar vb.) burada kalmalı ...
       
@@ -400,7 +421,8 @@ export default function CnetmobilCmrFinalUltimate() {
           m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
         });
         setConfig(m);
-        // Sheets'teki mevcut Guncelleme_ID'yi sisteme kaydet
+        
+        // Sheets'teki Guncelleme_ID'yi hafızaya alıyoruz
         const v = parseInt(m['Guncelleme_ID']) || 0;
         setCurrentVersion(v);
       }
@@ -409,7 +431,6 @@ export default function CnetmobilCmrFinalUltimate() {
       setLoading(false);
     } catch (e) { setLoading(false); }
   };
-
   useEffect(() => { 
     loadData(); // Uygulama açılışında her şeyi çek
 
