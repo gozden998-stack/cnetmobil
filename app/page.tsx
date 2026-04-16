@@ -368,23 +368,11 @@ export default function CnetmobilCmrFinalUltimate() {
   // 1. Bileşen yüklendiğinde veya adım değiştiğinde veriyi çek
   loadData(); 
 
-  // 2. OTOMATİK GÜNCELLEME: Her 45 saniyede bir arka planda sessizce yeni fiyatları kontrol et
-  const intervalId = setInterval(() => {
-    loadData();
-  }, 45000); // 45.000 milisaniye = 45 saniye
+    useEffect(() => { 
+    // Sistem sadece ilk açıldığında veya adım değiştiğinde veriyi tek seferlik çeker
+    loadData(); 
+  }, [step]);
 
-  // 3. ODAKLANMA GÜNCELLEMESİ: Personel başka bir sekmeye geçip, tekrar CMR sekmesine tıkladığı an fiyatları güncelle
-  const handleFocus = () => {
-    loadData();
-  };
-  window.addEventListener('focus', handleFocus);
-
-  // Bileşen ekrandan kalkarsa (veya adım değişirse) eski sayaçları temizle (Performans için)
-  return () => {
-    clearInterval(intervalId);
-    window.removeEventListener('focus', handleFocus);
-  };
-}, [step]);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
