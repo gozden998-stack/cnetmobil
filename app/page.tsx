@@ -391,11 +391,23 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
-      if (status.screen === 'Kırık' || status.screen === 'Bilinmeyen Parça') price *= (1 - (ekranKirikYuzdesi / 100));
+      
+      // 1. Sadece Ekran Kırık ise kendi yüzdesini düş
+      if (status.screen === 'Kırık') {
+          price *= (1 - (ekranKirikYuzdesi / 100));
+      } 
+      // 2. Ekran "Bilinmeyen Parça" ise Sheets'ten gelen kendi yüzdesini düş
+      else if (status.screen === 'Bilinmeyen Parça') {
+          let bilinmeyenParcaYuzdesi = config.Bilinmeyen_Parca || 0;
+          price *= (1 - (bilinmeyenParcaYuzdesi / 100));
+      }
+
+      if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
+     
 
       if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
       if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
