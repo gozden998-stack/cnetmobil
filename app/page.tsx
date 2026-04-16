@@ -364,11 +364,7 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { setLoading(false); }
   };
 
- useEffect(() => { 
-  // 1. Bileşen yüklendiğinde veya adım değiştiğinde veriyi çek
-  loadData(); 
-
-    useEffect(() => { 
+   useEffect(() => { 
     // Sistem sadece ilk açıldığında veya adım değiştiğinde veriyi tek seferlik çeker
     loadData(); 
   }, [step]);
@@ -2281,7 +2277,6 @@ export default function CnetmobilCmrFinalUltimate() {
               BEYAN VE TAAHHÜT: Cihaz mülkiyeti şahsıma ait olup, yukarıda belirtilen teknik durumun doğruluğunu ve tüm yasal sorumluluğu kabul ederim. Cihazdaki verilerin silinmesinden satıcı sorumlu tutulamaz.
             </div>
             
-                        {/* Burası senin mevcut Yazdırma Ekranı veya Modal kodlarının son kısmı */}
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
