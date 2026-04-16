@@ -233,9 +233,8 @@ export default function CnetmobilCmrFinalUltimate() {
     setIsAdmin(false); 
     setLoginMode('personel');
   };
-  const checkUpdate = async () => {
+    const checkUpdate = async () => {
     try {
-      // Sadece ayarlar tablosunu çeker, sistemi yormaz
       const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
       const res = await fetch(configUrl);
       const data = await res.json();
@@ -244,13 +243,18 @@ export default function CnetmobilCmrFinalUltimate() {
         data.values.forEach((row: any) => configMap[row[0]] = row[1]);
         const newVersion = parseInt(configMap['Guncelleme_ID']) || 0;
         
-        // Fiyat değişmişse ekranı KİLİTLE
-        if (currentVersion !== 0 && newVersion > currentVersion) {
-          setHasUpdate(true);
-        }
+        // İŞTE SİHİRLİ KISIM BURASI (React'in eski hafızasını aşıp gerçek rakama bakıyoruz)
+        setCurrentVersion((gercekVersiyon) => {
+          if (gercekVersiyon !== 0 && newVersion > gercekVersiyon) {
+            // setTimeout kullanarak React'i yormadan uyarıyı ekrana basıyoruz
+            setTimeout(() => setHasUpdate(true), 0);
+          }
+          return gercekVersiyon; // Rakamı bozmuyoruz
+        });
       }
     } catch (e) { console.error("Versiyon kontrol hatası", e); }
   };
+
 
   const resetAll = () => {
     setStep(1);
