@@ -54,6 +54,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const [config, setConfig] = useState<any>({});
   const [alimlar, setAlimlar] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentVersion, setCurrentVersion] = useState<number>(0);
+  const [hasUpdate, setHasUpdate] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedModelName, setSelectedModelName] = useState('');
@@ -364,27 +366,66 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { setLoading(false); }
   };
 
- useEffect(() => { 
-  // 1. Bileşen yüklendiğinde veya adım değiştiğinde veriyi çek
-  loadData(); 
-
-  // 2. OTOMATİK GÜNCELLEME: Her 45 saniyede bir arka planda sessizce yeni fiyatları kontrol et
-  const intervalId = setInterval(() => {
-    loadData();
-  }, 45000); // 45.000 milisaniye = 45 saniye
-
-  // 3. ODAKLANMA GÜNCELLEMESİ: Personel başka bir sekmeye geçip, tekrar CMR sekmesine tıkladığı an fiyatları güncelle
-  const handleFocus = () => {
-    loadData();
+// --- SADECE GUNCELLEME_ID'Yİ KONTROL EDER (HAFİF SORGULAR) ---
+  const checkUpdate = async () => {
+    try {
+      const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
+      const res = await fetch(configUrl);
+      const data = await res.json();
+      if (data.values) {
+        const configMap: any = {};
+        data.values.forEach((row: any) => configMap[row[0]] = row[1]);
+        const newVersion = parseInt(configMap['Guncelleme_ID']) || 0;
+        
+        // Eğer Sheets'teki ID bendekinden büyükse personeli uyar
+        if (currentVersion !== 0 && newVersion > currentVersion) {
+          setHasUpdate(true);
+        }
+      }
+    } catch (e) { console.error("Versiyon kontrol hatası", e); }
   };
-  window.addEventListener('focus', handleFocus);
 
-  // Bileşen ekrandan kalkarsa (veya adım değişirse) eski sayaçları temizle (Performans için)
-  return () => {
-    clearInterval(intervalId);
-    window.removeEventListener('focus', handleFocus);
+  const loadData = async () => {
+    setHasUpdate(false); // Güncelleme yapıldığında bildirimi kaldır
+    try {
+      // ... Senin mevcut tüm fetch işlemlerin (Cihazlar, Alımlar vb.) burada kalmalı ...
+      
+      const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
+      const confRes = await fetch(configUrl);
+      const confData = await confRes.json();
+      
+      if (confData.values) {
+        const m: any = {};
+        confData.values.forEach((row: any) => { 
+          m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+        });
+        setConfig(m);
+        // Sheets'teki mevcut Guncelleme_ID'yi sisteme kaydet
+        const v = parseInt(m['Guncelleme_ID']) || 0;
+        setCurrentVersion(v);
+      }
+      
+      // ... Diğer setDb, setAlimlar vb. işlemlerin devam etsin ...
+      setLoading(false);
+    } catch (e) { setLoading(false); }
   };
-}, [step]);
+
+  useEffect(() => { 
+    loadData(); // Uygulama açılışında her şeyi çek
+
+    // ARTIK 45 SANİYEDE BİR HER ŞEYİ DEĞİL, SADECE ID'Yİ KONTROL EDİYORUZ (Sistemi yormaz)
+    const intervalId = setInterval(() => {
+      checkUpdate();
+    }, 45000);
+
+    const handleFocus = () => { checkUpdate(); };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [step]);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -2297,6 +2338,27 @@ export default function CnetmobilCmrFinalUltimate() {
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
             </div>
+        </div>
+      )}
+   {/* --- AKILLI GÜNCELLEME BİLDİRİMİ --- */}
+      {hasUpdate && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[999] animate-in slide-in-from-bottom-10 duration-500 w-[90%] md:w-auto">
+          <div className="bg-[#0B0F19] border-2 border-blue-500 p-4 pl-8 rounded-[32px] flex items-center gap-8 shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="flex flex-col text-left">
+              <span className="text-white font-black text-[11px] italic tracking-widest uppercase flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                Sistem Güncellemesi Hazır
+              </span>
+              <span className="text-slate-400 text-[10px] font-bold uppercase mt-1">Yönetim yeni fiyat listesini yayınladı.</span>
+            </div>
+            <button 
+              onClick={loadData}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-[24px] font-black text-[12px] uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-xl shadow-blue-900/20"
+            >
+              LİSTEYİ ŞİMDİ YENİLE
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
+          </div>
         </div>
       )}
     </div>
