@@ -896,7 +896,7 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tight leading-none text-white">
-                CNET<span className={appMode === 'servis' ? 'text-orange-500' : 'text-blue-500'}>MOBIL</span> <span className="font-light text-slate-300">CMR</span>
+                CNET<span className={appMode === 'servis' ? 'text-orange-500' : 'text-blue-500'}>MOBIL</span>
               </h1>
               <p className="text-[9px] font-medium tracking-[0.25em] text-slate-500 mt-1.5 uppercase">Enterprise Workspace</p>
             </div>
