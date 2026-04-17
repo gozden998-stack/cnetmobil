@@ -13,7 +13,6 @@ export default function CnetmobilMusteriTradeIn() {
   const [db, setDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
   
-  // Bilgi pencereleri için state
   const [infoModal, setInfoModal] = useState<'how' | 'security' | null>(null);
 
   const [selectedBrand, setSelectedBrand] = useState('');
@@ -130,12 +129,24 @@ export default function CnetmobilMusteriTradeIn() {
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 group-hover:scale-105 transition-transform">
               <span className="text-white font-black text-xl">C</span>
             </div>
-            <span className="text-xl font-bold tracking-tight">CNET<span className="text-indigo-600">MOBİL</span></span>
+            <span className="text-xl font-bold tracking-tight text-slate-900">CNET<span className="text-indigo-600">MOBİL</span></span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-500">
             <button onClick={() => setInfoModal('how')} className="hover:text-indigo-600 transition-colors">Nasıl Çalışır?</button>
             <button onClick={() => setInfoModal('security')} className="hover:text-indigo-600 transition-colors">Güvenlik</button>
-            <span className="text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100">Destek: 0542 342 3759</span>
+            {/* Destek Alanı ve WhatsApp Butonu */}
+            <div className="flex items-center gap-0 overflow-hidden rounded-full border border-indigo-100 shadow-sm">
+              <span className="text-indigo-600 bg-indigo-50 px-4 py-2 text-xs">Destek: 0542 342 3759</span>
+              <a 
+                href="https://wa.me/905423423759" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-[#25D366] hover:bg-[#1ebd5b] text-white px-4 py-2 flex items-center gap-2 transition-all group"
+              >
+                <span className="text-base group-hover:scale-110 transition-transform">💬</span> 
+                <span className="text-xs font-bold uppercase tracking-wider">WhatsApp</span>
+              </a>
+            </div>
           </div>
         </div>
       </nav>
