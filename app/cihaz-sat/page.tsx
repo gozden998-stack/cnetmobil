@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 
 // --- AYARLAR ---
 const VATSAP_NUMARASI = "905423423759"; // WhatsApp yönlendirme numarası
-const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
-const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
 
 export default function CnetmobilMusteriTradeIn() {
