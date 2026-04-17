@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import AnaSayfa from './AnaSayfa';
 
-
-const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL;
-const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS;
+const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
+const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS as string;
+
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
