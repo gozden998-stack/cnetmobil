@@ -83,194 +83,183 @@ export default function CnetmobilMusteriTradeIn() {
   };
 
   if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white">
-      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p className="text-slate-500 font-medium animate-pulse">Cnetmobil Hazırlanıyor...</p>
+    <div className="h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p className="text-slate-500 font-bold tracking-widest uppercase text-xs animate-pulse">Sistem Başlatılıyor...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100">
       
       {/* Bilgi Modalları */}
       {infoModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-           <div className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative">
+           <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl relative border border-slate-200">
               <button onClick={() => setInfoModal(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 text-xl font-bold">✕</button>
               {infoModal === 'how' ? (
                 <>
-                  <h3 className="text-2xl font-black mb-4 text-indigo-600 text-center">Nasıl Çalışır?</h3>
-                  <div className="space-y-4 text-slate-600">
-                    <p><strong>1. Cihazını Seç:</strong> Marka, model ve kapasite bilgilerini girin.</p>
-                    <p><strong>2. Durumunu Belirt:</strong> Cihazınızın kozmetik ve teknik durumunu işaretleyin.</p>
-                    <p><strong>3. Teklif Al:</strong> Algoritmamız size en doğru piyasa değerini saniyeler içinde sunsun.</p>
-                    <p><strong>4. Satışı Onayla:</strong> Talebinizi gönderin, uzman ekibimiz cihazınızı kontrol edip ödemenizi yapsın.</p>
+                  <h3 className="text-xl font-black mb-6 text-slate-900 uppercase tracking-wide border-b border-slate-100 pb-4">İşlem Adımları</h3>
+                  <div className="space-y-5 text-sm text-slate-600 font-medium">
+                    <p className="flex gap-3"><span className="text-blue-600 font-black">01.</span> <span><strong>Cihaz Seçimi:</strong> Marka, model ve kapasite bilgilerini sisteme girin.</span></p>
+                    <p className="flex gap-3"><span className="text-blue-600 font-black">02.</span> <span><strong>Ekspertiz Formu:</strong> Cihazınızın güncel fiziksel ve donanımsal durumunu işaretleyin.</span></p>
+                    <p className="flex gap-3"><span className="text-blue-600 font-black">03.</span> <span><strong>Sistem Değerlemesi:</strong> Algoritmamız güncel piyasa verileriyle reel bir teklif sunsun.</span></p>
+                    <p className="flex gap-3"><span className="text-blue-600 font-black">04.</span> <span><strong>Kurumsal Onay:</strong> Talebinizi iletin, cihaz kontrolü sonrası anında ödemenizi alın.</span></p>
                   </div>
                 </>
               ) : (
                 <>
-                  <h3 className="text-2xl font-black mb-4 text-emerald-600 text-center">Güvenlik Politikamız</h3>
-                  <div className="space-y-4 text-slate-600">
-                    <p><strong>Veri Sıfırlama:</strong> Cihazınızdaki tüm kişisel veriler profesyonel standartlarda kalıcı olarak silinir.</p>
-                    <p><strong>Şeffaf Fiyatlandırma:</strong> Size verilen teklif, güncel piyasa koşullarına göre hesaplanan en adil tutardır.</p>
-                    <p><strong>Kurumsal Güvence:</strong> 2003'ten beri binlerce mutlu müşteriyle Cnetmobil güvencesindesiniz.</p>
+                  <h3 className="text-xl font-black mb-6 text-slate-900 uppercase tracking-wide border-b border-slate-100 pb-4">Kurumsal Güvenlik Politikası</h3>
+                  <div className="space-y-5 text-sm text-slate-600 font-medium">
+                    <p className="flex gap-3"><span className="text-blue-600">🛡️</span> <span><strong>KVKK Uyumlu İmha:</strong> Cihazınızdaki tüm kişisel veriler, uluslararası standartlarda ve kalıcı olarak sıfırlanır.</span></p>
+                    <p className="flex gap-3"><span className="text-blue-600">⚖️</span> <span><strong>Şeffaf Değerleme:</strong> Tekliflerimiz piyasa analizleriyle şeffaf bir şekilde belirlenir.</span></p>
+                    <p className="flex gap-3"><span className="text-blue-600">🏛️</span> <span><strong>Kurumsal Güvence:</strong> 2003'ten bugüne sektördeki tecrübemizle Cnetmobil güvencesi altındasınız.</span></p>
                   </div>
                 </>
               )}
-              <button onClick={() => setInfoModal(null)} className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-bold">Anladım</button>
+              <button onClick={() => setInfoModal(null)} className="w-full mt-8 py-4 bg-slate-900 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-colors">Pencereyi Kapat</button>
            </div>
         </div>
       )}
 
-      {/* Header */}
-      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-sm">
+      {/* Header - Kurumsal Sürüm */}
+      <nav className="bg-white sticky top-0 z-50 border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
           {/* Logo */}
-          <div onClick={() => setStep(0)} className="flex items-center gap-2 cursor-pointer group">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 group-hover:scale-105 transition-transform">
+          <div onClick={() => setStep(0)} className="flex items-center gap-3 cursor-pointer group">
+            <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center transition-colors group-hover:bg-blue-700">
               <span className="text-white font-black text-xl">C</span>
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">CNET<span className="text-indigo-600">MOBİL</span></span>
+            <div className="flex flex-col">
+              <span className="text-lg font-black tracking-tight text-slate-900 leading-none">CNET<span className="text-blue-600">MOBİL</span></span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Kurumsal Alım Merkezi</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-4 md:gap-8">
-            <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-500 mr-4">
-              <button onClick={() => setInfoModal('how')} className="hover:text-indigo-600 transition-colors">Nasıl Çalışır?</button>
-              <button onClick={() => setInfoModal('security')} className="hover:text-indigo-600 transition-colors">Güvenlik</button>
+            <div className="hidden lg:flex items-center gap-8 text-[11px] font-black uppercase tracking-widest text-slate-500 mr-4">
+              <button onClick={() => setInfoModal('how')} className="hover:text-blue-600 transition-colors">İşleyiş</button>
+              <button onClick={() => setInfoModal('security')} className="hover:text-blue-600 transition-colors">Güvenlik Politikası</button>
             </div>
             
-            {/* Profesyonel İletişim Alanı */}
-            <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-sm">
-               <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-indigo-50 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Bize Ulaşın</span>
-                    <span className="text-sm font-black text-slate-800 leading-none">0542 342 3759</span>
-                  </div>
+            {/* İletişim */}
+            <a 
+              href={`https://wa.me/${VATSAP_NUMARASI}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-5 py-2.5 rounded-xl transition-all"
+            >
+               <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+               <div className="flex flex-col hidden sm:flex">
+                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Müşteri Hizmetleri</span>
+                 <span className="text-sm font-black text-slate-900 leading-none">0542 342 37 59</span>
                </div>
-               <div className="w-px h-6 bg-slate-200 mx-1"></div>
-               <a 
-                href="https://wa.me/905423423759" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:scale-110 transition-transform duration-300"
-              >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.432 5.631 1.433h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" fill="#25D366"/>
-                </svg>
-              </a>
-            </div>
+            </a>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-800 pt-16 pb-32 px-6">
+      {/* Kurumsal Hero Section */}
+      <div className="bg-[#0B1120] border-b border-slate-800 pt-20 pb-32 px-6">
         <div className="max-w-4xl mx-auto text-center">
           {step === 0 ? (
             <>
-              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">Eski Telefonun <br/><span className="text-indigo-400">Nakit Paraya</span> Dönüşsün.</h1>
-              <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">Cnetmobil güvencesiyle 5 dakikada fiyat teklifi al, doğru fiyat ile cihazını sat</p>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-tight tracking-tight">
+                Kurumsal Cihaz <br/>
+                <span className="text-blue-500">Değerleme & Alım</span> Merkezi
+              </h1>
+              <p className="text-slate-400 text-base md:text-lg max-w-2xl mx-auto mb-10 font-medium">
+                Cnetmobil güvencesiyle şirket veya bireysel cihazlarınızı şeffaf ekspertiz süreciyle değerlendirin, anında nakit çözümlerimizden yararlanın.
+              </p>
             </>
           ) : (
             <div className="mb-10">
-               <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
+               <div className="flex justify-between items-center max-w-sm mx-auto mb-5">
                   {[1,2,3,4,5].map((s) => (
-                    <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-indigo-500' : 'bg-slate-700'}`} />
+                    <div key={s} className={`h-1.5 flex-1 mx-1 rounded-sm transition-all duration-500 ${step >= s ? 'bg-blue-600' : 'bg-slate-800'}`} />
                   ))}
                </div>
-               <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Aşama {step} / 5</p>
+               <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">Değerleme Aşaması {step} / 5</p>
             </div>
           )}
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-4 -mt-24 pb-20 relative z-10">
-        <div className="bg-white rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-100">
+      <main className="max-w-5xl mx-auto px-4 -mt-20 pb-20 relative z-10">
+        <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-200">
           
-          {/* YENİ STEP 0 TASARIMI EKLENDİ */}
+          {/* STEP 0 - GÜNCELLENMİŞ KURUMSAL TASARIM */}
           {step === 0 && (
-            <div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+            <div className="flex flex-col items-center animate-in fade-in duration-700">
               
-              {/* Üst Bilgi Rozeti */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-8 shadow-sm">
+              {/* Takas & Değerleme Rozeti */}
+              <div className="flex items-center gap-3 px-5 py-2.5 rounded-full border border-blue-200 bg-blue-50 shadow-sm mb-12">
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
                 </span>
-                TÜRKİYE'NİN GÜVENİLİR ALIM MERKEZİ
+                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">Eski Cihazınızı Takasla Değerlendirin</span>
               </div>
 
-              {/* Özellik Kartları - Mobilde 1, PC'de 3 Sütun */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full mb-12">
+              {/* Kurumsal Kartlar */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-12">
                 {[
                   {
                     title: 'Hızlı Ekspertiz',
-                    desc: 'Yapay zeka destekli formumuzla 30 saniyede en iyi fiyatı görün.',
-                    icon: <svg className="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-                    bg: 'bg-indigo-50/40',
-                    border: 'hover:border-indigo-300 hover:shadow-indigo-100'
+                    desc: 'Güncel piyasa verileriyle cihazınızın en doğru rayiç bedelini saniyeler içinde şeffaf bir şekilde öğrenin.',
+                    icon: <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   },
                   {
-                    title: 'Güvenli Ödeme',
-                    desc: 'Cihaz kontrolü tamamlandığı an paranız IBAN veya nakit olarak elinizde.',
-                    icon: <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
-                    bg: 'bg-emerald-50/40',
-                    border: 'hover:border-emerald-300 hover:shadow-emerald-100'
+                    title: 'Güvenceli Ödeme',
+                    desc: 'Cihaz teslimi ve fiziksel onay sürecinin hemen ardından ödemeniz kurumsal hesabımızdan anında aktarılır.',
+                    icon: <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                   },
                   {
-                    title: '100% Veri Güvenliği',
-                    desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.',
-                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
-                    bg: 'bg-rose-50/40',
-                    border: 'hover:border-rose-300 hover:shadow-rose-100'
+                    title: 'KVKK Uyumlu İmha',
+                    desc: 'Cihaz belleğindeki tüm kurumsal ve kişisel veriler, yasal prosedürlere uygun olarak geri dönülemez şekilde silinir.',
+                    icon: <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                   }
                 ].map((item, i) => (
-                  <div key={i} className={`p-8 rounded-[32px] border-2 border-slate-100 ${item.bg} ${item.border} transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group cursor-default`}>
-                    <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <div key={i} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:border-blue-600 transition-colors duration-300 group flex flex-col items-start text-left">
+                    <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center mb-6 group-hover:bg-blue-50 transition-colors">
                       {item.icon}
                     </div>
-                    <h4 className="font-black text-xl text-slate-800 mb-3 tracking-tight">{item.title}</h4>
-                    <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.desc}</p>
+                    <h4 className="font-black text-[15px] text-slate-900 mb-3 uppercase tracking-wider">{item.title}</h4>
+                    <p className="text-slate-500 text-[13px] font-medium leading-relaxed">{item.desc}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Aksiyon Butonu (CTA) - Pulse Efektli */}
-              <div className="w-full max-w-sm relative mt-4">
-                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-[28px] blur opacity-40 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
-                 <button onClick={() => setStep(1)} className="relative w-full group bg-slate-900 hover:bg-indigo-600 text-white font-black py-5 px-8 rounded-[24px] shadow-2xl transition-all duration-300 flex items-center justify-between overflow-hidden btn-click">
-                    <span className="relative z-10 text-lg sm:text-xl tracking-wide flex items-center gap-3">
-                       <svg className="w-6 h-6 text-indigo-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                       CİHAZINI DEĞERLE
+              {/* Kurumsal Aksiyon Butonu - Dolar İkonu Kaldırıldı */}
+              <div className="w-full max-w-md mt-4 relative">
+                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-[20px] blur opacity-30 animate-pulse"></div>
+                 <button onClick={() => setStep(1)} className="relative w-full bg-[#0B1120] hover:bg-blue-700 text-white font-black py-5 px-8 rounded-xl shadow-xl transition-all duration-300 flex items-center justify-between group border border-slate-800 hover:border-blue-500">
+                    <span className="text-sm sm:text-base tracking-[0.1em] uppercase flex items-center gap-3">
+                       <svg className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                       </svg>
+                       Sisteme Giriş & Değerleme
                     </span>
-                    <span className="relative z-10 w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-white group-hover:text-indigo-600 transition-colors">
-                       <svg className="w-6 h-6 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </span>
+                    <svg className="w-5 h-5 text-slate-400 group-hover:text-white transform group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                  </button>
               </div>
               
-              {/* Alt Güven Barı (Sertifikasyon Hissi) */}
-              <div className="mt-12 flex flex-wrap justify-center gap-x-6 gap-y-3 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-8 w-full">
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Ücretsiz Ekspertiz</span>
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> 2003'ten Beri Hizmet</span>
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Anında Nakit Ödeme</span>
+              {/* Alt Güven Barı */}
+              <div className="mt-14 flex flex-col sm:flex-row justify-center items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-8 w-full">
+                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> Bankacılık Standartlarında Güvenlik</span>
+                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ISO Standartlarında Veri Yönetimi</span>
+                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> %100 Müşteri Gizliliği</span>
               </div>
             </div>
           )}
 
           {step === 1 && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
+            <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+              <h2 className="text-xl md:text-2xl font-black text-center mb-10 text-slate-900 uppercase tracking-wide">Cihaz Markasını Seçiniz</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {baseBrands.map(brand => (
                   <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} 
-                    className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-50 transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>
+                    className="p-8 border border-slate-200 rounded-2xl hover:border-blue-600 hover:shadow-lg transition-all font-black text-lg bg-white flex flex-col items-center gap-4 text-slate-800 uppercase tracking-widest">
                     {brand}
                   </button>
                 ))}
@@ -280,22 +269,24 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 2 && (
             <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
-              <button onClick={() => setStep(1)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold">← Geri Dön</button>
-              <h2 className="text-3xl font-black mb-8 text-slate-800">{selectedBrand} <span className="text-indigo-600">Hangi Model?</span></h2>
+              <button onClick={() => setStep(1)} className="mb-8 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 flex items-center gap-2 border border-slate-200 px-4 py-2 rounded-lg bg-slate-50 transition-colors">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg> Markalara Dön
+              </button>
+              <h2 className="text-2xl font-black mb-8 text-slate-900 uppercase tracking-wide">{selectedBrand} <span className="text-blue-600">Model Seçimi</span></h2>
               <div className="relative mb-8 text-slate-400">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2">🔍</span>
-                <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner text-slate-900" onChange={(e) => setSearchQuery(e.target.value)} />
+                <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-14 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600 focus:bg-white transition-all text-sm font-bold text-slate-900" onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-slate-900">
                 {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                   .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(name => (
                     <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} 
-                      className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all">
-                      <div className="w-20 h-20 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
-                        <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain group-hover:scale-110 transition-transform" alt={name} />
+                      className="flex items-center gap-5 p-5 border border-slate-200 rounded-xl hover:border-blue-600 hover:shadow-md cursor-pointer transition-all bg-white">
+                      <div className="w-16 h-16 bg-slate-50 rounded-lg border border-slate-100 p-2 flex items-center justify-center">
+                        <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain mix-blend-multiply" alt={name} />
                       </div>
-                      <span className="font-bold text-lg text-slate-700">{name}</span>
+                      <span className="font-black text-[13px] uppercase tracking-wide text-slate-800">{name}</span>
                     </div>
                 ))}
               </div>
@@ -304,11 +295,11 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 3 && (
             <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-500">
-              <h2 className="text-3xl font-black mb-10 text-slate-800">Depolama Kapasitesi?</h2>
+              <h2 className="text-2xl font-black mb-10 text-slate-900 uppercase tracking-wide">Depolama Kapasitesi</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {db.filter(i => i.name === selectedModel).map(c => (
                   <button key={c.cap} onClick={() => { setSelectedCapacity(c); setStep(4); }} 
-                    className="p-10 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:bg-indigo-50 transition-all font-black text-3xl text-slate-700 shadow-sm">
+                    className="py-8 px-4 border border-slate-200 rounded-2xl hover:border-blue-600 hover:bg-slate-50 transition-all font-black text-xl text-slate-800 shadow-sm uppercase tracking-widest">
                     {c.cap}
                   </button>
                 ))}
@@ -318,7 +309,7 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 4 && (
             <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
-              <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
+              <h2 className="text-2xl font-black mb-8 text-slate-900 text-center uppercase tracking-wide">Fiziksel & Donanımsal Durum</h2>
               <div className="space-y-4">
                 {[
                   { id: 'power', question: 'Cihazınız sorunsuz açılıyor mu?', opts: ['Evet', 'Hayır'] },
@@ -327,25 +318,25 @@ export default function CnetmobilMusteriTradeIn() {
                   { id: 'battery', question: 'Pil sağlığı uyarısı var mı?', opts: ['İyi', 'Servis'] },
                   { id: 'repair', question: 'Daha önce tamir gördü mü?', opts: ['Hayır', 'Evet'] },
                 ].map(q => (
-                  <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h3 className="font-bold text-slate-700">{q.question}</h3>
+                  <div key={q.id} className="bg-white p-6 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                    <h3 className="font-black text-[13px] text-slate-800 uppercase tracking-wide">{q.question}</h3>
                     <div className="flex gap-2">
                       {q.opts.map(opt => (
                         <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
-                          className={`px-6 py-3 rounded-xl font-bold text-sm transition-all border-2 ${
+                          className={`px-6 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-widest transition-all border ${
                             (answers as any)[q.id] === opt 
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                            : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-200'}`}>
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-md' 
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-400'}`}>
                           {opt}
                         </button>
                       ))}
                     </div>
                   </div>
                 ))}
-                <div className="pt-6">
+                <div className="pt-8">
                   <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} 
-                    className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[24px] font-black text-xl shadow-xl shadow-emerald-100 disabled:opacity-30 disabled:shadow-none transition-all">
-                    Sonucu Göster
+                    className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm uppercase tracking-[0.2em] shadow-lg disabled:opacity-30 disabled:shadow-none transition-all">
+                    Sistem Değerlemesini Gör
                   </button>
                 </div>
               </div>
@@ -354,42 +345,50 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 5 && (
             <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
-               <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
-               <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
-               <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl relative overflow-hidden text-white">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                 <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
-                 <div className="text-7xl font-black mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
-                 <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
+               <div className="inline-flex items-center justify-center px-6 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-full font-black text-[10px] uppercase tracking-[0.2em] mb-8">
+                  Değerleme Tamamlandı
+               </div>
+               
+               <div className="mb-10 bg-[#0B1120] rounded-2xl p-10 shadow-2xl relative overflow-hidden text-white border border-slate-800">
+                 <p className="text-slate-400 font-bold mb-3 uppercase tracking-[0.3em] text-[10px]">{selectedBrand} {selectedModel}</p>
+                 <div className="text-5xl md:text-6xl font-black mb-3 tracking-tighter">{estimatedPrice.toLocaleString()} <span className="text-2xl font-medium opacity-50">TL</span></div>
+                 <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">* Belirtilen tutar, fiziki ekspertiz sonrası kesinleşecektir.</p>
                </div>
 
-               <div className="text-left bg-slate-50 border border-slate-100 rounded-[32px] p-8 mb-8">
-                 <h3 className="font-black text-xl mb-6 text-slate-800">Sizi Arayalım</h3>
+               <div className="text-left bg-white border border-slate-200 rounded-2xl p-8 mb-8 shadow-sm">
+                 <h3 className="font-black text-sm mb-6 text-slate-800 uppercase tracking-widest border-b border-slate-100 pb-4">Kurumsal İletişim Formu</h3>
                  <div className="space-y-4">
-                   <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Adınız Soyadınız" />
-                   <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Telefon Numaranız (05xx...)" />
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Adınız Soyadınız</label>
+                     <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600 text-sm font-bold text-slate-900 transition-colors uppercase" placeholder="Zorunlu Alan" />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">İletişim Numaranız</label>
+                     <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-600 text-sm font-bold text-slate-900 transition-colors" placeholder="05XX XXX XX XX" />
+                   </div>
                  </div>
                </div>
                
-               <button onClick={submitLead} className="w-full py-6 bg-[#25D366] hover:bg-[#1ebd5b] text-white rounded-[24px] font-black text-xl shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-3">
-                 <span className="text-2xl">💬</span> WhatsApp ile Talebi Gönder
+               <button onClick={submitLead} className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-[0.1em] shadow-xl transition-all flex items-center justify-center gap-3 border border-slate-700">
+                 Talebi Müşteri Temsilcisine İlet
+                 <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                </button>
-               <button onClick={() => setStep(0)} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
+               <button onClick={() => setStep(0)} className="mt-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-blue-600 transition-colors">Ana Ekrana Dön</button>
             </div>
           )}
 
         </div>
       </main>
 
-      <footer className="text-center py-10 text-slate-400 text-sm">
+      <footer className="text-center py-10 text-slate-400 text-[10px] font-bold uppercase tracking-widest border-t border-slate-200 bg-white">
         © 2026 Cnetmobil Kurumsal Geri Alım Merkezi - Tüm Hakları Saklıdır.
       </footer>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
     </div>
   );
