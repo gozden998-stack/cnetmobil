@@ -30,9 +30,6 @@ const BRANCH_PASSWORDS: Record<string, string> = {
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
-    const [currentVersion, setCurrentVersion] = useState<number>(0);
-  const [hasUpdate, setHasUpdate] = useState(false);
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
@@ -233,28 +230,6 @@ export default function CnetmobilCmrFinalUltimate() {
     setIsAdmin(false); 
     setLoginMode('personel');
   };
-    const checkUpdate = async () => {
-    try {
-      const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
-      const res = await fetch(configUrl);
-      const data = await res.json();
-      if (data.values) {
-        const configMap: any = {};
-        data.values.forEach((row: any) => configMap[row[0]] = row[1]);
-        const newVersion = parseInt(configMap['Guncelleme_ID']) || 0;
-        
-        // İŞTE SİHİRLİ KISIM BURASI (React'in eski hafızasını aşıp gerçek rakama bakıyoruz)
-        setCurrentVersion((gercekVersiyon) => {
-          if (gercekVersiyon !== 0 && newVersion > gercekVersiyon) {
-            // setTimeout kullanarak React'i yormadan uyarıyı ekrana basıyoruz
-            setTimeout(() => setHasUpdate(true), 0);
-          }
-          return gercekVersiyon; // Rakamı bozmuyoruz
-        });
-      }
-    } catch (e) { console.error("Versiyon kontrol hatası", e); }
-  };
-
 
   const resetAll = () => {
     setStep(1);
@@ -287,7 +262,6 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const loadData = async () => {
-       setHasUpdate(false);
     try {
       const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
       const devRes = await fetch(deviceUrl);
@@ -378,8 +352,6 @@ export default function CnetmobilCmrFinalUltimate() {
         }
 
         setConfig(m);
-            setCurrentVersion(parseInt(m['Guncelleme_ID']) || 0);
-
       }
       if (alimData.values) {
         setAlimlar(alimData.values.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
@@ -392,24 +364,27 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { setLoading(false); }
   };
 
-     useEffect(() => { 
-    loadData(); // Uygulama açıldığında veriyi çek
+ useEffect(() => { 
+  // 1. Bileşen yüklendiğinde veya adım değiştiğinde veriyi çek
+  loadData(); 
 
-    // 45 saniyede bir SADECE ID'yi kontrol et (Uygulamayı hiç kasmaz)
-    const intervalId = setInterval(() => {
-      checkUpdate(); 
-    }, 45000);
+  // 2. OTOMATİK GÜNCELLEME: Her 45 saniyede bir arka planda sessizce yeni fiyatları kontrol et
+  const intervalId = setInterval(() => {
+    loadData();
+  }, 45000); // 45.000 milisaniye = 45 saniye
 
-    const handleFocus = () => { checkUpdate(); };
-    window.addEventListener('focus', handleFocus);
+  // 3. ODAKLANMA GÜNCELLEMESİ: Personel başka bir sekmeye geçip, tekrar CMR sekmesine tıkladığı an fiyatları güncelle
+  const handleFocus = () => {
+    loadData();
+  };
+  window.addEventListener('focus', handleFocus);
 
-    return () => {
-      clearInterval(intervalId);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [step]);
-
-
+  // Bileşen ekrandan kalkarsa (veya adım değişirse) eski sayaçları temizle (Performans için)
+  return () => {
+    clearInterval(intervalId);
+    window.removeEventListener('focus', handleFocus);
+  };
+}, [step]);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -807,7 +782,7 @@ export default function CnetmobilCmrFinalUltimate() {
   if (loading && isLoggedIn) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">CNETMOBIL SISTEMI YUKLENIYOR</div>
+      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">CMR SISTEMI YUKLENIYOR</div>
     </div>
   );
 
@@ -818,7 +793,7 @@ export default function CnetmobilCmrFinalUltimate() {
            <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-500/20">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
            </div>
-          <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL</h1> 
+           <h1 className="text-2xl font-black italic uppercase mb-8">CNETMOBIL <span className="text-blue-500">CMR</span></h1>
            
            <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
                <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
@@ -896,7 +871,7 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tight leading-none text-white">
-                CNET<span className={appMode === 'servis' ? 'text-orange-500' : 'text-blue-500'}>MOBIL</span>
+                CNET<span className={appMode === 'servis' ? 'text-orange-500' : 'text-blue-500'}>MOBIL</span> <span className="font-light text-slate-300">CMR</span>
               </h1>
               <p className="text-[9px] font-medium tracking-[0.25em] text-slate-500 mt-1.5 uppercase">Enterprise Workspace</p>
             </div>
@@ -2078,7 +2053,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </main>
         
         <footer className="mt-auto max-w-[1400px] w-full mx-auto px-6 py-10 text-center print:hidden">
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • ENTERPRISE DASHBOARD v6.0.0 (ADMIN SAAS)</p>
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (ADMIN SAAS)</p>
         </footer>
       </div>
 
@@ -2322,31 +2297,8 @@ export default function CnetmobilCmrFinalUltimate() {
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>CNETMOBIL YETKİLİ</div>
             </div>
-        </div>  
-    )}
-         {/* --- ZORUNLU GÜNCELLEME EKRANI (TAM EKRAN KİLİT) --- */}
-      {hasUpdate && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white p-10 rounded-[40px] shadow-2xl text-center max-w-md w-full border-4 border-rose-500 animate-in zoom-in duration-300">
-            <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[24px] flex items-center justify-center mx-auto mb-8 shadow-inner">
-              <svg className="w-12 h-12 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-            </div>
-            <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 mb-3">FİYATLAR<br/>GÜNCELLENDİ</h2>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-10 leading-relaxed">
-              Yönetim tarafından yeni fiyat listesi yayınlandı.<br/>Zarar etmemek ve işlem yapmaya devam etmek için lütfen listeyi yenileyin.
-            </p>
-            
-            <button 
-              onClick={loadData}
-              className="w-full bg-rose-600 hover:bg-rose-700 text-white py-6 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-rose-600/30 flex items-center justify-center gap-3"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              GÜNCELLE
-            </button>
-          </div>
         </div>
       )}
-
     </div>
   );
 }
