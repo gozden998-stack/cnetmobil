@@ -13,6 +13,9 @@ export default function CnetmobilMusteriTradeIn() {
   const [db, setDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
   
+  // Bilgi pencereleri için state
+  const [infoModal, setInfoModal] = useState<'how' | 'security' | null>(null);
+
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
@@ -83,37 +86,67 @@ export default function CnetmobilMusteriTradeIn() {
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white">
       <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p className="text-slate-500 font-medium animate-pulse">Sistem hazırlanıyor...</p>
+      <p className="text-slate-500 font-medium animate-pulse">Cnetmobil Hazırlanıyor...</p>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-x-hidden">
+      
+      {/* Bilgi Modalları */}
+      {infoModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+           <div className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative">
+              <button onClick={() => setInfoModal(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 text-xl font-bold">✕</button>
+              {infoModal === 'how' ? (
+                <>
+                  <h3 className="text-2xl font-black mb-4 text-indigo-600 text-center">Nasıl Çalışır?</h3>
+                  <div className="space-y-4 text-slate-600">
+                    <p><strong>1. Cihazını Seç:</strong> Marka, model ve kapasite bilgilerini girin.</p>
+                    <p><strong>2. Durumunu Belirt:</strong> Cihazınızın kozmetik ve teknik durumunu işaretleyin.</p>
+                    <p><strong>3. Teklif Al:</strong> Algoritmamız size en doğru piyasa değerini saniyeler içinde sunsun.</p>
+                    <p><strong>4. Satışı Onayla:</strong> Talebinizi gönderin, uzman ekibimiz cihazınızı kontrol edip ödemenizi yapsın.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-2xl font-black mb-4 text-emerald-600 text-center">Güvenlik Politikamız</h3>
+                  <div className="space-y-4 text-slate-600">
+                    <p><strong>Veri Sıfırlama:</strong> Cihazınızdaki tüm kişisel veriler profesyonel standartlarda kalıcı olarak silinir.</p>
+                    <p><strong>Şeffaf Fiyatlandırma:</strong> Size verilen teklif, güncel piyasa koşullarına göre hesaplanan en adil tutardır.</p>
+                    <p><strong>Kurumsal Güvence:</strong> 2003'ten beri binlerce mutlu müşteriyle Cnetmobil güvencesindesiniz.</p>
+                  </div>
+                </>
+              )}
+              <button onClick={() => setInfoModal(null)} className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-bold">Anladım</button>
+           </div>
+        </div>
+      )}
+
       {/* Header */}
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <div onClick={() => setStep(0)} className="flex items-center gap-2 cursor-pointer group">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 group-hover:scale-105 transition-transform">
               <span className="text-white font-black text-xl">C</span>
             </div>
             <span className="text-xl font-bold tracking-tight">CNET<span className="text-indigo-600">MOBİL</span></span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-500">
-            <span>Nasıl Çalışır?</span>
-            <span>Güvenlik</span>
-            <span className="text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full">Destek: 05xx xxx xx xx</span>
+            <button onClick={() => setInfoModal('how')} className="hover:text-indigo-600 transition-colors">Nasıl Çalışır?</button>
+            <button onClick={() => setInfoModal('security')} className="hover:text-indigo-600 transition-colors">Güvenlik</button>
+            <span className="text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100">Destek: 0542 342 3759</span>
           </div>
         </div>
       </nav>
 
-      {/* Hero & Progress Section */}
+      {/* Hero Section */}
       <div className="bg-gradient-to-b from-slate-900 to-slate-800 pt-16 pb-32 px-6">
         <div className="max-w-4xl mx-auto text-center">
           {step === 0 ? (
             <>
-              <span className="inline-block py-1 px-3 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-bold tracking-widest uppercase mb-4">Trade-in Programı</span>
               <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">Eski Telefonun <br/><span className="text-indigo-400">Nakit Paraya</span> Dönüşsün.</h1>
-              <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">Cnetmobil güvencesiyle 5 dakikada fiyat teklifi al, cihazını kapından nakit ödeme ile teslim edelim.</p>
+              <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">Cnetmobil güvencesiyle 5 dakikada fiyat teklifi al, doğru fiyat ile cihazını sat</p>
             </>
           ) : (
             <div className="mb-10">
@@ -131,13 +164,12 @@ export default function CnetmobilMusteriTradeIn() {
       <main className="max-w-5xl mx-auto px-4 -mt-24 pb-20 relative z-10">
         <div className="bg-white rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-100">
           
-          {/* STEP 0: GİRİŞ EKRANI */}
           {step === 0 && (
             <div className="flex flex-col items-center">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mb-12">
                 {[
                   { title: 'Hızlı Ekspertiz', desc: 'Online form ile anında fiyat öğrenin.', icon: '⚡' },
-                  { title: 'Güvenli Ödeme', desc: 'Cihaz tesliminde anında nakit veya havale.', icon: '🛡️' },
+                  { title: 'Güvenli Ödeme', desc: 'Kontrol sonrası anında nakit veya havale.', icon: '🛡️' },
                   { title: 'Veri Sıfırlama', desc: 'Verileriniz profesyonelce silinir.', icon: '🔒' }
                 ].map((item, i) => (
                   <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
@@ -151,18 +183,17 @@ export default function CnetmobilMusteriTradeIn() {
                 Hemen Fiyat Al 
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
               </button>
-              <p className="mt-6 text-slate-400 text-sm">2003'ten beri güvenle hizmet veriyoruz.</p>
+              <p className="mt-6 text-slate-400 text-sm italic">"2003'ten beri güvenle hizmet veriyoruz."</p>
             </div>
           )}
 
-          {/* STEP 1: MARKA SEÇİMİ */}
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {baseBrands.map(brand => (
                   <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} 
-                    className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-50 transition-all font-bold text-xl bg-white flex flex-col items-center gap-4">
+                    className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-50 transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group">
                     <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>
                     {brand}
                   </button>
@@ -171,16 +202,15 @@ export default function CnetmobilMusteriTradeIn() {
             </div>
           )}
 
-          {/* STEP 2: MODEL SEÇİMİ */}
           {step === 2 && (
             <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
               <button onClick={() => setStep(1)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold">← Geri Dön</button>
               <h2 className="text-3xl font-black mb-8 text-slate-800">{selectedBrand} <span className="text-indigo-600">Hangi Model?</span></h2>
-              <div className="relative mb-8">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-                <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner" onChange={(e) => setSearchQuery(e.target.value)} />
+              <div className="relative mb-8 text-slate-400">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2">🔍</span>
+                <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner text-slate-900" onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-slate-900">
                 {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                   .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(name => (
@@ -196,7 +226,6 @@ export default function CnetmobilMusteriTradeIn() {
             </div>
           )}
 
-          {/* STEP 3: KAPASİTE SEÇİMİ */}
           {step === 3 && (
             <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-500">
               <h2 className="text-3xl font-black mb-10 text-slate-800">Depolama Kapasitesi?</h2>
@@ -211,7 +240,6 @@ export default function CnetmobilMusteriTradeIn() {
             </div>
           )}
 
-          {/* STEP 4: DURUM DEĞERLENDİRME */}
           {step === 4 && (
             <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
               <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
@@ -248,23 +276,22 @@ export default function CnetmobilMusteriTradeIn() {
             </div>
           )}
 
-          {/* STEP 5: TEKLİF VE FORMU */}
           {step === 5 && (
             <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
                <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
-               <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl relative overflow-hidden">
+               <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl relative overflow-hidden text-white">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                  <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
-                 <div className="text-7xl font-black text-white mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
+                 <div className="text-7xl font-black mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
                  <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
                </div>
 
                <div className="text-left bg-slate-50 border border-slate-100 rounded-[32px] p-8 mb-8">
                  <h3 className="font-black text-xl mb-6 text-slate-800">Sizi Arayalım</h3>
                  <div className="space-y-4">
-                   <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm" placeholder="Adınız Soyadınız" />
-                   <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm" placeholder="Telefon Numaranız (05xx...)" />
+                   <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Adınız Soyadınız" />
+                   <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Telefon Numaranız (05xx...)" />
                  </div>
                </div>
                
