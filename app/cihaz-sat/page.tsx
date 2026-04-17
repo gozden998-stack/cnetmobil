@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 // --- AYARLAR ---
-const VATSAP_NUMARASI = "905XXXXXXXXX"; // Buraya kendi numaranızı başında 90 olacak şekilde birleşik yazın (Örn: 905321234567)
+const VATSAP_NUMARASI = "905XXXXXXXXX"; 
 const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
 const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
@@ -63,131 +63,231 @@ export default function CnetmobilMusteriTradeIn() {
     }
   }, [answers, selectedCapacity, config, selectedBrand]);
 
-  // WHATSAPP GÖNDERİM FONKSİYONU
   const submitLead = () => {
     if(!customerInfo.name || !customerInfo.phone) return alert("Lütfen adınızı ve telefonunuzu girin.");
-    
     const mesaj = `*YENİ SATIŞ TALEBİ - CNETMOBİL*%0A%0A` +
-                 `*Müşteri:* ${customerInfo.name}%0A` +
-                 `*Telefon:* ${customerInfo.phone}%0A%0A` +
-                 `*Cihaz:* ${selectedBrand} ${selectedModel}%0A` +
-                 `*Kapasite:* ${selectedCapacity.cap}%0A` +
-                 `*Teklif Edilen Fiyat:* ${estimatedPrice.toLocaleString()} TL%0A%0A` +
-                 `*Cihaz Durumu:*%0A` +
-                 `- Güç: ${answers.power}%0A` +
-                 `- Ekran: ${answers.screen}%0A` +
-                 `- Kasa: ${answers.cosmetic}%0A` +
-                 `- Pil: ${answers.battery}%0A` +
-                 `- Tamir: ${answers.repair}`;
-
+                  `*Müşteri:* ${customerInfo.name}%0A` +
+                  `*Telefon:* ${customerInfo.phone}%0A%0A` +
+                  `*Cihaz:* ${selectedBrand} ${selectedModel}%0A` +
+                  `*Kapasite:* ${selectedCapacity.cap}%0A` +
+                  `*Teklif Edilen Fiyat:* ${estimatedPrice.toLocaleString()} TL%0A%0A` +
+                  `*Cihaz Durumu:*%0A` +
+                  `- Güç: ${answers.power}%0A` +
+                  `- Ekran: ${answers.screen}%0A` +
+                  `- Kasa: ${answers.cosmetic}%0A` +
+                  `- Pil: ${answers.battery}%0A` +
+                  `- Tamir: ${answers.repair}`;
     window.open(`https://wa.me/${VATSAP_NUMARASI}?text=${mesaj}`, '_blank');
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50">Yükleniyor...</div>;
+  if (loading) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-white">
+      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p className="text-slate-500 font-medium animate-pulse">Sistem hazırlanıyor...</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8] font-sans pb-20">
-      <div className="bg-[#5a5af9] pt-12 pb-32 px-6">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-black text-white mb-10">CNET<span className="text-blue-200">MOBİL</span></h1>
-          <h2 className="text-white text-4xl font-black tracking-tight">BuyBack Nedir?</h2>
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-x-hidden">
+      {/* Header */}
+      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
+        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <span className="text-white font-black text-xl">C</span>
+            </div>
+            <span className="text-xl font-bold tracking-tight">CNET<span className="text-indigo-600">MOBİL</span></span>
+          </div>
+          <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-500">
+            <span>Nasıl Çalışır?</span>
+            <span>Güvenlik</span>
+            <span className="text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full">Destek: 05xx xxx xx xx</span>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero & Progress Section */}
+      <div className="bg-gradient-to-b from-slate-900 to-slate-800 pt-16 pb-32 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          {step === 0 ? (
+            <>
+              <span className="inline-block py-1 px-3 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-bold tracking-widest uppercase mb-4">Trade-in Programı</span>
+              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">Eski Telefonun <br/><span className="text-indigo-400">Nakit Paraya</span> Dönüşsün.</h1>
+              <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10">Cnetmobil güvencesiyle 5 dakikada fiyat teklifi al, cihazını kapından nakit ödeme ile teslim edelim.</p>
+            </>
+          ) : (
+            <div className="mb-10">
+               <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
+                  {[1,2,3,4,5].map((s) => (
+                    <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-indigo-500' : 'bg-slate-700'}`} />
+                  ))}
+               </div>
+               <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Aşama {step} / 5</p>
+            </div>
+          )}
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-4 -mt-20 relative z-10">
-        <div className="bg-white rounded-[32px] shadow-2xl p-8 md:p-14 border border-slate-100 min-h-[450px]">
+      <main className="max-w-5xl mx-auto px-4 -mt-24 pb-20 relative z-10">
+        <div className="bg-white rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-100">
           
+          {/* STEP 0: GİRİŞ EKRANI */}
           {step === 0 && (
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
-              <div className="flex-1">
-                <h3 className="text-3xl md:text-[42px] font-black text-slate-900 mb-6 leading-tight">Kullandığın Cep Telefonu eskidiyse Eskiyi Getir, Yeniyi Götür!</h3>
-                <p className="text-slate-500 text-lg mb-8">2003'ten bu yana güvenin adresi Cnetmobil'de cihazınızı anında değere dönüştürün.</p>
-                <button onClick={() => setStep(1)} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white font-bold py-5 px-12 rounded-full shadow-lg transition-all text-xl">Cihazını Hemen Sat</button>
+            <div className="flex flex-col items-center">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mb-12">
+                {[
+                  { title: 'Hızlı Ekspertiz', desc: 'Online form ile anında fiyat öğrenin.', icon: '⚡' },
+                  { title: 'Güvenli Ödeme', desc: 'Cihaz tesliminde anında nakit veya havale.', icon: '🛡️' },
+                  { title: 'Veri Sıfırlama', desc: 'Verileriniz profesyonelce silinir.', icon: '🔒' }
+                ].map((item, i) => (
+                  <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <div className="text-3xl mb-3">{item.icon}</div>
+                    <h4 className="font-bold text-slate-900 mb-1">{item.title}</h4>
+                    <p className="text-slate-500 text-sm">{item.desc}</p>
+                  </div>
+                ))}
               </div>
+              <button onClick={() => setStep(1)} className="group bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-6 px-16 rounded-2xl shadow-xl shadow-indigo-100 transition-all text-xl flex items-center gap-3">
+                Hemen Fiyat Al 
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </button>
+              <p className="mt-6 text-slate-400 text-sm">2003'ten beri güvenle hizmet veriyoruz.</p>
             </div>
           )}
 
+          {/* STEP 1: MARKA SEÇİMİ */}
           {step === 1 && (
-            <div className="text-center max-w-3xl mx-auto">
-              <h2 className="text-3xl font-black mb-10">Hangi cihazı satmak istiyorsunuz?</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {baseBrands.map(brand => (
-                  <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} className="p-8 border-2 rounded-3xl hover:border-[#5a5af9] font-bold text-xl bg-white">{brand}</button>
+                  <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} 
+                    className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-50 transition-all font-bold text-xl bg-white flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>
+                    {brand}
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
+          {/* STEP 2: MODEL SEÇİMİ */}
           {step === 2 && (
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl font-black mb-6">{selectedBrand} modelinizi seçin</h2>
-              <input type="text" placeholder="Model ara..." className="w-full p-4 mb-6 bg-slate-50 border rounded-2xl outline-none focus:border-[#5a5af9]" onChange={(e) => setSearchQuery(e.target.value)} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
+            <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
+              <button onClick={() => setStep(1)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold">← Geri Dön</button>
+              <h2 className="text-3xl font-black mb-8 text-slate-800">{selectedBrand} <span className="text-indigo-600">Hangi Model?</span></h2>
+              <div className="relative mb-8">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner" onChange={(e) => setSearchQuery(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
                 {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                   .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(name => (
-                    <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} className="flex items-center gap-4 p-4 border rounded-2xl hover:border-[#5a5af9] cursor-pointer bg-white">
-                      <img src={db.find(i => i.name === name)?.img} className="h-16 w-16 object-contain" alt={name} />
-                      <span className="font-bold">{name}</span>
+                    <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} 
+                      className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all">
+                      <div className="w-20 h-20 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
+                        <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain group-hover:scale-110 transition-transform" alt={name} />
+                      </div>
+                      <span className="font-bold text-lg text-slate-700">{name}</span>
                     </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* STEP 3: KAPASİTE SEÇİMİ */}
           {step === 3 && (
-            <div className="text-center max-w-3xl mx-auto">
-              <h2 className="text-3xl font-black mb-10">Hafıza kapasitesi nedir?</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-500">
+              <h2 className="text-3xl font-black mb-10 text-slate-800">Depolama Kapasitesi?</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {db.filter(i => i.name === selectedModel).map(c => (
-                  <button key={c.cap} onClick={() => { setSelectedCapacity(c); setStep(4); }} className="p-6 border-2 rounded-3xl hover:border-[#5a5af9] font-black text-2xl">{c.cap}</button>
+                  <button key={c.cap} onClick={() => { setSelectedCapacity(c); setStep(4); }} 
+                    className="p-10 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:bg-indigo-50 transition-all font-black text-3xl text-slate-700 shadow-sm">
+                    {c.cap}
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
+          {/* STEP 4: DURUM DEĞERLENDİRME */}
           {step === 4 && (
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-3xl font-black mb-8">Cihazınızın durumunu değerlendirelim</h2>
-              <div className="space-y-6">
+            <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
+              <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
+              <div className="space-y-4">
                 {[
                   { id: 'power', question: 'Cihazınız sorunsuz açılıyor mu?', opts: ['Evet', 'Hayır'] },
-                  { id: 'screen', question: 'Ekran durumu?', opts: ['Kusursuz', 'Çizik', 'Kırık'] },
-                  { id: 'cosmetic', question: 'Kasa durumu?', opts: ['Kusursuz', 'Çizik', 'Kötü'] },
-                  { id: 'battery', question: 'Pil uyarısı var mı?', opts: ['İyi', 'Servis'] },
-                  { id: 'repair', question: 'Tamir gördü mü?', opts: ['Hayır', 'Evet'] },
+                  { id: 'screen', question: 'Ekran durumu nasıl?', opts: ['Kusursuz', 'Çizik', 'Kırık'] },
+                  { id: 'cosmetic', question: 'Kasa (Yan ve Arka) durumu?', opts: ['Kusursuz', 'Çizik', 'Kötü'] },
+                  { id: 'battery', question: 'Pil sağlığı uyarısı var mı?', opts: ['İyi', 'Servis'] },
+                  { id: 'repair', question: 'Daha önce tamir gördü mü?', opts: ['Hayır', 'Evet'] },
                 ].map(q => (
-                  <div key={q.id} className="bg-slate-50 p-6 rounded-3xl border">
-                    <h3 className="font-bold mb-4">{q.question}</h3>
-                    <div className="flex gap-3">
+                  <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <h3 className="font-bold text-slate-700">{q.question}</h3>
+                    <div className="flex gap-2">
                       {q.opts.map(opt => (
-                        <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} className={`px-6 py-2 rounded-xl font-bold border-2 ${(answers as any)[q.id] === opt ? 'bg-[#5a5af9] text-white' : 'bg-white text-slate-600'}`}>{opt}</button>
+                        <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
+                          className={`px-6 py-3 rounded-xl font-bold text-sm transition-all border-2 ${
+                            (answers as any)[q.id] === opt 
+                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                            : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-200'}`}>
+                          {opt}
+                        </button>
                       ))}
                     </div>
                   </div>
                 ))}
-                <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} className="w-full py-6 bg-[#2ecc71] text-white rounded-2xl font-black text-xl shadow-lg disabled:opacity-50">Teklifimi Gör</button>
+                <div className="pt-6">
+                  <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} 
+                    className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[24px] font-black text-xl shadow-xl shadow-emerald-100 disabled:opacity-30 disabled:shadow-none transition-all">
+                    Sonucu Göster
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
+          {/* STEP 5: TEKLİF VE FORMU */}
           {step === 5 && (
-            <div className="text-center max-w-2xl mx-auto">
-               <div className="my-8 bg-slate-50 border-2 border-indigo-100 rounded-[40px] p-10 shadow-sm">
-                 <p className="text-sm font-bold text-slate-400 mb-2 uppercase">{selectedBrand} {selectedModel} ({selectedCapacity?.cap})</p>
-                 <div className="text-6xl font-black text-slate-900">{estimatedPrice.toLocaleString()} <span className="text-3xl text-slate-400">TL</span></div>
+            <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
+               <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
+               <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
+               <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                 <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
+                 <div className="text-7xl font-black text-white mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
+                 <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
                </div>
-               <div className="text-left bg-white border rounded-[32px] p-8 shadow-sm mb-8">
-                 <h3 className="font-black text-xl mb-6">İletişim Bilgileriniz</h3>
-                 <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-4 mb-4 bg-slate-50 border rounded-2xl outline-none" placeholder="Adınız Soyadınız" />
-                 <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-4 bg-slate-50 border rounded-2xl outline-none" placeholder="Telefon Numaranız" />
+
+               <div className="text-left bg-slate-50 border border-slate-100 rounded-[32px] p-8 mb-8">
+                 <h3 className="font-black text-xl mb-6 text-slate-800">Sizi Arayalım</h3>
+                 <div className="space-y-4">
+                   <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm" placeholder="Adınız Soyadınız" />
+                   <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm" placeholder="Telefon Numaranız (05xx...)" />
+                 </div>
                </div>
-               <button onClick={submitLead} className="w-full py-5 bg-[#5a5af9] text-white rounded-2xl font-black text-lg shadow-xl">WhatsApp ile Talebi Gönder</button>
+               
+               <button onClick={submitLead} className="w-full py-6 bg-[#25D366] hover:bg-[#1ebd5b] text-white rounded-[24px] font-black text-xl shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-3">
+                 <span className="text-2xl">💬</span> WhatsApp ile Talebi Gönder
+               </button>
+               <button onClick={() => setStep(0)} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
             </div>
           )}
 
         </div>
       </main>
+
+      <footer className="text-center py-10 text-slate-400 text-sm">
+        © 2026 Cnetmobil Kurumsal Geri Alım Merkezi - Tüm Hakları Saklıdır.
+      </footer>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+      `}</style>
     </div>
   );
 }
