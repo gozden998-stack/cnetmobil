@@ -3,10 +3,11 @@ import React, { useState, useEffect } from 'react';
 import AnaSayfa from './AnaSayfa';
 
 
-const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
-const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
+const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL;
+const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS;
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
@@ -20,13 +21,16 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
-const BRANCH_PASSWORDS: Record<string, string> = {
-  "1905": "CMR MERKEZ",
-  "2003": "CMR CADDE",
-  "1071": "CMR KAPAKLI",
-  "1453": "CMR SARAY",
-  "542542": "VODAFONE KANALI"
-};
+// .env dosyasındaki şifreleri kodun okuyabileceği formata çeviriyoruz
+let BRANCH_PASSWORDS: Record<string, string> = {};
+try {
+  if (process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) {
+    BRANCH_PASSWORDS = JSON.parse(process.env.NEXT_PUBLIC_BRANCH_PASSWORDS);
+  }
+} catch (error) {
+  console.error("Şube şifreleri yüklenirken hata oluştu:", error);
+}
+
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
@@ -162,7 +166,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
     try {
       if (loginMode === 'yonetici') {
-        if (entryPass === 'cnet1905.*') {
+        if (entryPass === MASTER_ADMIN_PASS) {
            setIsMasterAccess(true);
            setIsAdmin(true);
            setSelectedBranch('CMR MERKEZ'); 
