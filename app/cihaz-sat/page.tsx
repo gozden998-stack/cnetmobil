@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 // --- AYARLAR ---
-const VATSAP_NUMARASI = "905XXXXXXXXX"; // Buraya kendi numaranızı başında 90 olacak şekilde birleşik yazın (Örn: 905321234567)
+const VATSAP_NUMARASI = "905358930451"; // Buraya kendi numaranızı başında 90 olacak şekilde birleşik yazın (Örn: 905321234567)
 const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
 const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
