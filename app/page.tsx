@@ -2078,7 +2078,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </main>
         
         <footer className="mt-auto max-w-[1400px] w-full mx-auto px-6 py-10 text-center print:hidden">
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (ADMIN SAAS)</p>
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">CNETMOBIL • ENTERPRISE DASHBOARD v6.0.0 (ADMIN SAAS)</p>
         </footer>
       </div>
 
