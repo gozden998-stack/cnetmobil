@@ -192,74 +192,26 @@ export default function CnetmobilMusteriTradeIn() {
       <main className="max-w-5xl mx-auto px-4 -mt-24 pb-20 relative z-10">
         <div className="bg-white rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-100">
           
-          {/* YENİ STEP 0 TASARIMI EKLENDİ */}
           {step === 0 && (
-            <div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
-              
-              {/* Üst Bilgi Rozeti */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-8 shadow-sm">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
-                </span>
-                TÜRKİYE'NİN GÜVENİLİR ALIM MERKEZİ
-              </div>
-
-              {/* Özellik Kartları - Mobilde 1, PC'de 3 Sütun */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full mb-12">
+            <div className="flex flex-col items-center">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mb-12">
                 {[
-                  {
-                    title: 'Hızlı Ekspertiz',
-                    desc: 'Yapay zeka destekli formumuzla 30 saniyede en iyi fiyatı görün.',
-                    icon: <svg className="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-                    bg: 'bg-indigo-50/40',
-                    border: 'hover:border-indigo-300 hover:shadow-indigo-100'
-                  },
-                  {
-                    title: 'Güvenli Ödeme',
-                    desc: 'Cihaz kontrolü tamamlandığı an paranız IBAN veya nakit olarak elinizde.',
-                    icon: <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
-                    bg: 'bg-emerald-50/40',
-                    border: 'hover:border-emerald-300 hover:shadow-emerald-100'
-                  },
-                  {
-                    title: '100% Veri Güvenliği',
-                    desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.',
-                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
-                    bg: 'bg-rose-50/40',
-                    border: 'hover:border-rose-300 hover:shadow-rose-100'
-                  }
+                  { title: 'Hızlı Ekspertiz', desc: 'Online form ile anında fiyat öğrenin.', icon: '⚡' },
+                  { title: 'Güvenli Ödeme', desc: 'Kontrol sonrası anında nakit veya havale.', icon: '🛡️' },
+                  { title: 'Veri Sıfırlama', desc: 'Verileriniz profesyonelce silinir.', icon: '🔒' }
                 ].map((item, i) => (
-                  <div key={i} className={`p-8 rounded-[32px] border-2 border-slate-100 ${item.bg} ${item.border} transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group cursor-default`}>
-                    <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                      {item.icon}
-                    </div>
-                    <h4 className="font-black text-xl text-slate-800 mb-3 tracking-tight">{item.title}</h4>
-                    <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.desc}</p>
+                  <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                    <div className="text-3xl mb-3">{item.icon}</div>
+                    <h4 className="font-bold text-slate-900 mb-1">{item.title}</h4>
+                    <p className="text-slate-500 text-sm">{item.desc}</p>
                   </div>
                 ))}
               </div>
-
-              {/* Aksiyon Butonu (CTA) - Pulse Efektli */}
-              <div className="w-full max-w-sm relative mt-4">
-                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-[28px] blur opacity-40 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
-                 <button onClick={() => setStep(1)} className="relative w-full group bg-slate-900 hover:bg-indigo-600 text-white font-black py-5 px-8 rounded-[24px] shadow-2xl transition-all duration-300 flex items-center justify-between overflow-hidden btn-click">
-                    <span className="relative z-10 text-lg sm:text-xl tracking-wide flex items-center gap-3">
-                       <svg className="w-6 h-6 text-indigo-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                       CİHAZINI DEĞERLE
-                    </span>
-                    <span className="relative z-10 w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-white group-hover:text-indigo-600 transition-colors">
-                       <svg className="w-6 h-6 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </span>
-                 </button>
-              </div>
-              
-              {/* Alt Güven Barı (Sertifikasyon Hissi) */}
-              <div className="mt-12 flex flex-wrap justify-center gap-x-6 gap-y-3 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-8 w-full">
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Ücretsiz Ekspertiz</span>
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> 2003'ten Beri Hizmet</span>
-                 <span className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg> Anında Nakit Ödeme</span>
-              </div>
+              <button onClick={() => setStep(1)} className="group bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-6 px-16 rounded-2xl shadow-xl shadow-indigo-100 transition-all text-xl flex items-center gap-3">
+                Hemen Fiyat Al 
+                <span className="group-hover:translate-x-1 transition-transform">→</span>
+              </button>
+              <p className="mt-6 text-slate-400 text-sm italic">"2003'ten beri güvenle hizmet veriyoruz."</p>
             </div>
           )}
 
