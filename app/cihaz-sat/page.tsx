@@ -31,23 +31,27 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Cache sorununu çözmek için URL'in sonuna anlık timestamp ekliyoruz (Cache-Busting)
+        const t = new Date().getTime();
+        
         // Cihaz verilerini çekiyoruz (A'dan F'ye)
-        const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
-        const devRes = await fetch(deviceUrl);
+        const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}&t=${t}`;
+        const devRes = await fetch(deviceUrl, { cache: 'no-store' });
         const devData = await devRes.json();
 
         // Kesinti ayarlarını "Cihaz Sat" N ve O sütunlarından çekiyoruz
-        const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}`;
-        const confRes = await fetch(configUrl);
+        const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}&t=${t}`;
+        const confRes = await fetch(configUrl, { cache: 'no-store' });
         const confData = await confRes.json();
 
         if (devData.values) {
           setDb(devData.values.map((row: any) => ({
-            brand: row[0] || '', 
-            name: row[1] || '', 
-            cap: row[2] || '',
+            // Eşleşme sorununu önlemek için tablodan gelen verilerdeki fazla boşlukları trim ile siliyoruz
+            brand: row[0] ? String(row[0]).trim() : '', 
+            name: row[1] ? String(row[1]).trim() : '', 
+            cap: row[2] ? String(row[2]).trim() : '',
             base: parseInt(row[3]) || 0, 
-            img: row[4]?.trim() || '', 
+            img: row[4] ? String(row[4]).trim() : '', 
             minPrice: parseInt(row[5]) || 0
           })));
         }
@@ -293,9 +297,14 @@ export default function CnetmobilMusteriTradeIn() {
                 <input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner text-slate-900" onChange={(e) => setSearchQuery(e.target.value)} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-slate-900">
-                {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
-                  .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
-                  .map(name => (
+                {Array.from(new Set(
+                  db
+                    // Marka eşleşmesinde büyük/küçük harf duyarlılığını kaldırdık
+                    .filter(i => i.brand.toLowerCase() === selectedBrand.toLowerCase())
+                    .map(i => i.name)
+                ))
+                  .filter((name: any) => name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((name: any) => (
                     <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} 
                       className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all">
                       <div className="w-20 h-20 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
@@ -326,7 +335,6 @@ export default function CnetmobilMusteriTradeIn() {
             <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
               <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
               <div className="space-y-4">
-                {/* YENİ KATEGORİLER EKLENDİ */}
                 {[
                   { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['EVET', 'HAYIR'] },
                   { id: 'screen', question: 'Ekran Durumu', opts: ['SAĞLAM', 'ÇİZİKLER VAR', 'KIRIK'] },
