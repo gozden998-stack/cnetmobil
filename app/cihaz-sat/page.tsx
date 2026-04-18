@@ -20,8 +20,8 @@ export default function CnetmobilMusteriTradeIn() {
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // YENİ KATEGORİLER
-  const [answers, setAnswers] = useState({ power: null, screen: null, faceId: null, battery: null });
+  // YENİ KATEGORİLER (Kozmetik Eklendi)
+  const [answers, setAnswers] = useState({ power: null, screen: null, cosmetic: null, faceId: null, battery: null });
   
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [estimatedPrice, setEstimatedPrice] = useState(0);
@@ -31,22 +31,20 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Cache sorununu çözmek için URL'in sonuna anlık timestamp ekliyoruz (Cache-Busting)
         const t = new Date().getTime();
         
-        // Cihaz verilerini çekiyoruz (A'dan F'ye)
+        // Cihaz verilerini çekiyoruz
         const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}&t=${t}`;
         const devRes = await fetch(deviceUrl, { cache: 'no-store' });
         const devData = await devRes.json();
 
-        // Kesinti ayarlarını "Cihaz Sat" N ve O sütunlarından çekiyoruz
+        // Kesinti ayarlarını çekiyoruz
         const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}&t=${t}`;
         const confRes = await fetch(configUrl, { cache: 'no-store' });
         const confData = await confRes.json();
 
         if (devData.values) {
           setDb(devData.values.map((row: any) => ({
-            // Eşleşme sorununu önlemek için tablodan gelen verilerdeki fazla boşlukları trim ile siliyoruz
             brand: row[0] ? String(row[0]).trim() : '', 
             name: row[1] ? String(row[1]).trim() : '', 
             cap: row[2] ? String(row[2]).trim() : '',
@@ -76,10 +74,15 @@ export default function CnetmobilMusteriTradeIn() {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
       
-      // YENİ KESİNTİ MANTIĞI
+      // KESİNTİ MANTIĞI
       if (answers.power === 'HAYIR') price *= (1 - (config.Guc_Yok / 100 || 0.5));
       if (answers.screen === 'ÇİZİKLER VAR') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
       if (answers.screen === 'KIRIK') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
+      
+      // Kozmetik Kesintileri (Config'den çeker, yoksa standart değer uygular)
+      if (answers.cosmetic === 'İYİ') price *= (1 - (config.Kozmetik_Iyi / 100 || 0.05));
+      if (answers.cosmetic === 'KÖTÜ') price *= (1 - (config.Kozmetik_Kotu / 100 || 0.15));
+
       if (answers.faceId === 'HAYIR') price *= (1 - (config.Face_Id_Bozuk / 100 || 0.15));
       if (answers.battery === '90-85') price *= (1 - (config.Pil_90_85 / 100 || 0.05));
       if (answers.battery === '85-0') price *= (1 - (config.Pil_85_0 / 100 || 0.15));
@@ -99,6 +102,7 @@ export default function CnetmobilMusteriTradeIn() {
                   `*Cihaz Durumu:*%0A` +
                   `- Güç: ${answers.power}%0A` +
                   `- Ekran: ${answers.screen}%0A` +
+                  `- Kozmetik: ${answers.cosmetic}%0A` +
                   `- Face/Touch ID: ${answers.faceId}%0A` +
                   `- Batarya: ${answers.battery}`;
     window.open(`https://wa.me/${VATSAP_NUMARASI}?text=${mesaj}`, '_blank');
@@ -237,7 +241,7 @@ export default function CnetmobilMusteriTradeIn() {
                   {
                     title: '100% Veri Güvenliği',
                     desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.',
-                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
+                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
                     bg: 'bg-rose-50/40',
                     border: 'hover:border-rose-300 hover:shadow-rose-100'
                   }
@@ -299,7 +303,6 @@ export default function CnetmobilMusteriTradeIn() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-slate-900">
                 {Array.from(new Set(
                   db
-                    // Marka eşleşmesinde büyük/küçük harf duyarlılığını kaldırdık
                     .filter(i => i.brand.toLowerCase() === selectedBrand.toLowerCase())
                     .map(i => i.name)
                 ))
@@ -332,36 +335,72 @@ export default function CnetmobilMusteriTradeIn() {
           )}
 
           {step === 4 && (
-            <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
+            <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
               <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
-              <div className="space-y-4">
-                {[
-                  { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['EVET', 'HAYIR'] },
-                  { id: 'screen', question: 'Ekran Durumu', opts: ['SAĞLAM', 'ÇİZİKLER VAR', 'KIRIK'] },
-                  { id: 'faceId', question: 'Face ID / Touch ID Çalışıyor mu?', opts: ['EVET', 'HAYIR'] },
-                  { id: 'battery', question: 'Batarya Sağlığı', opts: ['100-90', '90-85', '85-0'] },
-                ].map(q => (
-                  <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h3 className="font-bold text-slate-700">{q.question}</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {q.opts.map(opt => (
-                        <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
-                          className={`px-6 py-3 rounded-xl font-bold text-sm transition-all border-2 ${
-                            (answers as any)[q.id] === opt 
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                            : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-200'}`}>
-                          {opt}
-                        </button>
-                      ))}
+              
+              <div className="flex flex-col lg:flex-row gap-8 items-start">
+                
+                {/* SOL TARAF - SORULAR FORMU */}
+                <div className="flex-1 space-y-6 w-full">
+                  {[
+                    { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['EVET', 'HAYIR'] },
+                    { id: 'screen', question: 'Ekran Durumu', opts: ['SAĞLAM', 'ÇİZİKLER VAR', 'KIRIK'] },
+                    { id: 'cosmetic', question: 'Kozmetik Durumu', opts: ['MÜKEMMEL', 'İYİ', 'KÖTÜ'] },
+                    { id: 'faceId', question: 'Face ID / Touch ID Çalışıyor mu?', opts: ['EVET', 'HAYIR'] },
+                    { id: 'battery', question: 'Batarya Sağlığı', opts: ['100-90', '90-85', '85-0'] },
+                  ].map(q => (
+                    <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col gap-4 shadow-sm">
+                      <h3 className="font-bold text-slate-700 text-lg">{q.question}</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {q.opts.map(opt => (
+                          <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
+                            className={`px-4 py-4 rounded-xl font-bold text-sm transition-all border-2 ${
+                              (answers as any)[q.id] === opt 
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-[1.02]' 
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/50'}`}>
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                  ))}
+                  
+                  <div className="pt-4">
+                    <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} 
+                      className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[24px] font-black text-xl shadow-xl shadow-emerald-100 disabled:opacity-30 disabled:shadow-none transition-all">
+                      Sonucu Göster
+                    </button>
                   </div>
-                ))}
-                <div className="pt-6">
-                  <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} 
-                    className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[24px] font-black text-xl shadow-xl shadow-emerald-100 disabled:opacity-30 disabled:shadow-none transition-all">
-                    Sonucu Göster
+                </div>
+
+                {/* SAĞ TARAF - SEÇİLEN CİHAZ ÖZETİ (YAPIŞKAN PANEL) */}
+                <div className="w-full lg:w-80 shrink-0 bg-white border-2 border-indigo-50 rounded-[32px] p-6 shadow-xl shadow-indigo-100/50 lg:sticky top-28">
+                  <div className="text-center mb-6">
+                     <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1">Seçilen Cihaz</h4>
+                     <div className="w-32 h-32 mx-auto bg-slate-50 rounded-2xl p-4 mb-4 flex items-center justify-center">
+                       <img src={db.find(i => i.name === selectedModel)?.img} alt={selectedModel} className="max-h-full object-contain drop-shadow-md" />
+                     </div>
+                     <h3 className="font-black text-xl text-slate-800 leading-tight">{selectedBrand} {selectedModel}</h3>
+                     <div className="mt-3 inline-block px-4 py-1.5 bg-slate-100 rounded-full text-slate-600 font-bold text-sm">
+                       {selectedCapacity?.cap} Hafıza
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-3 pt-5 border-t border-slate-100">
+                     <div className="flex justify-between items-center text-sm">
+                       <span className="text-slate-500 font-medium">Değerleme Başladı</span>
+                       <span className="font-bold text-emerald-500 text-lg">✓</span>
+                     </div>
+                     <p className="text-xs text-slate-400 text-center mt-2 leading-relaxed">
+                       Formu eksiksiz doldurduğunuzda nihai teklifiniz hesaplanacaktır.
+                     </p>
+                  </div>
+                  
+                  <button onClick={() => setStep(1)} className="w-full mt-6 py-3 border-2 border-slate-100 text-slate-500 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50 rounded-xl font-bold transition-all text-sm">
+                    Cihazı Değiştir
                   </button>
                 </div>
+
               </div>
             </div>
           )}
