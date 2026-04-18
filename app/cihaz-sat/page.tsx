@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 
 // --- AYARLAR ---
-const VATSAP_NUMARASI = "905423423759"; // WhatsApp yönlendirme numarası
+const VATSAP_NUMARASI = "905423423759"; 
 const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
-const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
+// Müşteri fiyatları için özel olarak "Cihaz Sat" sayfasını kullanıyoruz
+const TABLO_ISMI = 'Cihaz Sat'; 
 
 export default function CnetmobilMusteriTradeIn() {
   const [step, setStep] = useState(0);
@@ -28,25 +29,37 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Cihaz Sat sayfasından verileri çekiyoruz
         const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
         const devRes = await fetch(deviceUrl);
         const devData = await devRes.json();
+
+        // Ayarlar sayfasından kesinti oranlarını çekiyoruz
         const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
         const confRes = await fetch(configUrl);
         const confData = await confRes.json();
+
         if (devData.values) {
           setDb(devData.values.map((row: any) => ({
-            brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
-            base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
+            brand: row[0] || '', 
+            name: row[1] || '', 
+            cap: row[2] || '',
+            base: parseInt(row[3]) || 0, 
+            img: row[4]?.trim() || '', 
+            minPrice: parseInt(row[5]) || 0
           })));
         }
+
         if (confData.values) {
           const m: any = {};
           confData.values.forEach((row: any) => m[row[0]] = parseFloat(row[1]) || 0);
           setConfig(m);
         }
         setLoading(false);
-      } catch (error) { console.error("Veri yüklenemedi", error); setLoading(false); }
+      } catch (error) { 
+        console.error("Veri yüklenemedi", error); 
+        setLoading(false); 
+      }
     };
     loadData();
   }, []);
@@ -54,6 +67,7 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
+      // Kesinti mantığı (Müşteri için Cihaz Sat baz fiyatı üzerinden)
       if (answers.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100 || 0.5));
       if (answers.screen === 'Çizik') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
       if (answers.screen === 'Kırık') price *= (1 - ((selectedBrand === 'Apple' ? config.Ekran_Kirik : config.Ekran_Kirik_Android) / 100 || 0.3));
@@ -61,6 +75,7 @@ export default function CnetmobilMusteriTradeIn() {
       if (answers.cosmetic === 'Kötü') price *= (1 - ((selectedBrand === 'Apple' ? config.Kasa_Kotu : config.Kasa_Kotu_Android) / 100 || 0.15));
       if (answers.battery === 'Servis') price *= (1 - (config.Pil_Dusuk / 100 || 0.05));
       if (answers.repair === 'Evet') price *= (1 - (config.Bilinmeyen_Parca / 100 || 0.15));
+      
       setEstimatedPrice(Math.max(Math.round(price), selectedCapacity.minPrice || 0));
     }
   }, [answers, selectedCapacity, config, selectedBrand]);
@@ -172,9 +187,9 @@ export default function CnetmobilMusteriTradeIn() {
           ) : (
             <div className="mb-10">
                <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
-                  {[1,2,3,4,5].map((s) => (
+                 {[1,2,3,4,5].map((s) => (
                     <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-indigo-500' : 'bg-slate-700'}`} />
-                  ))}
+                 ))}
                </div>
                <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Aşama {step} / 5</p>
             </div>
@@ -188,7 +203,6 @@ export default function CnetmobilMusteriTradeIn() {
           {step === 0 && (
             <div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
               
-              {/* Üst Bilgi Rozeti - Güncellendi */}
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-8 shadow-sm">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -231,7 +245,6 @@ export default function CnetmobilMusteriTradeIn() {
                 ))}
               </div>
 
-              {/* Aksiyon Butonu (CTA) - Güncellendi */}
               <div className="w-full max-w-sm relative mt-4">
                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-[28px] blur opacity-40 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
                  <button onClick={() => setStep(1)} className="relative w-full group bg-slate-900 hover:bg-indigo-600 text-white font-black py-5 px-8 rounded-[24px] shadow-2xl transition-all duration-300 flex items-center justify-between overflow-hidden btn-click">
