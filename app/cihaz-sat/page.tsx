@@ -154,7 +154,7 @@ export default function CnetmobilMusteriTradeIn() {
   <img 
     src="/logo.png" 
     alt="Cnetmobil Logo" 
-    className="h-24 w-auto object-contain transition-transform group-hover:scale-110" 
+    className="h-14 w-auto object-contain transition-transform group-hover:scale-110" 
   />
 </div>
 
