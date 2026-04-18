@@ -43,7 +43,18 @@ export default function ZumayTradeIn() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const t = new Date().getTime();
+        const t = new Date().getTime(); // Tarayıcı önbelleğini kırmak için
+        
+        // NEXT.JS CACHE SİSTEMİNİ KESİN OLARAK DEVRE DIŞI BIRAKAN AYARLAR
+        const fetchOptions: any = { 
+          cache: 'no-store',
+          next: { revalidate: 0 },
+          headers: { 
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          } 
+        };
         
         // 1. Standart Cihaz Verileri
         const stdUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_STANDART)}!A2:F1000?key=${API_KEY}&t=${t}`;
@@ -55,9 +66,9 @@ export default function ZumayTradeIn() {
         const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_STANDART)}!N2:O50?key=${API_KEY}&t=${t}`;
 
         const [stdRes, extRes, confRes] = await Promise.all([
-          fetch(stdUrl, { cache: 'no-store' }),
-          fetch(extUrl, { cache: 'no-store' }),
-          fetch(configUrl, { cache: 'no-store' })
+          fetch(stdUrl, fetchOptions),
+          fetch(extUrl, fetchOptions),
+          fetch(configUrl, fetchOptions)
         ]);
 
         const stdData = await stdRes.json();
@@ -73,6 +84,7 @@ export default function ZumayTradeIn() {
           minPrice: parseInt(row[5]) || 0
         });
 
+        // Sadece başarılı yanıt geldiyse state'i güncelle (Silinme hatasını önler)
         if (stdData.values) setDbStandard(stdData.values.map(parseRow));
         if (extData.values) setDbExternal(extData.values.map(parseRow));
 
