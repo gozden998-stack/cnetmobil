@@ -10,7 +10,6 @@ const TABLO_ISMI = 'Cihaz Sat';
 export default function CnetmobilMusteriTradeIn() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // YENİ: Hata durumunu tutacak state
   const [db, setDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
   
@@ -37,23 +36,11 @@ export default function CnetmobilMusteriTradeIn() {
         // Cihaz verilerini çekiyoruz
         const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}&t=${t}`;
         const devRes = await fetch(deviceUrl, { cache: 'no-store' });
-        
-        // YENİ: API yanıtı hatalıysa (Örn: Kota aşımı 429 veya 403) hatayı fırlat
-        if (!devRes.ok) {
-          const errData = await devRes.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `Google API Hatası (Kod: ${devRes.status}). Muhtemelen API istek sınırına takıldınız.`);
-        }
-        
         const devData = await devRes.json();
 
         // Kesinti ayarlarını çekiyoruz
         const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}&t=${t}`;
         const confRes = await fetch(configUrl, { cache: 'no-store' });
-        
-        if (!confRes.ok) {
-           const errData = await confRes.json().catch(() => ({}));
-           throw new Error(errData.error?.message || "Kesinti ayarları çekilirken bir hata oluştu.");
-        }
         const confData = await confRes.json();
 
         if (devData.values) {
@@ -75,9 +62,8 @@ export default function CnetmobilMusteriTradeIn() {
           setConfig(m);
         }
         setLoading(false);
-      } catch (err: any) { 
-        console.error("Veri yüklenemedi:", err); 
-        setError(err.message); // YENİ: Hatayı state'e kaydet
+      } catch (error) { 
+        console.error("Veri yüklenemedi", error); 
         setLoading(false); 
       }
     };
@@ -88,7 +74,7 @@ export default function CnetmobilMusteriTradeIn() {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
       
-      // KESİNTİ MANTIĞI
+      // KESİNTİ MANTIĞI (Küçük harflere göre güncellendi)
       if (answers.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100 || 0.5));
       if (answers.screen === 'Çizikler Var') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
       if (answers.screen === 'Kırık') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
@@ -125,20 +111,6 @@ export default function CnetmobilMusteriTradeIn() {
     <div className="h-screen flex flex-col items-center justify-center bg-white">
       <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
       <p className="text-slate-500 font-medium animate-pulse">Cnetmobil Hazırlanıyor...</p>
-    </div>
-  );
-
-  // YENİ: Hata durumunda boş sayfa yerine uyarı ekranı gösteriyoruz
-  if (error) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white px-6 text-center">
-      <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6">
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-      </div>
-      <h2 className="text-2xl font-black text-slate-800 mb-3">Sistem Geçici Olarak Yanıt Vermiyor</h2>
-      <p className="text-slate-500 max-w-md mb-6">{error}</p>
-      <button onClick={() => window.location.reload()} className="px-8 py-4 bg-slate-900 hover:bg-indigo-600 text-white rounded-2xl font-bold transition-colors">
-        Sayfayı Yenile ve Tekrar Dene
-      </button>
     </div>
   );
 
