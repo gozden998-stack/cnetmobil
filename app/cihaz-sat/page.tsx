@@ -150,13 +150,12 @@ export default function CnetmobilMusteriTradeIn() {
       {/* Header */}
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-         <div onClick={() => setStep(0)} className="flex items-center cursor-pointer group">
-  <img 
-    src="/logo.png" 
-    alt="Cnetmobil Logo" 
-    className="h-12 w-auto object-contain transition-transform group-hover:scale-110" 
-  />
-</div>
+          <div onClick={() => setStep(0)} className="flex items-center gap-2 cursor-pointer group">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 group-hover:scale-105 transition-transform">
+              <span className="text-white font-black text-xl">C</span>
+            </div>
+            <span className="text-xl font-bold tracking-tight text-slate-900">CNET<span className="text-indigo-600">MOBİL</span></span>
+          </div>
 
           <div className="flex items-center gap-4 md:gap-8">
             <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-500 mr-4">
