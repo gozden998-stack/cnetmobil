@@ -8,7 +8,7 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 
 // TABLO İSİMLERİ
 const TABLO_STANDART = 'Cihaz Sat'; 
-const TABLO_DIS_KANAL = 'Kurumsal Alım Sistemi';
+const TABLO_DIS_KANAL = 'DIŞ KANAL SATIN ALMA';
 
 export default function ZumayTradeIn() {
   const [step, setStep] = useState(0);
@@ -96,12 +96,7 @@ export default function ZumayTradeIn() {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
       
-      // DIŞ KANAL İSE ANA FİYATTAN %8 DÜŞ
-      if (flowType === 'dis_kanal') {
-        price = price * 0.92;
-      }
-      
-      // KESİNTİ MANTIĞI
+      // KESİNTİ MANTIĞI (Sadece standart akışta kullanılıyor)
       if (answers.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100 || 0.5));
       if (answers.screen === 'Çizikler Var') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
       if (answers.screen === 'Kırık') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
@@ -115,12 +110,10 @@ export default function ZumayTradeIn() {
       
       setEstimatedPrice(Math.max(Math.round(price), selectedCapacity.minPrice || 0));
     }
-  }, [answers, selectedCapacity, config, flowType]);
+  }, [answers, selectedCapacity, config]);
 
   const handleStatusSubmit = async (status: 'ALINDI' | 'ALINMADI') => {
     
-    // 1. Sheets "Alımlar" Sekmesine Yazdırma İsteği
-    // DİKKAT: Bunun çalışması için Next.js'de app/api/alimlari-kaydet/route.ts adında bir backend endpoint oluşturmalısınız.
     try {
       await fetch('/api/alimlari-kaydet', {
         method: 'POST',
@@ -131,17 +124,16 @@ export default function ZumayTradeIn() {
           cihaz: `${selectedBrand} ${selectedModel} ${selectedCapacity.cap}`,
           fiyat: estimatedPrice,
           durum: status,
-          kanal: flowType === 'dis_kanal' ? 'Dış Kanal' : 'Standart'
+          kanal: 'Standart'
         })
       });
     } catch (error) {
       console.error("Sheets'e yazılırken hata oluştu", error);
     }
 
-    // 2. WhatsApp Yönlendirmesi
     const mesaj = `*YENİ İŞLEM BİLDİRİMİ - ZUMAY*%0A%0A` +
                   `*İşlem Durumu:* ${status}%0A` +
-                  `*Kanal:* ${flowType === 'dis_kanal' ? 'Dış Kanal Satın Alma' : 'Standart Cihaz Değerleme'}%0A%0A` +
+                  `*Kanal:* Standart Cihaz Değerleme%0A%0A` +
                   `*Müşteri:* ${customerInfo.name}%0A` +
                   `*Telefon:* ${customerInfo.phone}%0A%0A` +
                   `*Cihaz:* ${selectedBrand} ${selectedModel}%0A` +
@@ -155,7 +147,6 @@ export default function ZumayTradeIn() {
                   `- Batarya: ${answers.battery}`;
     window.open(`https://wa.me/${VATSAP_NUMARASI}?text=${mesaj}`, '_blank');
     
-    // İşlem bittiğinde başa dön
     setStep(0);
     setAnswers({ power: null, screen: null, cosmetic: null, faceId: null, battery: null });
     setCustomerInfo({ name: '', phone: '' });
@@ -220,29 +211,31 @@ export default function ZumayTradeIn() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <div className="bg-gradient-to-b from-red-700 to-red-900 pt-16 pb-32 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          {step === 0 ? (
-            <>
-              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">Eski Telefonun <br/><span className="text-red-300">Nakit Paraya</span> Dönüşsün.</h1>
-              <p className="text-red-100 text-lg md:text-xl max-w-2xl mx-auto mb-10">ZUMAY güvencesiyle 5 dakikada fiyat teklifi al, doğru fiyat ile cihazını sat</p>
-            </>
-          ) : (
-            <div className="mb-10">
-               <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
-                 {[1,2,3,4,5,6].map((s) => (
-                    <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-red-500' : 'bg-red-900/50'}`} />
-                 ))}
-               </div>
-               <p className="text-red-200 text-sm font-medium uppercase tracking-widest">Aşama {step} / 6</p>
-            </div>
-          )}
+      {/* Hero Section - Koyu Temada Hero'yu Gizle (Daha Şık Olur) */}
+      {step !== 10 && (
+        <div className="bg-gradient-to-b from-red-700 to-red-900 pt-16 pb-32 px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            {step === 0 ? (
+              <>
+                <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">Eski Telefonun <br/><span className="text-red-300">Nakit Paraya</span> Dönüşsün.</h1>
+                <p className="text-red-100 text-lg md:text-xl max-w-2xl mx-auto mb-10">ZUMAY güvencesiyle 5 dakikada fiyat teklifi al, doğru fiyat ile cihazını sat</p>
+              </>
+            ) : (
+              <div className="mb-10">
+                 <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
+                   {[1,2,3,4,5,6].map((s) => (
+                      <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-red-500' : 'bg-red-900/50'}`} />
+                   ))}
+                 </div>
+                 <p className="text-red-200 text-sm font-medium uppercase tracking-widest">Aşama {step} / 6</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      <main className="max-w-5xl mx-auto px-4 -mt-24 pb-20 relative z-10">
-        <div className="bg-white rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 md:p-12 border border-slate-100">
+      <main className={`max-w-5xl mx-auto px-4 ${step === 10 ? 'pt-10' : '-mt-24'} pb-20 relative z-10`}>
+        <div className={`rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] ${step === 10 ? 'bg-[#181A25] p-6 md:p-10 border-0' : 'bg-white p-6 md:p-12 border border-slate-100'} transition-all duration-500`}>
           
           {step === 0 && (
             <div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
@@ -255,7 +248,7 @@ export default function ZumayTradeIn() {
                 ESKİYİ GETİR YENİYİ GÖTÜR
               </div>
 
-              {/* İKİ BUTON YAN YANA EKLENDİ */}
+              {/* İKİ BUTON YAN YANA */}
               <div className="flex flex-col sm:flex-row gap-6 w-full max-w-3xl mt-4">
                  
                  {/* STANDART DEĞERLEME BUTONU */}
@@ -269,10 +262,10 @@ export default function ZumayTradeIn() {
                    </button>
                  </div>
 
-                 {/* DIŞ KANAL SATIN ALMA BUTONU */}
+                 {/* DIŞ KANAL SATIN ALMA BUTONU (STEP 10'A YÖNLENDİRİR) */}
                  <div className="w-full relative group">
-                   <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-[28px] blur opacity-40 group-hover:opacity-100 transition duration-1000"></div>
-                   <button onClick={() => { setFlowType('dis_kanal'); setStep(1); }} className="relative w-full bg-white border-4 border-slate-900 hover:border-orange-500 text-slate-900 hover:text-orange-600 font-black py-6 px-6 rounded-[24px] shadow-xl transition-all duration-300 flex flex-col items-center justify-center gap-3 overflow-hidden">
+                   <div className="absolute -inset-1 bg-gradient-to-r from-[#2ec4b6] to-emerald-500 rounded-[28px] blur opacity-40 group-hover:opacity-100 transition duration-1000"></div>
+                   <button onClick={() => { setSearchQuery(''); setStep(10); }} className="relative w-full bg-white border-4 border-slate-900 hover:border-[#2ec4b6] text-slate-900 hover:text-[#2ec4b6] font-black py-6 px-6 rounded-[24px] shadow-xl transition-all duration-300 flex flex-col items-center justify-center gap-3 overflow-hidden">
                       <span className="text-3xl">🤝</span>
                       <span className="relative z-10 text-lg sm:text-xl tracking-wide text-center">
                          DIŞ KANAL SATIN ALMA
@@ -290,15 +283,79 @@ export default function ZumayTradeIn() {
             </div>
           )}
 
+          {/* ========================================================= */}
+          {/* DIŞ KANAL LİSTE GÖRÜNÜMÜ (GÖRSELDEKİ GİBİ KOYU TEMA) */}
+          {/* ========================================================= */}
+          {step === 10 && (
+            <div className="animate-in fade-in zoom-in-95 duration-500 w-full">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                 <div>
+                   <h2 className="text-3xl md:text-4xl font-black text-[#32D296] italic tracking-tight">DIŞ KANAL SATIN ALMA</h2>
+                   <p className="text-slate-400 text-[10px] md:text-xs tracking-widest uppercase mt-1">DIŞ KANAL ÜRÜN VE FİYAT LİSTESİ</p>
+                 </div>
+                 <div className="relative w-full md:w-80">
+                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                   <input 
+                     type="text" 
+                     placeholder="Ürün Arama..." 
+                     className="w-full p-3.5 pl-12 bg-[#212433] border border-[#2B2F42] rounded-2xl outline-none focus:border-[#32D296] text-slate-200 transition-all placeholder:text-slate-500 text-sm" 
+                     onChange={(e) => setSearchQuery(e.target.value)} 
+                   />
+                 </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-[#2B2F42] bg-[#1C1E2A]">
+                 <table className="w-full text-left border-collapse min-w-max">
+                    <thead>
+                       <tr className="bg-[#32D296] text-[#0F111A] text-[11px] md:text-xs uppercase tracking-widest">
+                          <th className="p-4 md:p-5 font-black w-1/2">ÜRÜN / CİHAZ ADI</th>
+                          <th className="p-4 md:p-5 font-black w-1/4">FİYATI (TL)</th>
+                          <th className="p-4 md:p-5 font-black text-right w-1/4">DURUM / BİLGİ</th>
+                       </tr>
+                    </thead>
+                    <tbody className="text-slate-300 text-xs md:text-sm font-semibold">
+                       {dbExternal
+                         .filter(item => `${item.brand} ${item.name} ${item.cap}`.toLowerCase().includes(searchQuery.toLowerCase()))
+                         .map((item, idx) => (
+                           <tr key={idx} className="border-b border-[#2B2F42] hover:bg-[#252838] transition-colors">
+                              <td className="p-4 md:p-5 uppercase tracking-wide">{item.brand} {item.name} {item.cap}</td>
+                              {/* HİÇBİR İNDİRİM YOK - DİREKT BASE FİYAT */}
+                              <td className="p-4 md:p-5 font-black text-white text-base">{item.base.toLocaleString()}</td>
+                              <td className="p-4 md:p-5 text-right text-slate-500">-</td>
+                           </tr>
+                       ))}
+                       {dbExternal.filter(item => `${item.brand} ${item.name} ${item.cap}`.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                          <tr>
+                             <td colSpan={3} className="p-8 text-center text-slate-500 font-medium">
+                               Aramanıza uygun cihaz bulunamadı. Lütfen kontrol edip tekrar deneyin.
+                             </td>
+                          </tr>
+                       )}
+                    </tbody>
+                 </table>
+              </div>
+
+              <div className="mt-10 flex justify-center">
+                 <button onClick={() => setStep(0)} className="px-8 py-3.5 border-2 border-[#2B2F42] text-slate-400 hover:text-white hover:bg-[#252838] hover:border-[#32D296] rounded-2xl font-bold transition-all text-sm flex items-center gap-2">
+                   ← Ana Menüye Dön
+                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* STANDART DEĞERLEME AKIŞI (AŞAĞIDAKİ ADIMLAR DEĞİŞMEDİ)    */}
+          {/* ========================================================= */}
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex justify-between items-center mb-10">
                  <button onClick={() => setStep(0)} className="text-slate-400 hover:text-red-600 font-semibold text-sm">← İptal</button>
                  <span className="px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-500 uppercase tracking-wider">
-                   {flowType === 'dis_kanal' ? 'DIŞ KANAL İŞLEMİ' : 'STANDART İŞLEM'}
+                   STANDART İŞLEM
                  </span>
               </div>
               <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
+              
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {baseBrands.map(brand => (
                   <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} 
@@ -321,7 +378,7 @@ export default function ZumayTradeIn() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar text-slate-900">
                 {Array.from(new Set(
-                  activeDb // AKİF VERİTABANINDAN ÇEKİYOR
+                  dbStandard // SADECE STANDART TABLODAN ÇEKİYOR
                     .filter(i => i.brand.toLowerCase() === selectedBrand.toLowerCase())
                     .map(i => i.name)
                 ))
@@ -330,7 +387,7 @@ export default function ZumayTradeIn() {
                     <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} 
                       className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-red-500 hover:bg-red-50/30 cursor-pointer transition-all">
                       <div className="w-20 h-20 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center">
-                        <img src={activeDb.find(i => i.name === name)?.img} className="max-h-full object-contain group-hover:scale-110 transition-transform" alt={name} />
+                        <img src={dbStandard.find(i => i.name === name)?.img} className="max-h-full object-contain group-hover:scale-110 transition-transform" alt={name} />
                       </div>
                       <span className="font-bold text-lg text-slate-700">{name}</span>
                     </div>
@@ -343,7 +400,7 @@ export default function ZumayTradeIn() {
             <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-500">
               <h2 className="text-3xl font-black mb-10 text-slate-800">Depolama Kapasitesi?</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                {activeDb.filter(i => i.name === selectedModel).map(c => (
+                {dbStandard.filter(i => i.name === selectedModel).map(c => (
                   <button key={c.cap} onClick={() => { setSelectedCapacity(c); setStep(4); }} 
                     className="p-10 border-2 border-slate-100 rounded-[32px] hover:border-red-500 hover:bg-red-50 transition-all font-black text-3xl text-slate-700 shadow-sm">
                     {c.cap}
@@ -392,12 +449,12 @@ export default function ZumayTradeIn() {
                   </div>
                 </div>
 
-                {/* SAĞ TARAF - SEÇİLEN CİHAZ ÖZETİ (YAPIŞKAN PANEL) */}
+                {/* SAĞ TARAF - SEÇİLEN CİHAZ ÖZETİ */}
                 <div className="w-full lg:w-80 shrink-0 bg-white border-2 border-red-50 rounded-[32px] p-6 shadow-xl shadow-red-100/50 lg:sticky top-28">
                   <div className="text-center mb-6">
                      <h4 className="text-xs font-black text-red-500 uppercase tracking-widest mb-1">Seçilen Cihaz</h4>
                      <div className="w-32 h-32 mx-auto bg-slate-50 rounded-2xl p-4 mb-4 flex items-center justify-center">
-                       <img src={activeDb.find(i => i.name === selectedModel)?.img} alt={selectedModel} className="max-h-full object-contain drop-shadow-md" />
+                       <img src={dbStandard.find(i => i.name === selectedModel)?.img} alt={selectedModel} className="max-h-full object-contain drop-shadow-md" />
                      </div>
                      <h3 className="font-black text-xl text-slate-800 leading-tight">{selectedBrand} {selectedModel}</h3>
                      <div className="mt-3 inline-block px-4 py-1.5 bg-slate-100 rounded-full text-slate-600 font-bold text-sm">
@@ -414,7 +471,6 @@ export default function ZumayTradeIn() {
             </div>
           )}
 
-          {/* YENİ ADIM 5: MÜŞTERİ BİLGİSİ (FİYAT GÖSTERMEDEN ÖNCE ZORUNLU) */}
           {step === 5 && (
             <div className="max-w-xl mx-auto animate-in zoom-in-95 duration-500">
                <div className="bg-red-50 rounded-[32px] p-8 md:p-10 border-2 border-red-100 text-center">
@@ -443,7 +499,6 @@ export default function ZumayTradeIn() {
             </div>
           )}
 
-          {/* ADIM 6: FİYAT VE ZORUNLU ALINDI/ALINMADI BUTONLARI */}
           {step === 6 && (
             <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-700">
                <h2 className="text-2xl font-bold text-slate-500 mb-2">Tahmini Değer:</h2>
