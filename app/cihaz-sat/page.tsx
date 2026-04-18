@@ -5,7 +5,6 @@ import React, { useState, useEffect } from 'react';
 const VATSAP_NUMARASI = "905423423759"; 
 const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
-// Müşteri fiyatları için özel olarak "Cihaz Sat" sayfasını kullanıyoruz
 const TABLO_ISMI = 'Cihaz Sat'; 
 
 export default function CnetmobilMusteriTradeIn() {
@@ -20,7 +19,10 @@ export default function CnetmobilMusteriTradeIn() {
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [answers, setAnswers] = useState({ power: null, screen: null, cosmetic: null, battery: null, repair: null });
+  
+  // YENİ KATEGORİLER
+  const [answers, setAnswers] = useState({ power: null, screen: null, faceId: null, battery: null });
+  
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [estimatedPrice, setEstimatedPrice] = useState(0);
 
@@ -29,13 +31,13 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Cihaz Sat sayfasından verileri çekiyoruz
+        // Cihaz verilerini çekiyoruz (A'dan F'ye)
         const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
         const devRes = await fetch(deviceUrl);
         const devData = await devRes.json();
 
-        // Ayarlar sayfasından kesinti oranlarını çekiyoruz
-        const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
+        // Kesinti ayarlarını "Cihaz Sat" N ve O sütunlarından çekiyoruz
+        const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}`;
         const confRes = await fetch(configUrl);
         const confData = await confRes.json();
 
@@ -52,7 +54,9 @@ export default function CnetmobilMusteriTradeIn() {
 
         if (confData.values) {
           const m: any = {};
-          confData.values.forEach((row: any) => m[row[0]] = parseFloat(row[1]) || 0);
+          confData.values.forEach((row: any) => {
+            if(row[0]) m[row[0].trim()] = parseFloat(row[1]) || 0;
+          });
           setConfig(m);
         }
         setLoading(false);
@@ -67,18 +71,18 @@ export default function CnetmobilMusteriTradeIn() {
   useEffect(() => {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
-      // Kesinti mantığı (Müşteri için Cihaz Sat baz fiyatı üzerinden)
-      if (answers.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100 || 0.5));
-      if (answers.screen === 'Çizik') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
-      if (answers.screen === 'Kırık') price *= (1 - ((selectedBrand === 'Apple' ? config.Ekran_Kirik : config.Ekran_Kirik_Android) / 100 || 0.3));
-      if (answers.cosmetic === 'Çizik') price *= (1 - (config.Kasa_Iyi / 100 || 0.05));
-      if (answers.cosmetic === 'Kötü') price *= (1 - ((selectedBrand === 'Apple' ? config.Kasa_Kotu : config.Kasa_Kotu_Android) / 100 || 0.15));
-      if (answers.battery === 'Servis') price *= (1 - (config.Pil_Dusuk / 100 || 0.05));
-      if (answers.repair === 'Evet') price *= (1 - (config.Bilinmeyen_Parca / 100 || 0.15));
+      
+      // YENİ KESİNTİ MANTIĞI
+      if (answers.power === 'HAYIR') price *= (1 - (config.Guc_Yok / 100 || 0.5));
+      if (answers.screen === 'ÇİZİKLER VAR') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
+      if (answers.screen === 'KIRIK') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
+      if (answers.faceId === 'HAYIR') price *= (1 - (config.Face_Id_Bozuk / 100 || 0.15));
+      if (answers.battery === '90-85') price *= (1 - (config.Pil_90_85 / 100 || 0.05));
+      if (answers.battery === '85-0') price *= (1 - (config.Pil_85_0 / 100 || 0.15));
       
       setEstimatedPrice(Math.max(Math.round(price), selectedCapacity.minPrice || 0));
     }
-  }, [answers, selectedCapacity, config, selectedBrand]);
+  }, [answers, selectedCapacity, config]);
 
   const submitLead = () => {
     if(!customerInfo.name || !customerInfo.phone) return alert("Lütfen adınızı ve telefonunuzu girin.");
@@ -91,9 +95,8 @@ export default function CnetmobilMusteriTradeIn() {
                   `*Cihaz Durumu:*%0A` +
                   `- Güç: ${answers.power}%0A` +
                   `- Ekran: ${answers.screen}%0A` +
-                  `- Kasa: ${answers.cosmetic}%0A` +
-                  `- Pil: ${answers.battery}%0A` +
-                  `- Tamir: ${answers.repair}`;
+                  `- Face/Touch ID: ${answers.faceId}%0A` +
+                  `- Batarya: ${answers.battery}`;
     window.open(`https://wa.me/${VATSAP_NUMARASI}?text=${mesaj}`, '_blank');
   };
 
@@ -230,7 +233,7 @@ export default function CnetmobilMusteriTradeIn() {
                   {
                     title: '100% Veri Güvenliği',
                     desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.',
-                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
+                    icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>,
                     bg: 'bg-rose-50/40',
                     border: 'hover:border-rose-300 hover:shadow-rose-100'
                   }
@@ -323,16 +326,16 @@ export default function CnetmobilMusteriTradeIn() {
             <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
               <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
               <div className="space-y-4">
+                {/* YENİ KATEGORİLER EKLENDİ */}
                 {[
-                  { id: 'power', question: 'Cihazınız sorunsuz açılıyor mu?', opts: ['Evet', 'Hayır'] },
-                  { id: 'screen', question: 'Ekran durumu nasıl?', opts: ['Kusursuz', 'Çizik', 'Kırık'] },
-                  { id: 'cosmetic', question: 'Kasa (Yan ve Arka) durumu?', opts: ['Kusursuz', 'Çizik', 'Kötü'] },
-                  { id: 'battery', question: 'Pil sağlığı uyarısı var mı?', opts: ['İyi', 'Servis'] },
-                  { id: 'repair', question: 'Daha önce tamir gördü mü?', opts: ['Hayır', 'Evet'] },
+                  { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['EVET', 'HAYIR'] },
+                  { id: 'screen', question: 'Ekran Durumu', opts: ['SAĞLAM', 'ÇİZİKLER VAR', 'KIRIK'] },
+                  { id: 'faceId', question: 'Face ID / Touch ID Çalışıyor mu?', opts: ['EVET', 'HAYIR'] },
+                  { id: 'battery', question: 'Batarya Sağlığı', opts: ['100-90', '90-85', '85-0'] },
                 ].map(q => (
                   <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <h3 className="font-bold text-slate-700">{q.question}</h3>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {q.opts.map(opt => (
                         <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
                           className={`px-6 py-3 rounded-xl font-bold text-sm transition-all border-2 ${
