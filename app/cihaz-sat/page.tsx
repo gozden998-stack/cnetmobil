@@ -20,7 +20,7 @@ export default function CnetmobilMusteriTradeIn() {
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // YENİ KATEGORİLER (Kozmetik Eklendi)
+  // YENİ KATEGORİLER
   const [answers, setAnswers] = useState({ power: null, screen: null, cosmetic: null, faceId: null, battery: null });
   
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
@@ -74,16 +74,15 @@ export default function CnetmobilMusteriTradeIn() {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
       let price = selectedCapacity.base;
       
-      // KESİNTİ MANTIĞI
-      if (answers.power === 'HAYIR') price *= (1 - (config.Guc_Yok / 100 || 0.5));
-      if (answers.screen === 'ÇİZİKLER VAR') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
-      if (answers.screen === 'KIRIK') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
+      // KESİNTİ MANTIĞI (Küçük harflere göre güncellendi)
+      if (answers.power === 'Hayır') price *= (1 - (config.Guc_Yok / 100 || 0.5));
+      if (answers.screen === 'Çizikler Var') price *= (1 - (config.Ekran_Cizik / 100 || 0.1));
+      if (answers.screen === 'Kırık') price *= (1 - (config.Ekran_Kirik / 100 || 0.3));
       
-      // Kozmetik Kesintileri (Config'den çeker, yoksa standart değer uygular)
-      if (answers.cosmetic === 'İYİ') price *= (1 - (config.Kozmetik_Iyi / 100 || 0.05));
-      if (answers.cosmetic === 'KÖTÜ') price *= (1 - (config.Kozmetik_Kotu / 100 || 0.15));
+      if (answers.cosmetic === 'İyi') price *= (1 - (config.Kozmetik_Iyi / 100 || 0.05));
+      if (answers.cosmetic === 'Kötü') price *= (1 - (config.Kozmetik_Kotu / 100 || 0.15));
 
-      if (answers.faceId === 'HAYIR') price *= (1 - (config.Face_Id_Bozuk / 100 || 0.15));
+      if (answers.faceId === 'Hayır') price *= (1 - (config.Face_Id_Bozuk / 100 || 0.15));
       if (answers.battery === '90-85') price *= (1 - (config.Pil_90_85 / 100 || 0.05));
       if (answers.battery === '85-0') price *= (1 - (config.Pil_85_0 / 100 || 0.15));
       
@@ -343,10 +342,10 @@ export default function CnetmobilMusteriTradeIn() {
                 {/* SOL TARAF - SORULAR FORMU */}
                 <div className="flex-1 space-y-6 w-full">
                   {[
-                    { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['EVET', 'HAYIR'] },
-                    { id: 'screen', question: 'Ekran Durumu', opts: ['SAĞLAM', 'ÇİZİKLER VAR', 'KIRIK'] },
-                    { id: 'cosmetic', question: 'Kozmetik Durumu', opts: ['MÜKEMMEL', 'İYİ', 'KÖTÜ'] },
-                    { id: 'faceId', question: 'Face ID / Touch ID Çalışıyor mu?', opts: ['EVET', 'HAYIR'] },
+                    { id: 'power', question: 'Cihaz Açılıyor mu?', opts: ['Evet', 'Hayır'] },
+                    { id: 'screen', question: 'Ekran Durumu', opts: ['Sağlam', 'Çizikler Var', 'Kırık'] },
+                    { id: 'cosmetic', question: 'Kozmetik Durumu', opts: ['Mükemmel', 'İyi', 'Kötü'] },
+                    { id: 'faceId', question: 'Face ID / Touch ID Çalışıyor mu?', opts: ['Evet', 'Hayır'] },
                     { id: 'battery', question: 'Batarya Sağlığı', opts: ['100-90', '90-85', '85-0'] },
                   ].map(q => (
                     <div key={q.id} className="bg-slate-50/50 p-6 rounded-[24px] border border-slate-100 flex flex-col gap-4 shadow-sm">
@@ -354,7 +353,8 @@ export default function CnetmobilMusteriTradeIn() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {q.opts.map(opt => (
                           <button key={opt} onClick={() => setAnswers({...answers, [q.id]: opt})} 
-                            className={`px-4 py-4 rounded-xl font-bold text-sm transition-all border-2 ${
+                            // TEXT BOYUTU VE YAPISI BURADA KÜÇÜLTÜLDÜ (text-[13px] font-semibold)
+                            className={`px-4 py-3.5 rounded-xl font-semibold text-[13px] transition-all border-2 ${
                               (answers as any)[q.id] === opt 
                               ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-[1.02]' 
                               : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/50'}`}>
