@@ -12,19 +12,26 @@ export async function GET() {
     );
   }
 
+  // YENİ EKLENEN KISIM: Boşlukları ve Türkçe/Özel karakterleri Google API'nin istediği formata dönüştüren yardımcı fonksiyon.
+  const getSheetUrl = (sheetName, range) => {
+    // Sayfa isimlerini güvenli bir şekilde tek tırnak içine alıp URL formatına (encodeURIComponent) çeviriyoruz.
+    const safeRange = encodeURIComponent(`'${sheetName}'!${range}`);
+    return `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${safeRange}?key=${API_KEY}`;
+  };
+
   try {
-    // Tarayıcının yaptığı tüm o işlemleri artık bizim güvenli sunucumuz (backend) yapıyor
+    // Tüm fetch işlemlerinde URL'leri getSheetUrl fonksiyonu ile oluşturuyoruz
     const [devRes, confRes, alimRes, brandRes, ctRes, ynaRes, dkRes, servisRes, ieRes, imeiRes] = await Promise.all([
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Google Sheets ile Kurumsal Alım Sistemi!A2:F1000?key=${API_KEY}`),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Alimlar!A2:H500?key=${API_KEY}`),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Markalar!A2:B50?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/CEP + TABLET+IOT SAAT LIST!A1:L1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/YNA LİST!A1:F1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/DIŞ KANAL SATIN ALMA!A1:C1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Servis_Fiyatlari!A2:G1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/2.EL FİYAT LİSTESİ!A1:D1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) })),
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/DEPO!A1:B1000?key=${API_KEY}`).catch(() => ({ json: () => ({}) }))
+      fetch(getSheetUrl('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000')),
+      fetch(getSheetUrl('Ayarlar', 'A1:B25')),
+      fetch(getSheetUrl('Alimlar', 'A2:H500')),
+      fetch(getSheetUrl('Markalar', 'A2:B50')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('CEP + TABLET+IOT SAAT LIST', 'A1:L1000')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('YNA LİST', 'A1:F1000')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('DIŞ KANAL SATIN ALMA', 'A1:C1000')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('Servis_Fiyatlari', 'A2:G1000')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('2.EL FİYAT LİSTESİ', 'A1:D1000')).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('DEPO', 'A1:B1000')).catch(() => ({ json: () => ({}) }))
     ]);
 
     // Sunucu bu verileri alır, toparlar ve tek bir paket haline getirir
@@ -40,6 +47,10 @@ export async function GET() {
       ikinciEl: await ieRes.json(),
       imei: await imeiRes.json(),
     };
+
+    // Verilerin ulaşıp ulaşmadığını test etmek için sunucu konsoluna (Cursor terminaline) yazdırıyoruz.
+    // Başarılı olursa bu satırı silebilirsin.
+    console.log("Çekilen Cihaz Verisi (İlk 2 Satır):", data.devices.values?.slice(0, 2));
 
     // Temizlenmiş paketi tarayıcıya (Front-end'e) gönderir
     return NextResponse.json(data);
