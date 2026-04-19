@@ -46,7 +46,11 @@ export async function GET() {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("API Veri Çekme Hatası:", error);
-    return NextResponse.json({ error: 'Veri çekilemedi' }, { status: 500 });
+   // data objesini oluşturduktan hemen sonra:
+if (!data.devices.values) {
+  console.error("DİKKAT: Cihaz listesi boş geldi! Google Yanıtı:", data.devices);
+} else {
+  console.log(`${data.devices.values.length} adet cihaz verisi başarıyla çekildi.`);
+}
   }
 }
