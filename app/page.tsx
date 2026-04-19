@@ -163,7 +163,8 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
-const handleLogin = async () => {
+// Giriş işlemini yöneten fonksiyon
+  const handleLogin = async () => {
     if (!entryPass) return;
     setLoginLoading(true);
 
@@ -171,7 +172,7 @@ const handleLogin = async () => {
       // Şifreyi maskeliyoruz (Base64)
       const maskedPassword = btoa(entryPass);
 
-      // Backend API'ye (/api/login/route.ts) istek atıyoruz
+      // Backend API'ye istek atıyoruz
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,7 +196,7 @@ const handleLogin = async () => {
           isAdmin: result.isAdmin 
         }));
       } else {
-        // Backend'den gelen "Hatalı Şifre" veya "IP Uyarısı" mesajını gösterir
+        // Backend'den gelen hata mesajını göster
         alert(result.message);
       }
     } catch (error) {
