@@ -36,7 +36,7 @@ export async function GET() {
   try {
     // SADECE Zumay'ın görmesine izin verdiğimiz 4 tablo
     const [devices, config, brands, disKanal] = await Promise.all([
-      safeFetch('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000'),
+      safeFetch('Google Sheets ile Kurumsal Alım Sistemi', 'A1:F1000'),
       safeFetch('Ayarlar', 'A1:B25'),
       safeFetch('Markalar', 'A2:B50'),
       safeFetch('DIŞ KANAL SATIN ALMA', 'A1:C1000')
