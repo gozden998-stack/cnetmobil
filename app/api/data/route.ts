@@ -18,17 +18,17 @@ export async function GET() {
   };
 
   try {
-    const [devRes, confRes, alimRes, brandRes, ctRes, ynaRes, dkRes, servisRes, ieRes, imeiRes] = await Promise.all([
-      fetch(getSheetUrl('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000')),
-      fetch(getSheetUrl('Ayarlar', 'A1:B25'), { cache: 'no-store' })
-      fetch(getSheetUrl('Alimlar', 'A2:H500')),
-      fetch(getSheetUrl('Markalar', 'A2:B50')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('CEP + TABLET+IOT SAAT LIST', 'A1:L1000')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('YNA LİST', 'A1:F1000')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('DIŞ KANAL SATIN ALMA', 'A1:C1000')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('Servis_Fiyatlari', 'A2:G1000')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('2.EL FİYAT LİSTESİ', 'A1:D1000')).catch(() => ({ json: () => ({}) })),
-      fetch(getSheetUrl('DEPO', 'A1:B1000')).catch(() => ({ json: () => ({}) }))
+   const [devRes, confRes, alimRes, brandRes, ctRes, ynaRes, dkRes, servisRes, ieRes, imeiRes] = await Promise.all([
+      fetch(getSheetUrl('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000'), { cache: 'no-store' }),
+      fetch(getSheetUrl('Ayarlar', 'A1:B25'), { cache: 'no-store' }),
+      fetch(getSheetUrl('Alimlar', 'A2:H500'), { cache: 'no-store' }),
+      fetch(getSheetUrl('Markalar', 'A2:B50'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('CEP + TABLET+IOT SAAT LIST', 'A1:L1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('YNA LİST', 'A1:F1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('DIŞ KANAL SATIN ALMA', 'A1:C1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('Servis_Fiyatlari', 'A2:G1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('2.EL FİYAT LİSTESİ', 'A1:D1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) })),
+      fetch(getSheetUrl('DEPO', 'A1:B1000'), { cache: 'no-store' }).catch(() => ({ json: () => ({}) }))
     ]);
 
     const data = {
