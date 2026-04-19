@@ -1,23 +1,40 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  // Bu değişkenleri Vercel panelinden "NEXT_PUBLIC_" olmadan tanımlamalısın
-  const SHEET_ID = process.env.SHEET_ID; 
+  const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
-  const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
-  
+  // Çekilecek tüm tabloların listesi
+  const tablolar = [
+    'Google Sheets ile Kurumsal Alım Sistemi',
+    'CEP + TABLET+IOT SAAT LIST',
+    'YNA LİST',
+    'DIŞ KANAL SATIN ALMA',
+    '2.EL FİYAT LİSTESİ',
+    'DEPO',
+    'Ayarlar',
+    'Markalar',
+    'Alimlar',
+    'Servis_Fiyatlari'
+  ];
+
   try {
-    const res = await fetch(url, { 
-      next: { revalidate: 45 } // Veriyi 45 saniyede bir tazeler (performans için)
-    });
-    const data = await res.json();
+    // Tüm tabloları aynı anda, güvenli şekilde çekiyoruz
+    const responses = await Promise.all(
+      tablolar.map(tablo => 
+        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(tablo)}?key=${API_KEY}`)
+        .then(res => res.json())
+      )
+    );
 
-    // Sadece tablo verilerini gönderiyoruz
-    return NextResponse.json(data.values || []);
+    // Verileri isimlerine göre paketleyip frontend'e yolluyoruz
+    const data: any = {};
+    tablolar.forEach((isim, index) => {
+      data[isim] = responses[index].values || [];
+    });
+
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Sheets API Hatası:", error);
     return NextResponse.json({ error: "Veri çekilemedi" }, { status: 500 });
   }
 }
