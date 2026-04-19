@@ -11,7 +11,7 @@ const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS as string;
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
-  "46.197.252.143": "CMR KAPAKLI",
+  "46.197.253.82": "CMR KAPAKLI",
   "31.155.79.145": "CMR MERKEZ",
   "149.0.18.162": "CMR CADDE"
 };
