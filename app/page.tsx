@@ -21,6 +21,19 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// ZUMAY şifresini doğrudan ekliyoruz
+let BRANCH_PASSWORDS: Record<string, string> = {
+  "zumay": "ZUMAY KANALI"
+};
+
+try {
+  if (process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) {
+    BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) };
+  }
+} catch (error) {
+  console.error("Şube şifreleri yüklenirken hata oluştu:", error);
+}
+
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -155,28 +168,19 @@ export default function CnetmobilCmrFinalUltimate() {
     setLoginLoading(true);
 
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: entryPass, mode: loginMode }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-         setIsMasterAccess(data.isAdmin || false);
-         setIsAdmin(data.isAdmin || false);
-         setSelectedBranch(data.branch); 
-         setIsLoggedIn(true);
-         localStorage.setItem('cnet_session', JSON.stringify({ mode: loginMode, branch: data.branch }));
-      } else {
-         alert(data.message || "Hatalı Giriş!");
+      if (loginMode === 'yonetici') {
+        if (entryPass === MASTER_ADMIN_PASS) {
+           setIsMasterAccess(true);
+           setIsAdmin(true);
+           setSelectedBranch('CMR MERKEZ'); 
+           setIsLoggedIn(true);
+           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+        } else {
+           alert("Hatalı Yönetici Şifresi!");
+        }
+        setLoginLoading(false);
+        return;
       }
-    } catch (error) {
-      alert("Bağlantı Hatası!");
-    }
-    setLoginLoading(false);
-  };
 
       const matchedBranch = BRANCH_PASSWORDS[entryPass];
       
