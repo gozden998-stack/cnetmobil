@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  // .env.local dosyasından gizli bilgileri okuyoruz
   const SHEET_ID = process.env.GOOGLE_SHEET_ID;
   const API_KEY = process.env.GOOGLE_API_KEY;
 
@@ -12,15 +11,13 @@ export async function GET() {
     );
   }
 
-  // YENİ EKLENEN KISIM: Boşlukları ve Türkçe/Özel karakterleri Google API'nin istediği formata dönüştüren yardımcı fonksiyon.
-  const getSheetUrl = (sheetName, range) => {
-    // Sayfa isimlerini güvenli bir şekilde tek tırnak içine alıp URL formatına (encodeURIComponent) çeviriyoruz.
+  // TypeScript için parametre türleri eklendi
+  const getSheetUrl = (sheetName: string, range: string) => {
     const safeRange = encodeURIComponent(`'${sheetName}'!${range}`);
     return `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${safeRange}?key=${API_KEY}`;
   };
 
   try {
-    // Tüm fetch işlemlerinde URL'leri getSheetUrl fonksiyonu ile oluşturuyoruz
     const [devRes, confRes, alimRes, brandRes, ctRes, ynaRes, dkRes, servisRes, ieRes, imeiRes] = await Promise.all([
       fetch(getSheetUrl('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000')),
       fetch(getSheetUrl('Ayarlar', 'A1:B25')),
@@ -34,7 +31,6 @@ export async function GET() {
       fetch(getSheetUrl('DEPO', 'A1:B1000')).catch(() => ({ json: () => ({}) }))
     ]);
 
-    // Sunucu bu verileri alır, toparlar ve tek bir paket haline getirir
     const data = {
       devices: await devRes.json(),
       config: await confRes.json(),
@@ -48,11 +44,6 @@ export async function GET() {
       imei: await imeiRes.json(),
     };
 
-    // Verilerin ulaşıp ulaşmadığını test etmek için sunucu konsoluna (Cursor terminaline) yazdırıyoruz.
-    // Başarılı olursa bu satırı silebilirsin.
-    console.log("Çekilen Cihaz Verisi (İlk 2 Satır):", data.devices.values?.slice(0, 2));
-
-    // Temizlenmiş paketi tarayıcıya (Front-end'e) gönderir
     return NextResponse.json(data);
   } catch (error) {
     console.error("API Veri Çekme Hatası:", error);
