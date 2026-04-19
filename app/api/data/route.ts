@@ -20,7 +20,7 @@ export async function GET() {
   try {
     const [devRes, confRes, alimRes, brandRes, ctRes, ynaRes, dkRes, servisRes, ieRes, imeiRes] = await Promise.all([
       fetch(getSheetUrl('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000')),
-      fetch(getSheetUrl('Ayarlar', 'A1:B25')),
+      fetch(getSheetUrl('Ayarlar', 'A1:B25'), { cache: 'no-store' })
       fetch(getSheetUrl('Alimlar', 'A2:H500')),
       fetch(getSheetUrl('Markalar', 'A2:B50')).catch(() => ({ json: () => ({}) })),
       fetch(getSheetUrl('CEP + TABLET+IOT SAAT LIST', 'A1:L1000')).catch(() => ({ json: () => ({}) })),
