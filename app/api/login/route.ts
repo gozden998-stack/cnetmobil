@@ -9,41 +9,68 @@ const IP_HARITASI: Record<string, string> = {
 
 const MASTER_IPLER = ["95.70.226.118", "148.0.18.162"];
 
-// login/route.ts - HATA AYIKLAMA VERSİYONU
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const incomingPassword = String(body.password || '').trim();
-    
-    console.log("Gelen Ham Şifre:", incomingPassword); // Terminale ne geldiğini yazdırır
+    let password = String(body.password || '').trim();
+    const loginMode = body.mode;
+
+    // --- KRİTİK DÜZELTME: GİZLENMİŞ ŞİFREYİ ÇÖZME ---
+    // Frontend'de btoa() ile gönderdiğin şifreyi burada geri açıyoruz.
+    try {
+      const decoded = Buffer.from(password, 'base64').toString('utf-8');
+      // Eğer şifre base64 ise decoded farklı çıkacaktır, onu kullanalım.
+      if (decoded && decoded.length > 0) {
+        password = decoded;
+      }
+    } catch (e) {
+      // Eğer base64 değilse (düz metinse) hata verir, eski haliyle devam eder.
+    }
+    // ----------------------------------------------
+
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const currentIp = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
 
     let BRANCH_PASSWORDS: Record<string, string> = { "zumay": "ZUMAY KANALI" };
+
     const rawEnv = process.env.BRANCH_PASSWORDS || '';
-    
     if (rawEnv) {
       try {
         const cleanJson = rawEnv.trim().replace(/^['"]|['"]$/g, '');
-        const parsed = JSON.parse(cleanJson);
-        BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...parsed };
-        console.log("Yüklenen Şubeler:", Object.keys(BRANCH_PASSWORDS)); // Hangi şifreler yüklendi?
+        BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(cleanJson) };
       } catch (e) { 
-        console.error("JSON PARSE HATASI! .env dosyanız hatalı."); 
+        console.error("JSON Hatası: Şifre listesi yüklenemedi."); 
       }
     }
 
-    // Şifreyi burada kontrol ediyoruz
-    const matchedBranch = BRANCH_PASSWORDS[incomingPassword];
-
-    if (!matchedBranch) {
-      // Eğer burada hata alıyorsan, yukarıdaki console.log'daki değer ile 
-      // .env içindeki değer birbirini tutmuyor demektir.
-      return NextResponse.json({ 
-        success: false, 
-        message: `Hatalı Şube Şifresi! (Gelen: ${incomingPassword})` 
-      });
+    // 1. Yönetici Girişi Kontrolü
+    if (loginMode === 'yonetici') {
+      if (password === process.env.ADMIN_PASS) {
+        return NextResponse.json({ success: true, branch: 'CMR MERKEZ', isAdmin: true });
+      }
+      return NextResponse.json({ success: false, message: "Hatalı Yönetici Şifresi!" });
     }
 
-    // ... geri kalan kodlar aynı ...
+    // 2. Şube Şifresi Kontrolü
+    const matchedBranch = BRANCH_PASSWORDS[password];
+    
+    if (!matchedBranch) {
+      // Buraya düşüyorsa şifre çözüldükten sonra bile listede yok demektir.
+      return NextResponse.json({ success: false, message: "Hatalı Şube Şifresi!" });
+    }
+
+    // 3. Güvenlik ve IP Kontrolü
+    const isSpecial = matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI';
+    const isOffice = MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch;
+
+    if (isSpecial || isOffice) {
+      return NextResponse.json({ success: true, branch: matchedBranch, isAdmin: false });
+    }
+
+    return NextResponse.json({ 
+      success: false, 
+      message: `GÜVENLİK UYARISI: Mağaza IP eşleşmedi! (IP: ${currentIp})` 
+    });
 
   } catch (error) {
     return NextResponse.json({ success: false, message: "Sunucu Hatası" }, { status: 500 });
