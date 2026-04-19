@@ -268,74 +268,51 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const loadData = async () => {
-    try {
-      const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}`;
-      const devRes = await fetch(deviceUrl);
-      const devData = await devRes.json();
-      
-      const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Ayarlar!A1:B25?key=${API_KEY}`;
-      const confRes = await fetch(configUrl);
-      const confData = await confRes.json();
-      
-      const alimRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Alimlar!A2:H500?key=${API_KEY}`);
-      const alimData = await alimRes.json();
+const loadData = async () => {
+  try {
+    const res = await fetch('/api/data');
+    const all = await res.json();
 
-      let brandData: any = {};
-      try {
-        const brandRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Markalar!A2:B50?key=${API_KEY}`);
-        brandData = await brandRes.json();
-      } catch (e) { console.warn("Markalar tablosu henüz oluşturulmamış olabilir."); }
+    if (all.error) throw new Error();
 
-      try {
-        const ctRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('CEP + TABLET+IOT SAAT LIST')}!A1:L1000?key=${API_KEY}`);
-        const ctData = await ctRes.json();
-        if (ctData.values) setCepTabletData(ctData.values);
-      } catch(e) { console.warn("CEP+TABLET tablosu çekilemedi.", e); }
+    // 1. Ana Cihaz Veritabanı (db)
+    setDb(all.db.map((row: any) => ({
+      brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
+      base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
+    })));
 
-      try {
-        const ynaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('YNA LİST')}!A1:F1000?key=${API_KEY}`);
-        const ynaData = await ynaRes.json();
-        if (ynaData.values) setYnaData(ynaData.values);
-      } catch(e) { console.warn("YNA LIST tablosu çekilemedi.", e); }
+    // 2. Ayarlar (Config)
+    const m: any = {};
+    all.config.forEach((row: any) => { 
+      m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+    });
+    setConfig(m);
 
-      try {
-        const dkRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('DIŞ KANAL SATIN ALMA')}!A1:C1000?key=${API_KEY}`);
-        const dkData = await dkRes.json();
-        if (dkData.values) setDisKanalData(dkData.values);
-      } catch(e) { console.warn("DIŞ KANAL SATIN ALMA tablosu çekilemedi.", e); }
+    // 3. Teknik Servis Fiyatları
+    const loadedServis: any = {};
+    all.servis.forEach((row: any) => {
+      loadedServis[row[0]] = {
+        ekranOrj: row[1] || '', ekranOled: row[2] || '', ekranCipli: row[3] || '',
+        batarya: row[4] || '', arkaCam: row[5] || '', kasa: row[6] || ''
+      };
+    });
+    setServisFiyatlari(loadedServis);
 
-      try {
-        const servisRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Servis_Fiyatlari!A2:G1000?key=${API_KEY}`);
-        const servisData = await servisRes.json();
-        if (servisData.values) {
-          const loadedServis: any = {};
-          servisData.values.forEach((row: any) => {
-             loadedServis[row[0]] = {
-                ekranOrj: row[1] || '',
-                ekranOled: row[2] || '',
-                ekranCipli: row[3] || '',
-                batarya: row[4] || '',
-                arkaCam: row[5] || '',
-                kasa: row[6] || ''
-             };
-          });
-          setServisFiyatlari(loadedServis);
-        }
-      } catch (e) { console.warn("Servis_Fiyatlari tablosu çekilemedi."); }
+    // 4. Diğer Tüm Tablolar
+    setAlimlar(all.alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
+    setBrandDb(all.brands.map((row: any) => ({ name: row[0], logo: row[1] })));
+    setCepTabletData(all.cepTablet);
+    setYnaData(all.yna);
+    setDisKanalData(all.disKanal);
+    setIkinciElData(all.ikinciEl);
+    setImeiData(all.depo);
 
-      try {
-        const ieRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('2.EL FİYAT LİSTESİ')}!A1:D1000?key=${API_KEY}`);
-        const ieData = await ieRes.json();
-        if (ieData.values) setIkinciElData(ieData.values);
-      } catch(e) { console.warn("2.EL FİYAT LİSTESİ tablosu çekilemedi.", e); }
-
-      try {
-        const imeiRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent('DEPO')}!A1:B1000?key=${API_KEY}`);
-        const imeiDataResp = await imeiRes.json();
-        if (imeiDataResp.values) setImeiData(imeiDataResp.values);
-      } catch(e) { console.warn("DEPO tablosu çekilemedi.", e); }
-
+    setLoading(false);
+  } catch (e) {
+    console.error("Veri yükleme hatası");
+    setLoading(false);
+  }
+};
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
