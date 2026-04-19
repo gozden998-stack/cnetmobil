@@ -97,7 +97,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" },
     { name: "VODAFONE KANALI", phone: "905425420000" },
-    { name: "ZUMAY KANALI", phone: "905000000000" } // Zumay eklendi
+    { name: "ZUMAY KANALI", phone: "905000000000" }
   ];
 
   const brandAssets: any = {
@@ -346,10 +346,9 @@ export default function CnetmobilCmrFinalUltimate() {
       if (confData.values) {
         const m: any = {};
         confData.values.forEach((row: any) => { 
-    m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
-});
+          m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+        });
 
-        
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) {
            m.Ekran_Kirik_Android = m.Ekran_Kirik;
         }
@@ -554,7 +553,7 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-      const updateConfig = async (key: string, val: string) => {
+  const updateConfig = async (key: string, val: string) => {
     try {
       await fetch(SCRIPT_URL, { 
         method: 'POST', 
@@ -564,8 +563,8 @@ export default function CnetmobilCmrFinalUltimate() {
       alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
       
       setConfig((prev: any) => {
-         const newVal = isNaN(Number(val)) ? val : parseFloat(val);
-         return {...prev, [key]: newVal};
+          const newVal = isNaN(Number(val)) ? val : parseFloat(val);
+          return {...prev, [key]: newVal};
       });
     } catch (e) { console.error(e); }
   };
@@ -782,7 +781,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
         <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
            <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
            
@@ -1369,7 +1368,7 @@ export default function CnetmobilCmrFinalUltimate() {
               {!isAdmin ? (
                 <div className="max-w-md mx-auto bg-[#1e1e2d] p-12 rounded-[48px] shadow-2xl text-center border border-slate-800 mt-20">
                   <div className="w-16 h-16 bg-blue-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
-                      <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+                      <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
                   </div>
                   <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-white">Yönetici Terminali</h2>
                   <input type="password" placeholder="••••••••" className="w-full p-5 bg-[#2a2a3d] rounded-2xl mb-4 text-center font-black outline-none border border-slate-700 focus:border-blue-500 transition-all text-white placeholder-slate-500" onChange={(e) => setAdminPass(e.target.value)} />
