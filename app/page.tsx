@@ -164,14 +164,14 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
  const handleLogin = async () => {
-    if(!entryPass) return;
+    if (!entryPass) return;
     setLoginLoading(true);
 
     try {
-      // Şifreyi F12'de gizlemek için Base64 yapıyoruz
+      // F12'de gizlemek için şifreyi maskeliyoruz
       const maskedPassword = btoa(entryPass);
 
-      // ARTIK KONTROLÜ BURADA DEĞİL, HAZIRLADIĞIMIZ API'DE YAPIYORUZ
+      // Backend API'ye istek atıyoruz
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,6 +180,31 @@ export default function CnetmobilCmrFinalUltimate() {
           mode: loginMode 
         }),
       });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsLoggedIn(true);
+        setSelectedBranch(result.branch);
+        setIsAdmin(result.isAdmin || false);
+        setIsMasterAccess(result.isAdmin || false);
+        
+        localStorage.setItem('cnet_session', JSON.stringify({ 
+          mode: loginMode, 
+          branch: result.branch,
+          isAdmin: result.isAdmin 
+        }));
+      } else {
+        // Hata mesajını backend'den gelen mesajla göster (IP uyarısı vs.)
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error("Giriş hatası:", error);
+      alert("Bağlantı Hatası: Sunucuya ulaşılamadı.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
       const result = await response.json();
 
