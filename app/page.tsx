@@ -163,24 +163,46 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
-  const handleLogin = async () => {
+ const handleLogin = async () => {
     if(!entryPass) return;
     setLoginLoading(true);
 
     try {
-      if (loginMode === 'yonetici') {
-        if (entryPass === MASTER_ADMIN_PASS) {
-           setIsMasterAccess(true);
-           setIsAdmin(true);
-           setSelectedBranch('CMR MERKEZ'); 
-           setIsLoggedIn(true);
-           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-        } else {
-           alert("Hatalı Yönetici Şifresi!");
-        }
-        setLoginLoading(false);
-        return;
+      // Şifreyi F12'de gizlemek için Base64 yapıyoruz
+      const maskedPassword = btoa(entryPass);
+
+      // ARTIK KONTROLÜ BURADA DEĞİL, HAZIRLADIĞIMIZ API'DE YAPIYORUZ
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          password: maskedPassword, 
+          mode: loginMode 
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsLoggedIn(true);
+        setSelectedBranch(result.branch);
+        setIsAdmin(result.isAdmin || false);
+        setIsMasterAccess(result.isAdmin || false);
+        
+        localStorage.setItem('cnet_session', JSON.stringify({ 
+          mode: loginMode, 
+          branch: result.branch,
+          isAdmin: result.isAdmin 
+        }));
+      } else {
+        alert(result.message); // "Hatalı Şifre" veya "IP Uyarısı" buradan gelecek
       }
+    } catch (error) {
+      alert("Bağlantı Hatası: Sunucuya ulaşılamadı.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
       const matchedBranch = BRANCH_PASSWORDS[entryPass];
       
