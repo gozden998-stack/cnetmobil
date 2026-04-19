@@ -17,18 +17,7 @@ export async function POST(request: Request) {
   
   const forwardedFor = request.headers.get('x-forwarded-for');
   const currentIp = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
-export async function GET() {
-  const SHEET_ID = process.env.SHEET_ID;
-  const API_KEY = process.env.API_KEY;
-  const TABLO = encodeURIComponent('Google Sheets ile Kurumsal Alım Sistemi');
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${TABLO}?key=${API_KEY}`;
-  
-  const res = await fetch(url, { next: { revalidate: 60 } }); // 60 saniyede bir tazele
-  const data = await res.json();
-
-  return NextResponse.json(data.values);
-}
   // 1. OTURUM KONTROLÜ
   if (action === 'verify') {
      if (mode === 'yonetici' || branch === 'VODAFONE KANALI' || branch === 'ZUMAY KANALI' || MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === branch) {
