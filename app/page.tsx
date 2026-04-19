@@ -269,50 +269,56 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
 const loadData = async () => {
-  try {
-    const res = await fetch('/api/data');
-    const all = await res.json();
+    try {
+      const res = await fetch('/api/data');
+      const all = await res.json();
 
-    if (all.error) throw new Error();
+      if (all.error) throw new Error("Veri hatası");
 
-    // 1. Ana Cihaz Veritabanı (db)
-    setDb(all.db.map((row: any) => ({
-      brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
-      base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
-    })));
+      // 1. Ana Cihaz Veritabanı
+      if (all.db) {
+        setDb(all.db.map((row: any) => ({
+          brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
+          base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
+        })));
+      }
 
-    // 2. Ayarlar (Config)
-    const m: any = {};
-    all.config.forEach((row: any) => { 
-      m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
-    });
-    setConfig(m);
+      // 2. Ayarlar (Config)
+      if (all.config) {
+        const m: any = {};
+        all.config.forEach((row: any) => { 
+          m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+        });
+        setConfig(m);
+      }
 
-    // 3. Teknik Servis Fiyatları
-    const loadedServis: any = {};
-    all.servis.forEach((row: any) => {
-      loadedServis[row[0]] = {
-        ekranOrj: row[1] || '', ekranOled: row[2] || '', ekranCipli: row[3] || '',
-        batarya: row[4] || '', arkaCam: row[5] || '', kasa: row[6] || ''
-      };
-    });
-    setServisFiyatlari(loadedServis);
+      // 3. Teknik Servis Fiyatları
+      if (all.servis) {
+        const loadedServis: any = {};
+        all.servis.forEach((row: any) => {
+          loadedServis[row[0]] = {
+            ekranOrj: row[1] || '', ekranOled: row[2] || '', ekranCipli: row[3] || '',
+            batarya: row[4] || '', arkaCam: row[5] || '', kasa: row[6] || ''
+          };
+        });
+        setServisFiyatlari(loadedServis);
+      }
 
-    // 4. Diğer Tüm Tablolar
-    setAlimlar(all.alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
-    setBrandDb(all.brands.map((row: any) => ({ name: row[0], logo: row[1] })));
-    setCepTabletData(all.cepTablet);
-    setYnaData(all.yna);
-    setDisKanalData(all.disKanal);
-    setIkinciElData(all.ikinciEl);
-    setImeiData(all.depo);
+      // 4. Diğer Tablolar
+      if (all.alimlar) setAlimlar(all.alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
+      if (all.brands) setBrandDb(all.brands.map((row: any) => ({ name: row[0], logo: row[1] })));
+      if (all.cepTablet) setCepTabletData(all.cepTablet);
+      if (all.yna) setYnaData(all.yna);
+      if (all.disKanal) setDisKanalData(all.disKanal);
+      if (all.ikinciEl) setIkinciElData(all.ikinciEl);
+      if (all.depo) setImeiData(all.depo);
 
-    setLoading(false);
-  } catch (e) {
-    console.error("Veri yükleme hatası");
-    setLoading(false);
-  }
-};
+      setLoading(false);
+    } catch (e) {
+      console.error("Veri yüklenemedi:", e);
+      setLoading(false);
+    }
+  };
 
       if (devData.values) {
         setDb(devData.values.map((row: any) => ({
