@@ -6,6 +6,33 @@ const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
+const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS as string;
+
+
+const IP_HARITASI: any = {
+  "78.188.91.172": "CMR SARAY",
+  "46.197.253.82": "CMR KAPAKLI",
+  "31.155.79.145": "CMR MERKEZ",
+  "149.0.18.162": "CMR CADDE"
+};
+
+const MASTER_IPLER = [
+  "95.70.226.118",
+  "148.0.18.162"
+];
+
+// ZUMAY şifresini doğrudan ekliyoruz
+let BRANCH_PASSWORDS: Record<string, string> = {
+  "5959": "ZUMAY KANALI"
+};
+
+try {
+  if (process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) {
+    BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) };
+  }
+} catch (error) {
+  console.error("Şube şifreleri yüklenirken hata oluştu:", error);
+}
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
@@ -70,7 +97,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" },
     { name: "VODAFONE KANALI", phone: "905425420000" },
-    { name: "ZUMAY KANALI", phone: "905000000000" }
+    { name: "ZUMAY KANALI", phone: "905000000000" } // Zumay eklendi
   ];
 
   const brandAssets: any = {
@@ -99,29 +126,33 @@ export default function CnetmobilCmrFinalUltimate() {
       try {
         const session = JSON.parse(sessionStr);
 
-        const res = await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'verify',
-            mode: session.mode,
-            branch: session.branch
-          })
-        });
-        
-        const data = await res.json();
-
-        if (data.valid) {
-          if (session.mode === 'yonetici') {
-            setIsMasterAccess(true);
-            setIsAdmin(true); 
-            setSelectedBranch(session.branch || 'CMR MERKEZ');
-          } else {
-            setSelectedBranch(session.branch);
-          }
+        if (session.mode === 'yonetici') {
+          setIsMasterAccess(true);
+          setIsAdmin(true); 
+          setSelectedBranch(session.branch || 'CMR MERKEZ');
           setIsLoggedIn(true);
-        } else {
-          localStorage.removeItem('cnet_session');
+          setAuthLoading(false);
+          return;
+        }
+
+        if (session.mode === 'personel') {
+          if (session.branch === 'VODAFONE KANALI' || session.branch === 'ZUMAY KANALI') {
+            setSelectedBranch(session.branch);
+            setIsLoggedIn(true);
+            setAuthLoading(false);
+            return;
+          }
+
+          const res = await fetch('https://api.ipify.org?format=json');
+          const data = await res.json();
+          const currentIp = data.ip;
+
+          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
+            setSelectedBranch(session.branch);
+            setIsLoggedIn(true);
+          } else {
+            localStorage.removeItem('cnet_session');
+          }
         }
       } catch (e) {
          localStorage.removeItem('cnet_session');
@@ -137,29 +168,62 @@ export default function CnetmobilCmrFinalUltimate() {
     setLoginLoading(true);
 
     try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'login',
-          password: entryPass,
-          mode: loginMode
-        })
-      });
+      if (loginMode === 'yonetici') {
+        if (entryPass === MASTER_ADMIN_PASS) {
+           setIsMasterAccess(true);
+           setIsAdmin(true);
+           setSelectedBranch('CMR MERKEZ'); 
+           setIsLoggedIn(true);
+           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+        } else {
+           alert("Hatalı Yönetici Şifresi!");
+        }
+        setLoginLoading(false);
+        return;
+      }
 
-      const data = await response.json();
+      const matchedBranch = BRANCH_PASSWORDS[entryPass];
+      
+      if (!matchedBranch) {
+        alert("Hatalı Şube Şifresi!");
+        setLoginLoading(false);
+        return;
+      }
 
-      if (data.success) {
-        setIsMasterAccess(data.isAdmin);
-        setIsAdmin(data.isAdmin);
-        setSelectedBranch(data.branch); 
+      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
         setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: loginMode, branch: data.branch }));
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setLoginLoading(false);
+        return;
+      }
+
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      const currentIp = data.ip;
+
+      if (MASTER_IPLER.includes(currentIp)) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setLoginLoading(false);
+        return;
+      }
+
+      const expectedBranchForThisIp = IP_HARITASI[currentIp];
+
+      if (expectedBranchForThisIp === matchedBranch) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
       } else {
-        alert(data.message || "Giriş başarısız!");
+        alert(`GÜVENLİK UYARISI: Bu şifreyi (${matchedBranch}) bu mağazanın interneti dışında kullanamazsınız! Lütfen şube Wi-Fi ağına bağlanın. (Mevcut IP'niz: ${currentIp})`);
       }
     } catch (error) {
-      alert("Bağlantı Hatası: Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.");
+      alert("Bağlantı Hatası: Güvenlik IP kontrolü yapılamadı. İnternet bağlantınızı kontrol edin.");
     }
     
     setLoginLoading(false);
