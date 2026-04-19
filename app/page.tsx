@@ -163,15 +163,15 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
- const handleLogin = async () => {
+const handleLogin = async () => {
     if (!entryPass) return;
     setLoginLoading(true);
 
     try {
-      // F12'de gizlemek için şifreyi maskeliyoruz
+      // Şifreyi maskeliyoruz (Base64)
       const maskedPassword = btoa(entryPass);
 
-      // Backend API'ye istek atıyoruz
+      // Backend API'ye (/api/login/route.ts) istek atıyoruz
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,11 +195,11 @@ export default function CnetmobilCmrFinalUltimate() {
           isAdmin: result.isAdmin 
         }));
       } else {
-        // Hata mesajını backend'den gelen mesajla göster (IP uyarısı vs.)
+        // Backend'den gelen "Hatalı Şifre" veya "IP Uyarısı" mesajını gösterir
         alert(result.message);
       }
     } catch (error) {
-      console.error("Giriş hatası:", error);
+      console.error("Giriş Hatası:", error);
       alert("Bağlantı Hatası: Sunucuya ulaşılamadı.");
     } finally {
       setLoginLoading(false);
