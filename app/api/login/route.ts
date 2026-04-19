@@ -12,8 +12,23 @@ const MASTER_IPLER = ["95.70.226.118", "148.0.18.162"];
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const password = String(body.password || '').trim();
+    let incomingPassword = String(body.password || '').trim();
     const loginMode = body.mode;
+
+    // --- DÜZELTME 1: ŞİFRE ÇÖZME ---
+    // Eğer frontend'de btoa() kullanarak gönderdiysen burada çözmeliyiz.
+    let password = incomingPassword;
+    try {
+      // Eğer şifre base64 ise çöz, değilse (hata verirse) olduğu gibi bırak.
+      const decoded = Buffer.from(incomingPassword, 'base64').toString('utf-8');
+      // Sadece gerçekten base64 gibi görünüyorsa decoded değerini kullan
+      if (incomingPassword !== decoded) {
+          password = decoded;
+      }
+    } catch (e) {
+      password = incomingPassword; 
+    }
+    // ------------------------------
 
     const forwardedFor = request.headers.get('x-forwarded-for');
     const currentIp = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
@@ -25,7 +40,9 @@ export async function POST(request: Request) {
       try {
         const cleanJson = rawEnv.trim().replace(/^['"]|['"]$/g, '');
         BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(cleanJson) };
-      } catch (e) { console.error("JSON Hatası"); }
+      } catch (e) { 
+        console.error("JSON Hatası: .env dosyasındaki şifre listesi bozuk."); 
+      }
     }
 
     if (loginMode === 'yonetici') {
@@ -36,19 +53,26 @@ export async function POST(request: Request) {
     }
 
     const matchedBranch = BRANCH_PASSWORDS[password];
-    if (!matchedBranch) return NextResponse.json({ success: false, message: "Hatalı Şube Şifresi!" });
+    
+    // --- DÜZELTME 2: ŞİFRE KONTROLÜ ---
+    if (!matchedBranch) {
+       return NextResponse.json({ success: false, message: "Hatalı Şube Şifresi!" });
+    }
 
     const isSpecial = matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI';
+    // Mevcut IP listede mi veya o şubeye mi kayıtlı?
     const isOffice = MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch;
 
     if (isSpecial || isOffice) {
       return NextResponse.json({ success: true, branch: matchedBranch, isAdmin: false });
     }
 
+    // IP Eşleşmezse hata ver
     return NextResponse.json({ 
       success: false, 
-      message: `GÜVENLİK UYARISI: Bu şifreyi bu mağazanın interneti dışında kullanamazsınız! (IP: ${currentIp})` 
+      message: `GÜVENLİK UYARISI: IP adresi eşleşmiyor! Şube: ${matchedBranch}, Sizin IP: ${currentIp}` 
     });
+
   } catch (error) {
     return NextResponse.json({ success: false, message: "Sunucu Hatası" }, { status: 500 });
   }
