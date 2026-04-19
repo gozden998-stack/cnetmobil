@@ -2,15 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import AnaSayfa from './AnaSayfa';
 
-
-const SHEET_ID = '1GvagcuTfR_e66A1yxTPqaIgh4YEmYl4M7-E2oRzZhyg';
-const API_KEY = 'AIzaSyD4zJB-fvZdAR5WucfwITuqpIuHgbpK2gc';
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwvlMvSs-i-wEn197eeBEMLRpiUcW_A7z0nO0oA0seXzcvZ86xsNBfTzZVRmnaEwwrJ/exec';
+const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
+const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS as string;
+
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
-  "46.197.252.143": "CMR KAPAKLI",
+  "46.197.253.82": "CMR KAPAKLI",
   "31.155.79.145": "CMR MERKEZ",
   "149.0.18.162": "CMR CADDE"
 };
@@ -20,14 +21,11 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// ZUMAY şifresini doğrudan ekliyoruz
 let BRANCH_PASSWORDS: Record<string, string> = {
-  "zumay": "ZUMAY KANALI" ,
-  "2003": "CMR CADDE",
-  "1071": "CMR KAPAKLI",
-  "1453": "CMR SARAY",
- "1905": "CMR MERKEZ",
-  "542542": "VODAFONE KANALI"
+  "zumay": "ZUMAY KANALI"
 };
+
 try {
   if (process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) {
     BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) };
