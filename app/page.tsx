@@ -163,72 +163,24 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
-// Giriş işlemini yöneten fonksiyon
   const handleLogin = async () => {
-    if (!entryPass) return;
+    if(!entryPass) return;
     setLoginLoading(true);
 
     try {
-      // Şifreyi maskeliyoruz (Base64)
-      const maskedPassword = btoa(entryPass);
-
-      // Backend API'ye istek atıyoruz
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          password: maskedPassword, 
-          mode: loginMode 
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setIsLoggedIn(true);
-        setSelectedBranch(result.branch);
-        setIsAdmin(result.isAdmin || false);
-        setIsMasterAccess(result.isAdmin || false);
-        
-        localStorage.setItem('cnet_session', JSON.stringify({ 
-          mode: loginMode, 
-          branch: result.branch,
-          isAdmin: result.isAdmin 
-        }));
-      } else {
-        // Backend'den gelen hata mesajını göster
-        alert(result.message);
+      if (loginMode === 'yonetici') {
+        if (entryPass === MASTER_ADMIN_PASS) {
+           setIsMasterAccess(true);
+           setIsAdmin(true);
+           setSelectedBranch('CMR MERKEZ'); 
+           setIsLoggedIn(true);
+           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+        } else {
+           alert("Hatalı Yönetici Şifresi!");
+        }
+        setLoginLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Giriş Hatası:", error);
-      alert("Bağlantı Hatası: Sunucuya ulaşılamadı.");
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-      const result = await response.json();
-
-      if (result.success) {
-        setIsLoggedIn(true);
-        setSelectedBranch(result.branch);
-        setIsAdmin(result.isAdmin || false);
-        setIsMasterAccess(result.isAdmin || false);
-        
-        localStorage.setItem('cnet_session', JSON.stringify({ 
-          mode: loginMode, 
-          branch: result.branch,
-          isAdmin: result.isAdmin 
-        }));
-      } else {
-        alert(result.message); // "Hatalı Şifre" veya "IP Uyarısı" buradan gelecek
-      }
-    } catch (error) {
-      alert("Bağlantı Hatası: Sunucuya ulaşılamadı.");
-    } finally {
-      setLoginLoading(false);
-    }
-  };
 
       const matchedBranch = BRANCH_PASSWORDS[entryPass];
       
