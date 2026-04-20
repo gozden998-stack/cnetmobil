@@ -268,16 +268,16 @@ export default function CnetmobilCmrFinalUltimate() {
 
 const loadData = async () => {
     try {
-      // 1. ADIM: Maskelenmiş veriyi tünelden çekiyoruz
-      const res = await fetch('/api/sheets');
+      // 1. ADIM: Veriyi tünelden çekiyoruz. 
+      // { cache: 'no-store' } ekledik ki Google'daki fiyat anlık yansısın.
+      const res = await fetch('/api/sheets', { cache: 'no-store' });
       const responseData = await res.json();
 
-      // 2. ADIM: MASKE ÇÖZME (Türkçe karakter ve ₺ simgesi için güncellendi)
-      // atob'un yanına decodeURIComponent ve escape ekleyerek karakterleri düzeltiyoruz.
+      // 2. ADIM: MASKE ÇÖZME (Türkçe karakter ve ₺ simgesi garantili)
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUNUN AYNISIDIR (HİÇ DOKUNULMADI) ---
+      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUN (HİÇ DOKUNULMADI) ---
 
       // 1. Cihaz Veritabanı
       if (allData.Devices) {
