@@ -6,6 +6,7 @@ const VATSAP_NUMARASI = "905423423759";
 const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Cihaz Sat'; 
+const [estimatedPriceVisible, setEstimatedPriceVisible] = useState(false);
 
 export default function CnetmobilMusteriTradeIn() {
   const [step, setStep] = useState(0);
@@ -407,45 +408,64 @@ export default function CnetmobilMusteriTradeIn() {
             </div>
           )}
 
-          {step === 5 && (
-            <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
-               <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
-               <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
-               <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl relative overflow-hidden text-white">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                 <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
-                 <div className="text-7xl font-black mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
-                 <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
-               </div>
+  {step === 5 && (
+  <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
+     
+     {!estimatedPriceVisible ? (
+       <div className="bg-white border-2 border-slate-100 rounded-[32px] p-8 shadow-xl">
+         <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">💰</div>
+         <h3 className="font-black text-2xl mb-2 text-slate-800">Fiyat Teklifini Gör</h3>
+         <p className="text-slate-500 mb-6 text-sm">Cihazınız için hazırlanan özel teklifi görmek için bilgilerinizi doğrulayın.</p>
+         
+         <div className="space-y-4 text-left">
+           <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 text-slate-900" placeholder="Adınız Soyadınız" />
+           <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 text-slate-900" placeholder="Telefon Numaranız" />
+           
+           <p className="text-[10px] text-slate-400 text-center px-4 leading-relaxed">
+             * "Fiyatı Gör" butonuna basarak iletişim bilgilerinizin fiyat teklifi sunulması amacıyla işlenmesini kabul etmiş olursunuz.
+           </p>
 
-               <div className="text-left bg-slate-50 border border-slate-100 rounded-[32px] p-8 mb-8">
-                 <h3 className="font-black text-xl mb-6 text-slate-800">Sizi Arayalım</h3>
-                 <div className="space-y-4">
-                   <input type="text" value={customerInfo.name} onChange={(e)=>setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Adınız Soyadınız" />
-                   <input type="tel" value={customerInfo.phone} onChange={(e)=>setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 shadow-sm text-slate-900" placeholder="Telefon Numaranız (05xx...)" />
-                 </div>
-               </div>
+           <button 
+             onClick={async () => {
+               if(customerInfo.name.length < 3 || customerInfo.phone.length < 10) return alert("Lütfen bilgileri tam girin.");
                
-               <button onClick={submitLead} className="w-full py-6 bg-[#25D366] hover:bg-[#1ebd5b] text-white rounded-[24px] font-black text-xl shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-3">
-                 <span className="text-2xl">💬</span> WhatsApp ile Talebi Gönder
-               </button>
-               <button onClick={() => setStep(0)} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
-            </div>
-          )}
+               // Arka planda Telegram bildirimi gönderir
+               fetch('/api/leads', {
+                 method: 'POST',
+                 body: JSON.stringify({ 
+                   name: customerInfo.name, 
+                   phone: customerInfo.phone, 
+                   brand: selectedBrand, 
+                   model: selectedModel, 
+                   cap: selectedCapacity.cap, 
+                   price: estimatedPrice 
+                 })
+               });
 
-        </div>
-      </main>
-
-      <footer className="text-center py-10 text-slate-400 text-sm">
-        © 2026 Cnetmobil Kurumsal Geri Alım Merkezi - Tüm Hakları Saklıdır.
-      </footer>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-      `}</style>
-    </div>
-  );
-}
+               // Ekranda fiyatı gösterir
+               setEstimatedPriceVisible(true); 
+             }}
+             className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xl shadow-lg transition-all"
+           >
+             HESAPLA VE FİYATI GÖR
+           </button>
+         </div>
+       </div>
+     ) : (
+       <div className="animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
+          <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
+          <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl text-white">
+            <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
+            <div className="text-7xl font-black mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
+            <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
+          </div>
+          
+          <button onClick={submitLead} className="w-full py-6 bg-[#25D366] hover:bg-[#1ebd5b] text-white rounded-[24px] font-black text-xl shadow-xl flex items-center justify-center gap-3 transition-transform active:scale-95">
+             <span className="text-2xl">💬</span> WhatsApp'tan Satışı Onayla
+          </button>
+          <button onClick={() => {setStep(0); setEstimatedPriceVisible(false);}} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
+       </div>
+     )}
+  </div>
+)}
