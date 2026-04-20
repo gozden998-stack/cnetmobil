@@ -272,12 +272,12 @@ const loadData = async () => {
       const res = await fetch('/api/sheets');
       const responseData = await res.json();
 
-      // 2. ADIM: MASKE ÇÖZME (atob ile Base64 çözülür, JSON.parse ile objeye dönüşür)
-      // F12'de görünen o anlamsız 'payload' burada personelin ekranı için açılır.
-      const decodedString = atob(responseData.payload);
+      // 2. ADIM: MASKE ÇÖZME (Türkçe karakter ve ₺ simgesi için güncellendi)
+      // atob'un yanına decodeURIComponent ve escape ekleyerek karakterleri düzeltiyoruz.
+      const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUNUN AYNISIDIR ---
+      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUNUN AYNISIDIR (HİÇ DOKUNULMADI) ---
 
       // 1. Cihaz Veritabanı
       if (allData.Devices) {
