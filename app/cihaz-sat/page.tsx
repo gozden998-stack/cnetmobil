@@ -28,23 +28,22 @@ export default function CnetmobilMusteriTradeIn() {
 
   const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo"];
 
-  useEffect(() => {
+    useEffect(() => {
     const loadData = async () => {
       try {
-        const t = new Date().getTime();
+        setLoading(true);
         
-        // Cihaz verilerini çekiyoruz
-        const deviceUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!A2:F1000?key=${API_KEY}&t=${t}`;
-        const devRes = await fetch(deviceUrl, { cache: 'no-store' });
-        const devData = await devRes.json();
+        // 1. ADIM: Güvenli tünelden maskelenmiş veriyi çekiyoruz
+        const res = await fetch('/api/sheets', { cache: 'no-store' });
+        const responseData = await res.json();
 
-        // Kesinti ayarlarını çekiyoruz
-        const configUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(TABLO_ISMI)}!N2:O50?key=${API_KEY}&t=${t}`;
-        const confRes = await fetch(configUrl, { cache: 'no-store' });
-        const confData = await confRes.json();
+        // 2. ADIM: MASKE ÇÖZME & KARAKTER DÜZELTME (TL Simgesi İçin)
+        const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
+        const allData = JSON.parse(decodedString);
 
-        if (devData.values) {
-          setDb(devData.values.map((row: any) => ({
+        // 3. ADIM: Müşteri Verilerini Yerleştir (Customer vagonlarını kullanıyoruz)
+        if (allData.CustomerDevices) {
+          setDb(allData.CustomerDevices.map((row: any) => ({
             brand: row[0] ? String(row[0]).trim() : '', 
             name: row[1] ? String(row[1]).trim() : '', 
             cap: row[2] ? String(row[2]).trim() : '',
@@ -54,13 +53,14 @@ export default function CnetmobilMusteriTradeIn() {
           })));
         }
 
-        if (confData.values) {
+        if (allData.CustomerConfig) {
           const m: any = {};
-          confData.values.forEach((row: any) => {
+          allData.CustomerConfig.forEach((row: any) => {
             if(row[0]) m[row[0].trim()] = parseFloat(row[1]) || 0;
           });
           setConfig(m);
         }
+
         setLoading(false);
       } catch (error) { 
         console.error("Veri yüklenemedi", error); 
@@ -69,6 +69,7 @@ export default function CnetmobilMusteriTradeIn() {
     };
     loadData();
   }, []);
+
 
   useEffect(() => {
     if (selectedCapacity && Object.values(answers).every(a => a !== null)) {
