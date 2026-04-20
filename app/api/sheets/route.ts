@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// Vercel'in veriyi önbelleğe almasını engeller, Google'daki değişim anlık yansır.
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -8,6 +7,7 @@ export async function GET() {
   const API_KEY = process.env.API_KEY;
 
   const tables = [
+    // --- MEVCUT B2B TABLOLARI ---
     { id: 'Devices', range: 'Google Sheets ile Kurumsal Alım Sistemi!A2:F1000' },
     { id: 'Ayarlar', range: 'Ayarlar!A1:B25' },
     { id: 'Alimlar', range: 'Alimlar!A2:H500' },
@@ -17,11 +17,14 @@ export async function GET() {
     { id: 'DisKanal', range: 'DIŞ KANAL SATIN ALMA!A1:C1000' },
     { id: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' },
     { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
-    { id: 'Depo', range: 'DEPO!A1:B1000' }
+    { id: 'Depo', range: 'DEPO!A1:B1000' },
+
+    // --- YENİ EKLENEN MÜŞTERİ (TRADE-IN) TABLOLARI ---
+    { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
+    { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
   ];
 
   try {
-    // ⚡ BATCH GET SİSTEMİ: Tüm aralıkları tek bir URL'de topluyoruz.
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
@@ -33,13 +36,10 @@ export async function GET() {
     }
 
     const results: any = {};
-
-    // Gelen toplu veriyi senin tablo ID'lerinle (Devices, Ayarlar vb.) eşleştiriyoruz.
     tables.forEach((table, index) => {
       results[table.id] = data.valueRanges[index].values || [];
     });
 
-    // --- MASKELEME İŞLEMİ (Aynen Korundu) ---
     const rawString = JSON.stringify(results);
     const maskedPayload = Buffer.from(rawString).toString('base64');
 
