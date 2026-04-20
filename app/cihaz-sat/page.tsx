@@ -467,5 +467,20 @@ export default function CnetmobilMusteriTradeIn() {
           <button onClick={() => {setStep(0); setEstimatedPriceVisible(false);}} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
        </div>
      )}
-  </div>
-)}
+        </div>
+      </main>
+
+      <footer className="text-center py-10 text-slate-400 text-sm">
+        © 2026 Cnetmobil Kurumsal Geri Alım Merkezi - Tüm Hakları Saklıdır.
+      </footer>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+      `}</style>
+    </div>
+  );
+}
+  
