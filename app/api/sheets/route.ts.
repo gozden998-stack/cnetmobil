@@ -1,0 +1,20 @@
+// app/api/sheets/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const sheetId = process.env.SHEET_ID;
+  const apiKey = process.env.API_KEY;
+  const range = 'Sayfa1!A1:Z100'; // Sayfa adını kontrol et
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    // Sadece tablo verilerini gönderiyoruz, anahtarlar sunucuda kalıyor
+    return NextResponse.json(data.values);
+  } catch (error) {
+    return NextResponse.json({ error: 'Veri çekilemedi' }, { status: 500 });
+  }
+}
