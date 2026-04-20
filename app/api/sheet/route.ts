@@ -1,0 +1,77 @@
+import { NextResponse } from 'next/server';
+
+
+
+export async function GET() {
+
+  const SHEET_ID = process.env.SHEET_ID;
+
+  const API_KEY = process.env.API_KEY;
+
+
+
+  // Çekilecek tüm tabloların listesi ve aralıkları
+
+  const tables = [
+
+    { id: 'Devices', range: 'Google Sheets ile Kurumsal Alım Sistemi!A2:F1000' },
+
+    { id: 'Ayarlar', range: 'Ayarlar!A1:B25' },
+
+    { id: 'Alimlar', range: 'Alimlar!A2:H500' },
+
+    { id: 'Markalar', range: 'Markalar!A2:B50' },
+
+    { id: 'CepTablet', range: 'CEP + TABLET+IOT SAAT LIST!A1:L1000' },
+
+    { id: 'YNA', range: 'YNA LİST!A1:F1000' },
+
+    { id: 'DisKanal', range: 'DIŞ KANAL SATIN ALMA!A1:C1000' },
+
+    { id: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' },
+
+    { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
+
+    { id: 'Depo', range: 'DEPO!A1:B1000' }
+
+  ];
+
+
+
+  try {
+
+    const results: any = {};
+
+
+
+    // Promise.all kullanarak tüm tabloları aynı anda (paralel) çekiyoruz, bu çok daha hızlıdır.
+
+    await Promise.all(tables.map(async (table) => {
+
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(table.range)}?key=${API_KEY}`;
+
+      const res = await fetch(url);
+
+      const data = await res.json();
+
+      results[table.id] = data.values || [];
+
+    }));
+
+
+
+    // Tüm verileri tek bir JSON objesi olarak önyüze gönderiyoruz
+
+    return NextResponse.json(results);
+
+
+
+  } catch (error) {
+
+    console.error("Sheets verisi çekilirken hata:", error);
+
+    return NextResponse.json({ error: "Veri çekilemedi" }, { status: 500 });
+
+  }
+
+}
