@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// Vercel'in veriyi önbelleğe almasını engeller, Google'daki değişim anlık yansır.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
@@ -18,21 +21,28 @@ export async function GET() {
   ];
 
   try {
+    // ⚡ BATCH GET SİSTEMİ: Tüm aralıkları tek bir URL'de topluyoruz.
+    const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
+
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = await res.json();
+
+    if (!data.valueRanges) {
+      throw new Error("Google'dan veri alınamadı.");
+    }
+
     const results: any = {};
 
-    await Promise.all(tables.map(async (table) => {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(table.range)}?key=${API_KEY}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      results[table.id] = data.values || [];
-    }));
+    // Gelen toplu veriyi senin tablo ID'lerinle (Devices, Ayarlar vb.) eşleştiriyoruz.
+    tables.forEach((table, index) => {
+      results[table.id] = data.valueRanges[index].values || [];
+    });
 
-    // --- MASKELEME İŞLEMİ BURADA BAŞLIYOR ---
-    // Verileri metne çevirip Base64 formatında paketliyoruz
+    // --- MASKELEME İŞLEMİ (Aynen Korundu) ---
     const rawString = JSON.stringify(results);
     const maskedPayload = Buffer.from(rawString).toString('base64');
 
-    // Dışarıya sadece 'payload' isminde anlamsız bir metin gönderiyoruz
     return NextResponse.json({ payload: maskedPayload });
 
   } catch (error) {
