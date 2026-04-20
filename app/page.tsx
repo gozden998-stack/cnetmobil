@@ -266,44 +266,18 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-    // isFirstLoad: Sayfa ilk açıldığında personeli uyarıya boğmamak için kullandığımız anahtar.
-  const loadData = async (isFirstLoad = false) => {
+const loadData = async () => {
     try {
+      // 1. ADIM: Veriyi tünelden çekiyoruz. 
+      // { cache: 'no-store' } ekledik ki Google'daki fiyat anlık yansısın.
       const res = await fetch('/api/sheets', { cache: 'no-store' });
       const responseData = await res.json();
 
-      // MASKE ÇÖZME & ₺ SİMGESİ KORUMASI
+      // 2. ADIM: MASKE ÇÖZME (Türkçe karakter ve ₺ simgesi garantili)
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- 🚀 DEĞİŞİKLİK TAKİP VE UYARI SİSTEMİ (TypeScript Hataları Giderildi) ---
-      if (!isFirstLoad && db && db.length > 0 && allData.Devices) {
-        
-        // 1. Yeni Marka/Model Eklendi mi?
-        const eskiIsimler = db.map(item => `${item.brand} ${item.name} ${item.cap}`);
-        
-        // Hata veren 'row' buradaydı, (row: any) yaparak düzelttik
-        const yeniCihaz = allData.Devices.find((row: any) => 
-          !eskiIsimler.includes(`${row[0]} ${row[1]} ${row[2]}`)
-        );
-
-        if (yeniCihaz) {
-          alert(`🚀 LİSTEYE YENİ ÜRÜN EKLENDİ!\n\n"${yeniCihaz[0]} ${yeniCihaz[1]} ${yeniCihaz[2]}" modeli listeye dahil edilmiştir. Devam etmek için OK'e basın.`);
-        } 
-        
-        // 2. Fiyatlarda Değişiklik Var mı?
-        else {
-          const eskiFiyatlar = db.map(item => item.base).join('|');
-          // Burada da row tipini belirttik
-          const yeniFiyatlar = allData.Devices.map((row: any) => row[3]).join('|');
-
-          if (eskiFiyatlar !== yeniFiyatlar) {
-            alert("💰 FİYATLAR GÜNCELLENDİ!\n\nGoogle Sheets üzerindeki fiyat değişiklikleri sisteme yansıtıldı. Lütfen yeni fiyatları kontrol edin.");
-          }
-        }
-      }
-
-      // --- 🏁 SENİN ORİJİNAL SET İŞLEMLERİN (HİÇ DOKUNULMADI) ---
+      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUN (HİÇ DOKUNULMADI) ---
 
       // 1. Cihaz Veritabanı
       if (allData.Devices) {
@@ -313,32 +287,54 @@ export default function CnetmobilCmrFinalUltimate() {
         })));
       }
 
-      // 2. Ayarlar
+      // 2. Ayarlar (Yüzdelik hesaplamalar)
       if (allData.Ayarlar) {
         const m: any = {};
         allData.Ayarlar.forEach((row: any) => { 
           m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
         });
+        // Android özel kontrollerini koruyoruz
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) m.Ekran_Kirik_Android = m.Ekran_Kirik;
         if (m.Kasa_Kotu_Android === undefined && m.Kasa_Kotu !== undefined) m.Kasa_Kotu_Android = m.Kasa_Kotu;
         setConfig(m);
       }
 
-      // 3. Alımlar, 4. Markalar ve Diğerleri
-      if (allData.Alimlar) setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
-      if (allData.Markalar) setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
+      // 3. Alımlar (Yönetici Paneli için)
+      if (allData.Alimlar) {
+        setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
+      }
+
+      // 4. Markalar ve Logolar
+      if (allData.Markalar) {
+        setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
+      }
+
+      // 5. Cep + Tablet Listesi
       if (allData.CepTablet) setCepTabletData(allData.CepTablet);
+
+      // 6. YNA Listesi
       if (allData.YNA) setYnaData(allData.YNA);
+
+      // 7. Dış Kanal
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
+
+      // 8. İkinci El Listesi
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
+
+      // 9. Depo (İmei Listesi)
       if (allData.Depo) setImeiData(allData.Depo);
 
+      // 10. Teknik Servis Fiyatları (Model bazlı eşleştirme)
       if (allData.Servis) {
         const loadedServis: any = {};
         allData.Servis.forEach((row: any) => {
           loadedServis[row[0]] = {
-            ekranOrj: row[1] || '', ekranOled: row[2] || '', ekranCipli: row[3] || '',
-            batarya: row[4] || '', arkaCam: row[5] || '', kasa: row[6] || ''
+            ekranOrj: row[1] || '',
+            ekranOled: row[2] || '',
+            ekranCipli: row[3] || '',
+            batarya: row[4] || '',
+            arkaCam: row[5] || '',
+            kasa: row[6] || ''
           };
         });
         setServisFiyatlari(loadedServis);
@@ -346,12 +342,10 @@ export default function CnetmobilCmrFinalUltimate() {
 
       setLoading(false);
     } catch (e) {
-      console.error("Hata:", e);
+      console.error("Veri tünelinde veya maske çözmede hata oluştu:", e);
       setLoading(false);
     }
   };
-
-
 
  useEffect(() => { 
   loadData(); 
