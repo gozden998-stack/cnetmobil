@@ -23,7 +23,7 @@ const MASTER_IPLER = [
 
 // ZUMAY şifresini doğrudan ekliyoruz
 let BRANCH_PASSWORDS: Record<string, string> = {
-  "zumay": "ZUMAY KANALI"
+  "zumay51.*": "ZUMAY KANALI"
 };
 
 try {
