@@ -266,22 +266,24 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  // isFirstLoad: Sayfa ilk açıldığında personeli uyarıya boğmamak için kullandığımız anahtar.
+    // isFirstLoad: Sayfa ilk açıldığında personeli uyarıya boğmamak için kullandığımız anahtar.
   const loadData = async (isFirstLoad = false) => {
     try {
       const res = await fetch('/api/sheets', { cache: 'no-store' });
       const responseData = await res.json();
 
+      // MASKE ÇÖZME & ₺ SİMGESİ KORUMASI
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- 🚀 DEĞİŞİKLİK TAKİP VE UYARI SİSTEMİ ---
-      // Eğer bu ilk yükleme değilse ve elimizde karşılaştıracak eski veri (db) varsa çalışır.
+      // --- 🚀 DEĞİŞİKLİK TAKİP VE UYARI SİSTEMİ (TypeScript Hataları Giderildi) ---
       if (!isFirstLoad && db && db.length > 0 && allData.Devices) {
         
         // 1. Yeni Marka/Model Eklendi mi?
         const eskiIsimler = db.map(item => `${item.brand} ${item.name} ${item.cap}`);
-        const yeniCihaz = allData.Devices.find(row => 
+        
+        // Hata veren 'row' buradaydı, (row: any) yaparak düzelttik
+        const yeniCihaz = allData.Devices.find((row: any) => 
           !eskiIsimler.includes(`${row[0]} ${row[1]} ${row[2]}`)
         );
 
@@ -289,10 +291,11 @@ export default function CnetmobilCmrFinalUltimate() {
           alert(`🚀 LİSTEYE YENİ ÜRÜN EKLENDİ!\n\n"${yeniCihaz[0]} ${yeniCihaz[1]} ${yeniCihaz[2]}" modeli listeye dahil edilmiştir. Devam etmek için OK'e basın.`);
         } 
         
-        // 2. Fiyatlarda Değişiklik Var mı? (Eğer yeni cihaz yoksa fiyat kontrolü yap)
+        // 2. Fiyatlarda Değişiklik Var mı?
         else {
           const eskiFiyatlar = db.map(item => item.base).join('|');
-          const yeniFiyatlar = allData.Devices.map(row => row[3]).join('|');
+          // Burada da row tipini belirttik
+          const yeniFiyatlar = allData.Devices.map((row: any) => row[3]).join('|');
 
           if (eskiFiyatlar !== yeniFiyatlar) {
             alert("💰 FİYATLAR GÜNCELLENDİ!\n\nGoogle Sheets üzerindeki fiyat değişiklikleri sisteme yansıtıldı. Lütfen yeni fiyatları kontrol edin.");
@@ -321,7 +324,7 @@ export default function CnetmobilCmrFinalUltimate() {
         setConfig(m);
       }
 
-      // 3. Alımlar, 4. Markalar, 5. CepTablet vs... (Diğer tüm set işlemlerin burada devam ediyor)
+      // 3. Alımlar, 4. Markalar ve Diğerleri
       if (allData.Alimlar) setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
       if (allData.Markalar) setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
       if (allData.CepTablet) setCepTabletData(allData.CepTablet);
@@ -347,6 +350,7 @@ export default function CnetmobilCmrFinalUltimate() {
       setLoading(false);
     }
   };
+
 
 
  useEffect(() => { 
