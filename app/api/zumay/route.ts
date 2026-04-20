@@ -1,82 +1,85 @@
-import { NextResponse } from 'next/server'; // "İmport" hatası düzeltildi
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  // Tam güvenlik için öncelikle NEXT_PUBLIC_ olmayan temiz değişkenleri ararız
   const SHEET_ID = process.env.GOOGLE_SHEET_ID || process.env.NEXT_PUBLIC_SHEET_ID;
   const API_KEY = process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_API_KEY;
 
   if (!SHEET_ID || !API_KEY) {
-    console.error("❌ HATA: API Anahtarları .env.local dosyasından okunamadı!");
-    return NextResponse.json({ error: 'Sunucu yapılandırma hatası' }, { status: 500 });
+    return NextResponse.json({ error: 'API anahtarları eksik' }, { status: 500 });
   }
 
-  // URL Encode ile boşluk ve Türkçe karakter sorununu çözen fonksiyon
   const getSheetUrl = (sheetName: string, range: string) => {
+    // Sayfa ismini tırnak içine alarak boşluk ve özel karakter sorunlarını önlüyoruz
     const safeRange = encodeURIComponent(`'${sheetName}'!${range}`);
     return `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${safeRange}?key=${API_KEY}`;
   };
 
-  // Hangi sayfanın hata verdiğini bulmamızı sağlayan güvenli çekim fonksiyonu
   const safeFetch = async (sheetName: string, range: string) => {
     try {
-      const res = await fetch(getSheetUrl(sheetName, range), { cache: 'no-store' });
+      const res = await fetch(getSheetUrl(sheetName, range), { 
+        cache: 'no-store',
+        next: { revalidate: 0 } // Next.js önbelleğini devre dışı bırakıyoruz
+      });
       const json = await res.json();
       
       if (!res.ok) {
-        console.error(`❌ HATA: '${sheetName}' sayfası çekilemedi! Detay:`, json.error?.message);
-        return {}; 
+        console.error(`❌ ${sheetName} hatası:`, json.error?.message);
+        return { values: [] }; // Hata durumunda boş dizi dönüyoruz ki frontend çökmesin
       }
       return json;
     } catch (error) {
-      console.error(`❌ SİSTEM HATASI: '${sheetName}' sayfasında bağlantı koptu:`, error);
-      return {};
+      console.error(`❌ ${sheetName} sistem hatası:`, error);
+      return { values: [] };
     }
   };
 
   try {
-    // SADECE Zumay'ın görmesine izin verdiğimiz 4 tablo
+    // Verileri paralel olarak çekiyoruz
     const [devices, config, brands, disKanal] = await Promise.all([
-      safeFetch('Google Sheets ile Kurumsal Alım Sistemi', 'A1:F1000'),
+      // Cihaz Alım (Buyback) verilerini A2'den başlatarak başlık satırını atlıyoruz
+      safeFetch('Google Sheets ile Kurumsal Alım Sistemi', 'A2:F1000'),
+      // Ayarlar tablosu (oranlar için)
       safeFetch('Ayarlar', 'A1:B25'),
+      // Marka logoları
       safeFetch('Markalar', 'A2:B50'),
+      // Dış kanal fiyatları
       safeFetch('DIŞ KANAL SATIN ALMA', 'A1:C1000')
     ]);
 
-    // Veriler temizlenmiş halde arayüze (Frontend'e) gönderiliyor
+    // Frontend'in (ZumayPortal) beklediği temizlenmiş veri yapısını döndürüyoruz
     return NextResponse.json({
-      devices,
-      config,
-      brands,
-      disKanal
+      devices,   // values: [[Brand, Name, Cap, Base, Img, MinPrice], ...]
+      config,    // values: [[Key, Value], ...]
+      brands,    // values: [[Name, Logo], ...]
+      disKanal   // values: [[Item, Price, Status], ...]
     });
   } catch (error) {
-    console.error("Zumay API Genel Hatası:", error);
-    return NextResponse.json({ error: 'Veri çekilemedi' }, { status: 500 });
+    return NextResponse.json({ error: 'Veri işleme hatası' }, { status: 500 });
   }
 }
 
-// Zumay'ın alım verilerini kaydetmesi için Güvenli POST metodu
 export async function POST(req: Request) {
   const SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || process.env.NEXT_PUBLIC_SCRIPT_URL;
   
   if (!SCRIPT_URL) {
-    console.error("❌ HATA: SCRIPT_URL bulunamadı!");
     return NextResponse.json({ error: 'Script URL eksik' }, { status: 500 });
   }
 
   try {
     const body = await req.json();
     
-    // Tarayıcı değil, sunucu (backend) bizim yerimize Google Apps Script'e veriyi yollar
-    await fetch(SCRIPT_URL as string, {
+    // Veriyi Google Apps Script'e güvenli bir şekilde backend üzerinden iletiyoruz
+    const response = await fetch(SCRIPT_URL as string, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body)
     });
+
+    if (!response.ok) throw new Error("Google Script hatası");
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Zumay POST Hatası:", error);
-    return NextResponse.json({ error: 'Kaydedilemedi' }, { status: 500 });
+    console.error("POST Hatası:", error);
+    return NextResponse.json({ error: 'İşlem kaydedilemedi' }, { status: 500 });
   }
 }
