@@ -268,9 +268,16 @@ export default function CnetmobilCmrFinalUltimate() {
 
 const loadData = async () => {
     try {
-      // TEK İSTEK, TAM GÜVENLİK: Tüm tabloları kendi tünelimizden çekiyoruz.
+      // 1. ADIM: Maskelenmiş veriyi tünelden çekiyoruz
       const res = await fetch('/api/sheets');
-      const allData = await res.json();
+      const responseData = await res.json();
+
+      // 2. ADIM: MASKE ÇÖZME (atob ile Base64 çözülür, JSON.parse ile objeye dönüşür)
+      // F12'de görünen o anlamsız 'payload' burada personelin ekranı için açılır.
+      const decodedString = atob(responseData.payload);
+      const allData = JSON.parse(decodedString);
+
+      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUNUN AYNISIDIR ---
 
       // 1. Cihaz Veritabanı
       if (allData.Devices) {
@@ -335,7 +342,7 @@ const loadData = async () => {
 
       setLoading(false);
     } catch (e) {
-      console.error("Veri tünelinde hata oluştu:", e);
+      console.error("Veri tünelinde veya maske çözmede hata oluştu:", e);
       setLoading(false);
     }
   };
