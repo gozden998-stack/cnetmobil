@@ -2,19 +2,28 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const sheetId = process.env.SHEET_ID;
-  const apiKey = process.env.API_KEY;
-  const range = 'Sayfa1!A1:Z100'; // Sayfa adını kontrol et
+  const SHEET_ID = process.env.SHEET_ID; // NEXT_PUBLIC yok, güvenli!
+  const API_KEY = process.env.API_KEY;
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
+  // Çekmek istediğin tüm tabloları buraya ekledim
+  const tables = [
+    { name: 'Devices', range: 'Google Sheets ile Kurumsal Alım Sistemi!A2:F1000' },
+    { name: 'Ayarlar', range: 'Ayarlar!A1:B25' },
+    { name: 'Alimlar', range: 'Alimlar!A2:H500' },
+    { name: 'Markalar', range: 'Markalar!A2:B50' },
+    { name: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' }
+  ];
 
   try {
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    // Sadece tablo verilerini gönderiyoruz, anahtarlar sunucuda kalıyor
-    return NextResponse.json(data.values);
+    const results: any = {};
+    for (const table of tables) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(table.range)}?key=${API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      results[table.name] = data.values || [];
+    }
+    return NextResponse.json(results);
   } catch (error) {
-    return NextResponse.json({ error: 'Veri çekilemedi' }, { status: 500 });
+    return NextResponse.json({ error: "Sunucu hatası" }, { status: 500 });
   }
 }
