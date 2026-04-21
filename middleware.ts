@@ -10,9 +10,12 @@ const ALLOWED_IPS = [
 ]
 
 export function middleware(request: NextRequest) {
-  // 1. PATRON MODU
+  const { pathname } = request.nextUrl;
+
+  // 1. PATRON MODU (Giriş yapınca Admin Panel'e atar)
   if (request.nextUrl.searchParams.get('patron') === 'cnet1905') {
     const url = request.nextUrl.clone()
+    url.pathname = '/admin-panel' // Girişten sonra admin paneline yönlendir
     url.search = '' 
     const response = NextResponse.redirect(url)
     response.cookies.set({
@@ -42,9 +45,10 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // --- YENİ EKLENEN: 2.2. ZUMAY MODU ---
-  if (request.nextUrl.searchParams.get('zumay') === 'zumay') { // Buraya istediğin şifreyi yazabilirsin
+  // 2.2. ZUMAY MODU (Giriş yapınca Teknik Takip'e atar)
+  if (request.nextUrl.searchParams.get('zumay') === 'zumay') {
     const url = request.nextUrl.clone()
+    url.pathname = '/teknik-takip' // Zumay girişi sonrası teknik takibe atar
     url.search = '' 
     const response = NextResponse.redirect(url)
     response.cookies.set({
@@ -58,15 +62,17 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  // 3. Kapıdaki Kontrol (Zumay izni eklendi)
+  // 3. Kapıdaki Kontrol
   const hasPatronCookie = request.cookies.has('patron_izni')
   const hasVodafoneCookie = request.cookies.has('vodafone_izni')
-  const hasZumayCookie = request.cookies.has('zumay_izni') // YENİ
+  const hasZumayCookie = request.cookies.has('zumay_izni')
 
+  // Eğer izni varsa her yere girebilir
   if (hasPatronCookie || hasVodafoneCookie || hasZumayCookie) { 
     return NextResponse.next() 
   }
 
+  // IP Kontrolü
   let clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
   if (clientIp.includes(',')) clientIp = clientIp.split(',')[0].trim()
 
@@ -74,6 +80,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next() 
   }
 
+  // --- ENGEL EKRANI ---
   return new NextResponse(
     `
     <!DOCTYPE html>
@@ -83,50 +90,38 @@ export function middleware(request: NextRequest) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Erişim Engellendi</title>
         <style>
-          body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f8fafc; color: #0f172a; text-align: center; }
-          .card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 400px; width: 85%; border: 1px solid #e2e8f0; }
-          h1 { color: #dc2626; margin-bottom: 10px; font-weight: 900; }
-          p { color: #64748b; font-size: 14px; line-height: 1.5; }
-          .ip-box { background: #f1f5f9; padding: 15px; border-radius: 12px; font-family: monospace; font-weight: bold; margin-top: 20px; color: #334155; }
-          .admin-btn { font-size: 12px; color: #94a3b8; background: none; border: none; padding: 10px; cursor: pointer; font-weight: bold; text-decoration: underline; transition: all 0.2s; }
-          .admin-btn:hover { color: #2563eb; }
-          .btn-group { margin-top: 30px; display: flex; flex-direction: column; gap: 5px; }
+          body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #020617; color: #f8fafc; text-align: center; }
+          .card { background: #0f172a; padding: 40px; border-radius: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); max-width: 400px; width: 85%; border: 1px solid #1e293b; }
+          h1 { color: #ef4444; margin-bottom: 10px; font-weight: 900; letter-spacing: -1px; }
+          p { color: #94a3b8; font-size: 14px; line-height: 1.5; }
+          .ip-box { background: #1e293b; padding: 15px; border-radius: 12px; font-family: monospace; font-weight: bold; margin-top: 20px; color: #38bdf8; }
+          .btn-group { margin-top: 30px; display: flex; flex-direction: column; gap: 10px; }
+          .admin-btn { padding: 12px; border-radius: 12px; border: 1px solid #334155; background: transparent; color: #94a3b8; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+          .admin-btn:hover { background: #1e293b; color: white; border-color: #475569; }
+          .zumay-btn { border-color: #ef4444; color: #ef4444; }
+          .zumay-btn:hover { background: #ef4444; color: white; }
         </style>
       </head>
       <body>
         <div class="card">
-          <svg style="width:64px;height:64px;margin:0 auto 20px;color:#dc2626;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"></path></svg>
-          <h1>GÜVENLİK İHLALİ</h1>
-          <p>CNETMOBIL CMR sistemine sadece yetkili şube ağlarından (Wi-Fi) erişim sağlanabilir.</p>
-          <div class="ip-box">Sizin IP Adresiniz:<br><span style="color:#2563eb; font-size:16px;">${clientIp || 'Bulunamadı'}</span></div>
+          <h1 style="font-size: 40px;">⚠️</h1>
+          <h1>ERİŞİM KISITLI</h1>
+          <p>Cnetmobil CMR sistemine sadece yetkili IP veya şifre ile giriş yapılabilir.</p>
+          <div class="ip-box">IP: ${clientIp || 'Gizli Ağ'}</div>
           
           <div class="btn-group">
-            <button class="admin-btn" onclick="adminLogin()">Sistem Yöneticisi Girişi</button>
-            <button class="admin-btn" onclick="vodafoneLogin()">Vodafone Kanalı Girişi</button>
-            <button class="admin-btn" style="color:#dc2626; font-weight:900;" onclick="zumayLogin()">Zumay Kanalı Girişi</button>
+            <button class="admin-btn" onclick="login('patron')">PATRON GİRİŞİ</button>
+            <button class="admin-btn" onclick="login('vodafone')">VODAFONE GİRİŞİ</button>
+            <button class="admin-btn zumay-btn" onclick="login('zumay')">ZUMAY GİRİŞİ</button>
           </div>
         </div>
 
         <script>
-          function adminLogin() {
-            var pass = prompt("Lütfen yönetici şifrenizi giriniz:");
-            if (pass === "cnet1905") { window.location.href = "/?patron=cnet1905"; } 
-            else if (pass) { alert("Hatalı şifre!"); }
-          }
-
-          function vodafoneLogin() {
-            var pass = prompt("Lütfen Vodafone kanalı şifrenizi giriniz:");
-            if (pass === "vdf123") { window.location.href = "/?vodafone=vdf123"; } 
-            else if (pass) { alert("Hatalı şifre!"); }
-          }
-
-          // YENİ FONKSİYON
-          function zumayLogin() {
-            var pass = prompt("Lütfen Zumay kanalı şifrenizi giriniz:");
-            if (pass === "zumay") { 
-              window.location.href = "/?zumay=zumay"; 
-            } 
-            else if (pass) { alert("Hatalı şifre!"); }
+          function login(type) {
+            const pass = prompt("Lütfen " + type + " şifrenizi giriniz:");
+            if (type === 'patron' && pass === 'cnet1905') window.location.href = "/?patron=cnet1905";
+            if (type === 'vodafone' && pass === 'vdf123') window.location.href = "/?vodafone=vdf123";
+            if (type === 'zumay' && pass === 'zumay') window.location.href = "/?zumay=zumay";
           }
         </script>
       </body>
@@ -139,6 +134,7 @@ export function middleware(request: NextRequest) {
   )
 }
 
+// TÜM SİTEYİ KORUMAYA ALAN YENİ MATCHER
 export const config = {
-  matcher: '/',
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
