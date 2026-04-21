@@ -1335,7 +1335,7 @@ const loadData = async () => {
                   </div>
                   <h2 className="text-xl font-black italic mb-8 uppercase tracking-widest text-white">Yönetici Terminali</h2>
                   <input type="password" placeholder="••••••••" className="w-full p-5 bg-[#2a2a3d] rounded-2xl mb-4 text-center font-black outline-none border border-slate-700 focus:border-blue-500 transition-all text-white placeholder-slate-500" onChange={(e) => setAdminPass(e.target.value)} />
-                  <button onClick={() => adminPass === 'cnet1905.*' ? setIsAdmin(true) : alert("Hatalı!")} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase w-full btn-click shadow-xl shadow-blue-600/20 hover:bg-blue-500">SİSTEME GİRİŞ YAP</button>
+                  <button onClick={handleLogin} ...>
                 </div>
               ) : (
                 <div className="w-full space-y-10 min-w-0">
