@@ -25,7 +25,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [entryPass, setEntryPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici' | 'zumay'>('personel');
+  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -752,15 +752,10 @@ const loadData = async () => {
                <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
                <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
            </div>
-           <button 
-    onClick={() => {setLoginMode('zumay'); setEntryPass('');}} 
-    className={`w-full py-3 rounded-2xl text-[10px] font-black uppercase border-2 transition-all mb-4 ${loginMode === 'zumay' ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'border-slate-700 text-slate-400 hover:border-red-500'}`}
->
-    🔴 Zumay Kanalı Girişi
-</button>
+           
            <input 
               type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : loginMode === 'zumay' ? "zumay" : "Yönetici Şifresi"}
+              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
               value={entryPass}
               onChange={(e) => setEntryPass(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
