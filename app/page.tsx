@@ -5,7 +5,6 @@ import AnaSayfa from './AnaSayfa';
 // GÜVENLİ HALE GETİRİLDİ: Hassas veriler artık client tarafında tanımlanmıyor.
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
-const MASTER_ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASS as string;
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
@@ -19,18 +18,6 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
-// ZUMAY şifresini doğrudan ekliyoruz
-let BRANCH_PASSWORDS: Record<string, string> = {
-  "zumay51.*": "ZUMAY KANALI"
-};
-
-try {
-  if (process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) {
-    BRANCH_PASSWORDS = { ...BRANCH_PASSWORDS, ...JSON.parse(process.env.NEXT_PUBLIC_BRANCH_PASSWORDS) };
-  }
-} catch (error) {
-  console.error("Şube şifreleri yüklenirken hata oluştu:", error);
-}
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
@@ -161,71 +148,69 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
-  const handleLogin = async () => {
-    if(!entryPass) return;
-    setLoginLoading(true);
+ const handleLogin = async () => {
+  if(!entryPass) return;
+  setLoginLoading(true);
 
-    try {
-      if (loginMode === 'yonetici') {
-        if (entryPass === MASTER_ADMIN_PASS) {
-           setIsMasterAccess(true);
-           setIsAdmin(true);
-           setSelectedBranch('CMR MERKEZ'); 
-           setIsLoggedIn(true);
-           localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-        } else {
-           alert("Hatalı Yönetici Şifresi!");
-        }
-        setLoginLoading(false);
-        return;
-      }
+  try {
+    // 1. ŞİFREYİ GİZLİCE SERVER'A SORUYORUZ (F12'DE GÖZÜKMEZ)
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: entryPass, mode: loginMode })
+    });
 
-      const matchedBranch = BRANCH_PASSWORDS[entryPass];
-      
-      if (!matchedBranch) {
-        alert("Hatalı Şube Şifresi!");
-        setLoginLoading(false);
-        return;
-      }
+    const data = await res.json();
 
-      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
-        setSelectedBranch(matchedBranch);
-        setIsMasterAccess(false);
-        setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-        setLoginLoading(false);
-        return;
-      }
-
-      const res = await fetch('https://api.ipify.org?format=json');
-      const data = await res.json();
-      const currentIp = data.ip;
-
-      if (MASTER_IPLER.includes(currentIp)) {
-        setSelectedBranch(matchedBranch);
-        setIsMasterAccess(false);
-        setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-        setLoginLoading(false);
-        return;
-      }
-
-      const expectedBranchForThisIp = IP_HARITASI[currentIp];
-
-      if (expectedBranchForThisIp === matchedBranch) {
-        setSelectedBranch(matchedBranch);
-        setIsMasterAccess(false);
-        setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-      } else {
-        alert(`GÜVENLİK UYARISI: Bu şifreyi (${matchedBranch}) bu mağazanın interneti dışında kullanamazsınız! Lütfen şube Wi-Fi ağına bağlanın. (Mevcut IP'niz: ${currentIp})`);
-      }
-    } catch (error) {
-      alert("Bağlantı Hatası: Güvenlik IP kontrolü yapılamadı. İnternet bağlantınızı kontrol edin.");
+    if (!res.ok || !data.success) {
+      alert(data.message || "Hatalı Şifre!");
+      setLoginLoading(false);
+      return;
     }
-    
-    setLoginLoading(false);
-  };
+
+    const matchedBranch = data.branch;
+
+    // 2. YÖNETİCİ GİRİŞİ (IP KONTROLÜNE GEREK YOK)
+    if (loginMode === 'yonetici') {
+       setIsMasterAccess(true);
+       setIsAdmin(true);
+       setSelectedBranch('CMR MERKEZ'); 
+       setIsLoggedIn(true);
+       localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+       setLoginLoading(false);
+       return;
+    }
+
+    // 3. ŞUBE GİRİŞİ - ÖZEL KANALLAR (IP KONTROLÜ GEREKMEZ)
+    if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+      setSelectedBranch(matchedBranch);
+      setIsMasterAccess(false);
+      setIsLoggedIn(true);
+      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+      setLoginLoading(false);
+      return;
+    }
+
+    // 4. ŞUBE GİRİŞİ - NORMAL ŞUBELER (SENİN MEVCUT IP KONTROLÜN)
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    const currentIp = ipData.ip;
+
+    if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
+      setSelectedBranch(matchedBranch);
+      setIsMasterAccess(false);
+      setIsLoggedIn(true);
+      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+    } else {
+      alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
+    }
+
+  } catch (error) {
+    alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
+  }
+  
+  setLoginLoading(false);
+};
 
   const handleLogout = () => {
     localStorage.removeItem('cnet_session');
