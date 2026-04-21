@@ -760,7 +760,7 @@ const loadData = async () => {
 </button>
            <input 
               type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : loginMode === 'zumay' ? "Zumay Şifresi" : "Yönetici Şifresi"}
+              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : loginMode === 'zumay' ? "zumay" : "Yönetici Şifresi"}
               value={entryPass}
               onChange={(e) => setEntryPass(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
