@@ -29,6 +29,14 @@ export default function CnetmobilMusteriTradeIn() {
 
   const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo"];
 
+  // Seçimleri Sıfırlama Fonksiyonu (Geri dönüşlerde temizlik için)
+  const resetSelection = () => {
+    setSelectedModel(null);
+    setSelectedCapacity(null);
+    setAnswers({ power: null, screen: null, cosmetic: null, faceId: null, battery: null });
+    setEstimatedPriceVisible(false);
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -140,7 +148,7 @@ export default function CnetmobilMusteriTradeIn() {
 
       <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div onClick={() => setStep(0)} className="flex items-center cursor-pointer group">
+          <div onClick={() => { setStep(0); resetSelection(); }} className="flex items-center cursor-pointer group">
             <img src="/logo.png" alt="Cnetmobil Logo" className="h-14 w-auto object-contain transition-transform group-hover:scale-110" />
           </div>
           <div className="flex items-center gap-4 md:gap-8">
@@ -202,7 +210,7 @@ export default function CnetmobilMusteriTradeIn() {
                 {[
                   { title: 'Hızlı Ekspertiz', desc: 'Formumuzu doldurarak saniyeler içinde cihazınız için en güncel piyasa teklifini alın.', icon: <svg className="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, bg: 'bg-indigo-50/40', border: 'hover:border-indigo-300' },
                   { title: 'Güvenli Ödeme', desc: 'Cihaz kontrolü tamamlandığı an paranız IBAN veya nakit olarak elinizde.', icon: <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>, bg: 'bg-emerald-50/40', border: 'hover:border-emerald-300' },
-                  { title: '100% Veri Güvenliği', desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.', icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>, bg: 'bg-rose-50/40', border: 'hover:border-rose-300' }
+                  { title: '100% Veri Güvenliği', desc: 'Eski cihazınızdaki tüm kişisel verileriniz geri döndürülemez şekilde sıfırlanır.', icon: <svg className="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>, bg: 'bg-rose-50/40', border: 'hover:border-rose-300' }
                 ].map((item, i) => (
                   <div key={i} className={`p-8 rounded-[32px] border-2 border-slate-100 ${item.bg} ${item.border} transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group cursor-default`}>
                     <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-6">{item.icon}</div>
@@ -223,7 +231,7 @@ export default function CnetmobilMusteriTradeIn() {
               <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {baseBrands.map(brand => (
-                  <button key={brand} onClick={() => { setSelectedBrand(brand); setStep(2); }} className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
+                  <button key={brand} onClick={() => { setSelectedBrand(brand); resetSelection(); setStep(2); }} className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
                     <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>{brand}
                   </button>
                 ))}
@@ -233,12 +241,14 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 2 && (
             <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
-              <button onClick={() => setStep(1)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold">← Geri Dön</button>
+              <button onClick={() => setStep(1)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg> Geri Dön
+              </button>
               <h2 className="text-3xl font-black mb-8 text-slate-800">{selectedBrand} <span className="text-indigo-600">Hangi Model?</span></h2>
               <div className="relative mb-8"><span className="absolute left-4 top-1/2 -translate-y-1/2">🔍</span><input type="text" placeholder="Model ismini buraya yazın..." className="w-full p-5 pl-12 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-slate-900" onChange={(e) => setSearchQuery(e.target.value)} /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
                 {Array.from(new Set(db.filter(i => i.brand.toLowerCase() === selectedBrand.toLowerCase()).map(i => i.name))).filter((name: any) => name.toLowerCase().includes(searchQuery.toLowerCase())).map((name: any) => (
-                  <div key={name} onClick={() => { setSelectedModel(name); setStep(3); }} className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all">
+                  <div key={name} onClick={() => { setSelectedModel(name); setSelectedCapacity(null); setStep(3); }} className="group flex items-center gap-5 p-5 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all">
                     <div className="w-20 h-20 bg-white rounded-xl shadow-sm p-2 flex items-center justify-center"><img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain group-hover:scale-110 transition-transform" alt={name} /></div>
                     <span className="font-bold text-lg text-slate-700">{name}</span>
                   </div>
@@ -249,9 +259,15 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 3 && (
             <div className="text-center max-w-3xl mx-auto animate-in zoom-in-95 duration-500">
+               <button onClick={() => setStep(2)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg> Geri Dön
+              </button>
               <h2 className="text-3xl font-black mb-10 text-slate-800">Depolama Kapasitesi?</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                {db.filter(i => i.name === selectedModel).map(c => (
+                {/* 16 PRO MAX VE DİĞERLERİNDE ÇİFT GÖZÜKMEMESİ İÇİN UNIQUE FİLTRELEME */}
+                {db.filter(i => i.name === selectedModel)
+                   .filter((v, i, a) => a.findIndex(t => (t.cap === v.cap)) === i) // Aynı kapasiteyi 1 kez göster
+                   .map(c => (
                   <button key={c.cap} onClick={() => { setSelectedCapacity(c); setStep(4); }} className="p-10 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:bg-indigo-50 transition-all font-black text-3xl text-slate-700">{c.cap}</button>
                 ))}
               </div>
@@ -260,6 +276,9 @@ export default function CnetmobilMusteriTradeIn() {
 
           {step === 4 && (
             <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
+               <button onClick={() => setStep(3)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg> Geri Dön
+              </button>
               <h2 className="text-3xl font-black mb-8 text-slate-800 text-center">Cihaz Kondisyonu</h2>
               <div className="flex flex-col lg:flex-row gap-8 items-start">
                 <div className="flex-1 space-y-6 w-full">
@@ -298,6 +317,9 @@ export default function CnetmobilMusteriTradeIn() {
             <div className="text-center max-w-2xl mx-auto animate-in zoom-in-95 duration-700">
               {!estimatedPriceVisible ? (
                 <div className="bg-white border-2 border-slate-100 rounded-[32px] p-8 shadow-xl">
+                   <button onClick={() => setStep(4)} className="mb-6 text-slate-400 hover:text-indigo-600 flex items-center gap-2 font-semibold transition-colors mx-auto">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg> Kondisyonu Düzenle
+                  </button>
                   <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">💰</div>
                   <h3 className="font-black text-2xl mb-2 text-slate-800">Fiyat Teklifini Gör</h3>
                   <p className="text-slate-500 mb-6 text-sm">Cihazınız için hazırlanan özel teklifi görmek için bilgilerinizi doğrulayın.</p>
@@ -316,13 +338,15 @@ export default function CnetmobilMusteriTradeIn() {
                 <div className="animate-in fade-in zoom-in-95 duration-500">
                   <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✓</div>
                   <h2 className="text-2xl font-bold text-slate-500 mb-2">Hazır! İşte Tahmini Değer:</h2>
-                  <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl text-white">
+                  <div className="mb-10 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[40px] p-12 shadow-2xl text-white relative overflow-hidden">
+                     {/* Arka plan dekoratif daire */}
+                    <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                     <p className="text-indigo-200 font-bold mb-2 uppercase tracking-widest text-sm">{selectedBrand} {selectedModel}</p>
                     <div className="text-7xl font-black mb-2">{estimatedPrice.toLocaleString()} <span className="text-2xl font-light opacity-70">TL</span></div>
                     <p className="text-indigo-100/60 text-xs italic">*Fiyat nihai kontrolden sonra kesinleşecektir.</p>
                   </div>
                   <button onClick={submitLead} className="w-full py-6 bg-[#25D366] hover:bg-[#1ebd5b] text-white rounded-[24px] font-black text-xl shadow-xl flex items-center justify-center gap-3 transition-transform active:scale-95"><span className="text-2xl">💬</span> WhatsApp'tan Satışı Onayla</button>
-                  <button onClick={() => { setStep(0); setEstimatedPriceVisible(false); }} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
+                  <button onClick={() => { setStep(0); resetSelection(); }} className="mt-6 text-slate-400 font-semibold hover:text-indigo-600 transition-colors">Yeniden Hesapla</button>
                 </div>
               )}
             </div>
