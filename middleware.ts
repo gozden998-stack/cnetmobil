@@ -123,8 +123,8 @@ export function middleware(request: NextRequest) {
           // YENİ FONKSİYON
           function zumayLogin() {
             var pass = prompt("Lütfen Zumay kanalı şifrenizi giriniz:");
-            if (pass === "zumay2026") { 
-              window.location.href = "/?zumay=zumay2026"; 
+            if (pass === "zumay") { 
+              window.location.href = "/?zumay=zumay"; 
             } 
             else if (pass) { alert("Hatalı şifre!"); }
           }
