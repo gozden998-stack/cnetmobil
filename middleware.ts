@@ -43,7 +43,7 @@ export function middleware(request: NextRequest) {
   }
 
   // --- YENİ EKLENEN: 2.2. ZUMAY MODU ---
-  if (request.nextUrl.searchParams.get('zumay') === 'zumay2026') { // Buraya istediğin şifreyi yazabilirsin
+  if (request.nextUrl.searchParams.get('zumay') === 'zumay') { // Buraya istediğin şifreyi yazabilirsin
     const url = request.nextUrl.clone()
     url.search = '' 
     const response = NextResponse.redirect(url)
