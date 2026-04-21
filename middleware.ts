@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// 1. Yetkili Şubelerin Statik IP Adresleri (VIP Liste)
 const ALLOWED_IPS = [
   '95.70.226.118',
   '78.188.91.172',
@@ -11,62 +10,70 @@ const ALLOWED_IPS = [
 ]
 
 export function middleware(request: NextRequest) {
-  // 2. PATRON MODU: Gizli Link veya Şifre ile Giriş
+  // 1. PATRON MODU
   if (request.nextUrl.searchParams.get('patron') === 'cnet1905') {
-    // Şifre doğruysa, URL'deki parametreyi temizle ve ana sayfaya yönlendir
     const url = request.nextUrl.clone()
     url.search = '' 
     const response = NextResponse.redirect(url)
-    
-    // Tarayıcıya VIP çerezini sağlam bir şekilde bırak
     response.cookies.set({
       name: 'patron_izni',
       value: 'aktif',
       path: '/',
       httpOnly: true,
       secure: true, 
-      maxAge: 60 * 60 * 24 * 365 // 1 Yıl geçerli
+      maxAge: 60 * 60 * 24 * 365
     })
     return response
   }
 
-  // 2.1. VODAFONE MODU: Gizli Link veya Şifre ile Giriş (YENİ EKLENDİ)
-  if (request.nextUrl.searchParams.get('vodafone') === 'vdf123') { // 'vdf123' şifresini isteğinize göre değiştirebilirsiniz
+  // 2. VODAFONE MODU
+  if (request.nextUrl.searchParams.get('vodafone') === 'vdf123') {
     const url = request.nextUrl.clone()
     url.search = '' 
     const response = NextResponse.redirect(url)
-    
     response.cookies.set({
       name: 'vodafone_izni',
       value: 'aktif',
       path: '/',
       httpOnly: true,
       secure: true, 
-      maxAge: 60 * 60 * 24 * 365 // 1 Yıl geçerli
+      maxAge: 60 * 60 * 24 * 365
     })
     return response
   }
 
-  // 3. Kapıdaki Kontrol: Bu cihazda Patron VEYA Vodafone izni var mı?
+  // --- YENİ EKLENEN: 2.2. ZUMAY MODU ---
+  if (request.nextUrl.searchParams.get('zumay') === 'zumay2026') { // Buraya istediğin şifreyi yazabilirsin
+    const url = request.nextUrl.clone()
+    url.search = '' 
+    const response = NextResponse.redirect(url)
+    response.cookies.set({
+      name: 'zumay_izni',
+      value: 'aktif',
+      path: '/',
+      httpOnly: true,
+      secure: true, 
+      maxAge: 60 * 60 * 24 * 365
+    })
+    return response
+  }
+
+  // 3. Kapıdaki Kontrol (Zumay izni eklendi)
   const hasPatronCookie = request.cookies.has('patron_izni')
   const hasVodafoneCookie = request.cookies.has('vodafone_izni')
+  const hasZumayCookie = request.cookies.has('zumay_izni') // YENİ
 
-  if (hasPatronCookie || hasVodafoneCookie) { // İkisinden biri varsa içeri al
+  if (hasPatronCookie || hasVodafoneCookie || hasZumayCookie) { 
     return NextResponse.next() 
   }
 
-  // 4. IP Kontrolü (Mağazalar için)
   let clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ''
-  
-  if (clientIp.includes(',')) {
-    clientIp = clientIp.split(',')[0].trim()
-  }
+  if (clientIp.includes(',')) clientIp = clientIp.split(',')[0].trim()
 
   if (ALLOWED_IPS.includes(clientIp)) {
     return NextResponse.next() 
   }
 
-  // 5. YASAK BÖLGE: IP listede yoksa REDDET ve Ekrana Giriş Formu Çıkar
   return new NextResponse(
     `
     <!DOCTYPE html>
@@ -96,27 +103,30 @@ export function middleware(request: NextRequest) {
           <div class="btn-group">
             <button class="admin-btn" onclick="adminLogin()">Sistem Yöneticisi Girişi</button>
             <button class="admin-btn" onclick="vodafoneLogin()">Vodafone Kanalı Girişi</button>
+            <button class="admin-btn" style="color:#dc2626; font-weight:900;" onclick="zumayLogin()">Zumay Kanalı Girişi</button>
           </div>
         </div>
 
         <script>
           function adminLogin() {
             var pass = prompt("Lütfen yönetici şifrenizi giriniz:");
-            if (pass === "cnet1905") {
-              window.location.href = "/?patron=cnet1905";
-            } else if (pass) {
-              alert("Hatalı şifre girişi!");
-            }
+            if (pass === "cnet1905") { window.location.href = "/?patron=cnet1905"; } 
+            else if (pass) { alert("Hatalı şifre!"); }
           }
 
           function vodafoneLogin() {
             var pass = prompt("Lütfen Vodafone kanalı şifrenizi giriniz:");
-            // Buradaki 'vdf123' şifresini yukarıdaki middleware kontrolündeki ile aynı tutmayı unutmayın.
-            if (pass === "vdf123") {
-              window.location.href = "/?vodafone=vdf123";
-            } else if (pass) {
-              alert("Hatalı şifre girişi!");
-            }
+            if (pass === "vdf123") { window.location.href = "/?vodafone=vdf123"; } 
+            else if (pass) { alert("Hatalı şifre!"); }
+          }
+
+          // YENİ FONKSİYON
+          function zumayLogin() {
+            var pass = prompt("Lütfen Zumay kanalı şifrenizi giriniz:");
+            if (pass === "zumay2026") { 
+              window.location.href = "/?zumay=zumay2026"; 
+            } 
+            else if (pass) { alert("Hatalı şifre!"); }
           }
         </script>
       </body>
