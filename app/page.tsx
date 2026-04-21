@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import AnaSayfa from './AnaSayfa';
+import AdminPanel from '@/components/AdminPanel';
 
 // GÜVENLİ HALE GETİRİLDİ: Hassas veriler artık client tarafında tanımlanmıyor.
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
@@ -17,7 +18,6 @@ const MASTER_IPLER = [
   "95.70.226.118",
   "148.0.18.162"
 ];
-
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
@@ -148,77 +148,78 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
- const handleLogin = async () => {
-  if(!entryPass) return;
-  setLoginLoading(true);
+  const handleLogin = async () => {
+    if(!entryPass && loginMode === 'personel') return;
+    if(!adminPass && loginMode === 'yonetici') return;
+    setLoginLoading(true);
 
-  try {
-    // 1. ŞİFREYİ GİZLİCE SERVER'A SORUYORUZ (F12'DE GÖZÜKMEZ)
-    const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: entryPass, mode: loginMode })
-    });
+    const checkPass = loginMode === 'yonetici' ? adminPass : entryPass;
 
-    const data = await res.json();
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: checkPass, mode: loginMode })
+      });
 
-    if (!res.ok || !data.success) {
-      alert(data.message || "Hatalı Şifre!");
-      setLoginLoading(false);
-      return;
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.message || "Hatalı Şifre!");
+        setLoginLoading(false);
+        return;
+      }
+
+      const matchedBranch = data.branch;
+
+      if (loginMode === 'yonetici') {
+         setIsMasterAccess(true);
+         setIsAdmin(true);
+         setSelectedBranch('CMR MERKEZ'); 
+         setIsLoggedIn(true);
+         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+         setLoginLoading(false);
+         return;
+      }
+
+      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setLoginLoading(false);
+        return;
+      }
+
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      const currentIp = ipData.ip;
+
+      if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+      } else {
+        alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
+      }
+
+    } catch (error) {
+      alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
     }
-
-    const matchedBranch = data.branch;
-
-    // 2. YÖNETİCİ GİRİŞİ (IP KONTROLÜNE GEREK YOK)
-    if (loginMode === 'yonetici') {
-       setIsMasterAccess(true);
-       setIsAdmin(true);
-       setSelectedBranch('CMR MERKEZ'); 
-       setIsLoggedIn(true);
-       localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-       setLoginLoading(false);
-       return;
-    }
-
-    // 3. ŞUBE GİRİŞİ - ÖZEL KANALLAR (IP KONTROLÜ GEREKMEZ)
-    if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
-      setSelectedBranch(matchedBranch);
-      setIsMasterAccess(false);
-      setIsLoggedIn(true);
-      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-      setLoginLoading(false);
-      return;
-    }
-
-    // 4. ŞUBE GİRİŞİ - NORMAL ŞUBELER (SENİN MEVCUT IP KONTROLÜN)
-    const ipRes = await fetch('https://api.ipify.org?format=json');
-    const ipData = await ipRes.json();
-    const currentIp = ipData.ip;
-
-    if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
-      setSelectedBranch(matchedBranch);
-      setIsMasterAccess(false);
-      setIsLoggedIn(true);
-      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-    } else {
-      alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
-    }
-
-  } catch (error) {
-    alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
-  }
-  
-  setLoginLoading(false);
-};
+    
+    setLoginLoading(false);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('cnet_session');
     setIsLoggedIn(false); 
     setEntryPass(''); 
+    setAdminPass('');
     setIsMasterAccess(false); 
     setIsAdmin(false); 
     setLoginMode('personel');
+    setStep(1);
   };
 
   const resetAll = () => {
@@ -251,20 +252,13 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-const loadData = async () => {
+  const loadData = async () => {
     try {
-      // 1. ADIM: Veriyi tünelden çekiyoruz. 
-      // { cache: 'no-store' } ekledik ki Google'daki fiyat anlık yansısın.
       const res = await fetch('/api/sheets', { cache: 'no-store' });
       const responseData = await res.json();
-
-      // 2. ADIM: MASKE ÇÖZME (Türkçe karakter ve ₺ simgesi garantili)
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- BUNDAN SONRASI SENİN ORİJİNAL KODUN (HİÇ DOKUNULMADI) ---
-
-      // 1. Cihaz Veritabanı
       if (allData.Devices) {
         setDb(allData.Devices.map((row: any) => ({
           brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -272,44 +266,30 @@ const loadData = async () => {
         })));
       }
 
-      // 2. Ayarlar (Yüzdelik hesaplamalar)
       if (allData.Ayarlar) {
         const m: any = {};
         allData.Ayarlar.forEach((row: any) => { 
           m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
         });
-        // Android özel kontrollerini koruyoruz
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) m.Ekran_Kirik_Android = m.Ekran_Kirik;
         if (m.Kasa_Kotu_Android === undefined && m.Kasa_Kotu !== undefined) m.Kasa_Kotu_Android = m.Kasa_Kotu;
         setConfig(m);
       }
 
-      // 3. Alımlar (Yönetici Paneli için)
       if (allData.Alimlar) {
         setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
       }
 
-      // 4. Markalar ve Logolar
       if (allData.Markalar) {
         setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
       }
 
-      // 5. Cep + Tablet Listesi
       if (allData.CepTablet) setCepTabletData(allData.CepTablet);
-
-      // 6. YNA Listesi
       if (allData.YNA) setYnaData(allData.YNA);
-
-      // 7. Dış Kanal
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
-
-      // 8. İkinci El Listesi
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
-
-      // 9. Depo (İmei Listesi)
       if (allData.Depo) setImeiData(allData.Depo);
 
-      // 10. Teknik Servis Fiyatları (Model bazlı eşleştirme)
       if (allData.Servis) {
         const loadedServis: any = {};
         allData.Servis.forEach((row: any) => {
@@ -332,30 +312,23 @@ const loadData = async () => {
     }
   };
 
- useEffect(() => { 
-  loadData(); 
-
-  const intervalId = setInterval(() => {
-    loadData();
-  }, 45000); 
-
-  const handleFocus = () => {
-    loadData();
-  };
-  window.addEventListener('focus', handleFocus);
-
-  return () => {
-    clearInterval(intervalId);
-    window.removeEventListener('focus', handleFocus);
-  };
-}, [step]);
+  useEffect(() => { 
+    loadData(); 
+    const intervalId = setInterval(() => { loadData(); }, 45000); 
+    const handleFocus = () => { loadData(); };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [step]);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -400,7 +373,6 @@ const loadData = async () => {
 
       let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
-      // ZUMAY ve VODAFONE KANALI İÇİN %8 İNDİRİM
       if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === 'ZUMAY KANALI') {
          finalCash = Math.round(finalCash * 0.92);
       }
@@ -417,7 +389,6 @@ const loadData = async () => {
       }
     }
   }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); 
-
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
   const calculatedTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
@@ -531,7 +502,6 @@ const loadData = async () => {
       });
     } catch (e) { console.error(e); }
   };
-
 
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
@@ -978,35 +948,35 @@ const loadData = async () => {
       <div className="flex-1 w-full min-w-0 flex flex-col relative md:h-screen md:overflow-y-auto custom-scrollbar">
         <main className="max-w-[1400px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
   
-  {appMode === 'ana_sayfa' && step < 99 ? (
-      isZumay ? (
-         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
-            <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-red-500/30 text-white text-5xl font-black italic">
-               Z
-            </div>
-            <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-900 uppercase text-center">
-               ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
-            </h2>
-            <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
-               Cihaz alım ve dış kanal satın alma işlemlerinizi sol menüden veya aşağıdaki butonlardan yönetebilirsiniz.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-               <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm">
-                  CİHAZ ALIMI YAP
-               </button>
-               <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 text-xs sm:text-sm">
-                  DIŞ KANAL LİSTESİ
-               </button>
-            </div>
-         </div>
-      ) : (
-         <AnaSayfa 
-             selectedBranch={selectedBranch} 
-             setAppMode={setAppMode} 
-             config={config} 
-         />
-      )
-  ) : appMode === 'imei_list' && step < 99 ? (
+          {appMode === 'ana_sayfa' && step < 99 ? (
+              isZumay ? (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
+                    <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-red-500/30 text-white text-5xl font-black italic">
+                      Z
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-900 uppercase text-center">
+                      ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
+                    </h2>
+                    <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
+                      Cihaz alım ve dış kanal satın alma işlemlerinizi sol menüden veya aşağıdaki butonlardan yönetebilirsiniz.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
+                      <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm">
+                          CİHAZ ALIMI YAP
+                      </button>
+                      <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 text-xs sm:text-sm">
+                          DIŞ KANAL LİSTESİ
+                      </button>
+                    </div>
+                </div>
+              ) : (
+                <AnaSayfa 
+                    selectedBranch={selectedBranch} 
+                    setAppMode={setAppMode} 
+                    config={config} 
+                />
+              )
+          ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1042,9 +1012,7 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) :
-
-          appMode === 'kampanya_sifir' && step < 99 ? (
+          ) : appMode === 'kampanya_sifir' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1083,9 +1051,7 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) :
-
-          appMode === 'ikinci_el' && step < 99 ? (
+          ) : appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1128,9 +1094,7 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) :
-
-          appMode === 'dis_kanal' && step < 99 ? (
+          ) : appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1171,9 +1135,7 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) :
-
-          appMode === 'cep_tablet' && step < 99 ? (
+          ) : appMode === 'cep_tablet' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1252,9 +1214,7 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) : 
-          
-          appMode === 'yna_list' && step < 99 ? (
+          ) : appMode === 'yna_list' && step < 99 ? (
             <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
                   <div>
@@ -1323,88 +1283,25 @@ const loadData = async () => {
                 </div>
               </div>
             </div>
-          ) :
-          
-          
-                     <div className="bg-[#131722] border border-slate-800 rounded-[32px] p-8 shadow-xl">
-                        <h3 className="text-[11px] font-black text-orange-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span> Kayar Yazı Kampanya Yönetimi
-                        </h3>
-                        <textarea 
-                           className="w-full bg-[#1e1e2d] border border-slate-700 rounded-2xl p-5 text-white outline-none focus:border-orange-500 mb-4 h-28 text-sm font-bold resize-none custom-scrollbar transition-all"
-                           placeholder="Ana sayfada kayarak geçecek kampanya metnini yazın..."
-                           defaultValue={config.Kampanya_Metni || ""}
-                           id="kampanyaInput"
-                        ></textarea>
-                        <button onClick={() => updateConfig('Kampanya_Metni', (document.getElementById('kampanyaInput') as HTMLTextAreaElement).value)} className="bg-orange-600/20 text-orange-400 hover:bg-orange-600 hover:text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] w-full transition-all tracking-widest btn-click border border-orange-500/20">Kampanyayı Yayınla</button>
-                     </div>
-                  </div>
+          ) : 
 
-                  
-                  {/* ALIM TABLOSU - YÖNETİCİ PANELİ */}
-              <div className="bg-[#1e1e2d] p-6 sm:p-8 rounded-[40px] shadow-2xl border border-slate-800">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700/50 pb-6 mb-6">
-                  <div>
-                    <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">SON İŞLEMLER</h3>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sistemdeki Cihaz Kayıt Geçmişi</p>
-                  </div>
-                  {adminSelectedBranch === 'TÜM ŞUBELER' && (
-                    <button onClick={deleteAllAlimlar} className="bg-red-500/10 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black hover:bg-red-600 hover:text-white transition-all uppercase border border-red-500/20 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      GEÇMİŞİ TEMİZLE
-                    </button>
-                  )}
-                </div>
-
-                {filteredAlimlar.length === 0 ? (
-                  <div className="text-center py-20 text-slate-500">
-                    <p className="text-xs font-black uppercase tracking-widest">Kayıt Bulunmuyor</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto custom-scrollbar pb-4">
-                    <div className="min-w-[1100px] flex flex-col">
-                      {/* TABLO BAŞLIĞI */}
-                      <div className="grid grid-cols-[140px_220px_140px_1fr_120px_80px] gap-4 px-6 py-4 border-b border-slate-700/50 bg-[#131722]/40 rounded-t-2xl font-black text-[10px] text-slate-500 uppercase tracking-widest items-center">
-                        <div>TARİH / ŞUBE</div>
-                        <div>MÜŞTERİ ADI SOYADI</div>
-                        <div>İŞLEM TÜRÜ</div>
-                        <div>CİHAZ BİLGİSİ</div>
-                        <div className="text-right pr-4">TUTAR</div>
-                        <div className="text-center">İŞLEM</div>
-                      </div>
-                      
-                      {/* TABLO SATIRLARI */}
-                      <div className="flex flex-col">
-                        {filteredAlimlar.map((item, i) => {
-                          const rawDevice = item.data[2] || '';
-                          const parts = rawDevice.split(' #EKSPERTİZ# ');
-                          const mainDevice = parts[0];
-                          
-                          const cleanDevice = mainDevice.replace(/\[NAKİT ALINDI\]/g, '').replace(/\[TAKAS ALINDI\]/g, '').replace(/\[ALINMADI\]/g, '').trim();
-                          const ekspertizData = parts.length > 1 ? parts[1] : '';
-
-                          let rawDate = item.data[6] || item.data[7] || '---';
-                          let datePart = rawDate.split(' ')[0] || '---';
-                          let timePart = rawDate.split(' ')[1] || '';
-
-                          const rowStr = item.data.join(" ");
-                          let statusBadge = "bg-slate-800 text-slate-400 border-slate-700";
-{step === 99 ? (
-  <AdminPanel 
-    isAdmin={isAdmin}
-    adminPass={adminPass}
-    setAdminPass={setAdminPass}
-    handleLogin={handleLogin}
-    adminSelectedBranch={adminSelectedBranch}
-    dateFilterType={dateFilterType}
-    dashboardStats={dashboardStats}
-    config={config}
-    updateConfig={updateConfig}
-    deleteAllAlimlar={deleteAllAlimlar}
-    filteredAlimlar={filteredAlimlar}
-    setEkspertizModalData={setEkspertizModalData}
-    deleteAlim={deleteAlim}
-  />
+          /* ---------------- YÖNETİCİ GÖRÜNÜMÜ ---------------- */
+          step === 99 ? (
+            <AdminPanel 
+              isAdmin={isAdmin}
+              adminPass={adminPass}
+              setAdminPass={setAdminPass}
+              handleLogin={handleLogin}
+              adminSelectedBranch={adminSelectedBranch}
+              dateFilterType={dateFilterType}
+              dashboardStats={dashboardStats}
+              config={config}
+              updateConfig={updateConfig}
+              deleteAllAlimlar={deleteAllAlimlar}
+              filteredAlimlar={filteredAlimlar}
+              setEkspertizModalData={setEkspertizModalData}
+              deleteAlim={deleteAlim}
+            />
           ) : step === 1 ? (
             <div className="space-y-12 text-slate-900">
               <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
