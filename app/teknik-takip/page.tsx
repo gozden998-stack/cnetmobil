@@ -14,7 +14,6 @@ interface Satir {
   kaydedildi: boolean;
 }
 
-// YENİ: isAdmin prop'u eklendi. Varsayılan olarak false (personel).
 interface Props {
   isAdmin?: boolean;
 }
@@ -95,10 +94,11 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     return matchUsta && matchTest && matchDurum;
   });
 
-  // Ekrana basılacak son liste (Taslak her zaman en üstte kalır)
-  const gosterilecekTabloVerisi = [...taslakSatir, ...filtrelenmisKayitlar];
+  // YENİ GÜVENLİK KURALI: 
+  // Yönetici ise sadece geçmiş kayıtları görsün (taslak satırı gizle). Personel ise boş taslak satırı da görsün.
+  const gosterilecekTabloVerisi = isAdmin ? filtrelenmisKayitlar : [...taslakSatir, ...filtrelenmisKayitlar];
 
-  // DİNAMİK İSTATİSTİKLER (Filtrelere Göre Değişir)
+  // DİNAMİK İSTATİSTİKLER
   const toplamBiten = filtrelenmisKayitlar.length;
   const basarili = filtrelenmisKayitlar.filter(s => s.tamirDurumu === 'Evet').length;
   const hatali = filtrelenmisKayitlar.filter(s => s.tamirDurumu === 'Hayır').length;
@@ -227,119 +227,127 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">
-              {gosterilecekTabloVerisi.map((satir, i) => (
-                <tr 
-                  key={satir.id} 
-                  className={`transition-colors duration-200 ${
-                    satir.kaydedildi 
-                      ? 'bg-slate-900/20 hover:bg-slate-900/40' 
-                      : 'bg-blue-950/20 hover:bg-blue-900/30'
-                  }`}
-                >
-                  <td className="p-3">
-                    <select 
-                      disabled={satir.kaydedildi} 
-                      value={satir.tamirPersoneli} 
-                      onChange={(e) => veriGuncelle(satir.id, 'tamirPersoneli', e.target.value)} 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-300 disabled:font-medium disabled:appearance-none transition-all text-slate-200"
-                    >
-                      <option value="">Seçiniz...</option>
-                      {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </td>
-                  
-                  <td className="p-3">
-                    <input 
-                      disabled={satir.kaydedildi} 
-                      type="text" 
-                      value={satir.markaModel} 
-                      placeholder="Örn: iPhone 15 Pro" 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-white disabled:font-bold disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
-                      onChange={(e) => veriGuncelle(satir.id, 'markaModel', e.target.value)} 
-                    />
-                  </td>
-                  
-                  <td className="p-3">
-                    <input 
-                      disabled={satir.kaydedildi} 
-                      type="text" 
-                      value={satir.imei} 
-                      placeholder="35XXXXXXXXXXXXX" 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-[11px] font-mono outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-400 disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
-                      onChange={(e) => veriGuncelle(satir.id, 'imei', e.target.value)} 
-                    />
-                  </td>
-                  
-                  <td className="p-3">
-                    <input 
-                      disabled={satir.kaydedildi} 
-                      type="text" 
-                      value={satir.ariza} 
-                      placeholder="Ekran, Soket vs." 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-300 disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
-                      onChange={(e) => veriGuncelle(satir.id, 'ariza', e.target.value)} 
-                    />
-                  </td>
-                  
-                  <td className="p-3">
-                    <select 
-                      disabled={satir.kaydedildi} 
-                      value={satir.tamirDurumu} 
-                      className={`w-full border rounded-xl p-2.5 text-[11px] font-bold outline-none transition-all text-center disabled:appearance-none ${getDurumRenk(satir.tamirDurumu)}`} 
-                      onChange={(e) => veriGuncelle(satir.id, 'tamirDurumu', e.target.value)}
-                    >
-                      <option value="Evet" className="text-emerald-500 bg-slate-900">✅ SORUNSUZ</option>
-                      <option value="Hayır" className="text-rose-500 bg-slate-900">❌ SORUNLU</option>
-                      <option value="İade" className="text-purple-500 bg-slate-900">🔄 İADE</option>
-                    </select>
-                  </td>
-                  
-                  <td className="p-3">
-                    <input 
-                      disabled={satir.kaydedildi} 
-                      type="text" 
-                      value={satir.neden} 
-                      placeholder="Hata/İade Notu..." 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-rose-300 disabled:font-medium disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
-                      onChange={(e) => veriGuncelle(satir.id, 'neden', e.target.value)} 
-                    />
-                  </td>
-                  
-                  <td className="p-3">
-                    <select 
-                      disabled={satir.kaydedildi} 
-                      value={satir.testYapan} 
-                      onChange={(e) => veriGuncelle(satir.id, 'testYapan', e.target.value)} 
-                      className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-400 disabled:px-0 disabled:appearance-none transition-all text-slate-200"
-                    >
-                      <option value="">Seçiniz...</option>
-                      {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </td>
-                  
-                  <td className="p-3 text-center">
-                    {!satir.kaydedildi ? (
-                      <button onClick={() => satirKaydet(satir.id)} className="bg-blue-600 hover:bg-blue-500 text-white w-full py-2.5 px-3 rounded-lg transition-all font-bold text-[10px] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                        KAYDET
-                      </button>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-slate-400 font-bold text-[9px] tracking-widest bg-slate-800/50 border border-slate-700 px-3 py-1.5 rounded-md uppercase flex items-center gap-1">
-                          <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          KAYDEDİLDİ
-                        </span>
-                        {/* YALNIZCA YÖNETİCİYE GÖZÜKEN SİL BUTONU */}
-                        {isAdmin && (
-                          <button onClick={() => satirSil(satir.id)} className="text-slate-500 hover:text-white hover:bg-rose-500 p-1.5 rounded-lg transition-colors border border-transparent hover:border-rose-400" title="Yönetici Silme Yetkisi">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        )}
-                      </div>
-                    )}
+              {gosterilecekTabloVerisi.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-10 text-center text-slate-500 text-sm font-medium">
+                    {isAdmin ? "Henüz sistemde kayıt bulunmuyor veya filtrelere uygun sonuç yok." : "Kayıtlar buraya eklenecektir."}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                gosterilecekTabloVerisi.map((satir, i) => (
+                  <tr 
+                    key={satir.id} 
+                    className={`transition-colors duration-200 ${
+                      satir.kaydedildi 
+                        ? 'bg-slate-900/20 hover:bg-slate-900/40' 
+                        : 'bg-blue-950/20 hover:bg-blue-900/30'
+                    }`}
+                  >
+                    <td className="p-3">
+                      <select 
+                        disabled={satir.kaydedildi} 
+                        value={satir.tamirPersoneli} 
+                        onChange={(e) => veriGuncelle(satir.id, 'tamirPersoneli', e.target.value)} 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-300 disabled:font-medium disabled:appearance-none transition-all text-slate-200"
+                      >
+                        <option value="">Seçiniz...</option>
+                        {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </td>
+                    
+                    <td className="p-3">
+                      <input 
+                        disabled={satir.kaydedildi} 
+                        type="text" 
+                        value={satir.markaModel} 
+                        placeholder="Örn: iPhone 15 Pro" 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-white disabled:font-bold disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
+                        onChange={(e) => veriGuncelle(satir.id, 'markaModel', e.target.value)} 
+                      />
+                    </td>
+                    
+                    <td className="p-3">
+                      <input 
+                        disabled={satir.kaydedildi} 
+                        type="text" 
+                        value={satir.imei} 
+                        placeholder="35XXXXXXXXXXXXX" 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-[11px] font-mono outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-400 disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
+                        onChange={(e) => veriGuncelle(satir.id, 'imei', e.target.value)} 
+                      />
+                    </td>
+                    
+                    <td className="p-3">
+                      <input 
+                        disabled={satir.kaydedildi} 
+                        type="text" 
+                        value={satir.ariza} 
+                        placeholder="Ekran, Soket vs." 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-300 disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
+                        onChange={(e) => veriGuncelle(satir.id, 'ariza', e.target.value)} 
+                      />
+                    </td>
+                    
+                    <td className="p-3">
+                      <select 
+                        disabled={satir.kaydedildi} 
+                        value={satir.tamirDurumu} 
+                        className={`w-full border rounded-xl p-2.5 text-[11px] font-bold outline-none transition-all text-center disabled:appearance-none ${getDurumRenk(satir.tamirDurumu)}`} 
+                        onChange={(e) => veriGuncelle(satir.id, 'tamirDurumu', e.target.value)}
+                      >
+                        <option value="Evet" className="text-emerald-500 bg-slate-900">✅ SORUNSUZ</option>
+                        <option value="Hayır" className="text-rose-500 bg-slate-900">❌ SORUNLU</option>
+                        <option value="İade" className="text-purple-500 bg-slate-900">🔄 İADE</option>
+                      </select>
+                    </td>
+                    
+                    <td className="p-3">
+                      <input 
+                        disabled={satir.kaydedildi} 
+                        type="text" 
+                        value={satir.neden} 
+                        placeholder="Hata/İade Notu..." 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-rose-300 disabled:font-medium disabled:px-0 transition-all text-slate-200 placeholder-slate-600" 
+                        onChange={(e) => veriGuncelle(satir.id, 'neden', e.target.value)} 
+                      />
+                    </td>
+                    
+                    <td className="p-3">
+                      <select 
+                        disabled={satir.kaydedildi} 
+                        value={satir.testYapan} 
+                        onChange={(e) => veriGuncelle(satir.id, 'testYapan', e.target.value)} 
+                        className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-400 disabled:px-0 disabled:appearance-none transition-all text-slate-200"
+                      >
+                        <option value="">Seçiniz...</option>
+                        {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </td>
+                    
+                    <td className="p-3 text-center">
+                      {!satir.kaydedildi ? (
+                        <button onClick={() => satirKaydet(satir.id)} className="bg-blue-600 hover:bg-blue-500 text-white w-full py-2.5 px-3 rounded-lg transition-all font-bold text-[10px] shadow-lg shadow-blue-600/20 flex items-center justify-center gap-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          KAYDET
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-slate-400 font-bold text-[9px] tracking-widest bg-slate-800/50 border border-slate-700 px-3 py-1.5 rounded-md uppercase flex items-center gap-1">
+                            <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            KAYDEDİLDİ
+                          </span>
+                          {/* YALNIZCA YÖNETİCİYE GÖZÜKEN SİL BUTONU */}
+                          {isAdmin && (
+                            <button onClick={() => satirSil(satir.id)} className="text-slate-500 hover:text-white hover:bg-rose-500 p-1.5 rounded-lg transition-colors border border-transparent hover:border-rose-400" title="Kalıcı Olarak Sil">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
