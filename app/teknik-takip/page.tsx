@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 
 interface Satir {
   id: number;
-  usta: string;
+  tamirPersoneli: string;
   markaModel: string;
   imei: string;
   ariza: string;
@@ -16,7 +16,7 @@ interface Satir {
 
 const TeknikTakipTablosu = () => {
   // GÜNCELLENEN PERSONEL LİSTELERİ
-  const USTALAR = [
+  const TAMIR_PERSONELI_LISTESI = [
     "ABOBAKR KAMAL", 
     "AHMET MERT GÖKÇE", 
     "ANIL AYDIN", 
@@ -40,7 +40,7 @@ const TeknikTakipTablosu = () => {
     if (kaydedilmis) {
       setSatirlar(JSON.parse(kaydedilmis));
     } else {
-      setSatirlar([{ id: Date.now(), usta: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Evet', neden: '', testYapan: '', kaydedildi: false }]);
+      setSatirlar([{ id: Date.now(), tamirPersoneli: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Evet', neden: '', testYapan: '', kaydedildi: false }]);
     }
   }, []);
 
@@ -52,7 +52,7 @@ const TeknikTakipTablosu = () => {
   }, [satirlar]);
 
   const yeniSatirOlustur = () => ({
-    id: Date.now(), usta: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Evet', neden: '', testYapan: '', kaydedildi: false
+    id: Date.now(), tamirPersoneli: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Evet', neden: '', testYapan: '', kaydedildi: false
   });
 
   const veriGuncelle = (id: number, alan: keyof Satir, deger: string | boolean) => {
@@ -61,8 +61,8 @@ const TeknikTakipTablosu = () => {
 
   const satirKaydet = (id: number) => {
     const suanki = satirlar.find(s => s.id === id);
-    if (!suanki?.usta || !suanki?.markaModel) {
-      alert("Hata: Usta ve Marka/Model boş bırakılamaz!");
+    if (!suanki?.tamirPersoneli || !suanki?.markaModel) {
+      alert("Hata: Tamir Personeli ve Marka/Model boş bırakılamaz!");
       return;
     }
 
@@ -76,9 +76,9 @@ const TeknikTakipTablosu = () => {
 
   // EXCEL / CSV OLARAK İNDİR
   const raporIndir = () => {
-    const headers = ["Usta,Marka Model,IMEI,Ariza,Durum,Hata Nedeni,Test Eden\n"];
+    const headers = ["Tamir Personeli,Marka Model,IMEI,Ariza,Durum,Hata Nedeni,Test Eden\n"];
     const rows = satirlar.filter(s => s.kaydedildi).map(s => 
-      `${s.usta},${s.markaModel},${s.imei},${s.ariza},${s.tamirDurumu},${s.neden},${s.testYapan}\n`
+      `${s.tamirPersoneli},${s.markaModel},${s.imei},${s.ariza},${s.tamirDurumu},${s.neden},${s.testYapan}\n`
     );
     const blob = new Blob([headers + rows.join("")], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -153,7 +153,7 @@ const TeknikTakipTablosu = () => {
           <table className="w-full text-left border-collapse min-w-[1250px]">
             <thead className="bg-slate-950/80 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800/80">
               <tr>
-                <th className="p-4 w-[160px]">Usta</th>
+                <th className="p-4 w-[160px]">Tamir Personeli</th>
                 <th className="p-4 w-[200px]">Cihaz Marka / Model</th>
                 <th className="p-4 w-[180px]">IMEI Kaydı</th>
                 <th className="p-4 w-[180px]">Arıza Tanımı</th>
@@ -176,12 +176,12 @@ const TeknikTakipTablosu = () => {
                   <td className="p-3">
                     <select 
                       disabled={satir.kaydedildi} 
-                      value={satir.usta} 
-                      onChange={(e) => veriGuncelle(satir.id, 'usta', e.target.value)} 
+                      value={satir.tamirPersoneli} 
+                      onChange={(e) => veriGuncelle(satir.id, 'tamirPersoneli', e.target.value)} 
                       className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500 disabled:bg-transparent disabled:border-transparent disabled:text-slate-300 disabled:font-medium disabled:appearance-none transition-all text-slate-200"
                     >
                       <option value="">Seçiniz...</option>
-                      {USTALAR.map(u => <option key={u} value={u}>{u}</option>)}
+                      {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </td>
                   
