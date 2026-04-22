@@ -299,9 +299,10 @@ export default function YoneticiPaneli({
               </div>
             </div>
           ) : (
-            // TEKNİK SERVİS SEKME İÇERİĞİ 
+           // TEKNİK SERVİS SEKME İÇERİĞİ 
             <div className="animate-in fade-in zoom-in-95 duration-500 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl bg-slate-950">
-              <TeknikTakipTablosu />
+              {/* YENİ: Yöneticiye özel isAdmin={true} parametresi gönderiyoruz */}
+              <TeknikTakipTablosu isAdmin={true} />
             </div>
           )}
         </div>
