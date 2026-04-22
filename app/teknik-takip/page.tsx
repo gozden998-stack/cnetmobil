@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 
-// TypeScript hatasını çözen genişletilmiş arayüz
 interface Satir {
   id: number;
   tamirPersoneli: string;
@@ -11,12 +10,12 @@ interface Satir {
   ariza: string;
   tamirDurumu: string;
   neden: string;
-  testYapanGiris: string; // 1. Test Personeli
-  testYapanCikis: string; // 2. Test Personeli
+  testYapanGiris: string;
+  testYapanCikis: string;
   kaydedildi: boolean;
   islemTamam: boolean;
   kayitTarihi: string;
-  islemAsamasi: 'Giris' | 'Cikis'; // Hata veren eksik özellik buraya eklendi
+  islemAsamasi: 'Giris' | 'Cikis';
 }
 
 interface Props {
@@ -31,7 +30,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const [aramaImei, setAramaImei] = useState('');
   const [bulunanCihaz, setBulunanCihaz] = useState<Satir | null>(null);
 
-  // YÖNETİCİ FİLTRE DURUMLARI
   const [filtreUsta, setFiltreUsta] = useState('');
   const [filtreTestci, setFiltreTestci] = useState('');
   const [filtreSonuc, setFiltreSonuc] = useState('');
@@ -45,7 +43,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     if (satirlar.length > 0) localStorage.setItem('cnet_teknik_kayitlar', JSON.stringify(satirlar));
   }, [satirlar]);
 
-  // FİLTRELEME MANTIĞI
   const filtrelenmisSatirlar = satirlar.filter(s => {
     const ustaMatch = filtreUsta ? s.tamirPersoneli === filtreUsta : true;
     const testMatch = filtreTestci ? (s.testYapanGiris === filtreTestci || s.testYapanCikis === filtreTestci) : true;
@@ -53,7 +50,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     return ustaMatch && testMatch && sonucMatch;
   });
 
-  // İSTATİSTİK HESAPLAMALARI
   const toplam = filtrelenmisSatirlar.length;
   const sorunsuz = filtrelenmisSatirlar.filter(s => s.tamirDurumu === 'Evet').length;
   const sorunlu = filtrelenmisSatirlar.filter(s => s.tamirDurumu === 'Hayır').length;
@@ -62,12 +58,23 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
 
   const satirKaydet = (yeniVeri: Partial<Satir>) => {
     const tamVeri: Satir = {
+      // Varsayılan değerler
+      tamirPersoneli: '', 
+      markaModel: '', 
+      imei: '', 
+      ariza: '', 
+      tamirDurumu: 'Beklemede', 
+      neden: '', 
+      testYapanGiris: '', 
+      testYapanCikis: '', 
+      islemTamam: false,
+      islemAsamasi: 'Giris',
+      // Gelen verileri yay (spread)
+      ...yeniVeri as Satir,
+      // Kritik değerleri en sona yaz (Overwrite hatasını çözer)
       id: Date.now(),
       kayitTarihi: new Date().toLocaleString('tr-TR'),
-      kaydedildi: true,
-      tamirPersoneli: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Beklemede', neden: '', testYapanGiris: '', testYapanCikis: '', islemTamam: false,
-      islemAsamasi: 'Giris',
-      ...yeniVeri as Satir
+      kaydedildi: true
     };
     setSatirlar(prev => [tamVeri, ...prev]);
     setBulunanCihaz(null);
@@ -76,10 +83,8 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
 
   return (
     <div className={`font-sans ${!isAdmin ? 'bg-slate-950 min-h-screen p-4 md:p-8' : 'bg-transparent p-0'}`}>
-      
       <div className="max-w-[1400px] mx-auto space-y-8">
         
-        {/* YÖNETİCİ DASHBOARD */}
         {isAdmin && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-700">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
@@ -97,7 +102,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               ))}
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-[2rem] flex flex-wrap gap-4 items-end shadow-2xl">
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-[2rem] flex flex-wrap gap-4 items-end shadow-2xl mb-8">
               <div className="flex-1 min-w-[200px]">
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-2">Tamir Personeli Filtre</label>
                 <select value={filtreUsta} onChange={e => setFiltreUsta(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white">
@@ -125,7 +130,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
           </div>
         )}
 
-        {/* PERSONEL GİRİŞ EKRANI */}
         {!isAdmin && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex w-full md:w-fit gap-2 bg-slate-900/80 p-2 rounded-2xl border border-slate-800 shadow-xl mx-auto">
@@ -138,13 +142,13 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               />
               <button onClick={() => {
                 const cihaz = satirlar.find(s => s.imei === aramaImei && s.kaydedildi && !s.islemTamam);
-                if (cihaz) setBulunanCihaz(cihaz); else alert("Kayıt bulunamadı veya işlemi zaten tamamlanmış.");
+                if (cihaz) setBulunanCihaz(cihaz); else alert("Kayıt bulunamadı veya işlem zaten bitmiş.");
               }} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all">SORGULA</button>
             </div>
 
             {bulunanCihaz ? (
               <div className="bg-indigo-900/10 border border-indigo-500/30 p-8 rounded-[2.5rem] animate-in zoom-in-95">
-                <h3 className="text-indigo-400 font-black text-sm mb-6 uppercase tracking-widest">2. PERSONEL: TAMİR SONRASI ÇIKIŞ KONTROLÜ</h3>
+                <h3 className="text-indigo-400 font-black text-sm mb-6 uppercase tracking-widest">2. PERSONEL: ÇIKIŞ KONTROLÜ</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 opacity-60">
                     <p className="text-[10px] font-bold text-slate-500 uppercase">Cihaz</p>
@@ -155,7 +159,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                     <option value="Hayır">❌ SORUNLU</option>
                     <option value="İade">🔄 İADE</option>
                   </select>
-                  <input id="cHata" type="text" placeholder="Hata/İşlem Detayı..." className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-white" />
+                  <input id="cHata" type="text" placeholder="Hata/Detay..." className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-white" />
                   <select id="cTest" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-white">
                     <option value="">Çıkış Testi Yapan...</option>
                     {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
@@ -172,9 +176,9 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                       } : s));
                       setBulunanCihaz(null); setAramaImei('');
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs uppercase transition-all"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs uppercase"
                   >
-                    ÇIKIŞI TAMAMLA
+                    KAYDI BİTİR
                   </button>
                 </div>
               </div>
@@ -192,7 +196,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                   </select>
                   <input id="gModel" type="text" placeholder="Marka / Model" className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white" />
                   <input id="gImei" type="text" placeholder="IMEI No" className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 font-mono text-white" />
-                  <input id="gAriza" type="text" placeholder="Cihaz Arızaları..." className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white" />
+                  <input id="gAriza" type="text" placeholder="Arızalar..." className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white" />
                   <button 
                     onClick={() => satirKaydet({
                       tamirPersoneli: (document.getElementById('gPers') as HTMLSelectElement).value,
@@ -212,7 +216,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
           </div>
         )}
 
-        {/* TABLO LİSTESİ */}
         <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] overflow-hidden backdrop-blur-sm shadow-2xl">
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[1250px]">
@@ -234,7 +237,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                     </td>
                     <td className="p-6">
                       <div className="text-sm font-black text-white uppercase">{satir.markaModel}</div>
-                      <div className="text-[11px] font-mono text-slate-500 mt-1 uppercase tracking-tighter">{satir.imei}</div>
+                      <div className="text-[11px] font-mono text-slate-500 mt-1">{satir.imei}</div>
                     </td>
                     <td className="p-6">
                       <div className="flex flex-col gap-1.5">
@@ -259,7 +262,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                     {isAdmin && (
                       <td className="p-6 text-center">
                         <button 
-                          onClick={() => { if(confirm("Kaydı silmek istediğinize emin misiniz?")) setSatirlar(prev => prev.filter(s => s.id !== satir.id)) }}
+                          onClick={() => { if(confirm("Silmek istiyor musunuz?")) setSatirlar(prev => prev.filter(s => s.id !== satir.id)) }}
                           className="p-3 bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
