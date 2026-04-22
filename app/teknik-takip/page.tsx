@@ -94,8 +94,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     return matchUsta && matchTest && matchDurum;
   });
 
-  // YENİ GÜVENLİK KURALI: 
-  // Yönetici ise sadece geçmiş kayıtları görsün (taslak satırı gizle). Personel ise boş taslak satırı da görsün.
   const gosterilecekTabloVerisi = isAdmin ? filtrelenmisKayitlar : [...taslakSatir, ...filtrelenmisKayitlar];
 
   // DİNAMİK İSTATİSTİKLER
@@ -104,20 +102,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const hatali = filtrelenmisKayitlar.filter(s => s.tamirDurumu === 'Hayır').length;
   const iadeDurumu = filtrelenmisKayitlar.filter(s => s.tamirDurumu === 'İade').length;
   const basariOrani = toplamBiten > 0 ? Math.round((basarili / toplamBiten) * 100) : 0;
-
-  const raporIndir = () => {
-    const headers = ["Tamir Personeli,Marka Model,IMEI,Ariza,Durum,Hata Nedeni,Test Eden\n"];
-    const rows = filtrelenmisKayitlar.map(s => 
-      `${s.tamirPersoneli},${s.markaModel},${s.imei},${s.ariza},${s.tamirDurumu},${s.neden},${s.testYapan}\n`
-    );
-    const blob = new Blob([headers + rows.join("")], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `Cnetmobil_Teknik_Rapor_${new Date().toLocaleDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const getDurumRenk = (durum: string) => {
     if (durum === 'Evet') return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 focus:border-emerald-500';
@@ -144,10 +128,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
           </div>
           
           <div className="flex gap-3">
-            <button onClick={raporIndir} className="bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-white px-6 py-3 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-black/20 group">
-              <svg className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              RAPORU İNDİR (CSV)
-            </button>
             {isAdmin && (
               <button onClick={() => { if(confirm("Tüm kayıtları kalıcı olarak silmek istediğinize emin misiniz?")) { localStorage.removeItem('cnet_teknik_kayitlar'); window.location.reload(); } }} className="bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-500 hover:text-white px-6 py-3 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
