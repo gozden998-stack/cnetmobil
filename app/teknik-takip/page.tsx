@@ -60,7 +60,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const basariOrani = tamamlananlar > 0 ? Math.round((basarili / tamamlananlar) * 100) : 0;
 
   // TABLO FİLTRELEME MANTIĞI
-  const filtrelenmişSatirlar = satirlar.filter(s => {
+  const filtrelenmisSatirlar = satirlar.filter(s => {
     const personelUygun = filtrePersonel === 'Tümü' || s.tamirPersoneli === filtrePersonel;
     const durumUygun = filtreDurum === 'Tümü' || 
                       (filtreDurum === 'Beklemede' && !s.islemTamam) || 
@@ -277,7 +277,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {filtrelenmişSatirlar.map((satir) => (
+              {filtrelenmisSatirlar.map((satir) => (
                 <tr key={satir.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="p-6">
                     <div className="text-sm font-bold text-slate-200 uppercase tracking-tight">{satir.tamirPersoneli}</div>
