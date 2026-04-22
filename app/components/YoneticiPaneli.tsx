@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 // YENİ: Senin klasör yapına (app/teknik-takip/page.tsx) uygun import yolu
 import TeknikTakipTablosu from '../teknik-takip/page';
 
@@ -36,9 +36,41 @@ export default function YoneticiPaneli({
   // Yönetici panelindeki aktif sekmeyi takip eden state
   const [activeTab, setActiveTab] = useState<'buyback' | 'teknik'>('buyback');
 
+  // --- YENİ: TEKNİK SERVİS MERKEZİ ANALİZ STATELERİ ---
+  const [teknikVeriler, setTeknikVeriler] = useState<any[]>([]);
+  const [tLoading, setTLoading] = useState(false);
+
+  useEffect(() => {
+    // Teknik servis sekmesine geçildiğinde merkezi verileri çek
+    if (isAdmin && activeTab === 'teknik') {
+      const getTeknikStats = async () => {
+        setTLoading(true);
+        try {
+          const res = await fetch("https://script.google.com/macros/s/AKfycbzcxFQ66zQc2jYse7fLpCvPqQDZ7NHxY0liU6T7MxwAzov_UxTYGogD4P_YcgJjxuOcoA/exec");
+          const data = await res.json();
+          setTeknikVeriler(data);
+        } catch (e) {
+          console.error("Teknik veri çekme hatası:", e);
+        } finally {
+          setTLoading(false);
+        }
+      };
+      getTeknikStats();
+    }
+  }, [isAdmin, activeTab]);
+
+  // TEKNİK İSTATİSTİK HESAPLAMALARI
+  const tToplam = teknikVeriler.length;
+  const tBasarili = teknikVeriler.filter(s => s.tamirDurumu === 'Evet').length;
+  const tBekleyen = teknikVeriler.filter(s => !s.islemTamam).length;
+  const tIade = teknikVeriler.filter(s => s.tamirDurumu === 'İade').length;
+  const tTamamlanan = teknikVeriler.filter(s => s.islemTamam).length;
+  const tBasariOrani = tTamamlanan > 0 ? Math.round((tBasarili / tTamamlanan) * 100) : 0;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 font-sans">
       {!isAdmin ? (
+        /* GİRİŞ EKRANI (HİÇBİR DEĞİŞİKLİK YAPILMADI) */
         <div className="max-w-md mx-auto bg-slate-900/80 backdrop-blur-md p-10 rounded-3xl shadow-[0_0_40px_rgba(37,99,235,0.1)] text-center border border-slate-800 mt-20 relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-600/20 rounded-full blur-[50px] -z-10"></div>
           
@@ -109,7 +141,7 @@ export default function YoneticiPaneli({
                 </div>
               </div>
 
-              {/* İSTATİSTİK KARTLARI */}
+              {/* İSTATİSTİK KARTLARI (BUYBACK) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/80 rounded-2xl p-6 relative overflow-hidden group hover:-translate-y-1 hover:border-blue-500/30 hover:shadow-[0_8px_30px_rgba(37,99,235,0.1)] transition-all duration-300">
                   <div className="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-bl-full -z-10 group-hover:bg-blue-500/10 transition-colors"></div>
@@ -183,7 +215,7 @@ export default function YoneticiPaneli({
                 </div>
               </div>
 
-              {/* TABLO BÖLÜMÜ */}
+              {/* TABLO BÖLÜMÜ (BUYBACK) */}
               <div className="bg-slate-900/60 p-6 rounded-3xl shadow-lg border border-slate-800/80">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-5 mb-5">
                   <div>
@@ -299,10 +331,26 @@ export default function YoneticiPaneli({
               </div>
             </div>
           ) : (
-           // TEKNİK SERVİS SEKME İÇERİĞİ 
-            <div className="animate-in fade-in zoom-in-95 duration-500 rounded-[2rem] overflow-hidden border border-slate-800 shadow-2xl bg-slate-950">
-              {/* YENİ: Yöneticiye özel isAdmin={true} parametresi gönderiyoruz */}
-              <TeknikTakipTablosu isAdmin={true} />
+            /* --- YENİ: TEKNİK SERVİS YÖNETİCİ PANELİ --- */
+            <div className="animate-in fade-in zoom-in-95 duration-500 space-y-8">
+              {/* TEKNİK ANALİZ BAŞLIĞI */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-indigo-900/50 pb-4">
+                <div>
+                  <h2 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+                    <div className="w-2 h-8 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+                    TEKNİK SERVİS PERFORMANS MERKEZİ
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-2 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                    Merkezi Veri Senkronizasyonu Aktif
+                  </p>
+                </div>
+              </div>
+
+              {/* TEKNİK TAKİP BİLEŞENİ (Filtreler ve İstatistikler zaten bu bileşenin içindedir) */}
+              <div className="rounded-[2.5rem] overflow-hidden border border-slate-800 shadow-2xl bg-slate-950/50 backdrop-blur-xl">
+                <TeknikTakipTablosu isAdmin={true} />
+              </div>
             </div>
           )}
         </div>
