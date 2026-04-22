@@ -10,10 +10,10 @@ interface Satir {
   ariza: string;
   tamirDurumu: string;
   neden: string;
-  testYapanGiris: string; // 1. Test Personeli
-  testYapanCikis: string; // 2. Test Personeli
+  testYapanGiris: string; 
+  testYapanCikis: string; 
   kaydedildi: boolean;
-  islemTamam: boolean;    // Cihazın çıkışı yapıldı mı?
+  islemTamam: boolean;    
 }
 
 interface Props {
@@ -34,6 +34,10 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const [aramaImei, setAramaImei] = useState('');
   const [bulunanCihaz, setBulunanCihaz] = useState<Satir | null>(null);
 
+  // FİLTRE STATELERİ
+  const [filtrePersonel, setFiltrePersonel] = useState('Tümü');
+  const [filtreDurum, setFiltreDurum] = useState('Tümü');
+
   useEffect(() => {
     const kaydedilmis = localStorage.getItem('cnet_teknik_kayitlar');
     if (kaydedilmis) {
@@ -47,7 +51,24 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     }
   }, [satirlar]);
 
-  // IMEI Sorgulama
+  // İSTATİSTİK HESAPLAMALARI
+  const toplamIslem = satirlar.length;
+  const tamamlananlar = satirlar.filter(s => s.islemTamam).length;
+  const basarili = satirlar.filter(s => s.tamirDurumu === 'Evet').length;
+  const bekleyen = satirlar.filter(s => !s.islemTamam).length;
+  const iadeler = satirlar.filter(s => s.tamirDurumu === 'İade').length;
+  const basariOrani = tamamlananlar > 0 ? Math.round((basarili / tamamlananlar) * 100) : 0;
+
+  // TABLO FİLTRELEME MANTIĞI
+  const filtrelenmişSatirlar = satirlar.filter(s => {
+    const personelUygun = filtrePersonel === 'Tümü' || s.tamirPersoneli === filtrePersonel;
+    const durumUygun = filtreDurum === 'Tümü' || 
+                      (filtreDurum === 'Beklemede' && !s.islemTamam) || 
+                      (filtreDurum === 'Tamamlandı' && s.islemTamam) ||
+                      (s.tamirDurumu === filtreDurum);
+    return personelUygun && durumUygun;
+  });
+
   const handleImeiSorgula = () => {
     const cihaz = satirlar.find(s => s.imei === aramaImei && s.kaydedildi);
     if (cihaz) {
@@ -58,11 +79,9 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     }
   };
 
-  // Yeni Giriş Kaydı
   const yeniGirisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
     const yeni: Satir = {
       id: Date.now(),
       tamirPersoneli: formData.get('tPers') as string,
@@ -76,19 +95,15 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       kaydedildi: true,
       islemTamam: false
     };
-
     setSatirlar(prev => [yeni, ...prev]);
     e.currentTarget.reset();
     alert("Giriş kaydı başarıyla oluşturuldu.");
   };
 
-  // Çıkış (2. Personel) Güncellemesi
   const cikisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
     if (!bulunanCihaz) return;
-
     setSatirlar(prev => prev.map(s => s.id === bulunanCihaz.id ? {
       ...s,
       tamirDurumu: formData.get('durum') as string,
@@ -96,7 +111,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       testYapanCikis: formData.get('test2') as string,
       islemTamam: true
     } : s));
-
     setBulunanCihaz(null);
     setAramaImei('');
     alert("Cihaz çıkış kaydı tamamlandı.");
@@ -112,7 +126,61 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   return (
     <div className={`bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 ${!isAdmin ? 'min-h-screen p-4 md:p-8' : 'p-2'}`}>
       
-      {/* ÜST DASHBOARD PANELİ */}
+      {isAdmin && (
+        <div className="max-w-[1400px] mx-auto mb-10 animate-in fade-in duration-700">
+          {/* YÖNETİCİ İSTATİSTİK PANELİ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Toplam Kayıt</p>
+              <p className="text-3xl font-black text-white mt-1">{toplamIslem}</p>
+            </div>
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl border-l-4 border-l-emerald-500">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Başarı Oranı</p>
+              <p className="text-3xl font-black text-emerald-400 mt-1">%{basariOrani}</p>
+            </div>
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl border-l-4 border-l-amber-500">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bekleyen Cihaz</p>
+              <p className="text-3xl font-black text-amber-400 mt-1">{bekleyen}</p>
+            </div>
+            <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl border-l-4 border-l-purple-500">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Toplam İade</p>
+              <p className="text-3xl font-black text-purple-400 mt-1">{iadeler}</p>
+            </div>
+          </div>
+
+          {/* YÖNETİCİ FİLTRELEME ARAÇLARI */}
+          <div className="flex flex-wrap items-center gap-4 bg-slate-900/30 p-4 rounded-2xl border border-slate-800/50">
+             <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Tamirci:</span>
+                <select 
+                  value={filtrePersonel} 
+                  onChange={(e) => setFiltrePersonel(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                >
+                  <option value="Tümü">Tüm Personeller</option>
+                  {TAMIR_PERSONELI_LISTESI.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+             </div>
+             <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase">Durum:</span>
+                <select 
+                  value={filtreDurum} 
+                  onChange={(e) => setFiltreDurum(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-blue-500"
+                >
+                  <option value="Tümü">Tüm Durumlar</option>
+                  <option value="Beklemede">⏳ Beklemede</option>
+                  <option value="Tamamlandı">✔️ Tamamlananlar</option>
+                  <option value="Evet">✅ Sorunsuz</option>
+                  <option value="Hayır">❌ Sorunlu</option>
+                  <option value="İade">🔄 İade</option>
+                </select>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ÜST DASHBOARD PANELİ (SORGULAMA) */}
       <div className="max-w-[1400px] mx-auto mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-800/80 pb-6">
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-4">
@@ -120,7 +188,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
             CNET TEKNİK TAKİP
           </h1>
           
-          {/* IMEI SORGULAMA ÇUBUĞU */}
           <div className="flex w-full md:w-auto gap-2 bg-slate-900/50 p-2 rounded-2xl border border-slate-800 shadow-xl focus-within:border-blue-500/50 transition-all">
             <input 
               type="text" 
@@ -140,8 +207,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-          
-          {/* SOL: GİRİŞ TESTİ FORMU */}
+          {/* SOL: GİRİŞ FORMU */}
           <div className="bg-slate-900/40 border border-slate-800 rounded-[2rem] p-8 shadow-xl backdrop-blur-md">
             <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
@@ -163,13 +229,12 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
             </form>
           </div>
 
-          {/* SAĞ: ÇIKIŞ TESTİ FORMU (DİNAMİK) */}
+          {/* SAĞ: ÇIKIŞ FORMU */}
           <div className={`border rounded-[2rem] p-8 shadow-xl backdrop-blur-md transition-all duration-500 ${bulunanCihaz ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-slate-900/20 border-slate-800 opacity-40'}`}>
             <h3 className="text-sm font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${bulunanCihaz ? 'bg-indigo-500 animate-pulse' : 'bg-slate-600'}`}></span>
               2. PERSONEL: ÇIKIŞ KONTROLÜ
             </h3>
-            
             {bulunanCihaz ? (
               <form onSubmit={cikisKaydet} className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-right-4">
                 <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 md:col-span-2">
@@ -190,11 +255,10 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               </form>
             ) : (
               <div className="flex items-center justify-center h-[260px] text-slate-600 italic text-sm text-center px-10">
-                Lütfen çıkış işlemi yapmak için üst taraftan cihazın IMEI numarasını sorgulayın.
+                IMEI sorguladıktan sonra çıkış kontrolü burada aktifleşir.
               </div>
             )}
           </div>
-
         </div>
       </div>
 
@@ -213,7 +277,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {satirlar.map((satir) => (
+              {filtrelenmişSatirlar.map((satir) => (
                 <tr key={satir.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="p-6">
                     <div className="text-sm font-bold text-slate-200 uppercase tracking-tight">{satir.tamirPersoneli}</div>
