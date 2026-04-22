@@ -67,8 +67,10 @@ const TeknikTakipTablosu = () => {
     }
 
     setSatirlar(prev => {
+      // Kaydedilen satırı onayla
       const yeniListe = prev.map(s => s.id === id ? { ...s, kaydedildi: true } : s);
-      return [...yeniListe, yeniSatirOlustur()];
+      // YENİ DÜZEN: Yeni boş satırı listenin EN BAŞINA (ÜSTE) ekle, eskileri alta it.
+      return [yeniSatirOlustur(), ...yeniListe];
     });
   };
 
@@ -87,7 +89,7 @@ const TeknikTakipTablosu = () => {
     document.body.removeChild(link);
   };
 
-  // İSTATİSTİK HESAPLAMA (İADE EKLENDİ)
+  // İSTATİSTİK HESAPLAMA
   const toplamBiten = satirlar.filter(s => s.kaydedildi).length;
   const basarili = satirlar.filter(s => s.kaydedildi && s.tamirDurumu === 'Evet').length;
   const hatali = satirlar.filter(s => s.kaydedildi && s.tamirDurumu === 'Hayır').length;
@@ -124,11 +126,10 @@ const TeknikTakipTablosu = () => {
               <svg className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               RAPORU İNDİR (CSV)
             </button>
-            {/* LİSTEYİ SIFIRLA BUTONU İPTAL EDİLDİ */}
           </div>
         </div>
 
-        {/* ÖZET KARTLARI (5 KARTA ÇIKARILDI) */}
+        {/* ÖZET KARTLARI */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
           {[
             { t: "TOPLAM İŞLEM", v: toplamBiten, c: "text-blue-400", b: "border-blue-500/20", bg: "bg-blue-500/5" },
@@ -263,7 +264,6 @@ const TeknikTakipTablosu = () => {
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                           KAYDET
                         </button>
-                        {/* PERSONEL SİLME BUTONU İPTAL EDİLDİ */}
                       </div>
                     ) : (
                       <div className="flex flex-col gap-1.5 items-center justify-center h-full">
@@ -271,17 +271,6 @@ const TeknikTakipTablosu = () => {
                           <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           KAYDEDİLDİ
                         </span>
-                        {satir.tamirDurumu === 'Evet' && (
-                          <a 
-                            href={`https://wa.me/?text=${encodeURIComponent(satir.markaModel + " cihazınızın tamiri bitmiştir, teslim alabilirsiniz.")}`} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="text-emerald-400/80 text-[9px] font-bold hover:text-emerald-400 flex items-center gap-1 transition-colors"
-                          >
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.89-4.443 9.893-9.896.002-5.466-4.415-9.898-9.881-9.9-5.466-.003-9.892 4.438-9.896 9.895-.002 2.105.575 4.158 1.671 5.977l-1.144 4.181 4.265-1.149zm8.851-6.111c-.493-.247-2.918-1.441-3.369-1.606-.451-.165-.78-.247-1.109.247-.329.494-1.272 1.606-1.56 1.936-.288.33-.576.371-1.07.124-.494-.247-2.083-.769-3.97-2.456-1.464-1.31-2.453-2.928-2.741-3.422-.288-.494-.03-.761.217-1.008.221-.221.493-.576.74-.864.247-.288.329-.494.494-.823.164-.329.082-.617-.041-.864-.124-.247-1.109-2.675-1.521-3.663-.399-.957-.803-.827-1.109-.843-.288-.015-.617-.015-.946-.015-.329 0-.864.124-1.316.617-.452.494-1.727 1.688-1.727 4.118s1.768 4.777 2.015 5.106c.247.329 3.484 5.319 8.441 7.458 1.18.51 2.1.815 2.818 1.043 1.183.376 2.261.323 3.111.196.953-.142 2.918-1.193 3.329-2.345.411-1.152.411-2.14.288-2.345-.124-.205-.452-.329-.946-.576z"/></svg>
-                            Müşteriye Bildir
-                          </a>
-                        )}
                       </div>
                     )}
                   </td>
