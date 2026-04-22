@@ -10,11 +10,10 @@ interface Satir {
   ariza: string;
   tamirDurumu: string;
   neden: string;
-  testYapan: string;      // 1. Test Personeli
+  testYapanGiris: string; // 1. Test Personeli
   testYapanCikis: string; // 2. Test Personeli
   kaydedildi: boolean;
-  islemAsamasi: 'Giris' | 'Cikis';
-  kayitTarihi: string;
+  islemTamam: boolean;    // Cihazın çıkışı yapıldı mı?
 }
 
 interface Props {
@@ -22,8 +21,14 @@ interface Props {
 }
 
 const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
-  const TAMIR_PERSONELI_LISTESI = ["ABOBAKR KAMAL", "AHMET MERT GÖKÇE", "ANIL AYDIN", "M.OMAR NAWID KAMAL", "MURAT BEKTAŞ", "MEHMET ŞERİF DEMİRKIRAN"];
-  const TEST_PERSONELI = ["ALİ ERÇİN", "YUSUF GENCAY", "ESAT AYDIN", "SEMİH AYVA"];
+  const TAMIR_PERSONELI_LISTESI = [
+    "ABOBAKR KAMAL", "AHMET MERT GÖKÇE", "ANIL AYDIN", 
+    "M.OMAR NAWID KAMAL", "MURAT BEKTAŞ", "MEHMET ŞERİF DEMİRKIRAN"
+  ];
+  
+  const TEST_PERSONELI = [
+    "ALİ ERÇİN", "YUSUF GENCAY", "ESAT AYDIN", "SEMİH AYVA"
+  ];
 
   const [satirlar, setSatirlar] = useState<Satir[]>([]);
   const [aramaImei, setAramaImei] = useState('');
@@ -31,198 +36,219 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
 
   useEffect(() => {
     const kaydedilmis = localStorage.getItem('cnet_teknik_kayitlar');
-    if (kaydedilmis) setSatirlar(JSON.parse(kaydedilmis));
+    if (kaydedilmis) {
+      setSatirlar(JSON.parse(kaydedilmis));
+    }
   }, []);
 
   useEffect(() => {
-    if (satirlar.length > 0) localStorage.setItem('cnet_teknik_kayitlar', JSON.stringify(satirlar));
+    if (satirlar.length > 0) {
+      localStorage.setItem('cnet_teknik_kayitlar', JSON.stringify(satirlar));
+    }
   }, [satirlar]);
 
-  // IMEI Sorgulama: Mevcut kaydı bulur
+  // IMEI Sorgulama
   const handleImeiSorgula = () => {
-    const cihaz = satirlar.find(s => s.imei === aramaImei);
+    const cihaz = satirlar.find(s => s.imei === aramaImei && s.kaydedildi);
     if (cihaz) {
       setBulunanCihaz(cihaz);
     } else {
-      alert("Bu IMEI ile bir kayıt bulunamadı.");
+      alert("Bu IMEI ile kayıtlı bir cihaz bulunamadı.");
       setBulunanCihaz(null);
     }
   };
 
-  const satirKaydet = (yeniVeri: Partial<Satir>) => {
-    if (bulunanCihaz) {
-      // GÜNCELLEME MODU: Mevcut satırı bul ve üzerine yaz (Tek sütun mantığı)
-      setSatirlar(prev => prev.map(s => s.id === bulunanCihaz.id ? { 
-        ...s, 
-        ...yeniVeri, 
-        islemAsamasi: 'Cikis',
-        kayitTarihi: `${s.kayitTarihi} (Güncellendi: ${new Date().toLocaleTimeString('tr-TR')})` 
-      } : s));
-    } else {
-      // YENİ KAYIT MODU
-      const tamVeri: Satir = {
-        id: Date.now(),
-        kayitTarihi: new Date().toLocaleString('tr-TR'),
-        kaydedildi: true,
-        tamirPersoneli: '',
-        markaModel: '',
-        imei: '',
-        ariza: '',
-        tamirDurumu: 'Beklemede',
-        neden: '',
-        testYapan: '',
-        testYapanCikis: '',
-        islemAsamasi: 'Giris',
-        ...yeniVeri as Satir
-      };
-      setSatirlar(prev => [tamVeri, ...prev]);
-    }
+  // Yeni Giriş Kaydı
+  const yeniGirisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const yeni: Satir = {
+      id: Date.now(),
+      tamirPersoneli: formData.get('tPers') as string,
+      markaModel: formData.get('model') as string,
+      imei: formData.get('imei') as string,
+      ariza: formData.get('ariza') as string,
+      tamirDurumu: 'Beklemede',
+      neden: '',
+      testYapanGiris: formData.get('test1') as string,
+      testYapanCikis: '',
+      kaydedildi: true,
+      islemTamam: false
+    };
+
+    setSatirlar(prev => [yeni, ...prev]);
+    e.currentTarget.reset();
+    alert("Giriş kaydı başarıyla oluşturuldu.");
+  };
+
+  // Çıkış (2. Personel) Güncellemesi
+  const cikisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    if (!bulunanCihaz) return;
+
+    setSatirlar(prev => prev.map(s => s.id === bulunanCihaz.id ? {
+      ...s,
+      tamirDurumu: formData.get('durum') as string,
+      neden: formData.get('not') as string,
+      testYapanCikis: formData.get('test2') as string,
+      islemTamam: true
+    } : s));
+
     setBulunanCihaz(null);
     setAramaImei('');
+    alert("Cihaz çıkış kaydı tamamlandı.");
+  };
+
+  const getDurumRenk = (durum: string) => {
+    if (durum === 'Evet') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (durum === 'Hayır') return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+    if (durum === 'İade') return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+    return 'bg-slate-800 text-slate-400 border-slate-700';
   };
 
   return (
-    <div className={`bg-slate-950 text-slate-200 font-sans ${!isAdmin ? 'min-h-screen p-4 md:p-8' : 'p-2'}`}>
-      <div className="max-w-[1400px] mx-auto space-y-6">
-        
-        {/* ÜST SORGULAMA PANELİ */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/40 p-5 rounded-[2rem] border border-slate-800 shadow-2xl">
-          <h2 className="text-xl font-black text-white tracking-tighter">CNET TEKNİK SERVİS</h2>
-          <div className="flex gap-2 w-full md:w-auto">
+    <div className={`bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 ${!isAdmin ? 'min-h-screen p-4 md:p-8' : 'p-2'}`}>
+      
+      {/* ÜST DASHBOARD PANELİ */}
+      <div className="max-w-[1400px] mx-auto mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-800/80 pb-6">
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-4">
+            <div className="w-2 h-8 bg-blue-600 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)]"></div>
+            CNET TEKNİK TAKİP
+          </h1>
+          
+          {/* IMEI SORGULAMA ÇUBUĞU */}
+          <div className="flex w-full md:w-auto gap-2 bg-slate-900/50 p-2 rounded-2xl border border-slate-800 shadow-xl focus-within:border-blue-500/50 transition-all">
             <input 
               type="text" 
-              placeholder="IMEI ile Kaydı Güncelle..." 
-              className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm w-full md:w-64 outline-none focus:border-blue-600 font-mono text-white"
+              placeholder="Çıkış Kontrolü İçin IMEI Ara..." 
+              className="bg-transparent border-none outline-none px-4 text-sm w-full md:w-64 text-white font-mono"
               value={aramaImei}
               onChange={(e) => setAramaImei(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleImeiSorgula()}
             />
-            <button onClick={handleImeiSorgula} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-black transition-all">SORGULA</button>
-          </div>
-        </div>
-
-        {/* DİNAMİK FORM (Giriş veya Güncelleme) */}
-        <div className={`p-8 rounded-[2.5rem] border transition-all duration-500 ${bulunanCihaz ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-slate-900/30 border-slate-800'}`}>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${bulunanCihaz ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`}></span>
-            {bulunanCihaz ? 'CİHAZ ÇIKIŞ / TAMİR GÜNCELLEME' : 'YENİ CİHAZ GİRİŞ KAYDI'}
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <select id="fPers" disabled={!!bulunanCihaz} defaultValue={bulunanCihaz?.tamirPersoneli || ""} className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-blue-500 disabled:opacity-50">
-              <option value="">Tamir Personeli...</option>
-              {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-
-            <select id="fTest1" disabled={!!bulunanCihaz} defaultValue={bulunanCihaz?.testYapan || ""} className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-blue-500 disabled:opacity-50">
-              <option value="">1. Test Yapan...</option>
-              {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-
-            <input id="fModel" disabled={!!bulunanCihaz} defaultValue={bulunanCihaz?.markaModel || ""} type="text" placeholder="Marka / Model" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-blue-500 disabled:opacity-50" />
-            
-            <input id="fImei" disabled={!!bulunanCihaz} defaultValue={bulunanCihaz?.imei || ""} type="text" placeholder="IMEI No" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-blue-500 font-mono disabled:opacity-50" />
-
-            {/* SADECE GİRİŞTE GÖRÜNEN ARIZA / SADECE ÇIKIŞTA GÖRÜNEN DURUM */}
-            {!bulunanCihaz ? (
-              <input id="fAriza" type="text" placeholder="Cihaz Arızaları..." className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-blue-500" />
-            ) : (
-              <select id="fDurum" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-emerald-500 font-bold text-emerald-400">
-                <option value="Evet">✅ SORUNSUZ</option>
-                <option value="Hayır">❌ SORUNLU</option>
-                <option value="İade">🔄 İADE</option>
-              </select>
-            )}
-
             <button 
-              onClick={() => {
-                if (bulunanCihaz) {
-                  satirKaydet({
-                    tamirDurumu: (document.getElementById('fDurum') as HTMLSelectElement).value,
-                    neden: (document.getElementById('fHata') ? (document.getElementById('fHata') as HTMLInputElement).value : 'İşlem Tamam'),
-                    testYapanCikis: (document.getElementById('fTest2') as HTMLSelectElement).value,
-                  });
-                } else {
-                  satirKaydet({
-                    tamirPersoneli: (document.getElementById('fPers') as HTMLSelectElement).value,
-                    testYapan: (document.getElementById('fTest1') as HTMLSelectElement).value,
-                    markaModel: (document.getElementById('fModel') as HTMLInputElement).value,
-                    imei: (document.getElementById('fImei') as HTMLInputElement).value,
-                    ariza: (document.getElementById('fAriza') as HTMLInputElement).value,
-                  });
-                }
-              }}
-              className={`font-black rounded-xl text-xs uppercase tracking-widest transition-all ${bulunanCihaz ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-blue-600 hover:bg-blue-500'} text-white`}
+              onClick={handleImeiSorgula}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all"
             >
-              {bulunanCihaz ? 'KAYDI GÜNCELLE' : 'GİRİŞİ KAYDET'}
+              SORGULA
             </button>
           </div>
-
-          {/* ÇIKIŞA ÖZEL EK ALANLAR (Sorgulama yapıldığında açılır) */}
-          {bulunanCihaz && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 animate-in slide-in-from-left-2">
-              <input id="fHata" type="text" placeholder="Hata Detayı / Yapılan İşlem Notu..." className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500" />
-              <select id="fTest2" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500">
-                <option value="">2. Test (Çıkış) Yapan Personel...</option>
-                {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          )}
         </div>
 
-        {/* TABLO LİSTESİ */}
-        <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] overflow-hidden backdrop-blur-md">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1200px]">
-              <thead className="bg-slate-950 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] border-b border-slate-800">
-                <tr>
-                  <th className="p-6">DURUM</th>
-                  <th className="p-6">TAMİR PERSONELİ</th>
-                  <th className="p-6">CİHAZ & IMEI</th>
-                  <th className="p-6">ARIZA / İŞLEM NOTU</th>
-                  <th className="p-6">TESTLER (1 ➔ 2)</th>
-                  <th className="p-6">SON İŞLEM TARİHİ</th>
-                  {isAdmin && <th className="p-6 text-center">AKSİYON</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {satirlar.map((satir) => (
-                  <tr key={satir.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-6">
-                      <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase border tracking-widest ${
-                        satir.tamirDurumu === 'Evet' ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' : 
-                        satir.tamirDurumu === 'Hayır' ? 'text-rose-400 border-rose-500/20 bg-rose-500/5' : 
-                        satir.tamirDurumu === 'İade' ? 'text-purple-400 border-purple-500/20 bg-purple-500/5' : 'text-blue-400 border-blue-500/20 bg-blue-500/5'
-                      }`}>
-                        {satir.tamirDurumu === 'Beklemede' ? '📥 GİRİŞ YAPILDI' : satir.tamirDurumu}
-                      </span>
-                    </td>
-                    <td className="p-6 text-sm font-bold text-slate-200 uppercase tracking-tighter">{satir.tamirPersoneli}</td>
-                    <td className="p-6">
-                      <div className="text-sm font-black text-white uppercase">{satir.markaModel}</div>
-                      <div className="text-[11px] font-mono text-slate-500 mt-1">{satir.imei}</div>
-                    </td>
-                    <td className="p-6">
-                      <div className="text-xs text-slate-400 italic">Arıza: {satir.ariza}</div>
-                      {satir.neden && <div className="text-xs text-indigo-400 mt-1 font-bold">İşlem: {satir.neden}</div>}
-                    </td>
-                    <td className="p-6">
-                      <div className="text-[10px] font-bold text-slate-300 uppercase">
-                        {satir.testYapan} {satir.testYapanCikis && <span className="text-indigo-500 mx-2">➔</span>} {satir.testYapanCikis}
-                      </div>
-                    </td>
-                    <td className="p-6 text-[10px] text-slate-500 font-mono">{satir.kayitTarihi}</td>
-                    {isAdmin && (
-                      <td className="p-6 text-center">
-                        <button onClick={() => setSatirlar(prev => prev.filter(s => s.id !== satir.id))} className="text-slate-600 hover:text-rose-500 p-2 rounded-lg transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          
+          {/* SOL: GİRİŞ TESTİ FORMU */}
+          <div className="bg-slate-900/40 border border-slate-800 rounded-[2rem] p-8 shadow-xl backdrop-blur-md">
+            <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+              1. PERSONEL: GİRİŞ EKSPERTİZİ
+            </h3>
+            <form onSubmit={yeniGirisKaydet} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <select name="tPers" required className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-slate-200">
+                <option value="">Tamir Personeli Seçiniz...</option>
+                {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <select name="test1" required className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-slate-200">
+                <option value="">1. Test Personeli Seçiniz...</option>
+                {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <input name="model" required type="text" placeholder="Marka / Model" className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white" />
+              <input name="imei" required type="text" placeholder="IMEI Kaydı" className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 font-mono text-white" />
+              <textarea name="ariza" required placeholder="Cihaz Arızaları..." className="md:col-span-2 bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 h-20 text-white"></textarea>
+              <button type="submit" className="md:col-span-2 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20">GİRİŞİ KAYDET</button>
+            </form>
           </div>
+
+          {/* SAĞ: ÇIKIŞ TESTİ FORMU (DİNAMİK) */}
+          <div className={`border rounded-[2rem] p-8 shadow-xl backdrop-blur-md transition-all duration-500 ${bulunanCihaz ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-slate-900/20 border-slate-800 opacity-40'}`}>
+            <h3 className="text-sm font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${bulunanCihaz ? 'bg-indigo-500 animate-pulse' : 'bg-slate-600'}`}></span>
+              2. PERSONEL: ÇIKIŞ KONTROLÜ
+            </h3>
+            
+            {bulunanCihaz ? (
+              <form onSubmit={cikisKaydet} className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-right-4">
+                <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 md:col-span-2">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-tighter">Sorgulanan Cihaz</p>
+                  <p className="text-sm font-bold text-white uppercase">{bulunanCihaz.markaModel} <span className="text-slate-500 font-mono text-xs ml-2">[{bulunanCihaz.imei}]</span></p>
+                </div>
+                <select name="durum" required className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 font-bold text-emerald-400">
+                  <option value="Evet">✅ SORUNSUZ</option>
+                  <option value="Hayır">❌ SORUNLU</option>
+                  <option value="İade">🔄 İADE</option>
+                </select>
+                <select name="test2" required className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 text-slate-200">
+                  <option value="">2. Test Personeli Seçiniz...</option>
+                  {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <textarea name="not" placeholder="Hata Detayı / Yapılan İşlem..." className="md:col-span-2 bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 h-20 text-white"></textarea>
+                <button type="submit" className="md:col-span-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20">ÇIKIŞI TAMAMLA</button>
+              </form>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-slate-600 italic text-sm text-center px-10">
+                Lütfen çıkış işlemi yapmak için üst taraftan cihazın IMEI numarasını sorgulayın.
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* TABLO LİSTESİ */}
+      <div className="max-w-[1400px] mx-auto bg-slate-900/40 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[1250px]">
+            <thead className="bg-slate-950/80 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/80">
+              <tr>
+                <th className="p-6">TAMİR PERSONELİ</th>
+                <th className="p-6">CİHAZ BİLGİSİ</th>
+                <th className="p-6">ARIZA / NOT</th>
+                <th className="p-6 text-center">İŞLEM DURUMU</th>
+                <th className="p-6">TESTLER (GİRİŞ ➔ ÇIKIŞ)</th>
+                {isAdmin && <th className="p-6 text-center">AKSİYON</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {satirlar.map((satir) => (
+                <tr key={satir.id} className="group hover:bg-white/[0.02] transition-colors">
+                  <td className="p-6">
+                    <div className="text-sm font-bold text-slate-200 uppercase tracking-tight">{satir.tamirPersoneli}</div>
+                  </td>
+                  <td className="p-6">
+                    <div className="text-sm font-black text-white uppercase">{satir.markaModel}</div>
+                    <div className="text-[11px] font-mono text-slate-500 mt-1">{satir.imei}</div>
+                  </td>
+                  <td className="p-6">
+                    <div className="text-xs text-slate-400 italic">"{satir.ariza}"</div>
+                    {satir.neden && <div className="text-[10px] text-indigo-400 mt-2 font-bold uppercase">Not: {satir.neden}</div>}
+                  </td>
+                  <td className="p-6 text-center">
+                    <span className={`px-4 py-2 rounded-xl text-[10px] font-black border uppercase tracking-widest ${getDurumRenk(satir.tamirDurumu)}`}>
+                      {satir.islemTamam ? satir.tamirDurumu : '⏳ BEKLEMEDE'}
+                    </span>
+                  </td>
+                  <td className="p-6">
+                    <div className="flex items-center gap-2 text-[10px] font-bold">
+                      <span className="text-blue-400 uppercase">{satir.testYapanGiris || '---'}</span>
+                      <span className="text-slate-700">➔</span>
+                      <span className="text-indigo-400 uppercase">{satir.testYapanCikis || '---'}</span>
+                    </div>
+                  </td>
+                  {isAdmin && (
+                    <td className="p-6 text-center">
+                      <button onClick={() => setSatirlar(prev => prev.filter(s => s.id !== satir.id))} className="text-slate-600 hover:text-rose-500 p-2 rounded-lg transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
