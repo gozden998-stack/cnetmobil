@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 
+// TypeScript hatasını çözen genişletilmiş arayüz
 interface Satir {
   id: number;
   tamirPersoneli: string;
@@ -10,11 +11,12 @@ interface Satir {
   ariza: string;
   tamirDurumu: string;
   neden: string;
-  testYapanGiris: string;
-  testYapanCikis: string;
+  testYapanGiris: string; // 1. Test Personeli
+  testYapanCikis: string; // 2. Test Personeli
   kaydedildi: boolean;
   islemTamam: boolean;
   kayitTarihi: string;
+  islemAsamasi: 'Giris' | 'Cikis'; // Hata veren eksik özellik buraya eklendi
 }
 
 interface Props {
@@ -58,14 +60,14 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const iade = filtrelenmisSatirlar.filter(s => s.tamirDurumu === 'İade').length;
   const basariPuani = toplam > 0 ? Math.round((sorunsuz / toplam) * 100) : 0;
 
-  // Veri Kaydetme (Sadece Personel Modu İçin)
   const satirKaydet = (yeniVeri: Partial<Satir>) => {
     const tamVeri: Satir = {
       id: Date.now(),
       kayitTarihi: new Date().toLocaleString('tr-TR'),
       kaydedildi: true,
       tamirPersoneli: '', markaModel: '', imei: '', ariza: '', tamirDurumu: 'Beklemede', neden: '', testYapanGiris: '', testYapanCikis: '', islemTamam: false,
-      ...yeniVeri
+      islemAsamasi: 'Giris',
+      ...yeniVeri as Satir
     };
     setSatirlar(prev => [tamVeri, ...prev]);
     setBulunanCihaz(null);
@@ -77,17 +79,16 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       
       <div className="max-w-[1400px] mx-auto space-y-8">
         
-        {/* YÖNETİCİ DASHBOARD: İSTATİSTİKLER VE FİLTRELER */}
+        {/* YÖNETİCİ DASHBOARD */}
         {isAdmin && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-700">
-            {/* ANALİZ KARTLARI */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
               {[
-                { t: "TOPLAM İŞLEM", v: toplam, c: "text-blue-400", bg: "bg-blue-500/5" },
-                { t: "SORUNSUZ (OK)", v: sorunsuz, c: "text-emerald-400", bg: "bg-emerald-500/5" },
-                { t: "SORUNLU / HATA", v: sorunlu, c: "text-rose-400", bg: "bg-rose-500/5" },
-                { t: "İADE EDİLEN", v: iade, c: "text-purple-400", bg: "bg-purple-500/5" },
-                { t: "BAŞARI PUANI", v: `%${basariPuani}`, c: "text-amber-400", bg: "bg-amber-500/5" }
+                { t: "TOPLAM İŞLEM", v: toplam, c: "text-blue-400" },
+                { t: "SORUNSUZ (OK)", v: sorunsuz, c: "text-emerald-400" },
+                { t: "SORUNLU / HATA", v: sorunlu, c: "text-rose-400" },
+                { t: "İADE EDİLEN", v: iade, c: "text-purple-400" },
+                { t: "BAŞARI PUANI", v: `%${basariPuani}`, c: "text-amber-400" }
               ].map((k, i) => (
                 <div key={i} className="bg-slate-900/40 border border-slate-800 p-5 rounded-2xl backdrop-blur-sm">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{k.t}</p>
@@ -96,40 +97,37 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               ))}
             </div>
 
-            {/* FİLTRELEME PANELİ */}
             <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-[2rem] flex flex-wrap gap-4 items-end shadow-2xl">
               <div className="flex-1 min-w-[200px]">
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-2">Tamir Personeli Filtre</label>
-                <select value={filtreUsta} onChange={e => setFiltreUsta(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500">
+                <select value={filtreUsta} onChange={e => setFiltreUsta(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white">
                   <option value="">Tüm Ustalar</option>
                   {TAMIR_PERSONELI_LISTESI.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-2">Test Personeli Filtre</label>
-                <select value={filtreTestci} onChange={e => setFiltreTestci(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500">
+                <select value={filtreTestci} onChange={e => setFiltreTestci(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500 text-white">
                   <option value="">Tüm Test Personelleri</option>
                   {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-2">İşlem Durumu</label>
-                <select value={filtreSonuc} onChange={e => setFiltreSonuc(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500">
+                <select value={filtreSonuc} onChange={e => setFiltreSonuc(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-emerald-500 text-white">
                   <option value="">Tüm Durumlar</option>
                   <option value="Evet">✅ Sorunsuz</option>
                   <option value="Hayır">❌ Sorunlu</option>
                   <option value="İade">🔄 İade</option>
                 </select>
               </div>
-              <button onClick={() => {setFiltreUsta(''); setFiltreTestci(''); setFiltreSonuc('');}} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl text-xs font-bold transition-all">FİLTREYİ TEMİZLE</button>
             </div>
           </div>
         )}
 
-        {/* PERSONEL GİRİŞ EKRANI (Sadece isAdmin değilse görünür) */}
+        {/* PERSONEL GİRİŞ EKRANI */}
         {!isAdmin && (
           <div className="space-y-8 animate-in fade-in duration-500">
-            {/* IMEI Sorgulama Barı */}
             <div className="flex w-full md:w-fit gap-2 bg-slate-900/80 p-2 rounded-2xl border border-slate-800 shadow-xl mx-auto">
               <input 
                 type="text" 
@@ -140,14 +138,13 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               />
               <button onClick={() => {
                 const cihaz = satirlar.find(s => s.imei === aramaImei && s.kaydedildi && !s.islemTamam);
-                if (cihaz) setBulunanCihaz(cihaz); else alert("Kayıt bulunamadı.");
+                if (cihaz) setBulunanCihaz(cihaz); else alert("Kayıt bulunamadı veya işlemi zaten tamamlanmış.");
               }} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all">SORGULA</button>
             </div>
 
-            {/* Formlar (Sorgulama sonucuna göre Giriş veya Çıkış) */}
             {bulunanCihaz ? (
               <div className="bg-indigo-900/10 border border-indigo-500/30 p-8 rounded-[2.5rem] animate-in zoom-in-95">
-                <h3 className="text-indigo-400 font-black text-sm mb-6 uppercase tracking-widest">2. PERSONEL: ÇIKIŞ KONTROLÜ</h3>
+                <h3 className="text-indigo-400 font-black text-sm mb-6 uppercase tracking-widest">2. PERSONEL: TAMİR SONRASI ÇIKIŞ KONTROLÜ</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 opacity-60">
                     <p className="text-[10px] font-bold text-slate-500 uppercase">Cihaz</p>
@@ -159,7 +156,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                     <option value="İade">🔄 İADE</option>
                   </select>
                   <input id="cHata" type="text" placeholder="Hata/İşlem Detayı..." className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-white" />
-                  <select id="cTest" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-slate-200">
+                  <select id="cTest" className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm outline-none focus:border-indigo-500 text-white">
                     <option value="">Çıkış Testi Yapan...</option>
                     {TEST_PERSONELI.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
@@ -170,11 +167,12 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                         tamirDurumu: (document.getElementById('cDurum') as HTMLSelectElement).value,
                         neden: (document.getElementById('cHata') as HTMLInputElement).value,
                         testYapanCikis: (document.getElementById('cTest') as HTMLSelectElement).value,
-                        islemTamam: true
+                        islemTamam: true,
+                        islemAsamasi: 'Cikis'
                       } : s));
                       setBulunanCihaz(null); setAramaImei('');
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs uppercase shadow-lg shadow-indigo-600/20 transition-all"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs uppercase transition-all"
                   >
                     ÇIKIŞI TAMAMLA
                   </button>
@@ -214,11 +212,11 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
           </div>
         )}
 
-        {/* TABLO LİSTESİ (Ortak Görünüm) */}
+        {/* TABLO LİSTESİ */}
         <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] overflow-hidden backdrop-blur-sm shadow-2xl">
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[1200px]">
-              <thead className="bg-slate-950/80 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/80">
+            <table className="w-full text-left border-collapse min-w-[1250px]">
+              <thead className="bg-slate-950 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/80">
                 <tr>
                   <th className="p-6">TAMİR PERSONELİ</th>
                   <th className="p-6">CİHAZ & IMEI</th>
