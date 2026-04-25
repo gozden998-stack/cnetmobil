@@ -57,7 +57,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     verileriGetir();
   }, []);
 
-  // İSTATİSTİKLER (Sorunlu cihazlar eklendi)
+  // İSTATİSTİKLER
   const toplamIslem = satirlar.length;
   const tamamlananlar = satirlar.filter(s => s.islemTamam).length;
   const basarili = satirlar.filter(s => s.tamirDurumu === 'Evet').length;
@@ -76,7 +76,9 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   });
 
   const handleImeiSorgula = () => {
-    const cihaz = satirlar.find(s => s.imei === aramaImei);
+    // TİP UYUŞMAZLIĞI VE BOŞLUKLARI ÇÖZEN YENİ KOD
+    const cihaz = satirlar.find(s => String(s.imei).trim() === String(aramaImei).trim());
+    
     if (cihaz) {
       setBulunanCihaz(cihaz);
     } else {
@@ -166,7 +168,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       
       {isAdmin && (
         <div className="max-w-[1400px] mx-auto mb-10 animate-in fade-in duration-700">
-          {/* YÖNETİCİ TIKLANABİLİR İSTATİSTİK PANELLERİ */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div onClick={() => setFiltreDurum('Tümü')} className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl cursor-pointer hover:bg-slate-800 transition-colors">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Toplam Kayıt</p>
@@ -176,7 +177,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Başarılı</p>
               <p className="text-3xl font-black text-emerald-400 mt-1">{basarili}</p>
             </div>
-            {/* YENİ: SORUNLU CİHAZ KUTUSU (Tıklayınca arızalıları filtreler) */}
             <div onClick={() => setFiltreDurum('Hayır')} className="bg-rose-950/30 border border-rose-900/50 p-6 rounded-3xl border-l-4 border-l-rose-500 cursor-pointer hover:bg-rose-900/40 transition-colors relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <svg className="w-12 h-12 text-rose-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
@@ -334,13 +334,11 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                     <div className="text-[11px] font-mono text-slate-500 mt-1">{satir.imei}</div>
                   </td>
                   <td className="p-6">
-                    {/* GİRİŞ ARIZA BİLGİSİ */}
                     <div className="text-xs text-slate-400">
                       <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Geliş Şikayeti:</span>
                       <span className="italic">"{satir.ariza}"</span>
                     </div>
                     
-                    {/* YENİ: CİHAZ SORUNLUYSA KIRMIZI UYARI KUTUSU, DEĞİLSE NORMAL NOT */}
                     {satir.neden && (
                       <div className={`mt-3 p-3 rounded-xl border ${satir.tamirDurumu === 'Hayır' ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'}`}>
                         <span className={`font-black uppercase text-[10px] mb-1 flex items-center gap-1 ${satir.tamirDurumu === 'Hayır' ? 'text-rose-500' : 'text-indigo-400'}`}>
@@ -364,7 +362,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
                   </td>
                 </tr>
               ))}
-              {/* EĞER TABLO BOŞSA */}
               {!yukleniyor && filtrelenmisSatirlar.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-10 text-center text-slate-500">
