@@ -20,6 +20,9 @@ interface Props {
   isAdmin?: boolean;
 }
 
+// SENİN OLUŞTURDUĞUN CANLI LİNK
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbybLbJ9qHJ9XoXU83efBz8WL1unOOhcbj0gitxJQgy96BXZRIiBr99QOIkTYTVznNO81Q/exec";
+
 const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const TAMIR_PERSONELI_LISTESI = [
     "ABOBAKR KAMAL", "AHMET MERT GÖKÇE", "ANIL AYDIN", 
@@ -33,25 +36,28 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const [satirlar, setSatirlar] = useState<Satir[]>([]);
   const [aramaImei, setAramaImei] = useState('');
   const [bulunanCihaz, setBulunanCihaz] = useState<Satir | null>(null);
+  const [yukleniyor, setYukleniyor] = useState(true);
 
-  // FİLTRE STATELERİ
   const [filtrePersonel, setFiltrePersonel] = useState('Tümü');
   const [filtreDurum, setFiltreDurum] = useState('Tümü');
 
-  useEffect(() => {
-    const kaydedilmis = localStorage.getItem('cnet_teknik_kayitlar');
-    if (kaydedilmis) {
-      setSatirlar(JSON.parse(kaydedilmis));
+  // GOOGLE SHEETS'TEN VERİLERİ ÇEK
+  const verileriGetir = async () => {
+    try {
+      const response = await fetch(SCRIPT_URL);
+      const data = await response.json();
+      setSatirlar(data.reverse()); // En yeni kayıt en üstte
+    } catch (error) {
+      console.error("Veri çekme hatası:", error);
+    } finally {
+      setYukleniyor(false);
     }
+  };
+
+  useEffect(() => {
+    verileriGetir();
   }, []);
 
-  useEffect(() => {
-    if (satirlar.length > 0) {
-      localStorage.setItem('cnet_teknik_kayitlar', JSON.stringify(satirlar));
-    }
-  }, [satirlar]);
-
-  // İSTATİSTİK HESAPLAMALARI
   const toplamIslem = satirlar.length;
   const tamamlananlar = satirlar.filter(s => s.islemTamam).length;
   const basarili = satirlar.filter(s => s.tamirDurumu === 'Evet').length;
@@ -59,7 +65,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   const iadeler = satirlar.filter(s => s.tamirDurumu === 'İade').length;
   const basariOrani = tamamlananlar > 0 ? Math.round((basarili / tamamlananlar) * 100) : 0;
 
-  // TABLO FİLTRELEME MANTIĞI
   const filtrelenmisSatirlar = satirlar.filter(s => {
     const personelUygun = filtrePersonel === 'Tümü' || s.tamirPersoneli === filtrePersonel;
     const durumUygun = filtreDurum === 'Tümü' || 
@@ -70,7 +75,7 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
   });
 
   const handleImeiSorgula = () => {
-    const cihaz = satirlar.find(s => s.imei === aramaImei && s.kaydedildi);
+    const cihaz = satirlar.find(s => s.imei === aramaImei);
     if (cihaz) {
       setBulunanCihaz(cihaz);
     } else {
@@ -79,9 +84,10 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
     }
   };
 
-  const yeniGirisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
+  const yeniGirisKaydet = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    
     const yeni: Satir = {
       id: Date.now(),
       tamirPersoneli: formData.get('tPers') as string,
@@ -95,25 +101,60 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       kaydedildi: true,
       islemTamam: false
     };
+
+    // UI'da anında göster
     setSatirlar(prev => [yeni, ...prev]);
     e.currentTarget.reset();
-    alert("Giriş kaydı başarıyla oluşturuldu.");
+
+    // Google Sheets'e gönder
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: "yeniGiris", ...yeni }),
+        mode: 'no-cors' 
+      });
+      alert("Giriş kaydı Google Sheets'e başarıyla aktarıldı.");
+    } catch (error) {
+      console.error("Hata:", error);
+    }
   };
 
-  const cikisKaydet = (e: React.FormEvent<HTMLFormElement>) => {
+  const cikisKaydet = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     if (!bulunanCihaz) return;
-    setSatirlar(prev => prev.map(s => s.id === bulunanCihaz.id ? {
-      ...s,
+    const formData = new FormData(e.currentTarget);
+    
+    const guncelVeri = {
+      action: "cikisGuncelle",
+      id: bulunanCihaz.id,
       tamirDurumu: formData.get('durum') as string,
       neden: formData.get('not') as string,
-      testYapanCikis: formData.get('test2') as string,
+      testYapanCikis: formData.get('test2') as string
+    };
+
+    // UI Güncelle
+    setSatirlar(prev => prev.map(s => s.id === bulunanCihaz.id ? {
+      ...s,
+      tamirDurumu: guncelVeri.tamirDurumu,
+      neden: guncelVeri.neden,
+      testYapanCikis: guncelVeri.testYapanCikis,
       islemTamam: true
     } : s));
+
     setBulunanCihaz(null);
     setAramaImei('');
-    alert("Cihaz çıkış kaydı tamamlandı.");
+
+    // Google Sheets Güncelle
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(guncelVeri),
+        mode: 'no-cors'
+      });
+      alert("Çıkış işlemi başarıyla tamamlandı.");
+    } catch (error) {
+      console.error("Hata:", error);
+    }
   };
 
   const getDurumRenk = (durum: string) => {
@@ -128,7 +169,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
       
       {isAdmin && (
         <div className="max-w-[1400px] mx-auto mb-10 animate-in fade-in duration-700">
-          {/* YÖNETİCİ İSTATİSTİK PANELİ */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-3xl">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Toplam Kayıt</p>
@@ -148,7 +188,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
             </div>
           </div>
 
-          {/* YÖNETİCİ FİLTRELEME ARAÇLARI */}
           <div className="flex flex-wrap items-center gap-4 bg-slate-900/30 p-4 rounded-2xl border border-slate-800/50">
              <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 uppercase">Tamirci:</span>
@@ -180,7 +219,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
         </div>
       )}
 
-      {/* ÜST DASHBOARD PANELİ (SORGULAMA) */}
       <div className="max-w-[1400px] mx-auto mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-800/80 pb-6">
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-4">
@@ -207,7 +245,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-          {/* SOL: GİRİŞ FORMU */}
           <div className="bg-slate-900/40 border border-slate-800 rounded-[2rem] p-8 shadow-xl backdrop-blur-md">
             <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
@@ -229,7 +266,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
             </form>
           </div>
 
-          {/* SAĞ: ÇIKIŞ FORMU */}
           <div className={`border rounded-[2rem] p-8 shadow-xl backdrop-blur-md transition-all duration-500 ${bulunanCihaz ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-slate-900/20 border-slate-800 opacity-40'}`}>
             <h3 className="text-sm font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${bulunanCihaz ? 'bg-indigo-500 animate-pulse' : 'bg-slate-600'}`}></span>
@@ -262,7 +298,6 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
         </div>
       </div>
 
-      {/* TABLO LİSTESİ */}
       <div className="max-w-[1400px] mx-auto bg-slate-900/40 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[1250px]">
@@ -277,7 +312,9 @@ const TeknikTakipTablosu = ({ isAdmin = false }: Props) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {filtrelenmisSatirlar.map((satir) => (
+              {yukleniyor ? (
+                <tr><td colSpan={6} className="p-10 text-center text-slate-500">Veriler Yükleniyor...</td></tr>
+              ) : filtrelenmisSatirlar.map((satir) => (
                 <tr key={satir.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="p-6">
                     <div className="text-sm font-bold text-slate-200 uppercase tracking-tight">{satir.tamirPersoneli}</div>
