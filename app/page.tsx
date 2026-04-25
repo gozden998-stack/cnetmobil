@@ -9,7 +9,7 @@ const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
-  "46.197.253.19": "CMR KAPAKLI",
+  "46.197.253.129": "CMR KAPAKLI",
   "31.155.79.145": "CMR MERKEZ",
   "149.0.18.162": "CMR CADDE"
 };
