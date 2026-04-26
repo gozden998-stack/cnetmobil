@@ -12,7 +12,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   const performans = {
       puan: 8.5,
       ikinciEl: { hedef: 100, gercek: 50 },
-      birinciEl: { hedef: 70, gercek: 30 },
+      birinciEl: { hedef: 70, gercek: 65 },
       ikinciElKazanc: { hedef: 500000, gercek: 200000 },
       servisKazanc: { hedef: 100000, gercek: 40000 },
       stok: { hedef: 100, gercek: 40 }
