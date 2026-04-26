@@ -646,8 +646,7 @@ const loadData = async () => {
 
   const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || appMode === 'kampanya_sifir' || step === 99;
 
-  // DİKKAT: Yeni markaları "baseBrands" içine ekledik ki her zaman aktif ve tıklanabilir olsunlar!
-  const baseBrands = ["Apple", "Samsung", "Xiaomi", "Oppo", "Vivo", "Realme", "Huawei"];
+  const baseBrands = ["Apple", "Samsung", "Xiaomi"];
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
       .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
 
