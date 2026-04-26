@@ -21,11 +21,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   const today = new Date();
   const gun = today.getDate(); 
   
-  // Ay Sonu Tahmini SADECE 2. EL İÇİN: (Şu ana kadar satılan / Geçen gün) * 30 Gün
+  // Ay Sonu Tahmini SADECE 2. EL İÇİN (Ana ekrandaki kutu için)
   const aySonuTahmini = Math.round((performans.ikinciEl.gercek / gun) * 30);
-  
-  // YENİ: HEDEF KONTROLÜ (Tahmin hedeften küçükse risklidir)
   const isHedefTehlikede = aySonuTahmini < performans.ikinciEl.hedef;
+
+  // --- DETAY KARTLARI İÇİN RİSK HESAPLAMASI ---
+  // Ayın geçen gününe göre "Şu ana kadar en az ne kadar yapılmış olmalıydı?" hesabı
+  const beklenenOran = gun / 30; 
+  const checkRisk = (gercek: number, hedef: number) => gercek < (hedef * beklenenOran);
+
+  const riskDurumlari = {
+      ikinciEl: checkRisk(performans.ikinciEl.gercek, performans.ikinciEl.hedef),
+      birinciEl: checkRisk(performans.birinciEl.gercek, performans.birinciEl.hedef),
+      ikinciElKazanc: checkRisk(performans.ikinciElKazanc.gercek, performans.ikinciElKazanc.hedef),
+      servisKazanc: checkRisk(performans.servisKazanc.gercek, performans.servisKazanc.hedef),
+      stok: checkRisk(performans.stok.gercek, performans.stok.hedef)
+  };
 
   // Tarih Formatı 
   const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -99,7 +110,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                         </div>
                     </div>
 
-                    {/* TIKLANABİLİR Sağ Kart (Hedef Tutmuyorsa Kırmızı Yanar) */}
+                    {/* TIKLANABİLİR Sağ Kart (Ana Ekran) */}
                     <div 
                         onClick={() => setShowTrendModal(true)}
                         className={`cursor-pointer rounded-2xl p-6 border transition-all duration-300 group relative overflow-hidden ${
@@ -108,7 +119,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             : 'bg-[#EEF2FF] hover:bg-indigo-50 border-blue-100/50'
                         }`}
                     >
-                        {/* HEDEF RİSKTEYSE YANIP SÖNEN UYARI ROZETİ */}
                         {isHedefTehlikede && (
                             <div className="absolute top-0 right-0 bg-rose-500 text-white text-[9px] font-black px-3 py-1.5 rounded-bl-xl flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-500/30">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -191,7 +201,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             </button>
                         </div>
                         
-                        {/* HEDEF TEHLİKEDEYSE GRAFİĞİN ÜSTÜNDE DE UYARI ÇIKAR */}
                         {isHedefTehlikede ? (
                             <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-start gap-3">
                                 <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -243,11 +252,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                         <line x1="0" y1="50" x2="100" y2="50" stroke="#f1f5f9" strokeWidth="0.5" />
                                         <line x1="0" y1="75" x2="100" y2="75" stroke="#f1f5f9" strokeWidth="0.5" />
 
-                                        {/* Gerçekleşen (Mavi) */}
                                         <polygon points="0,100 0,90 20,85 40,70 60,55 75,45 75,100" fill="url(#blueGradient)" />
                                         <polyline points="0,90 20,85 40,70 60,55 75,45" fill="none" stroke="#0ea5e9" strokeWidth="1.5" />
-                                        
-                                        {/* Tahmini (Hedef riskliyse Kırmızımsı, değilse Gri) */}
                                         <polygon points="75,100 75,45 85,45 100,10 100,100" fill={isHedefTehlikede ? "#fda4af" : "#334155"} opacity={isHedefTehlikede ? "0.3" : "1"} />
 
                                         <defs>
@@ -272,7 +278,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         )}
 
-        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - 5'Lİ KART TASARIMI */}
+        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - 5'Lİ KART TASARIMI VE RİSK UYARILARI */}
         {showPerformanceModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
@@ -290,72 +296,87 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                     <div className="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4">
                         
                         {/* 1. KART: 2. EL SATIŞ */}
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">2. El Cihaz Satış</span>
+                        <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.ikinciEl ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
+                            {riskDurumlari.ikinciEl && (
+                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
+                            )}
+                            <div className="flex justify-between items-end mb-3 mt-1">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciEl ? 'text-rose-700' : 'text-slate-500'}`}>2. El Cihaz Satış</span>
                                 <div className="text-right">
                                     <span className="text-blue-600 font-black text-sm">{performans.ikinciEl.gercek} <span className="text-slate-400">/ {performans.ikinciEl.hedef}</span></span>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Kalan: {performans.ikinciEl.hedef - performans.ikinciEl.gercek} Adet</p>
+                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.ikinciEl ? 'text-rose-500' : 'text-slate-400'}`}>Kalan: {performans.ikinciEl.hedef - performans.ikinciEl.gercek} Adet</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500" style={{width: `${(performans.ikinciEl.gercek / performans.ikinciEl.hedef) * 100}%`}}></div>
+                            <div className={`h-2.5 w-full rounded-full overflow-hidden ${riskDurumlari.ikinciEl ? 'bg-rose-200' : 'bg-slate-100'}`}>
+                                <div className="h-full bg-blue-500 transition-all duration-1000" style={{width: `${(performans.ikinciEl.gercek / performans.ikinciEl.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
                         {/* 2. KART: 1. EL SATIŞ */}
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">1. El Cihaz Satış</span>
+                        <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.birinciEl ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
+                            {riskDurumlari.birinciEl && (
+                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
+                            )}
+                            <div className="flex justify-between items-end mb-3 mt-1">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.birinciEl ? 'text-rose-700' : 'text-slate-500'}`}>1. El Cihaz Satış</span>
                                 <div className="text-right">
                                     <span className="text-indigo-600 font-black text-sm">{performans.birinciEl.gercek} <span className="text-slate-400">/ {performans.birinciEl.hedef}</span></span>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Kalan: {performans.birinciEl.hedef - performans.birinciEl.gercek} Adet</p>
+                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.birinciEl ? 'text-rose-500' : 'text-slate-400'}`}>Kalan: {performans.birinciEl.hedef - performans.birinciEl.gercek} Adet</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500" style={{width: `${(performans.birinciEl.gercek / performans.birinciEl.hedef) * 100}%`}}></div>
+                            <div className={`h-2.5 w-full rounded-full overflow-hidden ${riskDurumlari.birinciEl ? 'bg-rose-200' : 'bg-slate-100'}`}>
+                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{width: `${(performans.birinciEl.gercek / performans.birinciEl.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
                         {/* 3. KART: 2. EL KAZANÇ */}
-                        <div className="bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 flex flex-col justify-center">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">2. El Kazanç</span>
+                        <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.ikinciElKazanc ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50/50 border-emerald-100'}`}>
+                            {riskDurumlari.ikinciElKazanc && (
+                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
+                            )}
+                            <div className="flex justify-between items-end mb-3 mt-1">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciElKazanc ? 'text-rose-700' : 'text-emerald-700'}`}>2. El Kazanç</span>
                                 <div className="text-right">
                                     <span className="text-emerald-600 font-black text-sm">{formatMoney(performans.ikinciElKazanc.gercek)} ₺</span>
-                                    <p className="text-[9px] text-emerald-500/80 font-bold uppercase mt-0.5">Kalan: {formatMoney(performans.ikinciElKazanc.hedef - performans.ikinciElKazanc.gercek)} ₺</p>
+                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.ikinciElKazanc ? 'text-rose-500' : 'text-emerald-500/80'}`}>Kalan: {formatMoney(performans.ikinciElKazanc.hedef - performans.ikinciElKazanc.gercek)} ₺</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-emerald-100">
-                                <div className="h-full bg-emerald-500" style={{width: `${(performans.ikinciElKazanc.gercek / performans.ikinciElKazanc.hedef) * 100}%`}}></div>
+                            <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.ikinciElKazanc ? 'bg-rose-200 border-rose-200' : 'bg-white border-emerald-100'}`}>
+                                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{width: `${(performans.ikinciElKazanc.gercek / performans.ikinciElKazanc.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
                         {/* 4. KART: SERVİS KAZANÇ */}
-                        <div className="bg-violet-50/50 p-5 rounded-2xl shadow-sm border border-violet-100 flex flex-col justify-center">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-violet-700">Servis Kazanç</span>
+                        <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.servisKazanc ? 'bg-rose-50 border-rose-200' : 'bg-violet-50/50 border-violet-100'}`}>
+                            {riskDurumlari.servisKazanc && (
+                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
+                            )}
+                            <div className="flex justify-between items-end mb-3 mt-1">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.servisKazanc ? 'text-rose-700' : 'text-violet-700'}`}>Servis Kazanç</span>
                                 <div className="text-right">
                                     <span className="text-violet-600 font-black text-sm">{formatMoney(performans.servisKazanc.gercek)} ₺</span>
-                                    <p className="text-[9px] text-violet-500/80 font-bold uppercase mt-0.5">Kalan: {formatMoney(performans.servisKazanc.hedef - performans.servisKazanc.gercek)} ₺</p>
+                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.servisKazanc ? 'text-rose-500' : 'text-violet-500/80'}`}>Kalan: {formatMoney(performans.servisKazanc.hedef - performans.servisKazanc.gercek)} ₺</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-violet-100">
-                                <div className="h-full bg-violet-500" style={{width: `${(performans.servisKazanc.gercek / performans.servisKazanc.hedef) * 100}%`}}></div>
+                            <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.servisKazanc ? 'bg-rose-200 border-rose-200' : 'bg-white border-violet-100'}`}>
+                                <div className="h-full bg-violet-500 transition-all duration-1000" style={{width: `${(performans.servisKazanc.gercek / performans.servisKazanc.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
-                        {/* 5. KART: MEVCUT STOK (Tam Genişlik) */}
-                        <div className="col-span-1 md:col-span-2 bg-slate-800 p-5 rounded-2xl shadow-md border border-slate-700 flex flex-col justify-center">
-                            <div className="flex justify-between items-end mb-3">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Stoktaki Cihaz Sayısı</span>
+                        {/* 5. KART: MEVCUT STOK */}
+                        <div className={`col-span-1 md:col-span-2 p-5 rounded-2xl shadow-md border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.stok ? 'bg-rose-900 border-rose-700' : 'bg-slate-800 border-slate-700'}`}>
+                            {riskDurumlari.stok && (
+                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
+                            )}
+                            <div className="flex justify-between items-end mb-3 mt-1">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.stok ? 'text-rose-200' : 'text-slate-300'}`}>Stoktaki Cihaz Sayısı</span>
                                 <div className="text-right">
-                                    <span className="text-white font-black text-sm">{performans.stok.gercek} <span className="text-slate-500">/ {performans.stok.hedef}</span></span>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Hedefe Kalan: {performans.stok.hedef - performans.stok.gercek} Adet</p>
+                                    <span className="text-white font-black text-sm">{performans.stok.gercek} <span className="text-slate-400">/ {performans.stok.hedef}</span></span>
+                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.stok ? 'text-rose-400' : 'text-slate-400'}`}>Hedefe Kalan: {performans.stok.hedef - performans.stok.gercek} Adet</p>
                                 </div>
                             </div>
-                            <div className="h-2.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-700">
-                                <div className="h-full bg-gradient-to-r from-slate-500 to-white" style={{width: `${(performans.stok.gercek / performans.stok.hedef) * 100}%`}}></div>
+                            <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.stok ? 'bg-rose-950 border-rose-800' : 'bg-slate-900 border-slate-700'}`}>
+                                <div className={`h-full transition-all duration-1000 ${riskDurumlari.stok ? 'bg-rose-500' : 'bg-gradient-to-r from-slate-500 to-white'}`} style={{width: `${(performans.stok.gercek / performans.stok.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
