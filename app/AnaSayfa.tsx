@@ -4,11 +4,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   // Modal State'leri
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [showTrendModal, setShowTrendModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null); // Personel Detay Modalı İçin
 
   // Sadece CMR Şubelerinde Görünmesi İçin Kontrol
   const isCmr = selectedBranch.includes('CMR');
 
-  // GÜNCEL SATIŞ VE HEDEF VERİLERİ 
+  // GÜNCEL SATIŞ VE HEDEF VERİLERİ (Mağaza Geneli)
   const performans = {
       ikinciEl: { hedef: 100, gercek: 50 },
       birinciEl: { hedef: 70, gercek: 30 },
@@ -50,6 +51,44 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
       servisKazanc: checkRisk(performans.servisKazanc.gercek, performans.servisKazanc.hedef),
       stok: checkRisk(performans.stok.gercek, performans.stok.hedef)
   };
+
+  // --- PERSONEL HEDEF VE GERÇEKLEŞEN VERİLERİ (Gönderdiğin Tablodan Örneklendirilmiştir) ---
+  // İleride bu veriler Google Sheets'ten "Personel" sayfasından çekilecek.
+  const rawPersonelListesi = [
+      { 
+          isim: "Ahmet Yasir Taş", 
+          hedefler: { ikinciEl: 60, birinciEl: 12, ikinciElKazanc: 250000, servisKazanc: 37000, aksesuar: 80000 }, 
+          gerceklesen: { ikinciEl: 45, birinciEl: 10, ikinciElKazanc: 210000, servisKazanc: 28000, aksesuar: 65000 } 
+      },
+      { 
+          isim: "Fatih Baş", 
+          hedefler: { ikinciEl: 60, birinciEl: 12, ikinciElKazanc: 250000, servisKazanc: 37000, aksesuar: 80000 }, 
+          gerceklesen: { ikinciEl: 38, birinciEl: 8, ikinciElKazanc: 160000, servisKazanc: 15000, aksesuar: 50000 } 
+      },
+      { 
+          isim: "Mustafa Baki Ülger", 
+          hedefler: { ikinciEl: 40, birinciEl: 5, ikinciElKazanc: 125000, servisKazanc: 20000, aksesuar: 50000 }, 
+          gerceklesen: { ikinciEl: 35, birinciEl: 4, ikinciElKazanc: 110000, servisKazanc: 18000, aksesuar: 45000 } 
+      },
+      { 
+          isim: "Çağlar Öcal", 
+          hedefler: { ikinciEl: 60, birinciEl: 12, ikinciElKazanc: 250000, servisKazanc: 37000, aksesuar: 80000 }, 
+          gerceklesen: { ikinciEl: 25, birinciEl: 5, ikinciElKazanc: 90000, servisKazanc: 10000, aksesuar: 30000 } 
+      }
+  ];
+
+  // Personel puanlarını hesaplayıp yüksekten düşüğe (liderlik tablosu) sıralıyoruz
+  const personelListesi = rawPersonelListesi.map(p => {
+      const pYuzde = {
+          ikinciEl: calcPerc(p.gerceklesen.ikinciEl, p.hedefler.ikinciEl),
+          birinciEl: calcPerc(p.gerceklesen.birinciEl, p.hedefler.birinciEl),
+          ikinciElKazanc: calcPerc(p.gerceklesen.ikinciElKazanc, p.hedefler.ikinciElKazanc),
+          servisKazanc: calcPerc(p.gerceklesen.servisKazanc, p.hedefler.servisKazanc),
+          aksesuar: calcPerc(p.gerceklesen.aksesuar, p.hedefler.aksesuar)
+      };
+      const genel = Math.round((pYuzde.ikinciEl + pYuzde.birinciEl + pYuzde.ikinciElKazanc + pYuzde.servisKazanc + pYuzde.aksesuar) / 5);
+      return { ...p, yuzdeler: pYuzde, genelPuan: genel };
+  }).sort((a, b) => b.genelPuan - a.genelPuan); // Puanı yüksek olan en üste
 
   // Tarih Formatı 
   const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -162,6 +201,65 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             <svg className={`w-6 h-6 transform group-hover:translate-x-1 transition-transform ${isHedefTehlikede ? 'text-rose-500' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* YENİ: PERSONEL TAKİP (LİDERLİK TABLOSU) */}
+        {isCmr && (
+            <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-3 mb-6 border-b border-slate-50 pb-4">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-900 uppercase tracking-tight">Takım Liderlik Tablosu</h3>
+                        <p className="text-xs text-slate-500">Personel bazlı anlık performans ve hedef takibi</p>
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    {personelListesi.map((personel, index) => (
+                        <div 
+                            key={index} 
+                            onClick={() => setSelectedStaff(personel)}
+                            className="group bg-slate-50 hover:bg-blue-50/50 border border-slate-100 hover:border-blue-100 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-all duration-300"
+                        >
+                            {/* Sol: İsim ve Sıralama */}
+                            <div className="flex items-center gap-4 min-w-[200px]">
+                                <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center font-black text-lg shrink-0">
+                                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : <span className="text-slate-400 text-sm">{index + 1}</span>}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{personel.isim}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Satış Uzmanı</p>
+                                </div>
+                            </div>
+
+                            {/* Orta: 2. El Ana Hedef Barı */}
+                            <div className="flex-1 w-full md:max-w-md">
+                                <div className="flex justify-between items-end mb-1.5">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">2. El Hedefi</span>
+                                    <span className="text-xs font-black text-slate-700">{personel.gerceklesen.ikinciEl} <span className="text-slate-400">/ {personel.hedefler.ikinciEl}</span></span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                                    <div className={`h-full transition-all duration-1000 ${personel.yuzdeler.ikinciEl >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{width: `${personel.yuzdeler.ikinciEl}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Sağ: Genel Puan ve Buton */}
+                            <div className="flex items-center justify-between md:justify-end gap-4 min-w-[150px]">
+                                <div className="text-right">
+                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-black text-white shadow-sm ${personel.genelPuan >= 80 ? 'bg-emerald-500' : personel.genelPuan >= 50 ? 'bg-orange-500' : 'bg-rose-500'}`}>
+                                        %{personel.genelPuan}
+                                    </span>
+                                </div>
+                                <div className="bg-white group-hover:bg-blue-500 group-hover:text-white border border-slate-200 group-hover:border-blue-500 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
+                                    Rapor
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         )}
@@ -296,11 +394,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         )}
 
-        {/* DETAYLI PERFORMANS MODALI (Yüzdelik Rozetler Eklendi) */}
+        {/* MAĞAZA PERFORMANS MODALI */}
         {showPerformanceModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-                    
                     <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
                         <div>
                             <div className="flex items-center gap-3">
@@ -317,12 +414,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                     </div>
 
                     <div className="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
-                        {/* 1. KART: 2. EL SATIŞ */}
                         <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.ikinciEl ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
-                            {riskDurumlari.ikinciEl && (
-                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
-                            )}
+                            {riskDurumlari.ikinciEl && <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>}
                             <div className="flex justify-between items-end mb-3 mt-1">
                                 <div>
                                     <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciEl ? 'text-rose-700' : 'text-slate-500'}`}>2. El Cihaz Satış</span>
@@ -340,11 +433,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             </div>
                         </div>
 
-                        {/* 2. KART: 1. EL SATIŞ */}
                         <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.birinciEl ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100'}`}>
-                            {riskDurumlari.birinciEl && (
-                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
-                            )}
+                            {riskDurumlari.birinciEl && <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>}
                             <div className="flex justify-between items-end mb-3 mt-1">
                                 <div>
                                     <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.birinciEl ? 'text-rose-700' : 'text-slate-500'}`}>1. El Cihaz Satış</span>
@@ -362,11 +452,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             </div>
                         </div>
 
-                        {/* 3. KART: 2. EL KAZANÇ */}
                         <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.ikinciElKazanc ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50/50 border-emerald-100'}`}>
-                            {riskDurumlari.ikinciElKazanc && (
-                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
-                            )}
+                            {riskDurumlari.ikinciElKazanc && <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>}
                             <div className="flex justify-between items-end mb-3 mt-1">
                                 <div>
                                     <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciElKazanc ? 'text-rose-700' : 'text-emerald-700'}`}>2. El Kazanç</span>
@@ -384,11 +471,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             </div>
                         </div>
 
-                        {/* 4. KART: SERVİS KAZANÇ */}
                         <div className={`p-5 rounded-2xl shadow-sm border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.servisKazanc ? 'bg-rose-50 border-rose-200' : 'bg-violet-50/50 border-violet-100'}`}>
-                            {riskDurumlari.servisKazanc && (
-                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
-                            )}
+                            {riskDurumlari.servisKazanc && <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>}
                             <div className="flex justify-between items-end mb-3 mt-1">
                                 <div>
                                     <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.servisKazanc ? 'text-rose-700' : 'text-violet-700'}`}>Servis Kazanç</span>
@@ -405,26 +489,115 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="h-full bg-violet-500 transition-all duration-1000" style={{width: `${yuzdeler.servisKazanc}%`}}></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
-                        {/* 5. KART: MEVCUT STOK */}
-                        <div className={`col-span-1 md:col-span-2 p-5 rounded-2xl shadow-md border flex flex-col justify-center relative overflow-hidden transition-all duration-300 ${riskDurumlari.stok ? 'bg-rose-900 border-rose-700' : 'bg-slate-800 border-slate-700'}`}>
-                            {riskDurumlari.stok && (
-                                <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
-                            )}
-                            <div className="flex justify-between items-end mb-3 mt-1">
-                                <div>
-                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.stok ? 'text-rose-200' : 'text-slate-300'}`}>Stoktaki Cihaz Sayısı</span>
-                                    <div className="mt-1">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.stok ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'}`}>%{yuzdeler.stok}</span>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-white font-black text-sm">{performans.stok.gercek} <span className="text-slate-400">/ {performans.stok.hedef}</span></span>
-                                    <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.stok ? 'text-rose-400' : 'text-slate-400'}`}>Hedefe Kalan: {performans.stok.hedef - performans.stok.gercek} Adet</p>
+        {/* YENİ: PERSONEL DETAY MODALI */}
+        {selectedStaff && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                    
+                    <div className="bg-slate-800 p-6 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-xl font-black shadow-inner">
+                                {selectedStaff.isim.charAt(0)}
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black tracking-tight">{selectedStaff.isim}</h3>
+                                <div className="flex gap-2 items-center mt-1">
+                                    <p className="text-xs text-sky-400 uppercase tracking-widest">Bireysel Performans Raporu</p>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedStaff.genelPuan >= 80 ? 'bg-emerald-500/20 text-emerald-400' : selectedStaff.genelPuan >= 50 ? 'bg-orange-500/20 text-orange-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                        %{selectedStaff.genelPuan} Başarı
+                                    </span>
                                 </div>
                             </div>
-                            <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.stok ? 'bg-rose-950 border-rose-800' : 'bg-slate-900 border-slate-700'}`}>
-                                <div className={`h-full transition-all duration-1000 ${riskDurumlari.stok ? 'bg-rose-500' : 'bg-gradient-to-r from-slate-500 to-white'}`} style={{width: `${yuzdeler.stok}%`}}></div>
+                        </div>
+                        <button onClick={() => setSelectedStaff(null)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div className="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+                        
+                        {/* Personel Kartı 1: 2. El */}
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">2. El Cihaz Satış</span>
+                                    <div className="mt-1"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">%{selectedStaff.yuzdeler.ikinciEl}</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-blue-600 font-black text-sm">{selectedStaff.gerceklesen.ikinciEl} <span className="text-slate-400">/ {selectedStaff.hedefler.ikinciEl}</span></span>
+                                </div>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{width: `${selectedStaff.yuzdeler.ikinciEl}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* Personel Kartı 2: 1. El */}
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">1. El Cihaz Satış</span>
+                                    <div className="mt-1"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">%{selectedStaff.yuzdeler.birinciEl}</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-indigo-600 font-black text-sm">{selectedStaff.gerceklesen.birinciEl} <span className="text-slate-400">/ {selectedStaff.hedefler.birinciEl}</span></span>
+                                </div>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500" style={{width: `${selectedStaff.yuzdeler.birinciEl}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* Personel Kartı 3: Kazanç */}
+                        <div className="bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">2. El Ciro</span>
+                                    <div className="mt-1"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-800">%{selectedStaff.yuzdeler.ikinciElKazanc}</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-emerald-600 font-black text-sm">{formatMoney(selectedStaff.gerceklesen.ikinciElKazanc)} ₺</span>
+                                </div>
+                            </div>
+                            <div className="h-2 w-full bg-white rounded-full overflow-hidden border border-emerald-100">
+                                <div className="h-full bg-emerald-500" style={{width: `${selectedStaff.yuzdeler.ikinciElKazanc}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* Personel Kartı 4: Aksesuar */}
+                        <div className="bg-orange-50/50 p-5 rounded-2xl shadow-sm border border-orange-100">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-orange-700">Aksesuar Ciro</span>
+                                    <div className="mt-1"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-200 text-orange-800">%{selectedStaff.yuzdeler.aksesuar}</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-orange-600 font-black text-sm">{formatMoney(selectedStaff.gerceklesen.aksesuar)} ₺</span>
+                                </div>
+                            </div>
+                            <div className="h-2 w-full bg-white rounded-full overflow-hidden border border-orange-100">
+                                <div className="h-full bg-orange-500" style={{width: `${selectedStaff.yuzdeler.aksesuar}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* Personel Kartı 5: Servis */}
+                        <div className="col-span-1 md:col-span-2 bg-violet-50/50 p-5 rounded-2xl shadow-sm border border-violet-100">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-violet-700">Servis Kazanç</span>
+                                    <div className="mt-1"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-200 text-violet-800">%{selectedStaff.yuzdeler.servisKazanc}</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-violet-600 font-black text-sm">{formatMoney(selectedStaff.gerceklesen.servisKazanc)} ₺ <span className="text-violet-400">/ {formatMoney(selectedStaff.hedefler.servisKazanc)} ₺</span></span>
+                                </div>
+                            </div>
+                            <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-violet-100">
+                                <div className="h-full bg-violet-500" style={{width: `${selectedStaff.yuzdeler.servisKazanc}%`}}></div>
                             </div>
                         </div>
 
@@ -432,6 +605,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                 </div>
             </div>
         )}
+
     </div>
   );
 }
