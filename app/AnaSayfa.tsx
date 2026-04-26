@@ -8,7 +8,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   // Sadece CMR Şubelerinde Görünmesi İçin Kontrol
   const isCmr = selectedBranch.includes('CMR');
 
-  // GÜNCEL SATIŞ VE HEDEF VERİLERİ (Senin verdiğin rakamlar)
+  // GÜNCEL SATIŞ VE HEDEF VERİLERİ 
   const performans = {
       puan: 8.5,
       ikinciEl: { hedef: 100, gercek: 50 },
@@ -23,12 +23,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   
   // Ay Sonu Tahmini SADECE 2. EL İÇİN: (Şu ana kadar satılan / Geçen gün) * 30 Gün
   const aySonuTahmini = Math.round((performans.ikinciEl.gercek / gun) * 30);
+  
+  // YENİ: HEDEF KONTROLÜ (Tahmin hedeften küçükse risklidir)
+  const isHedefTehlikede = aySonuTahmini < performans.ikinciEl.hedef;
 
-  // Tarih Formatı (Trend Grafiği İçin)
+  // Tarih Formatı 
   const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   const formatliTarih = `${gun} ${aylar[today.getMonth()]} ${today.getFullYear()}`;
 
-  // Para formatlamak için yardımcı fonksiyon (Örn: 500.000 ₺)
+  // Para formatlamak için
   const formatMoney = (amount: number) => {
       return new Intl.NumberFormat('tr-TR').format(amount);
   };
@@ -87,7 +90,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Sabit Sol Kart (Sadece 2. El) */}
+                    {/* Sabit Sol Kart */}
                     <div className="bg-[#FFF4E6] rounded-2xl p-6 border border-orange-100/50">
                         <p className="text-slate-700 font-semibold mb-2">Bu Ay Toplam 2. El Satış</p>
                         <div className="flex items-baseline gap-2">
@@ -96,23 +99,39 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                         </div>
                     </div>
 
-                    {/* TIKLANABİLİR Sağ Kart (Grafiği Açar) */}
+                    {/* TIKLANABİLİR Sağ Kart (Hedef Tutmuyorsa Kırmızı Yanar) */}
                     <div 
                         onClick={() => setShowTrendModal(true)}
-                        className="bg-[#EEF2FF] hover:bg-indigo-50 cursor-pointer rounded-2xl p-6 border border-blue-100/50 transition-colors group"
+                        className={`cursor-pointer rounded-2xl p-6 border transition-all duration-300 group relative overflow-hidden ${
+                            isHedefTehlikede 
+                            ? 'bg-rose-50 hover:bg-rose-100 border-rose-200/60' 
+                            : 'bg-[#EEF2FF] hover:bg-indigo-50 border-blue-100/50'
+                        }`}
                     >
+                        {/* HEDEF RİSKTEYSE YANIP SÖNEN UYARI ROZETİ */}
+                        {isHedefTehlikede && (
+                            <div className="absolute top-0 right-0 bg-rose-500 text-white text-[9px] font-black px-3 py-1.5 rounded-bl-xl flex items-center gap-1.5 animate-pulse shadow-md shadow-rose-500/30">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                RİSKLİ GİDİŞAT
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-lg">⏳</span>
-                                <p className="text-slate-700 font-semibold group-hover:text-blue-700 transition-colors">Ay Sonu 2. El Tahmini</p>
+                                <p className={`font-semibold transition-colors ${isHedefTehlikede ? 'text-rose-700 group-hover:text-rose-800' : 'text-slate-700 group-hover:text-blue-700'}`}>
+                                    Ay Sonu 2. El Tahmini
+                                </p>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mt-1">
                             <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black text-slate-900 group-hover:text-blue-800 transition-colors">{aySonuTahmini}</span>
-                                <span className="text-slate-600 font-medium">Adet</span>
+                                <span className={`text-3xl font-black transition-colors ${isHedefTehlikede ? 'text-rose-600 group-hover:text-rose-700' : 'text-slate-900 group-hover:text-blue-800'}`}>
+                                    {aySonuTahmini}
+                                </span>
+                                <span className={`font-medium ${isHedefTehlikede ? 'text-rose-500/80' : 'text-slate-600'}`}>Adet</span>
                             </div>
-                            <svg className="w-6 h-6 text-blue-500 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                            <svg className={`w-6 h-6 transform group-hover:translate-x-1 transition-transform ${isHedefTehlikede ? 'text-rose-500' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     </div>
                 </div>
@@ -159,7 +178,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         </div>
 
-        {/* TREND / GİDİŞAT GRAFİĞİ MODALI (Sadece 2. El İçin) */}
+        {/* TREND / GİDİŞAT GRAFİĞİ MODALI */}
         {showTrendModal && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
@@ -171,15 +190,27 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        <div className="flex items-center gap-2 text-sky-600 font-bold mb-2">
-                            <span>🚀</span> Hedefinizi Şimdiden Görün
-                        </div>
-                        <p className="text-sm text-slate-500 leading-relaxed mb-4">
-                            Son 30 gün baz alınarak hesaplanan ay sonu 2. El satış tahmininizi anlık olarak takip edin.
-                        </p>
+                        
+                        {/* HEDEF TEHLİKEDEYSE GRAFİĞİN ÜSTÜNDE DE UYARI ÇIKAR */}
+                        {isHedefTehlikede ? (
+                            <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl flex items-start gap-3">
+                                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                <div>
+                                    <p className="text-sm font-bold">Hedefin Gerisindesiniz!</p>
+                                    <p className="text-xs mt-0.5 font-medium opacity-90">Mevcut satış hızınızla ay sonu tahmini ({aySonuTahmini}), mağaza hedefinizin ({performans.ikinciEl.hedef}) altında kalıyor. Satışları artırmanız gerekiyor.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-emerald-600 font-bold mb-4">
+                                <span>🎉</span> Harika Gidiyorsunuz!
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-slate-600">Tahmini Adet:</span>
-                            <span className="text-xl font-black text-slate-900 flex items-center gap-1">⏳ {aySonuTahmini} <span className="text-sm font-medium text-slate-500">Adet</span></span>
+                            <span className={`text-xl font-black flex items-center gap-1 ${isHedefTehlikede ? 'text-rose-600' : 'text-slate-900'}`}>
+                                ⏳ {aySonuTahmini} <span className="text-sm font-medium text-slate-500">Adet</span>
+                            </span>
                         </div>
                     </div>
 
@@ -193,7 +224,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gerçek: {performans.ikinciEl.gercek}</p>
-                                    <p className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Tahmini: {aySonuTahmini}</p>
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${isHedefTehlikede ? 'text-rose-500' : 'text-sky-500'}`}>Tahmini: {aySonuTahmini}</p>
                                 </div>
                             </div>
 
@@ -212,9 +243,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                         <line x1="0" y1="50" x2="100" y2="50" stroke="#f1f5f9" strokeWidth="0.5" />
                                         <line x1="0" y1="75" x2="100" y2="75" stroke="#f1f5f9" strokeWidth="0.5" />
 
+                                        {/* Gerçekleşen (Mavi) */}
                                         <polygon points="0,100 0,90 20,85 40,70 60,55 75,45 75,100" fill="url(#blueGradient)" />
                                         <polyline points="0,90 20,85 40,70 60,55 75,45" fill="none" stroke="#0ea5e9" strokeWidth="1.5" />
-                                        <polygon points="75,100 75,45 85,45 100,10 100,100" fill="#334155" />
+                                        
+                                        {/* Tahmini (Hedef riskliyse Kırmızımsı, değilse Gri) */}
+                                        <polygon points="75,100 75,45 85,45 100,10 100,100" fill={isHedefTehlikede ? "#fda4af" : "#334155"} opacity={isHedefTehlikede ? "0.3" : "1"} />
 
                                         <defs>
                                             <linearGradient id="blueGradient" x1="0" x2="0" y1="0" y2="1">
@@ -229,7 +263,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
 
                         <button 
                             onClick={() => setShowTrendModal(false)}
-                            className="w-full mt-6 bg-sky-500 hover:bg-sky-400 text-white font-bold text-lg py-4 rounded-xl transition-all shadow-lg shadow-sky-500/30"
+                            className="w-full mt-6 bg-slate-800 hover:bg-slate-700 text-white font-bold text-lg py-4 rounded-xl transition-all shadow-lg"
                         >
                             Kapat
                         </button>
@@ -238,7 +272,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         )}
 
-        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - YENİ TASARIM */}
+        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - 5'Lİ KART TASARIMI */}
         {showPerformanceModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
