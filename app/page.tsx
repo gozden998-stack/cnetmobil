@@ -1359,28 +1359,25 @@ const loadData = async () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8 animate-in fade-in zoom-in duration-700 delay-200">
                 {displayBrands.map(brand => {
                   const brandInfo = brandDb.find(b => b.name === brand);
-                  const hasModels = db.some(i => i.brand === brand);
                   const finalLogo = brandInfo?.logo || brandAssets[brand]?.logo || "";
 
                   return (
                     <div key={brand} 
                           onClick={() => {
-                            if(hasModels) {
-                              setSelectedBrand(brand); 
-                              setStep(2); 
-                              resetSelection();
-                            }
+                            setSelectedBrand(brand); 
+                            setStep(2); 
+                            resetSelection();
                           }} 
-                          className={`bg-white p-10 rounded-[48px] shadow-sm border flex flex-col items-center justify-center text-center h-72 group transition-all ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100/50 hover:shadow-2xl'} ${hasModels ? 'hover:scale-[1.05] cursor-pointer btn-click' : 'opacity-60 cursor-not-allowed grayscale'}`}>
+                          className={`bg-white p-10 rounded-[48px] shadow-sm border flex flex-col items-center justify-center text-center h-72 group transition-all hover:scale-[1.05] cursor-pointer btn-click ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100/50 hover:shadow-2xl'}`}>
                       <div className="h-24 w-full flex items-center justify-center mb-8 transition-all duration-500 transform group-hover:scale-110">
                         <img src={finalLogo} className="max-h-full max-w-[140px] object-contain" alt={brand} />
                       </div>
                       <h2 className={`font-black text-xl mb-1 uppercase italic tracking-tighter ${appMode === 'servis' ? 'text-orange-950' : 'text-slate-800'}`}>{brand}</h2>
-                      <p className={`text-[10px] font-black uppercase tracking-widest ${hasModels ? (appMode==='servis'?'text-orange-400':'text-slate-400') : 'text-red-500 animate-pulse'}`}>
-                          {hasModels ? (appMode === 'servis' ? 'SERVIS ISLEMLERI' : `${brand} CİHAZINI SAT`) : 'ÇOK YAKINDA'}
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-400' : 'text-slate-400'}`}>
+                          {appMode === 'servis' ? 'SERVİS İŞLEMLERİ' : `${brand} CİHAZINI SAT`}
                       </p>
                       
-                      <div className={`w-10 h-1 transition-all rounded-full mt-3 ${hasModels ? (appMode === 'servis' ? 'bg-orange-100 group-hover:w-20 group-hover:bg-orange-500' : (isZumay ? 'bg-slate-100 group-hover:w-20 group-hover:bg-red-600' : 'bg-slate-100 group-hover:w-20 group-hover:bg-blue-600')) : 'bg-slate-200'}`}></div>
+                      <div className={`w-10 h-1 transition-all rounded-full mt-3 ${appMode === 'servis' ? 'bg-orange-100 group-hover:w-20 group-hover:bg-orange-500' : (isZumay ? 'bg-slate-100 group-hover:w-20 group-hover:bg-red-600' : 'bg-slate-100 group-hover:w-20 group-hover:bg-blue-600')}`}></div>
                     </div>
                   );
                 })}
@@ -1756,7 +1753,7 @@ const loadData = async () => {
                               onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
                               className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] transition-all 
                               ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                              ${purchaseType === 'NAKİT' ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/30 cursor-default' : ''} 
+                              ${purchaseType === 'NAKİT' ? 'bg-emerald-50 text-white ring-4 ring-emerald-500/30 cursor-default' : ''} 
                               ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-emerald-500 hover:text-white' : ''}`}>
                               ✓ NAKİT ALINDI
                           </button>
