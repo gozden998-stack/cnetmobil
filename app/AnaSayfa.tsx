@@ -8,29 +8,29 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   // Sadece CMR Şubelerinde Görünmesi İçin Kontrol
   const isCmr = selectedBranch.includes('CMR');
 
-  // SATIŞ VE HEDEF VERİLERİ 
+  // GÜNCEL SATIŞ VE HEDEF VERİLERİ (Senin verdiğin rakamlar)
+  const performans = {
+      puan: 8.5,
+      ikinciEl: { hedef: 100, gercek: 50 },
+      birinciEl: { hedef: 70, gercek: 30 },
+      ikinciElKazanc: { hedef: 500000, gercek: 200000 },
+      servisKazanc: { hedef: 100000, gercek: 40000 },
+      stok: { hedef: 100, gercek: 40 }
+  };
+
   const today = new Date();
   const gun = today.getDate(); 
-  const hedefAdet = 230;
-  const gerceklesenSatis = 130;
-  const kalanAdet = hedefAdet - gerceklesenSatis;
   
-  // Ay Sonu Tahmini: (Şu ana kadar satılan / Geçen gün) * 30 Gün
-  const aySonuTahmini = Math.round((gerceklesenSatis / gun) * 30);
+  // Ay Sonu Tahmini SADECE 2. EL İÇİN: (Şu ana kadar satılan / Geçen gün) * 30 Gün
+  const aySonuTahmini = Math.round((performans.ikinciEl.gercek / gun) * 30);
 
-  // Tarih Formatı 
+  // Tarih Formatı (Trend Grafiği İçin)
   const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   const formatliTarih = `${gun} ${aylar[today.getMonth()]} ${today.getFullYear()}`;
 
-  // Detaylı Performans Verileri
-  const performansDetaylari = {
-      puan: 8.5,
-      ikinciElSatis: gerceklesenSatis,
-      birinciElSatis: 45,
-      ikinciElKazanc: "124.500",
-      servisKazanc: "38.250",
-      rakipSatis: 85,
-      stokCihaz: 112
+  // Para formatlamak için yardımcı fonksiyon (Örn: 500.000 ₺)
+  const formatMoney = (amount: number) => {
+      return new Intl.NumberFormat('tr-TR').format(amount);
   };
 
   return (
@@ -81,17 +81,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                         onClick={() => setShowPerformanceModal(true)}
                         className="bg-[#53a653] hover:bg-[#448c44] text-white px-5 py-2 rounded-xl text-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-green-900/20"
                     >
-                        {performansDetaylari.puan}
+                        {performans.puan}
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                     </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Sabit Sol Kart */}
+                    {/* Sabit Sol Kart (Sadece 2. El) */}
                     <div className="bg-[#FFF4E6] rounded-2xl p-6 border border-orange-100/50">
-                        <p className="text-slate-700 font-semibold mb-2">Bu Ay Toplam Satış</p>
+                        <p className="text-slate-700 font-semibold mb-2">Bu Ay Toplam 2. El Satış</p>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-black text-slate-900">{gerceklesenSatis}</span>
+                            <span className="text-3xl font-black text-slate-900">{performans.ikinciEl.gercek}</span>
                             <span className="text-slate-600 font-medium">Adet</span>
                         </div>
                     </div>
@@ -104,7 +104,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-lg">⏳</span>
-                                <p className="text-slate-700 font-semibold group-hover:text-blue-700 transition-colors">Ay Sonu Tahmini Satış</p>
+                                <p className="text-slate-700 font-semibold group-hover:text-blue-700 transition-colors">Ay Sonu 2. El Tahmini</p>
                             </div>
                         </div>
                         <div className="flex items-center justify-between">
@@ -159,14 +159,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         </div>
 
-        {/* TREND / GİDİŞAT GRAFİĞİ MODALI */}
+        {/* TREND / GİDİŞAT GRAFİĞİ MODALI (Sadece 2. El İçin) */}
         {showTrendModal && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                     
                     <div className="p-6 border-b border-slate-100">
                         <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-xl font-bold text-slate-800 tracking-tight">Ay Sonu Tahmini Satış</h3>
+                            <h3 className="text-xl font-bold text-slate-800 tracking-tight">2. El Ay Sonu Tahmini</h3>
                             <button onClick={() => setShowTrendModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
@@ -175,7 +175,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                             <span>🚀</span> Hedefinizi Şimdiden Görün
                         </div>
                         <p className="text-sm text-slate-500 leading-relaxed mb-4">
-                            Son 30 gün baz alınarak hesaplanan ay sonu satış tahmininizi anlık olarak takip edin ve hedeflerinizi erkenden şekillendirin.
+                            Son 30 gün baz alınarak hesaplanan ay sonu 2. El satış tahmininizi anlık olarak takip edin.
                         </p>
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-slate-600">Tahmini Adet:</span>
@@ -192,27 +192,25 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                     <button className="text-slate-400 hover:text-slate-800"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gerçek: {gerceklesenSatis}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gerçek: {performans.ikinciEl.gercek}</p>
                                     <p className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Tahmini: {aySonuTahmini}</p>
                                 </div>
                             </div>
 
                             <div className="relative h-48 w-full">
                                 <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-[10px] text-slate-400 font-medium font-mono z-10">
-                                    <span>250</span>
-                                    <span>200</span>
-                                    <span>150</span>
-                                    <span>100</span>
-                                    <span>50</span>
+                                    <span>{performans.ikinciEl.hedef}</span>
+                                    <span>{Math.round(performans.ikinciEl.hedef * 0.75)}</span>
+                                    <span>{Math.round(performans.ikinciEl.hedef * 0.5)}</span>
+                                    <span>{Math.round(performans.ikinciEl.hedef * 0.25)}</span>
                                     <span>0</span>
                                 </div>
                                 
                                 <div className="ml-8 h-full relative">
                                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full border-b border-l border-slate-200">
-                                        <line x1="0" y1="20" x2="100" y2="20" stroke="#f1f5f9" strokeWidth="0.5" />
-                                        <line x1="0" y1="40" x2="100" y2="40" stroke="#f1f5f9" strokeWidth="0.5" />
-                                        <line x1="0" y1="60" x2="100" y2="60" stroke="#f1f5f9" strokeWidth="0.5" />
-                                        <line x1="0" y1="80" x2="100" y2="80" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="25" x2="100" y2="25" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="50" x2="100" y2="50" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="75" x2="100" y2="75" stroke="#f1f5f9" strokeWidth="0.5" />
 
                                         <polygon points="0,100 0,90 20,85 40,70 60,55 75,45 75,100" fill="url(#blueGradient)" />
                                         <polyline points="0,90 20,85 40,70 60,55 75,45" fill="none" stroke="#0ea5e9" strokeWidth="1.5" />
@@ -240,69 +238,93 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         )}
 
-        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) */}
+        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - YENİ TASARIM */}
         {showPerformanceModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
-                <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                     
                     <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-black tracking-tight">{selectedBranch} Gidişat</h3>
-                            <p className="text-xs text-sky-400 uppercase tracking-widest mt-1">Aylık Satış Raporu</p>
+                            <h3 className="text-xl font-black tracking-tight">{selectedBranch} Departman Hedefleri</h3>
+                            <p className="text-xs text-sky-400 uppercase tracking-widest mt-1">Aylık Detaylı Rapor</p>
                         </div>
                         <button onClick={() => setShowPerformanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
 
-                    <div className="p-6 space-y-4 bg-slate-50">
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Mağaza Satış Hedefi</span>
-                                    <div className="text-right">
-                                        <span className="text-blue-600 font-black text-sm">{gerceklesenSatis} / {hedefAdet}</span>
-                                        <p className="text-[10px] text-rose-500 font-bold uppercase mt-0.5">Kalan: {kalanAdet} Adet</p>
-                                    </div>
-                                </div>
-                                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-sky-400 to-blue-500" style={{width: `${(gerceklesenSatis / hedefAdet) * 100}%`}}></div>
+                    <div className="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        {/* 1. KART: 2. EL SATIŞ */}
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">2. El Cihaz Satış</span>
+                                <div className="text-right">
+                                    <span className="text-blue-600 font-black text-sm">{performans.ikinciEl.gercek} <span className="text-slate-400">/ {performans.ikinciEl.hedef}</span></span>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Kalan: {performans.ikinciEl.hedef - performans.ikinciEl.gercek} Adet</p>
                                 </div>
                             </div>
-                            
-                            <div className="border-t border-slate-100 pt-4">
-                                <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest text-slate-500">
-                                    <span>Rakip Mağaza Satış</span>
-                                    <span className="text-orange-500">{performansDetaylari.rakipSatis} Adet</span>
-                                </div>
-                                <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-orange-400" style={{width: `${(performansDetaylari.rakipSatis / hedefAdet) * 100}%`}}></div>
-                                </div>
+                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{width: `${(performans.ikinciEl.gercek / performans.ikinciEl.hedef) * 100}%`}}></div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">2. El Satış</span>
-                                <p className="text-2xl font-black text-slate-800 mt-1">{performansDetaylari.ikinciElSatis}</p>
+                        {/* 2. KART: 1. EL SATIŞ */}
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">1. El Cihaz Satış</span>
+                                <div className="text-right">
+                                    <span className="text-indigo-600 font-black text-sm">{performans.birinciEl.gercek} <span className="text-slate-400">/ {performans.birinciEl.hedef}</span></span>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Kalan: {performans.birinciEl.hedef - performans.birinciEl.gercek} Adet</p>
+                                </div>
                             </div>
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">1. El Satış</span>
-                                <p className="text-2xl font-black text-slate-800 mt-1">{performansDetaylari.birinciElSatis}</p>
-                            </div>
-                            <div className="bg-emerald-50 p-4 rounded-2xl shadow-sm border border-emerald-100">
-                                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">2. El Kazanç</span>
-                                <p className="text-xl font-black text-emerald-700 mt-1">{performansDetaylari.ikinciElKazanc} ₺</p>
-                            </div>
-                            <div className="bg-indigo-50 p-4 rounded-2xl shadow-sm border border-indigo-100">
-                                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Servis Kazanç</span>
-                                <p className="text-xl font-black text-indigo-700 mt-1">{performansDetaylari.servisKazanc} ₺</p>
-                            </div>
-                            <div className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Mevcut Stok Cihaz</span>
-                                <p className="text-xl font-black text-slate-800">{performansDetaylari.stokCihaz} Adet</p>
+                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500" style={{width: `${(performans.birinciEl.gercek / performans.birinciEl.hedef) * 100}%`}}></div>
                             </div>
                         </div>
+
+                        {/* 3. KART: 2. EL KAZANÇ */}
+                        <div className="bg-emerald-50/50 p-5 rounded-2xl shadow-sm border border-emerald-100 flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">2. El Kazanç</span>
+                                <div className="text-right">
+                                    <span className="text-emerald-600 font-black text-sm">{formatMoney(performans.ikinciElKazanc.gercek)} ₺</span>
+                                    <p className="text-[9px] text-emerald-500/80 font-bold uppercase mt-0.5">Kalan: {formatMoney(performans.ikinciElKazanc.hedef - performans.ikinciElKazanc.gercek)} ₺</p>
+                                </div>
+                            </div>
+                            <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-emerald-100">
+                                <div className="h-full bg-emerald-500" style={{width: `${(performans.ikinciElKazanc.gercek / performans.ikinciElKazanc.hedef) * 100}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* 4. KART: SERVİS KAZANÇ */}
+                        <div className="bg-violet-50/50 p-5 rounded-2xl shadow-sm border border-violet-100 flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-violet-700">Servis Kazanç</span>
+                                <div className="text-right">
+                                    <span className="text-violet-600 font-black text-sm">{formatMoney(performans.servisKazanc.gercek)} ₺</span>
+                                    <p className="text-[9px] text-violet-500/80 font-bold uppercase mt-0.5">Kalan: {formatMoney(performans.servisKazanc.hedef - performans.servisKazanc.gercek)} ₺</p>
+                                </div>
+                            </div>
+                            <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-violet-100">
+                                <div className="h-full bg-violet-500" style={{width: `${(performans.servisKazanc.gercek / performans.servisKazanc.hedef) * 100}%`}}></div>
+                            </div>
+                        </div>
+
+                        {/* 5. KART: MEVCUT STOK (Tam Genişlik) */}
+                        <div className="col-span-1 md:col-span-2 bg-slate-800 p-5 rounded-2xl shadow-md border border-slate-700 flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Stoktaki Cihaz Sayısı</span>
+                                <div className="text-right">
+                                    <span className="text-white font-black text-sm">{performans.stok.gercek} <span className="text-slate-500">/ {performans.stok.hedef}</span></span>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Hedefe Kalan: {performans.stok.hedef - performans.stok.gercek} Adet</p>
+                                </div>
+                            </div>
+                            <div className="h-2.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                                <div className="h-full bg-gradient-to-r from-slate-500 to-white" style={{width: `${(performans.stok.gercek / performans.stok.hedef) * 100}%`}}></div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
