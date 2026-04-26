@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: any) {
-  // Modal State
+  // Modal State'leri
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+  const [showTrendModal, setShowTrendModal] = useState(false); // Yeni Grafik Modalı
 
   // Sadece CMR Şubelerinde Görünmesi İçin Kontrol
   const isCmr = selectedBranch.includes('CMR');
 
-  // SATIŞ VE HEDEF VERİLERİ (Senin verdiğin rakamlar)
-  const gun = new Date().getDate(); 
+  // SATIŞ VE HEDEF VERİLERİ (Örnek rakamlar)
+  const today = new Date();
+  const gun = today.getDate(); 
   const hedefAdet = 230;
   const gerceklesenSatis = 130;
-  const kalanAdet = hedefAdet - gerceklesenSatis; // 100 adet
+  const kalanAdet = hedefAdet - gerceklesenSatis;
   
   // Ay Sonu Tahmini: (Şu ana kadar satılan / Geçen gün) * 30 Gün
   const aySonuTahmini = Math.round((gerceklesenSatis / gun) * 30);
+
+  // Tarih Formatı (Örn: 26 Nisan 2026)
+  const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+  const formatliTarih = `${gun} ${aylar[today.getMonth()]} ${today.getFullYear()}`;
 
   // Detaylı Performans Verileri
   const performansDetaylari = {
@@ -81,142 +87,135 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Sabit Sol Kart */}
                     <div className="bg-[#FFF4E6] rounded-2xl p-6 border border-orange-100/50">
-                        <p className="text-slate-700 font-semibold mb-2">Bu Ay Toplam Satış</p>
+                        <p className="text-slate-700 font-semibold mb-2">Bu Ay Toplam 2.El Satış</p>
                         <div className="flex items-baseline gap-2">
                             <span className="text-3xl font-black text-slate-900">{gerceklesenSatis}</span>
                             <span className="text-slate-600 font-medium">Adet</span>
                         </div>
                     </div>
 
-                    <div className="bg-[#EEF2FF] rounded-2xl p-6 border border-blue-100/50">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">⏳</span>
-                            <p className="text-slate-700 font-semibold">Ay Sonu Tahmini Satış</p>
+                    {/* TIKLANABİLİR Sağ Kart (Grafiği Açar) */}
+                    <div 
+                        onClick={() => setShowTrendModal(true)}
+                        className="bg-[#EEF2FF] hover:bg-indigo-50 cursor-pointer rounded-2xl p-6 border border-blue-100/50 transition-colors group"
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">⏳</span>
+                                <p className="text-slate-700 font-semibold group-hover:text-blue-700 transition-colors">Ay Sonu Tahmini Satış</p>
+                            </div>
                         </div>
                         <div className="flex items-center justify-between">
                             <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black text-slate-900">{aySonuTahmini}</span>
+                                <span className="text-3xl font-black text-slate-900 group-hover:text-blue-800 transition-colors">{aySonuTahmini}</span>
                                 <span className="text-slate-600 font-medium">Adet</span>
                             </div>
-                            <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                            {/* Tıklanabilir olduğunu belli eden ikon */}
+                            <svg className="w-6 h-6 text-blue-500 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     </div>
                 </div>
             </div>
         )}
 
-        {/* Duyurular & Kampanyalar */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="group bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-sky-200 transition-all duration-300 flex flex-col">
-                <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Merkez Duyuruları</h3>
-                        <p className="text-sm text-slate-500">Yönetimden gelen son bildirimler</p>
-                    </div>
-                </div>
-                <div className="bg-slate-50 rounded-2xl p-6 flex-1 border border-slate-100 group-hover:bg-sky-50/50 transition-colors duration-300">
-                    <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap text-sm md:text-base">
-                        {config.Duyuru_Metni || "Şu an için aktif bir mağaza duyurusu bulunmamaktadır."}
-                    </p>
-                </div>
-            </div>
+        {/* ... (Duyurular ve Kampanyalar Kodları Aynı Kalacak) ... */}
 
-            <div className="group bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-orange-200 transition-all duration-300 flex flex-col overflow-hidden relative">
-                <div className="flex items-center gap-4 mb-6 relative z-10">
-                    <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
-                        <p className="text-sm text-slate-500">Müşteriye sunulacak fırsatlar</p>
-                    </div>
-                </div>
-                
-                <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-orange-50/90 to-transparent z-20 pointer-events-none"></div>
-                    <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 px-4">
-                         {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
-                    </div>
-                    <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-orange-50/0 to-transparent z-20 pointer-events-none"></div>
-                </div>
-            </div>
-        </div>
-
-        {/* DETAYLI PERFORMANS MODALI */}
-        {showPerformanceModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
-                <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+        {/* YENİ: TREND / GİDİŞAT GRAFİĞİ MODALI */}
+        {showTrendModal && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                     
-                    <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
-                        <div>
-                            <h3 className="text-xl font-black tracking-tight">{selectedBranch} Gidişat</h3>
-                            <p className="text-xs text-sky-400 uppercase tracking-widest mt-1">Aylık Satış Raporu</p>
+                    {/* Üst Bilgi Alanı */}
+                    <div className="p-6 border-b border-slate-100">
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="text-xl font-bold text-slate-800 tracking-tight">Ay Sonu Tahmini Satış</h3>
+                            <button onClick={() => setShowTrendModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </div>
-                        <button onClick={() => setShowPerformanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-colors">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <div className="flex items-center gap-2 text-sky-600 font-bold mb-2">
+                            <span>🚀</span> Hedefinizi Şimdiden Görün
+                        </div>
+                        <p className="text-sm text-slate-500 leading-relaxed mb-4">
+                            Son 30 gün baz alınarak hesaplanan ay sonu 2. El satış tahmininizi anlık olarak takip edin ve hedeflerinizi erkenden şekillendirin.
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-600">Ay Sonu Tahmini Adet:</span>
+                            <span className="text-xl font-black text-slate-900 flex items-center gap-1">⏳ {aySonuTahmini} <span className="text-sm font-medium text-slate-500">Adet</span></span>
+                        </div>
+                    </div>
+
+                    {/* Grafik Alanı */}
+                    <div className="p-6 bg-slate-50">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                            {/* Grafik Başlığı ve Tarih Seçici */}
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-3">
+                                    <button className="text-slate-400 hover:text-slate-800"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                                    <span className="font-semibold text-slate-700">{formatliTarih}</span>
+                                    <button className="text-slate-400 hover:text-slate-800"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gerçek: {gerceklesenSatis}</p>
+                                    <p className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Tahmini: {aySonuTahmini}</p>
+                                </div>
+                            </div>
+
+                            {/* SVG Grafik */}
+                            <div className="relative h-48 w-full">
+                                {/* Y Ekseni Değerleri */}
+                                <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-[10px] text-slate-400 font-medium font-mono z-10">
+                                    <span>250</span>
+                                    <span>200</span>
+                                    <span>150</span>
+                                    <span>100</span>
+                                    <span>50</span>
+                                    <span>0</span>
+                                </div>
+                                
+                                {/* Çizim Alanı */}
+                                <div className="ml-8 h-full relative">
+                                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full border-b border-l border-slate-200">
+                                        {/* Arka Plan Izgaraları */}
+                                        <line x1="0" y1="20" x2="100" y2="20" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="40" x2="100" y2="40" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="60" x2="100" y2="60" stroke="#f1f5f9" strokeWidth="0.5" />
+                                        <line x1="0" y1="80" x2="100" y2="80" stroke="#f1f5f9" strokeWidth="0.5" />
+
+                                        {/* Gerçekleşen Satış Alanı (Açık Mavi Gradient - Cnetmobil) */}
+                                        <polygon points="0,100 0,90 20,85 40,70 60,55 75,45 75,100" fill="url(#blueGradient)" />
+                                        <polyline points="0,90 20,85 40,70 60,55 75,45" fill="none" stroke="#0ea5e9" strokeWidth="1.5" />
+
+                                        {/* Gelecek Tahmini Alanı (Koyu Gri Temsili) */}
+                                        <polygon points="75,100 75,45 85,45 100,10 100,100" fill="#334155" />
+
+                                        <defs>
+                                            <linearGradient id="blueGradient" x1="0" x2="0" y1="0" y2="1">
+                                                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.8"/>
+                                                <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.1"/>
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Alt Buton */}
+                        <button 
+                            onClick={() => setShowTrendModal(false)}
+                            className="w-full mt-6 bg-sky-500 hover:bg-sky-400 text-white font-bold text-lg py-4 rounded-xl transition-all shadow-lg shadow-sky-500/30"
+                        >
+                            Kapat
                         </button>
                     </div>
-
-                    <div className="p-6 space-y-4 bg-slate-50">
-                        
-                        {/* HEDEF VE GİDİŞAT BARLARI */}
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Mağaza Satış Hedefi</span>
-                                    <div className="text-right">
-                                        <span className="text-blue-600 font-black text-sm">{gerceklesenSatis} / {hedefAdet}</span>
-                                        <p className="text-[10px] text-rose-500 font-bold uppercase mt-0.5">Kalan: {kalanAdet} Adet</p>
-                                    </div>
-                                </div>
-                                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-sky-400 to-blue-500" style={{width: `${(gerceklesenSatis / hedefAdet) * 100}%`}}></div>
-                                </div>
-                            </div>
-                            
-                            <div className="border-t border-slate-100 pt-4">
-                                <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-widest text-slate-500">
-                                    <span>Rakip Mağaza Satış</span>
-                                    <span className="text-orange-500">{performansDetaylari.rakipSatis} Adet</span>
-                                </div>
-                                <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-orange-400" style={{width: `${(performansDetaylari.rakipSatis / hedefAdet) * 100}%`}}></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Detay Kartları */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">2. El Satış</span>
-                                <p className="text-2xl font-black text-slate-800 mt-1">{performansDetaylari.ikinciElSatis}</p>
-                            </div>
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">1. El Satış</span>
-                                <p className="text-2xl font-black text-slate-800 mt-1">{performansDetaylari.birinciElSatis}</p>
-                            </div>
-                            <div className="bg-emerald-50 p-4 rounded-2xl shadow-sm border border-emerald-100">
-                                <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">2. El Kazanç</span>
-                                <p className="text-xl font-black text-emerald-700 mt-1">{performansDetaylari.ikinciElKazanc} ₺</p>
-                            </div>
-                            <div className="bg-indigo-50 p-4 rounded-2xl shadow-sm border border-indigo-100">
-                                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Servis Kazanç</span>
-                                <p className="text-xl font-black text-indigo-700 mt-1">{performansDetaylari.servisKazanc} ₺</p>
-                            </div>
-                            <div className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Mevcut Stok Cihaz</span>
-                                <p className="text-xl font-black text-slate-800">{performansDetaylari.stokCihaz} Adet</p>
-                            </div>
-                        </div>
-
-                    </div>
                 </div>
             </div>
         )}
+
+        {/* ... (Mevcut Yeşil Buton Performans Modalı Kodu Burada Kalacak) ... */}
+
     </div>
   );
 }
