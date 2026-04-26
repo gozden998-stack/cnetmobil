@@ -10,9 +10,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
 
   // GÜNCEL SATIŞ VE HEDEF VERİLERİ 
   const performans = {
-      puan: 8.5,
       ikinciEl: { hedef: 100, gercek: 50 },
-      birinciEl: { hedef: 70, gercek: 65 },
+      birinciEl: { hedef: 70, gercek: 30 },
       ikinciElKazanc: { hedef: 500000, gercek: 200000 },
       servisKazanc: { hedef: 100000, gercek: 40000 },
       stok: { hedef: 100, gercek: 40 }
@@ -21,12 +20,26 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
   const today = new Date();
   const gun = today.getDate(); 
   
-  // Ay Sonu Tahmini SADECE 2. EL İÇİN (Ana ekrandaki kutu için)
+  // Ay Sonu Tahmini SADECE 2. EL İÇİN
   const aySonuTahmini = Math.round((performans.ikinciEl.gercek / gun) * 30);
   const isHedefTehlikede = aySonuTahmini < performans.ikinciEl.hedef;
 
+  // --- 100 ÜZERİNDEN DİNAMİK YÜZDE (% BAŞARI) HESAPLAMA ---
+  const calcPerc = (gercek: number, hedef: number) => Math.min(Math.round((gercek / hedef) * 100), 100);
+  
+  const yuzdeler = {
+      ikinciEl: calcPerc(performans.ikinciEl.gercek, performans.ikinciEl.hedef),
+      birinciEl: calcPerc(performans.birinciEl.gercek, performans.birinciEl.hedef),
+      ikinciElKazanc: calcPerc(performans.ikinciElKazanc.gercek, performans.ikinciElKazanc.hedef),
+      servisKazanc: calcPerc(performans.servisKazanc.gercek, performans.servisKazanc.hedef),
+      stok: calcPerc(performans.stok.gercek, performans.stok.hedef)
+  };
+
+  const genelPuan = Math.round(
+      (yuzdeler.ikinciEl + yuzdeler.birinciEl + yuzdeler.ikinciElKazanc + yuzdeler.servisKazanc + yuzdeler.stok) / 5
+  );
+
   // --- DETAY KARTLARI İÇİN RİSK HESAPLAMASI ---
-  // Ayın geçen gününe göre "Şu ana kadar en az ne kadar yapılmış olmalıydı?" hesabı
   const beklenenOran = gun / 30; 
   const checkRisk = (gercek: number, hedef: number) => gercek < (hedef * beklenenOran);
 
@@ -91,12 +104,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                     <h2 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                         CnetMobil - <span className="font-medium text-slate-600">{selectedBranch}</span>
                     </h2>
+                    
+                    {/* DİNAMİK YÜZDELİK GENEL BAŞARI BUTONU */}
                     <button 
                         onClick={() => setShowPerformanceModal(true)}
-                        className="bg-[#53a653] hover:bg-[#448c44] text-white px-5 py-2 rounded-xl text-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-green-900/20"
+                        className={`px-6 py-2.5 rounded-xl text-xl md:text-2xl font-black flex items-center gap-2 transition-all active:scale-95 shadow-md text-white 
+                        ${genelPuan >= 80 ? 'bg-[#53a653] hover:bg-[#448c44] shadow-green-900/20' : 
+                          genelPuan >= 50 ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-900/20' : 
+                          'bg-rose-500 hover:bg-rose-600 shadow-rose-900/20'}`}
                     >
-                        {performans.puan}
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                        %{genelPuan}<span className="text-[10px] md:text-xs font-bold opacity-90 mt-1 uppercase tracking-widest ml-1">Genel Başarı</span>
+                        <svg className="w-5 h-5 opacity-80 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                     </button>
                 </div>
 
@@ -110,7 +128,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                         </div>
                     </div>
 
-                    {/* TIKLANABİLİR Sağ Kart (Ana Ekran) */}
+                    {/* TIKLANABİLİR Sağ Kart */}
                     <div 
                         onClick={() => setShowTrendModal(true)}
                         className={`cursor-pointer rounded-2xl p-6 border transition-all duration-300 group relative overflow-hidden ${
@@ -278,14 +296,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
             </div>
         )}
 
-        {/* DETAYLI PERFORMANS MODALI (Yeşil Buton) - 5'Lİ KART TASARIMI VE RİSK UYARILARI */}
+        {/* DETAYLI PERFORMANS MODALI (Yüzdelik Rozetler Eklendi) */}
         {showPerformanceModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                     
                     <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-black tracking-tight">{selectedBranch} Departman Hedefleri</h3>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-xl font-black tracking-tight">{selectedBranch} Hedefleri</h3>
+                                <span className={`px-2 py-1 rounded-lg text-sm font-bold ${genelPuan >= 80 ? 'bg-green-500 text-white' : genelPuan >= 50 ? 'bg-orange-500 text-white' : 'bg-rose-500 text-white'}`}>
+                                    %{genelPuan} BAŞARI
+                                </span>
+                            </div>
                             <p className="text-xs text-sky-400 uppercase tracking-widest mt-1">Aylık Detaylı Rapor</p>
                         </div>
                         <button onClick={() => setShowPerformanceModal(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-colors">
@@ -301,14 +324,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
                             )}
                             <div className="flex justify-between items-end mb-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciEl ? 'text-rose-700' : 'text-slate-500'}`}>2. El Cihaz Satış</span>
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciEl ? 'text-rose-700' : 'text-slate-500'}`}>2. El Cihaz Satış</span>
+                                    <div className="mt-1">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.ikinciEl ? 'bg-rose-200 text-rose-800' : 'bg-blue-100 text-blue-700'}`}>%{yuzdeler.ikinciEl}</span>
+                                    </div>
+                                </div>
                                 <div className="text-right">
                                     <span className="text-blue-600 font-black text-sm">{performans.ikinciEl.gercek} <span className="text-slate-400">/ {performans.ikinciEl.hedef}</span></span>
                                     <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.ikinciEl ? 'text-rose-500' : 'text-slate-400'}`}>Kalan: {performans.ikinciEl.hedef - performans.ikinciEl.gercek} Adet</p>
                                 </div>
                             </div>
                             <div className={`h-2.5 w-full rounded-full overflow-hidden ${riskDurumlari.ikinciEl ? 'bg-rose-200' : 'bg-slate-100'}`}>
-                                <div className="h-full bg-blue-500 transition-all duration-1000" style={{width: `${(performans.ikinciEl.gercek / performans.ikinciEl.hedef) * 100}%`}}></div>
+                                <div className="h-full bg-blue-500 transition-all duration-1000" style={{width: `${yuzdeler.ikinciEl}%`}}></div>
                             </div>
                         </div>
 
@@ -318,14 +346,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
                             )}
                             <div className="flex justify-between items-end mb-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.birinciEl ? 'text-rose-700' : 'text-slate-500'}`}>1. El Cihaz Satış</span>
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.birinciEl ? 'text-rose-700' : 'text-slate-500'}`}>1. El Cihaz Satış</span>
+                                    <div className="mt-1">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.birinciEl ? 'bg-rose-200 text-rose-800' : 'bg-indigo-100 text-indigo-700'}`}>%{yuzdeler.birinciEl}</span>
+                                    </div>
+                                </div>
                                 <div className="text-right">
                                     <span className="text-indigo-600 font-black text-sm">{performans.birinciEl.gercek} <span className="text-slate-400">/ {performans.birinciEl.hedef}</span></span>
                                     <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.birinciEl ? 'text-rose-500' : 'text-slate-400'}`}>Kalan: {performans.birinciEl.hedef - performans.birinciEl.gercek} Adet</p>
                                 </div>
                             </div>
                             <div className={`h-2.5 w-full rounded-full overflow-hidden ${riskDurumlari.birinciEl ? 'bg-rose-200' : 'bg-slate-100'}`}>
-                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{width: `${(performans.birinciEl.gercek / performans.birinciEl.hedef) * 100}%`}}></div>
+                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{width: `${yuzdeler.birinciEl}%`}}></div>
                             </div>
                         </div>
 
@@ -335,14 +368,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
                             )}
                             <div className="flex justify-between items-end mb-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciElKazanc ? 'text-rose-700' : 'text-emerald-700'}`}>2. El Kazanç</span>
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.ikinciElKazanc ? 'text-rose-700' : 'text-emerald-700'}`}>2. El Kazanç</span>
+                                    <div className="mt-1">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.ikinciElKazanc ? 'bg-rose-200 text-rose-800' : 'bg-emerald-200 text-emerald-800'}`}>%{yuzdeler.ikinciElKazanc}</span>
+                                    </div>
+                                </div>
                                 <div className="text-right">
                                     <span className="text-emerald-600 font-black text-sm">{formatMoney(performans.ikinciElKazanc.gercek)} ₺</span>
                                     <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.ikinciElKazanc ? 'text-rose-500' : 'text-emerald-500/80'}`}>Kalan: {formatMoney(performans.ikinciElKazanc.hedef - performans.ikinciElKazanc.gercek)} ₺</p>
                                 </div>
                             </div>
                             <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.ikinciElKazanc ? 'bg-rose-200 border-rose-200' : 'bg-white border-emerald-100'}`}>
-                                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{width: `${(performans.ikinciElKazanc.gercek / performans.ikinciElKazanc.hedef) * 100}%`}}></div>
+                                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{width: `${yuzdeler.ikinciElKazanc}%`}}></div>
                             </div>
                         </div>
 
@@ -352,14 +390,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
                             )}
                             <div className="flex justify-between items-end mb-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.servisKazanc ? 'text-rose-700' : 'text-violet-700'}`}>Servis Kazanç</span>
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.servisKazanc ? 'text-rose-700' : 'text-violet-700'}`}>Servis Kazanç</span>
+                                    <div className="mt-1">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.servisKazanc ? 'bg-rose-200 text-rose-800' : 'bg-violet-200 text-violet-800'}`}>%{yuzdeler.servisKazanc}</span>
+                                    </div>
+                                </div>
                                 <div className="text-right">
                                     <span className="text-violet-600 font-black text-sm">{formatMoney(performans.servisKazanc.gercek)} ₺</span>
                                     <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.servisKazanc ? 'text-rose-500' : 'text-violet-500/80'}`}>Kalan: {formatMoney(performans.servisKazanc.hedef - performans.servisKazanc.gercek)} ₺</p>
                                 </div>
                             </div>
                             <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.servisKazanc ? 'bg-rose-200 border-rose-200' : 'bg-white border-violet-100'}`}>
-                                <div className="h-full bg-violet-500 transition-all duration-1000" style={{width: `${(performans.servisKazanc.gercek / performans.servisKazanc.hedef) * 100}%`}}></div>
+                                <div className="h-full bg-violet-500 transition-all duration-1000" style={{width: `${yuzdeler.servisKazanc}%`}}></div>
                             </div>
                         </div>
 
@@ -369,14 +412,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, stats }: 
                                 <div className="absolute top-0 right-0 bg-rose-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg animate-pulse">HEDEF RİSKTE</div>
                             )}
                             <div className="flex justify-between items-end mb-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.stok ? 'text-rose-200' : 'text-slate-300'}`}>Stoktaki Cihaz Sayısı</span>
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${riskDurumlari.stok ? 'text-rose-200' : 'text-slate-300'}`}>Stoktaki Cihaz Sayısı</span>
+                                    <div className="mt-1">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${riskDurumlari.stok ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'}`}>%{yuzdeler.stok}</span>
+                                    </div>
+                                </div>
                                 <div className="text-right">
                                     <span className="text-white font-black text-sm">{performans.stok.gercek} <span className="text-slate-400">/ {performans.stok.hedef}</span></span>
                                     <p className={`text-[9px] font-bold uppercase mt-0.5 ${riskDurumlari.stok ? 'text-rose-400' : 'text-slate-400'}`}>Hedefe Kalan: {performans.stok.hedef - performans.stok.gercek} Adet</p>
                                 </div>
                             </div>
                             <div className={`h-2.5 w-full rounded-full overflow-hidden border ${riskDurumlari.stok ? 'bg-rose-950 border-rose-800' : 'bg-slate-900 border-slate-700'}`}>
-                                <div className={`h-full transition-all duration-1000 ${riskDurumlari.stok ? 'bg-rose-500' : 'bg-gradient-to-r from-slate-500 to-white'}`} style={{width: `${(performans.stok.gercek / performans.stok.hedef) * 100}%`}}></div>
+                                <div className={`h-full transition-all duration-1000 ${riskDurumlari.stok ? 'bg-rose-500' : 'bg-gradient-to-r from-slate-500 to-white'}`} style={{width: `${yuzdeler.stok}%`}}></div>
                             </div>
                         </div>
 
