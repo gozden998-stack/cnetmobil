@@ -733,11 +733,11 @@ const loadData = async () => {
             {/* Kullanıcı Profili Göstergesi */}
             <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
-                {isMasterAccess ? 'Y' : 'NI'}
+                {isMasterAccess ? 'C' : 'NI'}
               </div>
               <div className="hidden md:flex flex-col text-white">
                 <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
-                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'Yenileme Merkezi + Yönetici' : 'Bayi Personeli'}</span>
+                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'CnetMobil' : 'Bayi Personeli'}</span>
               </div>
             </div>
 
