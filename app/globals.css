@@ -24,3 +24,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* --- C-BOT ANİMASYON KODLARI BURADAN BAŞLIYOR --- */
+
+@keyframes cbotPulse {
+  0% { 
+    transform: scale(1); 
+    box-shadow: 0 0 0 0 rgba(0, 82, 212, 0.7); /* Cnetmobil Mavi Tonu */
+  }
+  50% { 
+    transform: scale(1.08); 
+    box-shadow: 0 0 0 12px rgba(0, 82, 212, 0); /* Dışarı doğru silikleşen halka */
+  }
+  100% { 
+    transform: scale(1); 
+    box-shadow: 0 0 0 0 rgba(0, 82, 212, 0); 
+  }
+}
+
+.cbot-floating-btn {
+  animation: cbotPulse 2s infinite ease-in-out;
+  transition: all 0.3s ease; /* Fareyle üzerine gelindiğinde yumuşak geçiş */
+}
+
+/* Kullanıcı fareyle butonun üzerine geldiğinde animasyon dursun ve hafif büyüsün */
+.cbot-floating-btn:hover {
+  animation: none;
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 82, 212, 0.5);
+}
