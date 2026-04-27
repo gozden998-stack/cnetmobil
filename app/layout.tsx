@@ -4,8 +4,7 @@ import "./globals.css";
 
 // 1. C-BOT Bileşenini İçeri Aktarıyoruz 
 // (Dosya yolunuz "components" klasörü içindeyse bu şekilde kalabilir, farklıysa yolu düzenleyin)
-import CBot from "../components/CBot";
-
+import CBot from "./components/CBot";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
