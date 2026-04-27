@@ -548,7 +548,16 @@ const loadData = async () => {
         { id: 'cep_tablet', label: 'Cep + Tablet', visible: !isZumay },
         { id: 'yna_list', label: 'YNA List', visible: !isZumay },
         { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
-        { id: 'kampanya_sifir', label: 'Sıfır Liste', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
+        { 
+  id: 'kampanya_sifir', 
+  label: (
+    <div className="flex flex-col items-center justify-center -space-y-0.5">
+      <span className="text-[8px] font-black opacity-70 tracking-wider">KAMPANYALI</span>
+      <span>SIFIR LİSTE</span>
+    </div>
+  ), 
+  visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
+},
         { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
