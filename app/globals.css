@@ -25,16 +25,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* --- C-BOT GÜNCEL ANİMASYONLARI --- */
+/* --- C-BOT KİBAR (KOMPAKT) ANİMASYONLARI --- */
 
 @keyframes cbotPulse {
   0% { 
     transform: scale(1); 
-    filter: drop-shadow(0 0 0 rgba(0, 82, 212, 0.4));
+    filter: drop-shadow(0 0 0 rgba(0, 82, 212, 0));
   }
   50% { 
-    transform: scale(1.05); /* Robotun hafifçe nefes alması */
-    filter: drop-shadow(0 0 12px rgba(0, 82, 212, 0.3));
+    transform: scale(1.04); /* Küçük boyuta uygun hafif büyüme */
+    filter: drop-shadow(0 4px 10px rgba(0, 82, 212, 0.25));
   }
   100% { 
     transform: scale(1); 
@@ -42,27 +42,39 @@ body {
   }
 }
 
-/* Robotun etiketinin (C-BOT yazısı) hafifçe titreme efekti */
+/* Üstteki "C-BOT" etiketinin çok hafif salınımı */
 @keyframes labelFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  50% { transform: translateY(-1.5px); }
 }
 
 .cbot-floating-btn {
-  animation: cbotPulse 2.5s infinite ease-in-out;
+  /* Daha yavaş (3s) ve akıllı bir nefes alma hissi */
+  animation: cbotPulse 3s infinite ease-in-out;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Robotun üzerindeki mavi etiketi hedef alan küçük hareket */
+/* Etiketi hedef alan animasyon */
 .cbot-floating-btn > div:first-child {
-  animation: labelFloat 2.5s infinite ease-in-out;
+  animation: labelFloat 3s infinite ease-in-out;
 }
 
 .cbot-floating-btn:hover {
   animation: none;
-  transform: translateY(-5px) scale(1.05); /* Üzerine gelince hafif yukarı kalkar */
+  transform: translateY(-3px) scale(1.08); /* Hafif yukarı kalkış */
+  filter: drop-shadow(0 6px 15px rgba(0, 82, 212, 0.4));
 }
 
 .cbot-floating-btn:hover > div:first-child {
   animation: none;
+}
+
+/* Sohbet penceresi açılış efekti */
+.anim-fade-in {
+  animation: cbotFadeIn 0.25s ease-out;
+}
+
+@keyframes cbotFadeIn {
+  from { opacity: 0; transform: translateY(15px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
