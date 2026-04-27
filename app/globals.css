@@ -25,31 +25,44 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* --- C-BOT ANİMASYON KODLARI BURADAN BAŞLIYOR --- */
+/* --- C-BOT GÜNCEL ANİMASYONLARI --- */
 
 @keyframes cbotPulse {
   0% { 
     transform: scale(1); 
-    box-shadow: 0 0 0 0 rgba(0, 82, 212, 0.7); /* Cnetmobil Mavi Tonu */
+    filter: drop-shadow(0 0 0 rgba(0, 82, 212, 0.4));
   }
   50% { 
-    transform: scale(1.08); 
-    box-shadow: 0 0 0 12px rgba(0, 82, 212, 0); /* Dışarı doğru silikleşen halka */
+    transform: scale(1.05); /* Robotun hafifçe nefes alması */
+    filter: drop-shadow(0 0 12px rgba(0, 82, 212, 0.3));
   }
   100% { 
     transform: scale(1); 
-    box-shadow: 0 0 0 0 rgba(0, 82, 212, 0); 
+    filter: drop-shadow(0 0 0 rgba(0, 82, 212, 0));
   }
 }
 
-.cbot-floating-btn {
-  animation: cbotPulse 2s infinite ease-in-out;
-  transition: all 0.3s ease; /* Fareyle üzerine gelindiğinde yumuşak geçiş */
+/* Robotun etiketinin (C-BOT yazısı) hafifçe titreme efekti */
+@keyframes labelFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
 
-/* Kullanıcı fareyle butonun üzerine geldiğinde animasyon dursun ve hafif büyüsün */
+.cbot-floating-btn {
+  animation: cbotPulse 2.5s infinite ease-in-out;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Robotun üzerindeki mavi etiketi hedef alan küçük hareket */
+.cbot-floating-btn > div:first-child {
+  animation: labelFloat 2.5s infinite ease-in-out;
+}
+
 .cbot-floating-btn:hover {
   animation: none;
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(0, 82, 212, 0.5);
+  transform: translateY(-5px) scale(1.05); /* Üzerine gelince hafif yukarı kalkar */
+}
+
+.cbot-floating-btn:hover > div:first-child {
+  animation: none;
 }
