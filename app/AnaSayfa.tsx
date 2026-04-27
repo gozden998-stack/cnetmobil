@@ -1,15 +1,15 @@
 import React from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
-  // Sadece CMR şubelerinde görünmesi için kontrol
+  // Sadece CMR şubelerinde görünmesi için kontrol (Vodafone ve Zumay'da false döner)
   const isCmr = selectedBranch.includes('CMR');
 
   return (
     <div className="space-y-6 w-full animate-in fade-in duration-500">
         
-        {/* Karşılama Ekranı - Marka Renkleri (Görsel 1'deki Orijinal Mavi) */}
+        {/* Karşılama Ekranı - Premium Hero Banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            {/* Arka Plan Dekoratif Parıltı (Original) */}
+            {/* Arka Plan Dekoratif Işıklandırmalar */}
             <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 right-32 w-32 h-32 bg-sky-300/30 rounded-full blur-2xl pointer-events-none"></div>
             
@@ -42,57 +42,71 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
             </button>
         </div>
 
-        {/* --- YENİ: CNETMOBİL AI ASİSTAN BANNER (Mavi Tonlarında) --- */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-sky-500 via-blue-700 to-indigo-950 rounded-[2rem] p-8 md:p-10 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 border border-blue-500/20">
-            
-            {/* Arka Plan Dekoratif Parıltı (Updated to blue) */}
-            <div className="absolute top-0 left-1/4 w-64 h-64 bg-sky-400/10 rounded-full blur-[100px] pointer-events-none"></div>
-            
-            <div className="relative z-10 flex flex-col gap-4 max-w-2xl">
-                {/* Şube Bilgisi - Şık Rozet */}
-                <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-black/20 border border-white/10 text-white text-[10px] font-bold tracking-widest uppercase w-max backdrop-blur-md">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    {selectedBranch} AKTİF SİSTEM
+        {/* --- SADECE CMR ŞUBELERİ İÇİN GÜZELLEŞTİRİLMİŞ GİDİŞAT ALTYAPISI --- */}
+        {isCmr && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Mağaza Gidişat Kartı */}
+                <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <svg className="w-24 h-24 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Mağaza Gidişat</h3>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="h-2 w-3/4 bg-slate-50 rounded-full overflow-hidden">
+                                <div className="h-full w-1/2 bg-blue-100 animate-pulse"></div>
+                            </div>
+                            <div className="h-2 w-1/2 bg-slate-50 rounded-full overflow-hidden">
+                                <div className="h-full w-1/3 bg-blue-50 animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div className="mt-8 flex items-center justify-between">
+                            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-blue-500/30">
+                                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                                Çok Yakında
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                    {/* Sparkle / Yıldız İkonu (White) */}
-                    <div className="mt-1 text-white shrink-0">
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
-                        </svg>
+                {/* Personel Gidişat Kartı */}
+                <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <svg className="w-24 h-24 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                     </div>
-                    <div>
-                        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white mb-2 uppercase italic">
-                            Cnetmobil AI ile Akıllı İşlemler
-                        </h2>
-                        <p className="text-sky-100/80 font-medium text-sm md:text-base leading-relaxed">
-                            Sorduğunuz sorulara göre ihtiyaç analizi yaparak size en uygun çözümü sunacak yapay zeka destekli asistanımızla 
-                            cihaz alımı, fiyatlandırma ve teknik servis süreçlerini anında yönetin. Cnetmobil AI her an yanınızda.
-                        </p>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Personel Gidişat</h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse"></div>
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-75"></div>
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-150"></div>
+                        </div>
+                        <div className="mt-8 flex items-center justify-between">
+                            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-emerald-500/30">
+                                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                                Çok Yakında
+                            </span>
+                        </div>
                     </div>
                 </div>
+
             </div>
+        )}
 
-            {/* AI BUTONU */}
-            <button 
-                onClick={() => setAppMode('bot')} 
-                className="relative z-10 group bg-white text-blue-700 px-8 py-5 rounded-2xl font-black text-sm tracking-tighter shadow-2xl hover:shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-4 shrink-0"
-            >
-                <div className="text-sky-500 group-hover:rotate-12 transition-transform">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                </div>
-                CNETMOBİL AI'A SORU SOR
-            </button>
-        </div>
-
-        {/* Duyurular & Kampanyalar Kartları (Original and preserved) */}
+        {/* Alt Bilgi Panelleri */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
             {/* Duyurular Kartı */}
             <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                 <div className="flex items-center gap-4 mb-6">
@@ -128,8 +142,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
                     </div>
                 </div>
             </div>
+            
         </div>
-        
     </div>
   );
 }
