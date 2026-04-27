@@ -19,11 +19,11 @@ interface Message {
   options?: Option[];
 }
 
-// C-BOT Menü Ağacı - Tek mesaj gösterecek şekilde güncellendi
+// C-BOT Menü Ağacı - Sadece senin istediğin mesaj kalacak şekilde korundu
 const botData: Record<string, BotStep> = {
   start: {
-    message: "İyi eğitimli sohbet botu H-BOT Asistan, yakında hizmetinize sunulacaktır.",
-    options: [] // Seçenekler kaldırıldı
+    message: "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.",
+    options: [] 
   }
 };
 
@@ -59,11 +59,11 @@ export default function CBot() {
       {/* C-BOT Penceresi */}
       {isOpen && (
         <div className="fixed bottom-24 right-6 w-72 md:w-80 h-[450px] bg-white rounded-2xl shadow-2xl flex flex-col z-[9999] overflow-hidden border border-slate-200 transition-all">
-          {/* Header */}
+          {/* Header - H harfi C yapıldı */}
           <div className="bg-[#0052D4] p-3 text-white flex justify-between items-center shadow-md">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-[#0052D4] font-bold text-xs">H</div>
-              <span className="font-semibold text-sm tracking-tight">H-BOT Asistan</span>
+              <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-[#0052D4] font-bold text-xs">C</div>
+              <span className="font-semibold text-sm tracking-tight">C-BOT Asistan</span>
             </div>
             <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-colors text-white">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -81,21 +81,6 @@ export default function CBot() {
                 }`}>
                   {msg.text}
                 </div>
-                
-                {/* Seçenek Butonları (Options boş olduğu için burası boş kalacak) */}
-                {msg.sender === 'bot' && msg.options && msg.options.length > 0 && (
-                  <div className="mt-2 flex flex-col gap-1.5 w-full max-w-[85%]">
-                    {msg.options.map((opt, i) => (
-                      <button 
-                        key={i} 
-                        onClick={() => handleOptionClick(opt)} 
-                        className="bg-white border border-[#0052D4]/30 text-[#0052D4] px-3 py-1.5 rounded-lg text-[11px] text-left hover:bg-blue-50 transition-all font-medium shadow-sm active:scale-95"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
@@ -103,13 +88,13 @@ export default function CBot() {
         </div>
       )}
 
-      {/* --- KİBAR (COMPACT) ROBOT BUTON --- */}
+      {/* --- KİBAR ROBOT BUTON - H-BOT'tan C-BOT'a güncellendi --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="cbot-floating-btn fixed bottom-6 right-6 flex flex-col items-center z-[9999] group"
       >
         <div className="bg-[#0052D4] text-white text-[9px] font-bold px-2 py-0.5 rounded-t-md shadow-md mb-[-1px] z-10 uppercase tracking-widest border-x border-t border-white/20 transition-transform group-hover:scale-105">
-          H-BOT
+          C-BOT
         </div>
 
         <div className="w-12 h-12 rounded-full bg-white border-2 border-[#4364F7] shadow-lg flex items-center justify-center overflow-hidden relative transition-all group-hover:scale-110 group-active:scale-90">
