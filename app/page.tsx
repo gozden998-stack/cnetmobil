@@ -569,8 +569,6 @@ const loadData = async () => {
   const canProceed = allSelected;
   const showDocs = purchaseType === 'NAKİT' || purchaseType === 'TAKAS';
 
-  const isDarkAppMode = appMode === 'cep_tablet' || appMode === 'yna_list' || appMode === 'dis_kanal' || appMode === 'ikinci_el' || appMode === 'imei_list' || appMode === 'kampanya_sifir' || step === 99;
-
   const baseBrands = ["Apple", "Samsung", "Xiaomi"];
   const displayBrands = Array.from(new Set([...baseBrands, ...brandDb.map(b => b.name), ...db.map(i => i.brand)]))
       .filter(brand => brand && brand.trim() !== "" && brand.toLowerCase() !== "marka");
@@ -699,7 +697,7 @@ const loadData = async () => {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 ${isDarkAppMode ? 'bg-[#111111] text-white' : appMode === 'servis' ? 'bg-[#FFF8F1] text-orange-950' : 'bg-[#F8FAFC] text-slate-900'}`}>
+    <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
       <style>{`
         #print-area { display: none !important; }
         @media print {
@@ -710,28 +708,22 @@ const loadData = async () => {
         .btn-click { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
         .btn-click:active { transform: scale(0.96); }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* YENİ GETMOBIL STİLİ ÜST BAR (TOPBAR) - İKİ KATMANLI */}
+      {/* TOPBAR (ÜST MENÜ - KOYU RENK KALDI ÇÜNKÜ ÇERÇEVE İÇİN ÇOK ŞIK DURUYOR) */}
       <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
-        
-        {/* 1. SATIR: LOGO, TAKSİT BUTONU VE KULLANICI BİLGİLERİ */}
         <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
-          
-          {/* LOGO */}
           <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
             <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">
               {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-medium">mobil</span></>}
             </h1>
           </div>
 
-          {/* SAĞ BÖLÜM: Taksit Butonu (Turuncu), Kullanıcı ve Çıkış */}
           <div className="flex items-center gap-3 lg:gap-6 shrink-0">
-            
-            {/* Taksit (Mağazadan Satış) Butonu - Turuncu */}
             {!isZumay && step < 99 && (
               <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
                 <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
@@ -739,18 +731,13 @@ const loadData = async () => {
               </button>
             )}
 
-            {/* Kullanıcı Profili Göstergesi */}
             <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
                 {isMasterAccess ? 'C' : 'NI'}
               </div>
               <div className="hidden md:flex flex-col text-white">
                 {isMasterAccess ? (
-                  <select 
-                    value={selectedBranch} 
-                    onChange={(e) => setSelectedBranch(e.target.value)} 
-                    className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-300 transition-colors"
-                  >
+                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-300 transition-colors">
                     {branches.map(b => <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>)}
                   </select>
                 ) : (
@@ -760,7 +747,6 @@ const loadData = async () => {
               </div>
             </div>
 
-            {/* İkonlu Kontroller (Yönetici Paneli, Çıkış) */}
             <div className="flex items-center gap-2 pl-2">
               {isAdmin && step < 99 && (
                 <button onClick={() => setStep(99)} title="Yönetici Paneli" className="text-white/50 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-white/5">
@@ -774,7 +760,6 @@ const loadData = async () => {
           </div>
         </div>
 
-        {/* 2. SATIR: MENÜ LİNKLERİ (İnce ayırıcı çizgili) */}
         <div className="flex items-center overflow-x-auto no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
           {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
             const isActive = appMode === item.id;
@@ -783,15 +768,10 @@ const loadData = async () => {
               <div key={item.id} className={`flex items-center h-full ${!isLast ? 'border-r border-white/10' : ''}`}>
                 <button
                   onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                  className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center
-                    ${isActive ? 'text-white' : ''}
-                  `}
+                  className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
                 >
                   {item.label}
-                  {/* Aktif menü altı turuncu çizgi */}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
-                  )}
+                  {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
                 </button>
               </div>
             );
@@ -799,8 +779,7 @@ const loadData = async () => {
           {step === 99 && (
               <div className="flex items-center h-full">
                  <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
-                    Yönetici Paneli
-                    <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
+                    Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
                  </span>
               </div>
           )}
@@ -814,18 +793,18 @@ const loadData = async () => {
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
                  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
-                    <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-red-500/30 text-white text-5xl font-black italic">Z</div>
-                    <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white uppercase text-center">
+                    <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-xl shadow-red-500/20 text-white text-5xl font-black italic">Z</div>
+                    <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-800 uppercase text-center">
                        ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
                     </h2>
-                    <p className="text-slate-400 font-bold tracking-widest uppercase text-xs text-center max-w-md">
+                    <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
                        Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm">
+                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-red-500">
                           CİHAZ ALIMI YAP
                        </button>
-                       <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 text-xs sm:text-sm">
+                       <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200/50 transition-all active:scale-95 text-xs sm:text-sm">
                           DIŞ KANAL LİSTESİ
                        </button>
                     </div>
@@ -834,32 +813,32 @@ const loadData = async () => {
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} />
               )
           ) : appMode === 'imei_list' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#f39c12]">DEPO</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">DEPO LİSTESİ</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
                 <div className="min-w-[400px]">
-                  <div className="bg-[#d35400] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                  <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
                     <div className="flex-[2] text-right">İMEİ BİLGİSİ</div>
                   </div>
-                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          <div className={`flex-[3] flex items-center text-slate-300 group-hover:text-white transition-colors pr-4`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div className={`flex-[3] flex items-center text-slate-700 group-hover:text-slate-900 transition-colors pr-4`}>
                               {row[0] || '-'}
                           </div>
-                          <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-[#2ecc71]`}>{row[1] || '-'}</div>
+                          <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-green-600`}>{row[1] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -869,35 +848,35 @@ const loadData = async () => {
           ) :
 
           appMode === 'kampanya_sifir' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#e74c3c]">KAMPANYALI SIFIR LİSTE</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-red-600">KAMPANYALI SIFIR LİSTE</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
 
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
                 <div className="min-w-[500px]">
-                  <div className="bg-[#c0392b] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                  <div className="bg-red-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">ÜRÜN ADI</div>
                     <div className="flex-1 text-right">FİYATI (TL)</div>
                   </div>
-                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {cepTabletData.slice(1).filter(r => r[10] && r[10].trim() !== '' && r[10].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[10] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
+                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[10]}
                           </div>
-                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[11] || '-'}</div>
+                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -907,39 +886,39 @@ const loadData = async () => {
           ) :
 
           appMode === 'ikinci_el' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#e67e22]">2.EL FİYAT LİSTESİ</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-500">2.EL FİYAT LİSTESİ</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
               <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
                 <div className="min-w-[650px]">
-                  <div className="bg-[#d35400] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                  <div className="bg-orange-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
                     <div className="flex-1 text-center">ÖZELLİK/DURUM</div>
                     <div className="flex-1 text-center">FİYATI (TL)</div>
                     <div className="flex-[2] text-right">AÇIKLAMA</div>
                   </div>
-                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[0] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4`}>
+                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
-                          <div className={`flex-1 text-center font-bold text-slate-300 group-hover:text-white`}>{row[1] || '-'}</div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-[#2ecc71]'}`}>{row[2] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[3] || '-'}</div>
+                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900`}>{row[1] || '-'}</div>
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-amber-600' : 'text-green-600'}`}>{row[2] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2`}>{row[3] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -949,37 +928,37 @@ const loadData = async () => {
           ) :
 
           appMode === 'dis_kanal' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-500' : 'text-[#1abc9c]'}`}>DIŞ KANAL SATIN ALMA</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
+                    <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
                 <div className="min-w-[500px]">
-                  <div className={`${isZumay ? 'bg-red-700' : 'bg-[#16a085]'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg`}>
+                  <div className={`${isZumay ? 'bg-red-600' : 'bg-teal-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
                     <div className="flex-1 text-center">FİYATI (TL)</div>
                     <div className="flex-[2] text-right">DURUM / BİLGİ</div>
                   </div>
-                  <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[0] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-500/10' : 'bg-yellow-500/10') : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? (isZumay ? 'text-red-400' : 'text-yellow-400') : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-400' : 'bg-yellow-400'}`}></span>}
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-50' : 'bg-teal-50') : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div className={`flex-[3] flex items-center ${isHighlighted ? (isZumay ? 'text-red-700' : 'text-teal-700') : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
+                              {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-500' : 'bg-teal-500'}`}></span>}
                               {row[0]}
                           </div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? (isZumay ? 'text-red-400' : 'text-yellow-400') : 'text-white'}`}>{row[1] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-400 break-words pl-2`}>{row[2] || '-'}</div>
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2`}>{row[2] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -989,40 +968,40 @@ const loadData = async () => {
           ) :
 
           appMode === 'cep_tablet' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-4 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#3498db]">GÜNCEL FİYATLAR</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <div className="overflow-x-auto custom-scrollbar pb-2">
                   <div className="min-w-[450px]">
-                    <div className="bg-[#4472c4] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
+                    <div className="bg-blue-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
                       <div className="flex-1 text-center">KAMPANYA</div>
                       <div className="flex-1 text-center">SATIŞ</div>
                       <div className="flex-1 text-right">RESMİ FİYAT</div>
                     </div>
-                    <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[0] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                           return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
+                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[0]}
                                 </div>
-                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-[#dfe6e9] whitespace-nowrap">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-400 whitespace-nowrap pl-2">{row[3] || '-'}</div>
+                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
+                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap">{row[2] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2">{row[3] || '-'}</div>
                             </div>
                           )
                       })}
@@ -1032,25 +1011,25 @@ const loadData = async () => {
                 
                 <div className="overflow-x-auto custom-scrollbar pb-2">
                   <div className="min-w-[450px]">
-                    <div className="bg-[#2ecc71] px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-lg">
+                    <div className="bg-green-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
                       <div className="flex-1 text-center">KAMPANYA</div>
                       <div className="flex-1 text-center">SATIŞ</div>
                       <div className="flex-1 text-right">RESMİ FİYAT</div>
                     </div>
-                    <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[5] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                           return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
+                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[5]}
                                 </div>
-                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-yellow-400 text-sm' : 'text-[#ff7675]'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-[#dfe6e9] whitespace-nowrap">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-400 whitespace-nowrap pl-2">{row[8] || '-'}</div>
+                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
+                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap">{row[7] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2">{row[8] || '-'}</div>
                             </div>
                           )
                       })}
@@ -1062,36 +1041,36 @@ const loadData = async () => {
           ) : 
           
           appMode === 'yna_list' && step < 99 ? (
-            <div className="bg-[#1e1e2d] p-6 sm:p-10 rounded-[48px] shadow-2xl border border-slate-800 text-white animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-700 pb-6 gap-4">
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-[#9b59b6]">YENİ NESİL AKSESUAR</h2>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
                   </div>
-                  <div className="bg-[#2a2a3d] border border-slate-700 p-3 rounded-2xl flex items-center w-full md:w-80">
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-white w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="overflow-x-auto custom-scrollbar pb-2">
                   <div className="min-w-[350px]">
-                    <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                    <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">ÜRÜN ADI</div>
                       <div className="flex-1 text-right">FİYATI (TL)</div>
                     </div>
-                    <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[0] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA');
                           return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
-                                {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                          <div key={i} className={`flex px-4 py-2 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
+                                {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[0]}
                             </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[1] || '-'}</div>
+                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[1] || '-'}</div>
                           </div>
                       )})}
                     </div>
@@ -1100,21 +1079,21 @@ const loadData = async () => {
                 
                 <div className="overflow-x-auto custom-scrollbar pb-2">
                   <div className="min-w-[350px]">
-                    <div className="bg-[#8e44ad] px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-lg">
+                    <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">ÜRÜN ADI</div>
                       <div className="flex-1 text-right">FİYATI (TL)</div>
                     </div>
-                    <div className="bg-[#2a2a3d] rounded-b-2xl overflow-hidden shadow-inner border-x border-b border-slate-700">
+                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[3] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA');
                           return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-600/60 hover:bg-white/10 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-yellow-500/10' : i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-yellow-400' : 'text-slate-300'} group-hover:text-white transition-colors pr-4 break-words`}>
-                                {isHighlighted && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping mr-2 shrink-0"></span>}
+                          <div key={i} className={`flex px-4 py-2 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
+                                {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[3]}
                             </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-yellow-400' : 'text-white'}`}>{row[4] || '-'}</div>
+                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[4] || '-'}</div>
                           </div>
                       )})}
                     </div>
@@ -1128,15 +1107,15 @@ const loadData = async () => {
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {isAdmin && (
-                <div className="mb-6 bg-[#1e1e2d] border border-slate-700/50 p-4 rounded-[28px] shadow-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="mb-6 bg-white border border-slate-200 p-4 rounded-[28px] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                    <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto no-scrollbar">
                       {/* ŞUBE FİLTRESİ */}
-                      <select value={adminSelectedBranch} onChange={(e) => setAdminSelectedBranch(e.target.value)} className="bg-[#2a2a3d] text-white text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-600 min-w-[150px]">
+                      <select value={adminSelectedBranch} onChange={(e) => setAdminSelectedBranch(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
                         <option value="TÜM ŞUBELER">TÜM ŞUBELER</option>
                         {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                       </select>
                       {/* TARİH FİLTRESİ */}
-                      <select value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)} className="bg-[#2a2a3d] text-white text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-600 min-w-[150px]">
+                      <select value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
                          <option value="TÜM ZAMANLAR">TÜM ZAMANLAR</option>
                          <option value="BUGÜN">BUGÜN</option>
                          <option value="DÜN">DÜN</option>
@@ -1147,13 +1126,13 @@ const loadData = async () => {
                       {/* ÖZEL TARİH SEÇİMİ */}
                       {dateFilterType === 'ÖZEL' && (
                         <div className="flex items-center gap-2">
-                           <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-[#2a2a3d] text-slate-300 text-xs p-3 rounded-xl border border-slate-600 outline-none focus:border-emerald-500" />
-                           <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-[#2a2a3d] text-slate-300 text-xs p-3 rounded-xl border border-slate-600 outline-none focus:border-emerald-500" />
+                           <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-slate-50 text-slate-800 text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500" />
+                           <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-slate-50 text-slate-800 text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500" />
                         </div>
                       )}
                    </div>
 
-                   <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-500/20 whitespace-nowrap w-full md:w-auto shrink-0 flex items-center justify-center gap-2 btn-click">
+                   <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap w-full md:w-auto shrink-0 flex items-center justify-center gap-2 btn-click">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       PANELİ KAPAT
                    </button>
@@ -1185,7 +1164,7 @@ const loadData = async () => {
                       <span className="text-orange-950">TEKNIK <span className="text-orange-600">SERVIS</span> MERKEZI</span>
                     )}
                   </h2>
-                  <p className={`font-bold uppercase tracking-[0.2em] text-xs ${appMode === 'servis' ? 'text-orange-800/60' : 'text-slate-400'}`}>Lütfen işlem yapılacak markayı seçin</p>
+                  <p className="font-bold uppercase tracking-[0.2em] text-xs text-slate-400">Lütfen işlem yapılacak markayı seçin</p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in zoom-in duration-700 delay-200">
                 {displayBrands.map(brand => {
@@ -1217,7 +1196,7 @@ const loadData = async () => {
           ) : step === 2 ? (
             <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900 max-w-[1400px] mx-auto">
               <div className="flex items-center justify-between mb-8 mt-4">
-                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600' : 'border-slate-200 text-slate-500 hover:text-[#0052D4]')}`}>
+                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                     Geri Dön
                   </button>
@@ -1264,13 +1243,13 @@ const loadData = async () => {
             <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-700 text-slate-900 max-w-[1400px] mx-auto mt-4">
               
               <div className="flex-1 space-y-6">
-                <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 w-max ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600' : 'border-slate-200 text-slate-500 hover:text-[#0052D4]')}`}>
+                <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 w-max ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                   Modellere Dön
                 </button>
 
                 {appMode === 'servis' ? (
-                  <div className="bg-white p-10 rounded-[48px] shadow-xl border border-orange-100 relative overflow-hidden">
+                  <div className="bg-white p-10 rounded-[48px] shadow-sm border border-orange-200 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
                         <svg className="w-40 h-40 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
@@ -1294,19 +1273,19 @@ const loadData = async () => {
                               <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Ekran Değişimi</p>
                           </div>
                           
-                          <div className="flex flex-col gap-2 mt-4 text-left bg-white/60 p-4 rounded-2xl border border-orange-200/50">
+                          <div className="flex flex-col gap-2 mt-4 text-left bg-white/60 p-4 rounded-2xl border border-orange-200/50 shadow-sm">
                               <div className="flex justify-between items-center border-b border-orange-100 pb-1">
                                 <span className="text-[10px] font-black text-orange-900 uppercase">Orjinal:</span> 
-                                <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran ? `${Number(servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran).toLocaleString()} TL` : '-'}</span>
+                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran ? `${Number(servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran).toLocaleString()} TL` : '-'}</span>
                               </div>
                               <div className="flex justify-between items-center border-b border-orange-100 pb-1">
                                 <span className="text-[10px] font-black text-orange-900 uppercase">OLED:</span> 
-                                <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranOled ? `${Number(servisFiyatlari[selectedModelName]?.ekranOled).toLocaleString()} TL` : '-'}</span>
+                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranOled ? `${Number(servisFiyatlari[selectedModelName]?.ekranOled).toLocaleString()} TL` : '-'}</span>
                               </div>
                               {selectedBrand?.toLowerCase() === 'apple' && (
                               <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-orange-900 uppercase">Çipli:</span> 
-                                <span className="font-black text-sm italic">{servisFiyatlari[selectedModelName]?.ekranCipli ? `${Number(servisFiyatlari[selectedModelName]?.ekranCipli).toLocaleString()} TL` : '-'}</span>
+                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranCipli ? `${Number(servisFiyatlari[selectedModelName]?.ekranCipli).toLocaleString()} TL` : '-'}</span>
                               </div>
                               )}
                           </div>
@@ -1363,19 +1342,19 @@ const loadData = async () => {
                         <div className="space-y-4">
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">Müşteri Adı Soyadı</label>
-                            <input placeholder="Ad Soyad" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                            <input placeholder="Ad Soyad" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">İletişim Numarası</label>
-                            <input placeholder="05XX XXX XX XX" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                            <input placeholder="05XX XXX XX XX" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">IMEI Numarası (15 Hane)</label>
-                            <input placeholder="IMEI Giriniz" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                            <input placeholder="IMEI Giriniz" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
                           </div>
                         </div>
 
-                        <div className="bg-red-50/50 p-6 rounded-[24px] border border-red-100/50 space-y-4 flex flex-col justify-center">
+                        <div className="bg-red-50/50 p-6 rounded-[24px] border border-red-100/50 space-y-4 flex flex-col justify-center shadow-inner">
                           <p className="text-[11px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2 mb-2">
                             <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
                             Personel Onay Listesi
@@ -1452,14 +1431,14 @@ const loadData = async () => {
               <div className="lg:w-[350px] space-y-6 sticky top-32 h-fit">
                 
                 {appMode === 'servis' ? (
-                  <div className="bg-orange-950 p-8 rounded-[32px] space-y-4 shadow-2xl">
-                      <div className="w-16 h-16 bg-orange-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>
+                  <div className="bg-white border border-orange-200 p-8 rounded-[32px] space-y-4 shadow-xl">
+                      <div className="w-16 h-16 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>
                       </div>
-                      <h3 className="text-xl font-black italic text-white uppercase text-center mb-4">Müşteriye İlet</h3>
-                      <p className="text-[10px] font-black text-orange-500/80 uppercase tracking-widest text-center mb-6">Fiyat teklifini direkt WhatsApp üzerinden müşteriye gönderebilirsiniz.</p>
+                      <h3 className="text-xl font-black italic text-orange-950 uppercase text-center mb-4">Müşteriye İlet</h3>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center mb-6">Fiyat teklifini direkt WhatsApp üzerinden müşteriye gönderebilirsiniz.</p>
                       
-                      <button onClick={handleServisWhatsApp} className="w-full py-4 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-2 shadow-lg bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40">
+                      <button onClick={handleServisWhatsApp} className="w-full py-4 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-2 shadow-lg bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/20">
                           WHATSAPP'TAN GÖNDER
                       </button>
                   </div>
@@ -1473,10 +1452,10 @@ const loadData = async () => {
                     </div>
 
                     {isYd ? (
-                      <div className="bg-red-600 p-8 rounded-[32px] shadow-2xl text-white text-center border-b-[8px] border-red-800 animate-pulse">
-                        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
-                        <p className="text-xl font-black uppercase italic leading-none tracking-tighter">YURT DIŞI CIHAZ</p>
-                        <p className="text-[9px] mt-3 uppercase tracking-[0.2em] font-black opacity-80">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
+                      <div className="bg-red-50 p-8 rounded-[32px] shadow-md border-2 border-red-500 text-center animate-pulse">
+                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
+                        <p className="text-xl font-black uppercase italic leading-none tracking-tighter text-red-700">YURT DIŞI CIHAZ</p>
+                        <p className="text-[9px] mt-3 uppercase tracking-[0.2em] font-black opacity-80 text-red-600">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
                       </div>
                     ) : (
                       <div className="space-y-6 animate-in zoom-in-95 duration-500">
@@ -1622,7 +1601,7 @@ const loadData = async () => {
         </main>
       </div>
 
-      <footer className="mt-auto w-full border-t border-slate-200/50 py-6 text-center print:hidden bg-transparent">
+      <footer className="mt-auto w-full border-t border-slate-200 py-6 text-center print:hidden bg-transparent">
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
@@ -1713,21 +1692,21 @@ const loadData = async () => {
         </div>
       )}
 
-      {/* EKSPERTİZ DETAY MODALI (Değiştirilmedi) */}
+      {/* EKSPERTİZ DETAY MODALI (Değiştirilmedi, sadece stil uyumu) */}
       {ekspertizModalData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:hidden">
-          <div className="bg-[#1e1e2d] rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-700 flex flex-col animate-in fade-in zoom-in duration-300">
-             <div className="flex justify-between items-center mb-6 border-b border-slate-700/50 pb-6 shrink-0">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
+          <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-200 flex flex-col animate-in fade-in zoom-in duration-300">
+             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-6 shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                   </div>
                   <div>
-                    <h3 className="text-xl font-black italic text-white uppercase tracking-tighter">Personel Seçimleri</h3>
-                    <p className="text-[10px] text-slate-400 font-bold tracking-widest mt-1 uppercase truncate max-w-sm">{ekspertizModalData.customer} - {ekspertizModalData.device}</p>
+                    <h3 className="text-xl font-black italic text-slate-900 uppercase tracking-tighter">Personel Seçimleri</h3>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase truncate max-w-sm">{ekspertizModalData.customer} - {ekspertizModalData.device}</p>
                   </div>
                 </div>
-                <button onClick={() => setEkspertizModalData(null)} className="text-slate-400 hover:text-white hover:bg-red-500/20 bg-slate-800 p-3 rounded-xl transition-colors btn-click">
+                <button onClick={() => setEkspertizModalData(null)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-xl transition-colors btn-click">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
              </div>
@@ -1737,14 +1716,14 @@ const loadData = async () => {
                     if(!detail.includes(':')) return null;
                     const [key, val] = detail.split(':');
                     
-                    let valColor = "text-slate-200";
-                    if (['Mükemmel', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-400";
-                    else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-400";
-                    else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-400";
+                    let valColor = "text-slate-700";
+                    if (['Mükemmel', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
+                    else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-600";
+                    else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-600";
 
                     return (
-                        <div key={idx} className="bg-[#2a2a3d] border border-slate-700/50 p-4 rounded-2xl flex flex-col gap-1.5 hover:border-slate-500 transition-colors">
-                            <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">{key}</span>
+                        <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-1.5 hover:border-slate-400 transition-colors">
+                            <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{key}</span>
                             <span className={`text-sm font-black uppercase tracking-tight ${valColor}`}>{val}</span>
                         </div>
                     )
