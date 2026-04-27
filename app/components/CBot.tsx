@@ -58,16 +58,41 @@ export default function CBot() {
     <>
       {/* C-BOT Penceresi */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-72 md:w-80 h-[450px] bg-white rounded-2xl shadow-2xl flex flex-col z-[9999] overflow-hidden border border-slate-200 transition-all">
-          {/* Header - H harfi C yapıldı */}
-          <div className="bg-[#0052D4] p-3 text-white flex justify-between items-center shadow-md">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-[#0052D4] font-bold text-xs">C</div>
-              <span className="font-semibold text-sm tracking-tight">C-BOT Asistan</span>
+        <div className="fixed bottom-24 right-6 w-80 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col z-[9999] overflow-hidden border border-slate-200 transition-all">
+          {/* Header - Getmobil header replikası */}
+          <div className="bg-[#121C2B] p-4 text-white flex flex-col z-[9999] shadow-lg rounded-t-2xl">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                {/* Logo replikası */}
+                <div className="w-8 h-8 bg-white rounded flex items-center justify-center font-bold text-lg text-[#121C2B]">
+                  C
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm tracking-tight text-white">Cnetmobil</span>
+                    <span className="text-white font-normal text-sm">Asistan</span>
+                  </div>
+                  {/* Çevrimiçi etiketi - Getmobil replikası */}
+                  <div className="flex items-center gap-1.5 border border-green-500 rounded-full px-2 py-0.5 mt-1">
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+                    <span className="text-green-500 text-xs font-semibold">Çevrimiçi</span>
+                  </div>
+                </div>
+              </div>
+              {/* İkonlar */}
+              <div className="flex items-center gap-2">
+                {/* Aşağı ok simgesi */}
+                <button className="hover:bg-white/10 p-1.5 rounded-full transition-colors text-white/80 hover:text-white">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                {/* Kapatma simgesi (X) */}
+                <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1.5 rounded-full transition-colors text-white/80 hover:text-white">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-colors text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
+            {/* Alttaki metin */}
+            <span className="text-white text-sm mt-3 pl-11">Sana nasıl yardımcı olabilirim?</span>
           </div>
           
           {/* Mesaj Alanı */}
@@ -81,6 +106,21 @@ export default function CBot() {
                 }`}>
                   {msg.text}
                 </div>
+                
+                {/* Seçenek Butonları (Kullanıcının start mesajı nedeniyle yok ama mantığı koru) */}
+                {msg.sender === 'bot' && msg.options && (
+                  <div className="mt-2 flex flex-col gap-1.5 w-full max-w-[85%]">
+                    {msg.options.map((opt, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => handleOptionClick(opt)} 
+                        className="bg-white border border-[#0052D4]/30 text-[#0052D4] px-3 py-1.5 rounded-lg text-[11px] text-left hover:bg-blue-50 transition-all font-medium shadow-sm active:scale-95"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
@@ -88,7 +128,7 @@ export default function CBot() {
         </div>
       )}
 
-      {/* --- KİBAR ROBOT BUTON - H-BOT'tan C-BOT'a güncellendi --- */}
+      {/* --- KİBAR ROBOT BUTON - Mevcut minimalist tasarım --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="cbot-floating-btn fixed bottom-6 right-6 flex flex-col items-center z-[9999] group"
