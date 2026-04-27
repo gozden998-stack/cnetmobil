@@ -706,73 +706,87 @@ const loadData = async () => {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* YENİ ÜST MENÜ (PARTNER TOPBAR) */}
-      <nav className={`sticky top-0 z-[100] w-full border-b shadow-lg backdrop-blur-md print:hidden transition-all duration-300 ${isZumay ? 'bg-red-950 border-red-900/50' : 'bg-white/95 border-slate-200'}`}>
-        <div className="max-w-[1600px] mx-auto px-4 lg:px-6 h-20 flex items-center justify-between">
+      {/* YENİ GETMOBIL STİLİ ÜST BAR (TOPBAR) - İKİ KATMANLI */}
+      <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
+        
+        {/* 1. SATIR: LOGO, TAKSİT BUTONU VE KULLANICI BİLGİLERİ */}
+        <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
           
-          {/* LOGO BÖLÜMÜ */}
-          <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-3 cursor-pointer shrink-0">
-             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-white shadow-lg ${isZumay ? 'bg-red-600' : 'bg-[#0052D4]'}`}>
-               C
-             </div>
-             <div className="hidden lg:block">
-               <h1 className={`text-xl font-black italic tracking-tighter uppercase leading-none ${isZumay ? 'text-white' : 'text-slate-900'}`}>
-                 {isZumay ? 'ZUMAY' : <>CNET<span className="text-[#0052D4]">MOBIL</span></>}
-               </h1>
-               <p className={`text-[9px] font-bold tracking-[0.3em] uppercase ${isZumay ? 'text-white/50' : 'text-slate-500'}`}>Partner Portal</p>
-             </div>
+          {/* LOGO */}
+          <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
+            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">
+              {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-medium">mobil</span></>}
+            </h1>
           </div>
 
-          {/* MENÜ (Yatay Kaydırılabilir) */}
-          <div className="flex-1 flex items-center justify-start lg:justify-center overflow-x-auto no-scrollbar px-4 lg:px-10 gap-2">
-             {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item) => (
-               <button
-                 key={item.id}
-                 onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                 className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[11px] lg:text-[12px] font-black transition-all whitespace-nowrap border
-                   ${appMode === item.id 
-                     ? (isZumay ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/40' : 'bg-[#0052D4] border-[#0052D4] text-white shadow-lg shadow-blue-900/40') 
-                     : (isZumay ? 'text-slate-300 border-transparent hover:text-white hover:bg-white/10' : 'text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100')
-                   }`}
-               >
-                 {item.label}
-               </button>
-             ))}
-             {step === 99 && <span className="text-emerald-500 font-black italic text-xs animate-pulse">YÖNETİCİ PANELİ AKTİF</span>}
-          </div>
+          {/* SAĞ BÖLÜM: Taksit Butonu (Turuncu), Kullanıcı ve Çıkış */}
+          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
+            
+            {/* Taksit (Mağazadan Satış) Butonu - Turuncu */}
+            {!isZumay && step < 99 && (
+              <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                Mağazadan Satış
+              </button>
+            )}
 
-          {/* SAĞ TARAF (KULLANICI VE BUTONLAR) */}
-          <div className="flex items-center gap-3 shrink-0">
-             {!isZumay && step < 99 && (
-               <button onClick={() => setIsInstallmentModalOpen(true)} className="hidden xl:flex items-center gap-2 px-4 py-2.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-white transition-all text-[10px] font-bold uppercase">
-                  TAKSİT
-               </button>
-             )}
-             
-             <div className={`hidden md:flex flex-col items-end border-r pr-4 ${isZumay ? 'border-white/10' : 'border-slate-200'}`}>
-               <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Aktif Terminal</span>
-               {isMasterAccess ? (
-                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={`bg-transparent text-[11px] font-black outline-none cursor-pointer text-right appearance-none ${isZumay ? 'text-white' : 'text-slate-900'}`}>
-                    {branches.map(b => <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>)}
-                  </select>
-               ) : (
-                  <span className={`text-[11px] font-black uppercase italic truncate max-w-[120px] ${isZumay ? 'text-white' : 'text-slate-900'}`}>{selectedBranch}</span>
-               )}
-             </div>
-             
-             <div className="flex items-center gap-2">
-               {isAdmin && step < 99 && (
-                 <button onClick={() => setStep(99)} title="Yönetici Paneli" className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                 </button>
-               )}
-               <button onClick={handleLogout} title="Çıkış Yap" className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-               </button>
-             </div>
+            {/* Kullanıcı Profili Göstergesi */}
+            <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
+              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                {isMasterAccess ? 'Y' : 'NI'}
+              </div>
+              <div className="hidden md:flex flex-col text-white">
+                <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
+                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'Yenileme Merkezi + Yönetici' : 'Bayi Personeli'}</span>
+              </div>
+            </div>
+
+            {/* İkonlu Kontroller (Yönetici Paneli, Çıkış) */}
+            <div className="flex items-center gap-2 pl-2">
+              {isAdmin && step < 99 && (
+                <button onClick={() => setStep(99)} title="Yönetici Paneli" className="text-white/50 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-white/5">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </button>
+              )}
+              <button onClick={handleLogout} title="Çıkış Yap" className="text-white/50 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-white/5">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              </button>
+            </div>
           </div>
         </div>
-      </nav>
+
+        {/* 2. SATIR: MENÜ LİNKLERİ (İnce ayırıcı çizgili) */}
+        <div className="flex items-center overflow-x-auto no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
+          {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
+            const isActive = appMode === item.id;
+            const isLast = idx === arr.length - 1;
+            return (
+              <div key={item.id} className={`flex items-center h-full ${!isLast ? 'border-r border-white/10' : ''}`}>
+                <button
+                  onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
+                  className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center
+                    ${isActive ? 'text-white' : ''}
+                  `}
+                >
+                  {item.label}
+                  {/* Aktif menü altı turuncu çizgi */}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+          {step === 99 && (
+              <div className="flex items-center h-full">
+                 <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
+                    Yönetici Paneli
+                    <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
+                 </span>
+              </div>
+          )}
+        </div>
+      </header>
 
       {/* ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
@@ -1094,8 +1108,6 @@ const loadData = async () => {
           /* YÖNETİCİ GÖRÜNÜMÜ - ÜST KONTROL BAR EKLENDİ */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              
-              {/* YENİ YATAY FİLTRE BARI (Sidebar'dan alınan kontroller) */}
               {isAdmin && (
                 <div className="mb-6 bg-[#1e1e2d] border border-slate-700/50 p-4 rounded-[28px] shadow-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
                    <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto no-scrollbar">
@@ -1418,7 +1430,7 @@ const loadData = async () => {
               </div>
 
               {/* SAĞ KISIM (FİYATLAR) */}
-              <div className="lg:w-[350px] space-y-6 sticky top-28 h-fit">
+              <div className="lg:w-[350px] space-y-6 sticky top-32 h-fit">
                 
                 {appMode === 'servis' ? (
                   <div className="bg-orange-950 p-8 rounded-[32px] space-y-4 shadow-2xl">
@@ -1597,7 +1609,7 @@ const loadData = async () => {
 
       {/* TAKSİT MODALI (Değiştirilmedi) */}
       {isInstallmentModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
               <div className="flex items-center gap-4">
@@ -1684,7 +1696,7 @@ const loadData = async () => {
 
       {/* EKSPERTİZ DETAY MODALI (Değiştirilmedi) */}
       {ekspertizModalData && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:hidden">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:hidden">
           <div className="bg-[#1e1e2d] rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-700 flex flex-col animate-in fade-in zoom-in duration-300">
              <div className="flex justify-between items-center mb-6 border-b border-slate-700/50 pb-6 shrink-0">
                 <div className="flex items-center gap-4">
