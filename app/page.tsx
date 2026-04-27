@@ -1180,7 +1180,7 @@ const loadData = async () => {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in zoom-in duration-700 delay-200">
                 {displayBrands.map(brand => {
-                  const brandInfo = brandDb.find(b => b.name === selectedBrand);
+                  const brandInfo = brandDb.find(b => b.name === brand);
                   const finalLogo = brandInfo?.logo || brandAssets[brand]?.logo || "";
 
                   return (
