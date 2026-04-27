@@ -1,18 +1,19 @@
 import React from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
+  // Sadece CMR şubelerinde görünmesi için kontrol (Vodafone ve Zumay'da false döner)
+  const isCmr = selectedBranch.includes('CMR');
+
   return (
     <div className="space-y-6 w-full animate-in fade-in duration-500">
         
         {/* Karşılama Ekranı - Premium Hero Banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            {/* Arka Plan Dekoratif Işıklandırmalar */}
             <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 right-32 w-32 h-32 bg-sky-300/30 rounded-full blur-2xl pointer-events-none"></div>
             
             <div className="relative z-10 flex flex-col gap-3">
                 <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider uppercase w-max backdrop-blur-sm shadow-inner">
-                    {/* YENİ RADAR / DALGA EFEKTLİ YEŞİL NOKTA */}
                     <span className="relative flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]"></span>
@@ -39,6 +40,35 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
                 Cihaz Alımını Başlat
             </button>
         </div>
+
+        {/* --- SADECE CMR ŞUBELERİ İÇİN GİDİŞAT ALTYAPISI --- */}
+        {isCmr && (
+            <div className="grid grid-cols-1 gap-6">
+                
+                {/* Mağaza Gidişat Bölümü (Placeholder) */}
+                <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden group">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Mağaza Performans Gidişatı</h3>
+                        <span className="bg-blue-100 text-blue-600 px-4 py-1.5 rounded-xl text-xs font-black animate-pulse uppercase">Çok Yakında</span>
+                    </div>
+                    <div className="h-24 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center">
+                        <p className="text-slate-300 font-bold italic tracking-widest text-sm">Gidişat verileri hazırlanıyor...</p>
+                    </div>
+                </div>
+
+                {/* Personel Gidişat Bölümü (Placeholder) */}
+                <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden group">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Personel Başarı Tablosu</h3>
+                        <span className="bg-emerald-100 text-emerald-600 px-4 py-1.5 rounded-xl text-xs font-black animate-pulse uppercase">Çok Yakında</span>
+                    </div>
+                    <div className="h-24 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center">
+                        <p className="text-slate-300 font-bold italic tracking-widest text-sm">Takım sıralaması aktif ediliyor...</p>
+                    </div>
+                </div>
+
+            </div>
+        )}
 
         {/* Alt Bilgi Panelleri */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
