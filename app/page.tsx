@@ -552,8 +552,8 @@ const loadData = async () => {
   id: 'kampanya_sifir', 
   label: (
     <div className="flex flex-col items-center justify-center -space-y-0.5">
-      <span className="text-[8px] font-black opacity-70 tracking-wider">KAMPANYALI</span>
-      <span>SIFIR LİSTE</span>
+      <span className="font-black tracking-widest">KAMPANYALI</span>
+      <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
     </div>
   ), 
   visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
