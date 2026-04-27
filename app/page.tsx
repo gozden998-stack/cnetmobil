@@ -829,16 +829,16 @@ const loadData = async () => {
                 <div className="min-w-[400px]">
                   <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-[2] text-right">İMEİ BİLGİSİ</div>
+                    <div className="flex-[2] text-right border-l border-orange-400 pl-2">İMEİ BİLGİSİ</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                           <div className={`flex-[3] flex items-center text-slate-700 group-hover:text-slate-900 transition-colors pr-4`}>
                               {row[0] || '-'}
                           </div>
-                          <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-green-600`}>{row[1] || '-'}</div>
+                          <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-green-600 border-l border-slate-200 pl-4`}>{row[1] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -864,19 +864,19 @@ const loadData = async () => {
                 <div className="min-w-[500px]">
                   <div className="bg-red-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">ÜRÜN ADI</div>
-                    <div className="flex-1 text-right">FİYATI (TL)</div>
+                    <div className="flex-1 text-right border-l border-red-500 pl-2">FİYATI (TL)</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {cepTabletData.slice(1).filter(r => r[10] && r[10].trim() !== '' && r[10].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[10] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[10]}
                           </div>
-                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
+                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -902,23 +902,23 @@ const loadData = async () => {
                 <div className="min-w-[650px]">
                   <div className="bg-orange-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-1 text-center">ÖZELLİK/DURUM</div>
-                    <div className="flex-1 text-center">FİYATI (TL)</div>
-                    <div className="flex-[2] text-right">AÇIKLAMA</div>
+                    <div className="flex-1 text-center border-l border-orange-500 pl-2">ÖZELLİK/DURUM</div>
+                    <div className="flex-1 text-center border-l border-orange-500 pl-2">FİYATI (TL)</div>
+                    <div className="flex-[2] text-right border-l border-orange-500 pr-2">AÇIKLAMA</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[0] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[0]}
                           </div>
-                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900`}>{row[1] || '-'}</div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-amber-600' : 'text-green-600'}`}>{row[2] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2`}>{row[3] || '-'}</div>
+                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900 border-l border-slate-200`}>{row[1] || '-'}</div>
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? 'text-amber-600' : 'text-green-600'}`}>{row[2] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[3] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -944,21 +944,21 @@ const loadData = async () => {
                 <div className="min-w-[500px]">
                   <div className={`${isZumay ? 'bg-red-600' : 'bg-teal-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    <div className="flex-1 text-center">FİYATI (TL)</div>
-                    <div className="flex-[2] text-right">DURUM / BİLGİ</div>
+                    <div className={`flex-1 text-center border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pl-2`}>FİYATI (TL)</div>
+                    <div className={`flex-[2] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-2`}>DURUM / BİLGİ</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[0] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-50' : 'bg-teal-50') : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-50' : 'bg-teal-50') : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                           <div className={`flex-[3] flex items-center ${isHighlighted ? (isZumay ? 'text-red-700' : 'text-teal-700') : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
                               {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-500' : 'bg-teal-500'}`}></span>}
                               {row[0]}
                           </div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2`}>{row[2] || '-'}</div>
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[2] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -985,23 +985,23 @@ const loadData = async () => {
                   <div className="min-w-[450px]">
                     <div className="bg-blue-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
-                      <div className="flex-1 text-center">KAMPANYA</div>
-                      <div className="flex-1 text-center">SATIŞ</div>
-                      <div className="flex-1 text-right">RESMİ FİYAT</div>
+                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">KAMPANYA</div>
+                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">SATIŞ</div>
+                      <div className="flex-1 text-right border-l border-blue-500/50 pr-2">RESMİ FİYAT</div>
                     </div>
                     <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[0] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                           return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                                 <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
                                   {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[0]}
                                 </div>
-                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2">{row[3] || '-'}</div>
+                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
+                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[2] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[3] || '-'}</div>
                             </div>
                           )
                       })}
@@ -1013,23 +1013,23 @@ const loadData = async () => {
                   <div className="min-w-[450px]">
                     <div className="bg-green-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
-                      <div className="flex-1 text-center">KAMPANYA</div>
-                      <div className="flex-1 text-center">SATIŞ</div>
-                      <div className="flex-1 text-right">RESMİ FİYAT</div>
+                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">KAMPANYA</div>
+                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">SATIŞ</div>
+                      <div className="flex-1 text-right border-l border-green-500/50 pr-2">RESMİ FİYAT</div>
                     </div>
                     <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[5] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                           return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                                 <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
                                   {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                   {row[5]}
                                 </div>
-                                <div className={`flex-1 text-center font-black ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2">{row[8] || '-'}</div>
+                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
+                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[7] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[8] || '-'}</div>
                             </div>
                           )
                       })}
@@ -1058,19 +1058,19 @@ const loadData = async () => {
                   <div className="min-w-[350px]">
                     <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">ÜRÜN ADI</div>
-                      <div className="flex-1 text-right">FİYATI (TL)</div>
+                      <div className="flex-1 text-right border-l border-purple-500/50 pr-2">FİYATI (TL)</div>
                     </div>
                     <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[0] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA');
                           return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div key={i} className={`flex px-4 py-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                             <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
                                 {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[0]}
                             </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[1] || '-'}</div>
+                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-2 ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[1] || '-'}</div>
                           </div>
                       )})}
                     </div>
@@ -1081,19 +1081,19 @@ const loadData = async () => {
                   <div className="min-w-[350px]">
                     <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                       <div className="flex-[3]">ÜRÜN ADI</div>
-                      <div className="flex-1 text-right">FİYATI (TL)</div>
+                      <div className="flex-1 text-right border-l border-purple-500/50 pr-2">FİYATI (TL)</div>
                     </div>
                     <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                       {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                           const cellName = (row[3] || '').toUpperCase();
                           const isHighlighted = cellName.includes('BOMBA');
                           return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-100 hover:bg-slate-50 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
+                          <div key={i} className={`flex px-4 py-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                             <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
                                 {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                                 {row[3]}
                             </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[4] || '-'}</div>
+                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-2 ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[4] || '-'}</div>
                           </div>
                       )})}
                     </div>
