@@ -9,6 +9,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
         
         {/* Karşılama Ekranı - Premium Hero Banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            {/* Arka Plan Dekoratif Işıklandırmalar */}
             <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 right-32 w-32 h-32 bg-sky-300/30 rounded-full blur-2xl pointer-events-none"></div>
             
@@ -41,29 +42,62 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config }: any) {
             </button>
         </div>
 
-        {/* --- SADECE CMR ŞUBELERİ İÇİN GİDİŞAT ALTYAPISI --- */}
+        {/* --- SADECE CMR ŞUBELERİ İÇİN GÜZELLEŞTİRİLMİŞ GİDİŞAT ALTYAPISI --- */}
         {isCmr && (
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* Mağaza Gidişat Bölümü (Placeholder) */}
-                <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Mağaza Performans Gidişatı</h3>
-                        <span className="bg-blue-100 text-blue-600 px-4 py-1.5 rounded-xl text-xs font-black animate-pulse uppercase">Çok Yakında</span>
+                {/* Mağaza Gidişat Kartı */}
+                <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <svg className="w-24 h-24 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                     </div>
-                    <div className="h-24 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center">
-                        <p className="text-slate-300 font-bold italic tracking-widest text-sm">Gidişat verileri hazırlanıyor...</p>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Mağaza Gidişat</h3>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="h-2 w-3/4 bg-slate-50 rounded-full overflow-hidden">
+                                <div className="h-full w-1/2 bg-blue-100 animate-pulse"></div>
+                            </div>
+                            <div className="h-2 w-1/2 bg-slate-50 rounded-full overflow-hidden">
+                                <div className="h-full w-1/3 bg-blue-50 animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div className="mt-8 flex items-center justify-between">
+                            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-blue-500/30">
+                                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                                Çok Yakında
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Personel Gidişat Bölümü (Placeholder) */}
-                <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Personel Başarı Tablosu</h3>
-                        <span className="bg-emerald-100 text-emerald-600 px-4 py-1.5 rounded-xl text-xs font-black animate-pulse uppercase">Çok Yakında</span>
+                {/* Personel Gidişat Kartı */}
+                <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <svg className="w-24 h-24 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                     </div>
-                    <div className="h-24 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center">
-                        <p className="text-slate-300 font-bold italic tracking-widest text-sm">Takım sıralaması aktif ediliyor...</p>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Personel Gidişat</h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse"></div>
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-75"></div>
+                            <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-150"></div>
+                        </div>
+                        <div className="mt-8 flex items-center justify-between">
+                            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-emerald-500/30">
+                                <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                                Çok Yakında
+                            </span>
+                        </div>
                     </div>
                 </div>
 
