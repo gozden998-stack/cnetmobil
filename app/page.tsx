@@ -603,8 +603,8 @@ const loadData = async () => {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-          if (datePart && datePart.includes('.')) {
-              const [d, m, y] = split('.');
+                    if (datePart && datePart.includes('.')) {
+              const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
               const parts = datePart.split('/');
