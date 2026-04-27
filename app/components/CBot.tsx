@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-// Tip Tanımlamaları (Kodu bozmadan korundu)
+// Tip Tanımlamaları
 interface Option {
   label: string;
   next: string;
@@ -19,61 +19,11 @@ interface Message {
   options?: Option[];
 }
 
-// C-BOT Menü Ağacı (Birebir korundu)
+// C-BOT Menü Ağacı - Tek mesaj gösterecek şekilde güncellendi
 const botData: Record<string, BotStep> = {
   start: {
-    message: "Merhaba! Cnetmobil asistanı C-BOT'a hoş geldiniz. Size nasıl yardımcı olabilirim?",
-    options: [
-      { label: "📱 Cihaz Alım Fiyatları", next: "cihazAlim" },
-      { label: "📋 Şube Kuralları & İhtarlar", next: "kurallar" },
-      { label: "📦 C-Tek Sipariş", next: "ctek" }
-    ]
-  },
-  cihazAlim: {
-    message: "Hangi fiyat listesini incelemek istersiniz?",
-    options: [
-      { label: "YNA Listesi", next: "ynaListe" },
-      { label: "2. El Listesi", next: "ikinciElListe" },
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  kurallar: {
-    message: "Lütfen incelemek istediğiniz prosedürü seçiniz:",
-    options: [
-      { label: "Yaş Sınırı ve Kimlik", next: "yasSiniri" },
-      { label: "Personel İhtar Kuralları", next: "ihtar" },
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  yasSiniri: {
-    message: "⚠️ ÖNEMLİ: Cihaz alımlarında 18 yaş altı işlemler kesinlikle yasaktır. Mutlaka kimlik fotokopisi ve alım formu doldurulmalıdır.",
-    options: [
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  ihtar: {
-    message: "Şube operasyon kurallarına uyulmaması durumunda merkez tarafından resmi ihtarname düzenlenmektedir.",
-    options: [
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  ctek: {
-    message: "C-Tek yedek parça sipariş ekranına sol menüden ulaşabilirsiniz. Stokta olmayan parçalar için talep oluşturun.",
-    options: [
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  ynaListe: {
-    message: "YNA güncel listesi sisteme yüklenmiştir. Lütfen ana ekrandaki ilgili tablodan kontrol ediniz.",
-    options: [
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
-  },
-  ikinciElListe: {
-    message: "2. El alım fiyatlarında kasa kondisyonu ve pil sağlığına göre otomatik kesintiler uygulanmaktadır.",
-    options: [
-      { label: "⬅️ Ana Menü", next: "start" }
-    ]
+    message: "İyi eğitimli sohbet botu H-BOT Asistan, yakında hizmetinize sunulacaktır.",
+    options: [] // Seçenekler kaldırıldı
   }
 };
 
@@ -84,7 +34,7 @@ export default function CBot() {
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Otomatik aşağı kaydırma (Korundu)
+  // Otomatik aşağı kaydırma
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -106,14 +56,14 @@ export default function CBot() {
 
   return (
     <>
-      {/* C-BOT Penceresi - Görsel olarak daha zarif hale getirildi */}
+      {/* C-BOT Penceresi */}
       {isOpen && (
         <div className="fixed bottom-24 right-6 w-72 md:w-80 h-[450px] bg-white rounded-2xl shadow-2xl flex flex-col z-[9999] overflow-hidden border border-slate-200 transition-all">
           {/* Header */}
           <div className="bg-[#0052D4] p-3 text-white flex justify-between items-center shadow-md">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-[#0052D4] font-bold text-xs">C</div>
-              <span className="font-semibold text-sm tracking-tight">C-BOT Asistan</span>
+              <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-[#0052D4] font-bold text-xs">H</div>
+              <span className="font-semibold text-sm tracking-tight">H-BOT Asistan</span>
             </div>
             <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition-colors text-white">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -132,8 +82,8 @@ export default function CBot() {
                   {msg.text}
                 </div>
                 
-                {/* Seçenek Butonları */}
-                {msg.sender === 'bot' && msg.options && (
+                {/* Seçenek Butonları (Options boş olduğu için burası boş kalacak) */}
+                {msg.sender === 'bot' && msg.options && msg.options.length > 0 && (
                   <div className="mt-2 flex flex-col gap-1.5 w-full max-w-[85%]">
                     {msg.options.map((opt, i) => (
                       <button 
@@ -153,27 +103,22 @@ export default function CBot() {
         </div>
       )}
 
-      {/* --- GÜNCELLENEN KİBAR (COMPACT) ROBOT BUTON --- */}
+      {/* --- KİBAR (COMPACT) ROBOT BUTON --- */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="cbot-floating-btn fixed bottom-6 right-6 flex flex-col items-center z-[9999] group"
       >
-        {/* Üstteki Mavi Etiket - Boyut küçültüldü */}
         <div className="bg-[#0052D4] text-white text-[9px] font-bold px-2 py-0.5 rounded-t-md shadow-md mb-[-1px] z-10 uppercase tracking-widest border-x border-t border-white/20 transition-transform group-hover:scale-105">
-          C-BOT
+          H-BOT
         </div>
 
-        {/* Robot Kafası - w-12 h-12 (Daha kibar boyut) */}
         <div className="w-12 h-12 rounded-full bg-white border-2 border-[#4364F7] shadow-lg flex items-center justify-center overflow-hidden relative transition-all group-hover:scale-110 group-active:scale-90">
-          {/* Robot Yüzü SVG - Boyut uyarlandı */}
           <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-[#0052D4]" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="10" fill="#F0F7FF"/>
             <rect x="7.5" y="10" width="2" height="2" rx="1" fill="#0052D4"/>
             <rect x="14.5" y="10" width="2" height="2" rx="1" fill="#0052D4"/>
             <path d="M9 15.5C9 15.5 10 17 12 17C14 17 15 15.5 15 15.5" stroke="#0052D4" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
-          
-          {/* Alt Gölgelendirme */}
           <div className="absolute bottom-0 w-full h-2 bg-gradient-to-t from-[#0052D4]/5 to-transparent"></div>
         </div>
       </button>
