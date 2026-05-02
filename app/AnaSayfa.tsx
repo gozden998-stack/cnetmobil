@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [] }: any) {
+    
+    // --- HATA TESPİTİ İÇİN LOG TAKİBİ (F12 Konsolunda görünür) ---
+    useEffect(() => {
+        console.log("=== SİSTEME SEÇİLİ OLAN ŞUBE ===", selectedBranch);
+        console.log("=== GOOGLE SHEETS'TEN GELEN GİDİŞAT VERİSİ ===", gidisatData);
+    }, [gidisatData, selectedBranch]);
+
     // Sadece CMR şubelerinde görünmesi için kontrol
     const isCmr = selectedBranch.includes('CMR');
 
@@ -15,7 +22,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     let metrics = null;
     
     // gidisatData'dan seçili şubeyi bulup altındaki "HEDEF" ve "SATILAN ADETLER" satırlarını çekiyoruz
-    const branchIndex = gidisatData.findIndex((row: any) => row[0] === selectedBranch);
+    // GÜNCELLEME: Boşluk hatalarını ve büyük/küçük harf uyumsuzluğunu gidermek için trim() ve toUpperCase() eklendi
+    const branchIndex = gidisatData.findIndex((row: any) => 
+        row[0] && typeof row[0] === 'string' && 
+        row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
+    );
+
     if (branchIndex !== -1 && gidisatData[branchIndex + 1] && gidisatData[branchIndex + 2]) {
         const hedefRow = gidisatData[branchIndex + 1];
         const satilanRow = gidisatData[branchIndex + 2];
@@ -150,7 +162,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             ) : (
                                 <div className="h-40 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">VERİ BEKLENİYOR</p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Google Sheets'ten veri çekilemedi veya şube bulunamadı.</p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Google Sheets'ten veri çekilemedi veya şube eşleşmedi.</p>
                                 </div>
                             )}
                         </div>
