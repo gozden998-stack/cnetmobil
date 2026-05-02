@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
@@ -72,6 +72,13 @@ export default function CnetmobilCmrFinalUltimate() {
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
+
+  // --- EKLENEN BİLDİRİM (TOAST) STATELERİ VE REFLERİ ---
+  const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
+  const prevDbRef = useRef<any[]>([]);
+  const prevCepTabletRef = useRef<any[][]>([]);
+  const toastIdCounter = useRef(0);
+  // ---------------------------------------------------
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -244,12 +251,91 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-const loadData = async () => {
+  const loadData = async () => {
     try {
       const res = await fetch('/api/sheets', { cache: 'no-store' });
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
+
+      // --- EKLENEN BİLDİRİM VE KIYASLAMA MANTIĞI BAŞLANGICI ---
+      let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
+      const isInitialLoad = prevDbRef.current.length === 0;
+
+      // Sadece ilk yükleme bittikten sonraki fetch işlemlerinde bildirim ver (uygulama açılır açılmaz uyarı vermemesi için)
+      if (!isInitialLoad && !loading) { 
+          
+          // 1. YENİ CİHAZ EKLENME KONTROLÜ
+          if (allData.Devices) {
+              const currentDeviceNames = prevDbRef.current.map(d => d.name);
+              const newDevices = allData.Devices.filter((d: any) => d[1] && !currentDeviceNames.includes(d[1]));
+              
+              const uniqueNewDevices = Array.from(new Set(newDevices.map((d: any) => d[1])));
+              uniqueNewDevices.forEach(deviceName => {
+                  toastIdCounter.current += 1;
+                  newNotifications.push({ id: toastIdCounter.current, text: `🎉 STOĞA YENİ CİHAZ GELDİ: ${deviceName}`, type: 'new' });
+              });
+          }
+
+          // 2. FİYAT GÜNCELLEMESİ KONTROLÜ (CepTablet üzerinden)
+          if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
+              const prevTabletMap = new Map();
+              prevCepTabletRef.current.forEach(row => {
+                  if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); // Apple
+                  if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); // Android
+              });
+
+              const changedPrices: string[] = [];
+              allData.CepTablet.forEach((row: any) => {
+                  // Apple tarafı kontrol
+                  if (row[0]) {
+                      const prev = prevTabletMap.get(row[0]);
+                      if (prev && (prev.k !== row[1] || prev.s !== row[2])) {
+                          if(!changedPrices.includes(row[0])) changedPrices.push(row[0]);
+                      }
+                  }
+                  // Android tarafı kontrol
+                  if (row[5]) {
+                      const prev = prevTabletMap.get(row[5]);
+                      if (prev && (prev.k !== row[6] || prev.s !== row[7])) {
+                          if(!changedPrices.includes(row[5])) changedPrices.push(row[5]);
+                      }
+                  }
+              });
+
+              if (changedPrices.length > 0) {
+                  toastIdCounter.current += 1;
+                  if (changedPrices.length > 3) {
+                      newNotifications.push({ id: toastIdCounter.current, text: `🔄 SİSTEMDE FİYATLAR GÜNCELLENDİ (${changedPrices.length} cihaz)`, type: 'price' });
+                  } else {
+                      newNotifications.push({ id: toastIdCounter.current, text: `💰 FİYAT GÜNCELLENDİ: ${changedPrices.join(', ')}`, type: 'price' });
+                  }
+              }
+          }
+      }
+
+      // Ekranda gösterilecek bildirim varsa ekle ve 8 saniye sonra silinmesi için zamanla
+      if (newNotifications.length > 0) {
+          setToastMessages(prev => [...prev, ...newNotifications]);
+          newNotifications.forEach(notification => {
+              setTimeout(() => {
+                  setToastMessages(prev => prev.filter(m => m.id !== notification.id));
+              }, 8000);
+          });
+      }
+
+      // Ref'leri güncel verilerle doldur ki bir sonraki sefer karşılaştırma yapabilelim
+      if (allData.Devices) {
+          prevDbRef.current = allData.Devices.map((row: any) => ({
+              brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
+              base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
+          }));
+      }
+      if (allData.CepTablet) {
+          prevCepTabletRef.current = allData.CepTablet;
+      }
+      // --- EKLENEN BİLDİRİM VE KIYASLAMA MANTIĞI BİTİŞİ ---
+
 
       if (allData.Devices) {
         setDb(allData.Devices.map((row: any) => ({
@@ -304,7 +390,7 @@ const loadData = async () => {
     }
   };
 
- useEffect(() => { 
+  useEffect(() => { 
   loadData(); 
   const intervalId = setInterval(() => { loadData(); }, 45000); 
   const handleFocus = () => { loadData(); };
@@ -1196,7 +1282,7 @@ const loadData = async () => {
           ) : step === 2 ? (
             <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900 max-w-[1400px] mx-auto">
               <div className="flex items-center justify-between mb-8 mt-4">
-                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
+                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4 hover:bg-slate-50')}`}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                     Geri Dön
                   </button>
@@ -1605,7 +1691,26 @@ const loadData = async () => {
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
-      {/* TAKSİT MODALI (Değiştirilmedi) */}
+      {/* YENİ EKLENEN BİLDİRİM (TOAST) UI */}
+      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
+        {toastMessages.map((toast) => (
+          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
+              {toast.type === 'new' ? (
+                <span className="text-lg">📦</span>
+              ) : (
+                <span className="text-lg">💵</span>
+              )}
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'SİSTEM BİLDİRİMİ' : 'FİYAT GÜNCELLEMESİ'}</p>
+              <p className="font-bold text-sm leading-tight mt-0.5 max-w-[250px]">{toast.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
@@ -1692,7 +1797,7 @@ const loadData = async () => {
         </div>
       )}
 
-      {/* EKSPERTİZ DETAY MODALI (Değiştirilmedi, sadece stil uyumu) */}
+      {/* EKSPERTİZ DETAY MODALI */}
       {ekspertizModalData && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
           <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-200 flex flex-col animate-in fade-in zoom-in duration-300">
