@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 
-export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [] }: any) {
-    // --- MODAL (POP-UP) KONTROLLERİ ---
+export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [] }: any) {
+    // --- MODAL KONTROLLERİ ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | null>(null);
 
     useEffect(() => {
-        console.log("=== SİSTEME SEÇİLİ OLAN ŞUBE ===", selectedBranch);
-        console.log("=== GOOGLE SHEETS'TEN GELEN GİDİŞAT VERİSİ ===", gidisatData);
-    }, [gidisatData, selectedBranch]);
+        console.log("=== SEÇİLİ ŞUBE ===", selectedBranch);
+        console.log("=== PERSONEL HAM VERİSİ ===", personelData);
+    }, [personelData, selectedBranch]);
 
     const isCmr = selectedBranch.includes('CMR');
 
@@ -17,17 +17,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return parseInt(cleanVal, 10) || 0;
     };
 
-    let metrics = null;
-    
+    // --- 1. MAĞAZA VERİSİNİ AYIKLA (MEVCUT SİSTEM) ---
     const branchIndex = gidisatData.findIndex((row: any) => 
-        row[0] && typeof row[0] === 'string' && 
-        row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
+        row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
     );
 
+    let metrics = null;
     if (branchIndex !== -1 && gidisatData[branchIndex + 1] && gidisatData[branchIndex + 2]) {
         const hedefRow = gidisatData[branchIndex + 1];
         const satilanRow = gidisatData[branchIndex + 2];
-        
         metrics = {
             ikinciElAdet: { hedef: parseNum(hedefRow[1]), satilan: parseNum(satilanRow[1]), isCurrency: false },
             ikinciElKazanc: { hedef: parseNum(hedefRow[2]), satilan: parseNum(satilanRow[2]), isCurrency: true },
@@ -45,31 +43,88 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
-
-    // Şube Puanı Hesaplama (10 üzerinden, görseldeki 8.5 gibi)
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
-    // --- MODAL İÇİ BİLEŞENLER (GÜNCELLENDİ) ---
+    // --- 2. AKILLI PERSONEL VERİSİ EŞLEŞTİRME (YENİ SİSTEM) ---
+    let aktifPersoneller: any[] = [];
+    
+    if (personelData && personelData.length > 0) {
+        // "Gerçekleşen" kelimesinin geçtiği satırı bul (Bölme noktası)
+        const gerceklesenIndex = personelData.findIndex((row: any) => 
+            row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen'))
+        );
+
+        const hedefRows = gerceklesenIndex > -1 ? personelData.slice(0, gerceklesenIndex) : personelData;
+        const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1) : [];
+
+        // Adım A: Üst taraftaki hedefleri isimlere göre hafızaya al (Dictionary oluştur)
+        const personelDict: Record<string, any> = {};
+        hedefRows.forEach((row: any) => {
+            const magaza = row[0]?.trim() || "";
+            const isim = row[1]?.trim() || "";
+            if (magaza && isim && magaza.toUpperCase().includes('CMR')) {
+                personelDict[isim] = {
+                    isim: isim,
+                    magaza: magaza.toUpperCase(),
+                    hedef: parseNum(row[2]), // C Sütunu: 2. El Cihaz Barem 1 Hedefi
+                    satilan: 0 // İlk başta 0, alt taraftan güncellenecek
+                };
+            }
+        });
+
+        // Adım B: Alt taraftaki isimleri bul ve satışları üsttekiyle eşleştir
+        gerceklesenRows.forEach((row: any) => {
+            const isimA = row[0]?.trim() || "";
+            const isimB = row[1]?.trim() || "";
+            
+            let matchedName = "";
+            let satilanDeger = 0;
+
+            // İsim A sütunundaysa değeri B veya C'den al, İsim B'deyse değeri C'den al.
+            if (personelDict[isimA]) {
+                matchedName = isimA;
+                satilanDeger = parseNum(row[1] || row[2]); 
+            } else if (personelDict[isimB]) {
+                matchedName = isimB;
+                satilanDeger = parseNum(row[2]); 
+            }
+
+            if (matchedName) {
+                personelDict[matchedName].satilan = satilanDeger;
+            }
+        });
+
+        // Adım C: Sadece seçili olan şubeyi filtrele, sırala ve matematiksel hesapları yap
+        aktifPersoneller = Object.values(personelDict)
+            .filter((p: any) => p.magaza === selectedBranch.trim().toUpperCase())
+            .map((p: any) => {
+                const projeksiyon = Math.round((p.satilan / currentDay) * daysInMonth);
+                return {
+                    ...p,
+                    projeksiyon,
+                    basariYuzdesi: p.hedef > 0 ? Math.min(100, Math.round((p.satilan / p.hedef) * 100)) : 0,
+                    isBasarili: projeksiyon >= p.hedef
+                };
+            })
+            .sort((a: any, b: any) => b.satilan - a.satilan); // Satışa göre en çoktan aza sırala
+    }
+
+
+    // --- MODAL İÇİ BİLEŞENLER ---
     const DepartmanProgressBar = ({ title, data, colorClass }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
-        
-        // HEDEFE ÖZEL AY SONU PROJEKSİYON HESABI
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
-        
         const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v}`;
 
         return (
             <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
-                {/* RİSK / BAŞARI ETİKETİ */}
                 <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                     {isBasarili ? 'BAŞARILI GİDİŞAT' : 'RİSKLİ GİDİŞAT'}
                 </div>
-                
                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-1">{title}</h4>
-                
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
@@ -78,17 +133,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
-                
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
                     <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
                 </div>
-                
-                {/* AY SONU TAHMİNİ */}
                 <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
                     <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
-                    <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>
-                        {formatVal(projeksiyon)}
-                    </span>
+                    <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>{formatVal(projeksiyon)}</span>
                 </div>
             </div>
         );
@@ -100,7 +150,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             {/* Karşılama Ekranı */}
             <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
-                
                 <div className="relative z-10 flex flex-col gap-3">
                     <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider uppercase w-max backdrop-blur-sm shadow-inner">
                         <span className="relative flex h-3 w-3">
@@ -118,7 +167,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
-
                 <button 
                     onClick={() => setAppMode('alim')} 
                     className="relative z-10 group bg-white text-sky-600 px-7 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:bg-slate-50 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1"
@@ -134,10 +182,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div className="xl:col-span-2">
-                        
                         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
-                            
-                            {/* Üst Başlık ve Yeşil Buton */}
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                                     CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
@@ -150,11 +195,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </button>
                             </div>
 
-                            {/* Ana İki Kart */}
                             {metrics ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
-                                    
-                                    {/* Sol Kart: Bu Ay Toplam 2. El Satış */}
                                     <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
                                         <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam 2. El Satış</p>
                                         <div className="flex items-baseline gap-1.5">
@@ -162,8 +204,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <span className="text-sm font-bold text-slate-500">Adet</span>
                                         </div>
                                     </div>
-
-                                    {/* Sağ Kart: Ay Sonu Tahmini */}
                                     <div 
                                         onClick={() => setActiveModal('tahmin')}
                                         className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group"
@@ -187,7 +227,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
                                     </div>
-                                    
                                 </div>
                             ) : (
                                 <div className="h-24 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
@@ -197,29 +236,51 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    {/* Personel Gidişat Kartı */}
-                    <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <svg className="w-24 h-24 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    {/* --- YENİ PERSONEL LİDERLİK TABLOSU --- */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-[320px]">
+                        <div className="flex items-center gap-3 mb-4 shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedBranch} Liderlik Tablosu</p>
+                            </div>
                         </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                            {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
+                                <div key={index} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                                            index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500'
+                                        }`}>
+                                            {index + 1}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1">
+                                                {p.isim.split(' ')[0]} {p.isim.split(' ')[1] ? p.isim.split(' ')[1].charAt(0) + '.' : ''}
+                                                {index === 0 && <span className="text-amber-500 text-sm">🏆</span>}
+                                            </h4>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div className={`h-full ${p.isBasarili ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-lg font-black text-slate-800 dark:text-white leading-none">{p.satilan} <span className="text-[10px] font-medium text-slate-400">/ {p.hedef}</span></p>
+                                        <p className={`text-[8px] font-black uppercase tracking-widest mt-1 ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                            {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Personel Gidişat</h3>
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse"></div>
-                                <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-75"></div>
-                                <div className="w-8 h-8 rounded-full bg-slate-50 animate-pulse delay-150"></div>
-                            </div>
-                            <div className="mt-8 flex items-center justify-between">
-                                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-emerald-500/30">
-                                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
-                                    Çok Yakında
-                                </span>
-                            </div>
+                            )) : (
+                                <div className="h-full flex flex-col items-center justify-center opacity-50">
+                                    <p className="font-bold text-slate-400 uppercase text-xs tracking-widest text-center">Şubeye ait personel<br/>verisi bekleniyor</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -247,7 +308,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
                     <div className="flex items-center gap-4 mb-6 relative z-10">
                         <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" /></svg>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
                         </div>
                         <div>
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
@@ -262,77 +323,53 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* ========================================================================= */}
-            {/* ======================= MODAL EKRANLARI (POP-UPS) ======================= */}
-            {/* ========================================================================= */}
-            
+            {/* MODAL EKRANLARI */}
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-                    {/* Arka Plan Karartması */}
-                    <div 
-                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
-                        onClick={() => setActiveModal(null)}
-                    ></div>
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
 
-                    {/* MODAL 1: TAHMİN DETAYI (Grafiksiz Temiz Versiyon) */}
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
-                            {/* Üst Başlık */}
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
                                 <h3 className="text-lg font-bold text-slate-800">2. El Ay Sonu Tahmini</h3>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            
                             <div className="p-6 space-y-5">
-                                {/* Uyarı Kutusu */}
                                 {!anaBasarili ? (
                                     <div className="bg-[#FEF2F2] border border-[#FECDD3] rounded-xl p-4 flex gap-3">
-                                        <div className="text-[#E11D48] mt-0.5">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                        </div>
+                                        <div className="text-[#E11D48] mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div>
                                         <div>
                                             <h4 className="text-[#E11D48] font-bold text-sm mb-1">Hedefin Gerisindesiniz!</h4>
-                                            <p className="text-rose-900/70 text-[11px] leading-relaxed">Mevcut satış hızınıza göre ay sonu tahmini {anaProjeksiyon} adet, hedefinizin ({anaHedef}) altında kalıyor. Satışları artırmanız gerekiyor.</p>
+                                            <p className="text-rose-900/70 text-[11px] leading-relaxed">Mevcut satış hızınıza göre ay sonu tahmini {anaProjeksiyon} adet, hedefinizin ({anaHedef}) altında kalıyor.</p>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
-                                        <div className="text-emerald-500 mt-0.5">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        </div>
+                                        <div className="text-emerald-500 mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                                         <div>
                                             <h4 className="text-emerald-700 font-bold text-sm mb-1">Harika Gidiyorsunuz!</h4>
                                             <p className="text-emerald-600/80 text-[11px] leading-relaxed">Mevcut hızınızla hedefi aşarak ay sonunu {anaProjeksiyon} adetle kapatmanız öngörülüyor.</p>
                                         </div>
                                     </div>
                                 )}
-
                                 <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-5">
-                                    <div>
-                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Gidişata Göre Ay Sonu</p>
-                                        <p className="text-slate-400 text-[11px]">Sistem tarafından hesaplanan net adet</p>
-                                    </div>
+                                    <div><p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Gidişata Göre Ay Sonu</p></div>
                                     <div className="flex items-baseline gap-1">
                                         <span className={`text-3xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
                                         <span className="text-slate-500 text-sm font-medium">Adet</span>
                                     </div>
                                 </div>
                             </div>
-
                             <div className="p-4 bg-slate-50 border-t border-slate-100">
-                                <button onClick={() => setActiveModal(null)} className="w-full py-3 bg-[#1E293B] hover:bg-slate-800 text-white font-bold rounded-xl transition-colors text-sm">
-                                    Kapat
-                                </button>
+                                <button onClick={() => setActiveModal(null)} className="w-full py-3 bg-[#1E293B] hover:bg-slate-800 text-white font-bold rounded-xl text-sm">Kapat</button>
                             </div>
                         </div>
                     )}
 
-                    {/* MODAL 2: DEPARTMAN HEDEFLERİ (Siyah Temalı, Stoksuz, Bütün Baremlerde Hesaplama) */}
                     {activeModal === 'departman' && metrics && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
-                            {/* Üst Başlık */}
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
@@ -342,7 +379,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-
                             <div className="p-6 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
@@ -355,7 +391,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     )}
                 </div>
             )}
-
         </div>
     );
 }
