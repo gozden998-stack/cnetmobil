@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [] }: any) {
-    // Detay panelinin açılıp kapanması için durum kontrolü
-    const [hedefleriGoster, setHedefleriGoster] = useState(false);
+    // --- MODAL (POP-UP) KONTROLLERİ ---
+    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | null>(null);
 
     useEffect(() => {
         console.log("=== SİSTEME SEÇİLİ OLAN ŞUBE ===", selectedBranch);
@@ -41,63 +41,48 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const currentDay = today.getDate() || 1; 
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
     
-    const formatliTarih = today.toLocaleDateString('tr-TR', { 
-        day: 'numeric', 
-        month: 'long', 
-        year: 'numeric', 
-        weekday: 'long' 
-    });
-
     const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
     const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
 
-    // Alt detaylar için sadeleştirilmiş metrik kartı bileşeni
-    const MiniMetricCard = ({ title, data, icon }: { title: string, data: any, icon: any }) => {
+    // Şube Puanı Hesaplama (10 üzerinden, görseldeki 8.5 gibi)
+    const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
+
+    // --- MODAL İÇİ BİLEŞENLER ---
+    const DepartmanProgressBar = ({ title, data, colorClass, bgClass }: any) => {
         if (!data) return null;
-        const { hedef, satilan, isCurrency } = data;
-        const kalan = Math.max(0, hedef - satilan);
-        const yuzde = hedef > 0 ? Math.min(100, Math.round((satilan / hedef) * 100)) : 0;
-        const formatVal = (v: number) => isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v}`;
+        const kalan = Math.max(0, data.hedef - data.satilan);
+        const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
+        const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v}`;
 
         return (
-            <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col justify-between hover:border-sky-200 transition-colors group">
-                <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-700 flex items-center justify-center text-sky-500 shadow-sm group-hover:bg-sky-50 transition-colors">
-                        {icon}
-                    </div>
-                    <h4 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{title}</h4>
+            <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-0 right-4 bg-[#E11D48] text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest">
+                    HEDEF NOKTASI
                 </div>
-                
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-1">{title}</h4>
                 <div className="flex justify-between items-end mb-2">
-                    <div>
-                        <p className="text-[10px] text-slate-400 font-semibold uppercase mb-0.5">Satılan</p>
-                        <p className="text-xl font-black text-slate-800 dark:text-white">{formatVal(satilan)}</p>
-                    </div>
+                    <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
-                        <p className="text-[10px] text-slate-400 font-semibold uppercase mb-0.5">Hedef</p>
-                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{formatVal(hedef)}</p>
+                        <p className={`text-[9px] font-black uppercase tracking-wider ${kalan > 0 ? 'text-[#E11D48]' : 'text-emerald-500'}`}>
+                            {kalan > 0 ? `Kalan: ${formatVal(kalan)}` : 'TAMAMLANDI'}
+                        </p>
                     </div>
                 </div>
-
-                <div className="relative h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-1">
-                    <div className="absolute top-0 left-0 h-full bg-sky-500 transition-all duration-1000 rounded-full" style={{ width: `${yuzde}%` }}></div>
-                </div>
-                <div className="text-right mt-1.5">
-                    <span className="text-[9px] font-bold text-slate-400">Kalan: <span className={kalan > 0 ? "text-rose-500" : "text-emerald-500"}>{kalan > 0 ? formatVal(kalan) : 'Tamamlandı'}</span></span>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div className={`h-full ${colorClass} rounded-full`} style={{ width: `${yuzde}%` }}></div>
                 </div>
             </div>
         );
     };
 
     return (
-        <div className="space-y-6 w-full animate-in fade-in duration-500">
+        <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
             
             {/* Karşılama Ekranı */}
             <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute bottom-0 right-32 w-32 h-32 bg-sky-300/30 rounded-full blur-2xl pointer-events-none"></div>
                 
                 <div className="relative z-10 flex flex-col gap-3">
                     <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider uppercase w-max backdrop-blur-sm shadow-inner">
@@ -128,124 +113,74 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
-            {/* --- GÜNCELLENEN İÇİNDEN GENİŞLEYEN MAĞAZA GİDİŞAT KARTI --- */}
+            {/* --- VİDEODAKİ GİBİ MAĞAZA GİDİŞAT ALANI --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div className="xl:col-span-2">
                         
-                        {/* Kendi İçinde Büyüyen Ana Kart */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500 hover:shadow-md">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
                             
-                            {/* Başlık ve Buton Alanı */}
-                            <div className="flex justify-between items-start sm:items-center mb-6 flex-col sm:flex-row gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center shrink-0">
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                            Mağaza Gidişat <span className="font-normal text-slate-400 text-lg hidden sm:inline">- {selectedBranch}</span>
-                                        </h3>
-                                        <p className="text-xs font-semibold text-slate-500 mt-0.5 uppercase tracking-wider flex items-center gap-1.5">
-                                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            {formatliTarih}
-                                        </p>
-                                    </div>
-                                </div>
+                            {/* Üst Başlık ve Yeşil Buton */}
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+                                    CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
+                                </h3>
                                 <button 
-                                    onClick={() => setHedefleriGoster(!hedefleriGoster)}
-                                    className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all border ${
-                                        hedefleriGoster 
-                                        ? 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300' 
-                                        : 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-md hover:shadow-lg'
-                                    }`}
+                                    onClick={() => setActiveModal('departman')}
+                                    className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-4 py-2 rounded-xl font-black text-lg flex items-center gap-1 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                                 >
-                                    {hedefleriGoster ? 'Özete Dön' : 'Tüm Hedefleri Gör'}
-                                    <svg className={`w-4 h-4 transition-transform duration-300 ${hedefleriGoster ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                    {subePuani} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
 
+                            {/* Ana İki Kart */}
                             {metrics ? (
-                                <div className="space-y-6">
-                                    {/* HER ZAMAN GÖRÜNEN SABİT ALAN: ÖZET KARTLAR */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-[1.5rem] p-5 relative overflow-hidden group hover:border-orange-200 transition-colors">
-                                            <div className="flex justify-between items-start mb-2 relative z-10">
-                                                <p className="text-orange-800/70 dark:text-orange-200/70 font-bold text-xs uppercase tracking-wider">Bu Ay 2. El Satış</p>
-                                                <span className="text-orange-500 bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 rounded text-[10px] font-bold">GERÇEKLEŞEN</span>
-                                            </div>
-                                            <div className="flex items-baseline gap-1.5 relative z-10">
-                                                <span className="text-4xl font-black text-orange-600 dark:text-orange-400">{anaSatis}</span>
-                                                <span className="text-sm font-bold text-orange-400">Adet</span>
-                                            </div>
-                                            <div className="mt-3 relative z-10 flex items-center gap-2">
-                                                <div className="h-1.5 flex-1 bg-orange-100 dark:bg-orange-900/30 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-orange-500 rounded-full" style={{ width: `${Math.min(100, (anaSatis/anaHedef)*100)}%` }}></div>
-                                                </div>
-                                                <span className="text-[10px] font-bold text-orange-500">{Math.round((anaSatis/anaHedef)*100)}%</span>
-                                            </div>
-                                            <svg className="absolute -bottom-4 -right-4 w-24 h-24 text-orange-500 opacity-5 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                        </div>
-
-                                        <div className={`${anaBasarili ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'} rounded-[1.5rem] p-5 relative overflow-hidden group transition-colors`}>
-                                            <div className="flex justify-between items-start mb-2 relative z-10">
-                                                <p className={`font-bold text-xs uppercase tracking-wider ${anaBasarili ? 'text-emerald-800/70' : 'text-rose-800/70'}`}>Ay Sonu 2. El Tahmini</p>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${anaBasarili ? 'text-emerald-600 bg-emerald-100' : 'text-rose-600 bg-rose-100 animate-pulse'}`}>
-                                                    {anaBasarili ? 'RİSK YOK' : 'RİSKLİ GİDİŞAT'}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-baseline gap-1.5 relative z-10">
-                                                <span className={`text-4xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-rose-600'}`}>{anaProjeksiyon}</span>
-                                                <span className={`text-sm font-bold ${anaBasarili ? 'text-emerald-400' : 'text-rose-400'}`}>Adet Tahmin</span>
-                                            </div>
-                                            <p className={`text-[10px] mt-3 font-semibold ${anaBasarili ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>
-                                                Güncel hıza göre hedeften {Math.abs(anaProjeksiyon - anaHedef)} adet {anaBasarili ? 'fazla satılacak' : 'eksik kalınacak'}
-                                            </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
+                                    
+                                    {/* Sol Kart: Bu Ay Toplam 2. El Satış (Sarımsı) */}
+                                    <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
+                                        <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam 2. El Satış</p>
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className="text-4xl font-black text-slate-900">{anaSatis}</span>
+                                            <span className="text-sm font-bold text-slate-500">Adet</span>
                                         </div>
                                     </div>
 
-                                    {/* AÇILIR KAPANIR DETAY PANELİ (Kartın İçinden Genişler) */}
-                                    <div className={`transition-all duration-500 ease-in-out overflow-hidden origin-top ${hedefleriGoster ? 'max-h-[1000px] opacity-100 mt-6' : 'max-h-0 opacity-0 mt-0'}`}>
-                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                                Tüm Mağaza Hedef Detayları
-                                            </h4>
-                                            
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <MiniMetricCard 
-                                                    title="2. El Cihaz Satışı" 
-                                                    data={metrics.ikinciElAdet} 
-                                                    icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
-                                                />
-                                                <MiniMetricCard 
-                                                    title="2. El Cihaz Kazancı" 
-                                                    data={metrics.ikinciElKazanc} 
-                                                    icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                                                />
-                                                <MiniMetricCard 
-                                                    title="1. El + Tablet Satışı" 
-                                                    data={metrics.birinciElTablet} 
-                                                    icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
-                                                />
-                                                <MiniMetricCard 
-                                                    title="Teknik Servis Kazancı" 
-                                                    data={metrics.teknikServis} 
-                                                    icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                                                />
+                                    {/* Sağ Kart: Ay Sonu Tahmini (Pembe/Kırmızımsı) */}
+                                    <div 
+                                        onClick={() => setActiveModal('tahmin')}
+                                        className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group"
+                                    >
+                                        {!anaBasarili && (
+                                            <div className="absolute top-4 right-4 bg-[#FB7185] text-white text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase shadow-sm z-10 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                RİSKLİ GİDİŞAT
+                                            </div>
+                                        )}
+                                        <p className="text-rose-600 font-bold text-sm mb-3 flex items-center gap-2">
+                                            <span className="text-lg">⏳</span> Ay Sonu 2. El Tahmini
+                                        </p>
+                                        <div className="flex justify-between items-end">
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className={`text-4xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                                <span className={`text-sm font-bold ${anaBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>Adet</span>
+                                            </div>
+                                            <div className="text-rose-400 group-hover:text-rose-600 transition-colors group-hover:translate-x-1 transform duration-300">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                             </div>
                                         </div>
                                     </div>
+                                    
                                 </div>
                             ) : (
-                                <div className="h-32 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200">
+                                <div className="h-24 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">VERİ BEKLENİYOR</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Personel Gidişat Kartı (Dokunulmadı) */}
+                    {/* Personel Gidişat Kartı */}
                     <div className="relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500">
                         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
                             <svg className="w-24 h-24 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
@@ -309,6 +244,125 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </div>
             </div>
+
+            {/* ========================================================================= */}
+            {/* ======================= MODAL EKRANLARI (POP-UPS) ======================= */}
+            {/* ========================================================================= */}
+            
+            {activeModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+                    {/* Arka Plan Karartması */}
+                    <div 
+                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+                        onClick={() => setActiveModal(null)}
+                    ></div>
+
+                    {/* MODAL 1: TAHMİN DETAYI (Videodaki 1. Modal) */}
+                    {activeModal === 'tahmin' && (
+                        <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+                            {/* Üst Başlık */}
+                            <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                                <h3 className="text-lg font-bold text-slate-800">2. El Ay Sonu Tahmini</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            
+                            <div className="p-6 space-y-5">
+                                {/* Uyarı Kutusu */}
+                                {!anaBasarili ? (
+                                    <div className="bg-[#FEF2F2] border border-[#FECDD3] rounded-xl p-4 flex gap-3">
+                                        <div className="text-[#E11D48] mt-0.5">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-[#E11D48] font-bold text-sm mb-1">Hedefin Gerisindesiniz!</h4>
+                                            <p className="text-rose-900/70 text-[11px] leading-relaxed">Mevcut satış hızınıza göre ay sonu tahmini {anaProjeksiyon} adet, hedefinizin ({anaHedef}) altında kalıyor. Satışları artırmanız gerekiyor.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
+                                        <div className="text-emerald-500 mt-0.5">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-emerald-700 font-bold text-sm mb-1">Harika Gidiyorsunuz!</h4>
+                                            <p className="text-emerald-600/80 text-[11px] leading-relaxed">Mevcut hızınızla hedefi aşarak ay sonunu {anaProjeksiyon} adetle kapatmanız öngörülüyor.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                                    <span className="text-slate-500 text-sm font-medium">Tahmini Adet:</span>
+                                    <span className={`text-xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                    <span className="text-slate-500 text-sm font-medium">Adet</span>
+                                </div>
+
+                                {/* Sembolik Grafik Alanı */}
+                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 relative h-40 flex items-end justify-between overflow-hidden">
+                                    {/* Basit bir CSS Alan Grafiği Temsili */}
+                                    <div className="absolute inset-0 opacity-20">
+                                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full text-sky-400" fill="currentColor">
+                                            <polygon points="0,100 0,60 20,70 40,40 60,50 80,20 100,10 100,100" />
+                                        </svg>
+                                    </div>
+                                    <div className="absolute top-2 left-3 right-3 flex justify-between text-[9px] font-bold text-slate-400">
+                                        <span>&lt; Bu Ay</span>
+                                        <span className="text-rose-400">GERÇEKLEŞEN: {anaSatis}</span>
+                                    </div>
+                                    <div className="w-full flex justify-between px-2 pb-1 z-10 text-[9px] text-slate-400 font-medium border-t border-slate-200 pt-1">
+                                        <span>1. Hft</span><span>2. Hft</span><span>3. Hft</span><span>4. Hft</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-slate-50 border-t border-slate-100">
+                                <button onClick={() => setActiveModal(null)} className="w-full py-3 bg-[#1E293B] hover:bg-slate-800 text-white font-bold rounded-xl transition-colors text-sm">
+                                    Kapat
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL 2: DEPARTMAN HEDEFLERİ (Videodaki 2. Modal Siyah Temalı) */}
+                    {activeModal === 'departman' && metrics && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
+                            {/* Üst Başlık */}
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800">
+                                <div>
+                                    <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">AYLIK SATIŞ RAPORU</p>
+                                </div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
+                                    <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
+                                    <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
+                                    <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
+                                </div>
+                                
+                                {/* Stok Durumu (Sabit Sembolik Veri) */}
+                                <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative mt-2">
+                                    <div className="flex justify-between items-end mb-2">
+                                        <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">STOKTAKİ CİHAZ SAYISI</h4>
+                                        <p className="text-lg font-black text-white">40 <span className="text-xs font-medium text-slate-500">/ 100</span></p>
+                                    </div>
+                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-orange-500 rounded-full" style={{ width: '40%' }}></div>
+                                    </div>
+                                    <p className="text-right text-[8px] text-orange-400 font-bold uppercase mt-2 tracking-widest">HEDEFLENEN 100 ADET</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
         </div>
     );
 }
