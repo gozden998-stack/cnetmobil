@@ -1,18 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [] }: any) {
-    
-    // --- HATA TESPİTİ İÇİN LOG TAKİBİ (F12 Konsolunda görünür) ---
+    // Yeşile basınca detayların açılması için State (Durum) kontrolü
+    const [hedefleriGoster, setHedefleriGoster] = useState(false);
+
     useEffect(() => {
         console.log("=== SİSTEME SEÇİLİ OLAN ŞUBE ===", selectedBranch);
         console.log("=== GOOGLE SHEETS'TEN GELEN GİDİŞAT VERİSİ ===", gidisatData);
     }, [gidisatData, selectedBranch]);
 
-    // Sadece CMR şubelerinde görünmesi için kontrol
     const isCmr = selectedBranch.includes('CMR');
 
-    // --- GOOGLE SHEETS VERİ AYIKLAMA (PARSING) ---
-    // Tablodaki noktalı sayıları (Örn: 500.000) gerçek sayılara dönüştüren yardımcı fonksiyon
     const parseNum = (val: any) => {
         if (!val) return 0;
         const cleanVal = String(val).replace(/\./g, '').replace(/,/g, '');
@@ -21,8 +19,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     let metrics = null;
     
-    // gidisatData'dan seçili şubeyi bulup altındaki "HEDEF" ve "SATILAN ADETLER" satırlarını çekiyoruz
-    // GÜNCELLEME: Boşluk hatalarını ve büyük/küçük harf uyumsuzluğunu gidermek için trim() ve toUpperCase() eklendi
     const branchIndex = gidisatData.findIndex((row: any) => 
         row[0] && typeof row[0] === 'string' && 
         row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
@@ -40,35 +36,41 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         };
     }
 
-    // --- PROJEKSİYON HESAPLAMALARI İÇİN TARİH ---
+    // --- TARİH VE PROJEKSİYON HESAPLAMALARI ---
     const today = new Date();
-    const currentDay = today.getDate() || 1; // Ayın kaçıncı günü (bölme hatasını önlemek için || 1)
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); // Bu ay kaç çekiyor
+    const currentDay = today.getDate() || 1; 
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
+    
+    // Tarihi Türkçe formatta göstermek için (Örn: 2 Mayıs 2026, Cumartesi)
+    const formatliTarih = today.toLocaleDateString('tr-TR', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric', 
+        weekday: 'long' 
+    });
 
-    // 4 Kategori için özel kart oluşturan Alt Bileşen (Component)
+    // Ana kartta gösterilecek özel 2. el hesaplamaları
+    const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
+    const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
+    const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
+    const anaBasarili = anaProjeksiyon >= anaHedef;
+
+    // Detay kartları için Alt Bileşen
     const MetricCard = ({ title, data }: { title: string, data: any }) => {
         if (!data) return null;
-        
         const { hedef, satilan, isCurrency } = data;
         const kalan = Math.max(0, hedef - satilan);
         const yuzde = hedef > 0 ? Math.min(100, Math.round((satilan / hedef) * 100)) : 0;
-        
-        // (Satılan / Güncel Gün) * Ayın Toplam Günü = Ay Sonu Projeksiyonu
         const projeksiyon = Math.round((satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= hedef;
-
         const formatVal = (v: number) => isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v} Adet`;
 
         return (
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 transition-all hover:shadow-md">
                 <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">{title}</h4>
-                
-                {/* İlerleme Çubuğu */}
                 <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mb-4 overflow-hidden">
                     <div className={`h-full transition-all duration-1000 ${isBasarili ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${yuzde}%` }}></div>
                 </div>
-
-                {/* Satılan / Hedef / Kalan */}
                 <div className="grid grid-cols-3 gap-2 mb-4 text-center">
                     <div>
                         <p className="text-[9px] text-slate-400 font-bold uppercase">Satılan</p>
@@ -83,8 +85,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <p className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200">{kalan > 0 ? formatVal(kalan) : 'Tamamlandı'}</p>
                     </div>
                 </div>
-
-                {/* Ay Sonu Projeksiyonu & Durum */}
                 <div className={`p-3 rounded-2xl border flex justify-between items-center ${isBasarili ? 'bg-emerald-50/80 border-emerald-100' : 'bg-rose-50/80 border-rose-100'}`}>
                     <div>
                         <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${isBasarili ? 'text-emerald-600' : 'text-rose-600'}`}>Ay Sonu Tahmini</p>
@@ -101,7 +101,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     return (
         <div className="space-y-6 w-full animate-in fade-in duration-500">
             
-            {/* Karşılama Ekranı - Premium Hero Banner */}
+            {/* Karşılama Ekranı */}
             <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute bottom-0 right-32 w-32 h-32 bg-sky-300/30 rounded-full blur-2xl pointer-events-none"></div>
@@ -135,37 +135,78 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
-            {/* --- SADECE CMR ŞUBELERİ İÇİN GÜZELLEŞTİRİLMİŞ GİDİŞAT ALTYAPISI --- */}
+            {/* --- GÜNCELLENEN MAĞAZA GİDİŞAT BÖLÜMÜ --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    
-                    {/* MAĞAZA GİDİŞAT KARTI (Veri alan geniş olduğu için daha fazla yer kaplıyor) */}
-                    <div className="xl:col-span-2 relative group overflow-hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-500 hover:shadow-md hover:border-blue-100">
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                                </div>
+                    <div className="xl:col-span-2 relative group flex flex-col gap-4">
+                        
+                        {/* 1. ÜST ÖZET KARTI (Resimdeki Tasarım) */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+                            {/* Başlık ve Yeşil Buton */}
+                            <div className="flex justify-between items-center mb-6">
                                 <div>
-                                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Mağaza Gidişat Analizi</h3>
-                                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">{selectedBranch} - Hedef/Gerçekleşen</p>
+                                    <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                                        CnetMobil <span className="font-normal text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
+                                    </h3>
+                                    <p className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">{formatliTarih}</p>
                                 </div>
+                                <button 
+                                    onClick={() => setHedefleriGoster(!hedefleriGoster)}
+                                    className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-5 py-2.5 rounded-2xl font-bold text-sm lg:text-base flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                                >
+                                    {hedefleriGoster ? 'Gizle' : 'Tüm Hedefler'}
+                                    <svg className={`w-4 h-4 transition-transform duration-300 ${hedefleriGoster ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                </button>
                             </div>
-                            
+
                             {metrics ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <MetricCard title="2. El Cihaz Hedefi" data={metrics.ikinciElAdet} />
-                                    <MetricCard title="2. El Cihaz Kazanç (TL)" data={metrics.ikinciElKazanc} />
-                                    <MetricCard title="1. El + Tablet Hedefi" data={metrics.birinciElTablet} />
-                                    <MetricCard title="Teknik Servis Kazanç (TL)" data={metrics.teknikServis} />
+                                /* Alt Taraf: İki Blok */
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Sol Blok: Bu Ay Toplam Satış */}
+                                    <div className="bg-[#FFF8ED] border border-[#FFE4C4] rounded-3xl p-5 relative overflow-hidden">
+                                        <p className="text-slate-600 font-bold text-sm mb-1 z-10 relative">Bu Ay Toplam 2. El Satış</p>
+                                        <div className="flex items-baseline gap-1 z-10 relative mt-2">
+                                            <span className="text-4xl font-black text-slate-800">{anaSatis}</span>
+                                            <span className="text-sm font-bold text-slate-500">Adet</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Sağ Blok: Ay Sonu Tahmini */}
+                                    <div className="bg-[#FFF0F2] border border-[#FFD6DD] rounded-3xl p-5 relative overflow-hidden">
+                                        {!anaBasarili && (
+                                            <div className="absolute top-4 right-4 bg-[#FF4757] text-white text-[9px] px-2 py-1 rounded-md font-black tracking-widest uppercase shadow-sm z-20">
+                                                ⚠ RİSKLİ GİDİŞAT
+                                            </div>
+                                        )}
+                                        <p className="text-slate-600 font-bold text-sm mb-1 z-10 relative flex items-center gap-2">
+                                            <span className="text-lg">⏳</span> Ay Sonu 2. El Tahmini
+                                        </p>
+                                        <div className="flex items-baseline gap-2 z-10 relative mt-2">
+                                            <span className={`text-4xl font-black ${anaBasarili ? 'text-[#2ED573]' : 'text-[#FF4757]'}`}>{anaProjeksiyon}</span>
+                                            <span className={`text-sm font-bold ${anaBasarili ? 'text-[#2ED573]' : 'text-[#FF4757]'}`}>Adet</span>
+                                            
+                                            <div className="ml-auto flex items-center text-rose-400">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="h-40 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200">
+                                <div className="h-24 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">VERİ BEKLENİYOR</p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Google Sheets'ten veri çekilemedi veya şube eşleşmedi.</p>
                                 </div>
                             )}
                         </div>
+
+                        {/* 2. GİZLİ OLAN DETAY KARTLARI (Yeşil Butona Basınca Açılır) */}
+                        {hedefleriGoster && metrics && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 fade-in duration-300">
+                                <MetricCard title="2. El Cihaz Hedefi" data={metrics.ikinciElAdet} />
+                                <MetricCard title="2. El Cihaz Kazanç (TL)" data={metrics.ikinciElKazanc} />
+                                <MetricCard title="1. El + Tablet Hedefi" data={metrics.birinciElTablet} />
+                                <MetricCard title="Teknik Servis Kazanç (TL)" data={metrics.teknikServis} />
+                            </div>
+                        )}
                     </div>
 
                     {/* Personel Gidişat Kartı (Dokunulmadı) */}
@@ -199,7 +240,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
             {/* Alt Bilgi Panelleri */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Duyurular Kartı */}
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                     <div className="flex items-center gap-4 mb-6">
                         <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
@@ -217,7 +257,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </div>
 
-                {/* Kampanyalar Kartı */}
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
                     <div className="flex items-center gap-4 mb-6 relative z-10">
                         <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
@@ -234,7 +273,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                 </div>
-                
             </div>
         </div>
     );
