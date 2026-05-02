@@ -34,6 +34,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
   const [ikinciElData, setIkinciElData] = useState<any[][]>([]); 
   const [imeiData, setImeiData] = useState<any[][]>([]);
+  
+  // EKLENEN: Mağaza Gidişat Verisi İçin State
+  const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -367,6 +370,9 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       if (allData.Depo) setImeiData(allData.Depo);
+      
+      // EKLENEN: Mağaza Gidişat Verisini Çekme Köprüsü
+      if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
 
       if (allData.Servis) {
         const loadedServis: any = {};
@@ -875,7 +881,7 @@ export default function CnetmobilCmrFinalUltimate() {
       {/* ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
         <main className="max-w-[1600px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
-  
+ 
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
                  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
@@ -896,7 +902,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
               ) : (
-                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} />
+                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} />
               )
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
