@@ -2,12 +2,8 @@ import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
-    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | null>(null);
-
-    useEffect(() => {
-        console.log("=== SEÇİLİ ŞUBE ===", selectedBranch);
-        console.log("=== PERSONEL HAM VERİSİ ===", personelData);
-    }, [personelData, selectedBranch]);
+    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | null>(null);
+    const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
 
@@ -17,7 +13,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return parseInt(cleanVal, 10) || 0;
     };
 
-    // --- 1. MAĞAZA VERİSİNİ AYIKLA (MEVCUT SİSTEM) ---
+    // --- 1. MAĞAZA VERİSİNİ AYIKLA ---
     const branchIndex = gidisatData.findIndex((row: any) => 
         row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
     );
@@ -45,11 +41,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaBasarili = anaProjeksiyon >= anaHedef;
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
-    // --- 2. AKILLI PERSONEL VERİSİ EŞLEŞTİRME (YENİ SİSTEM) ---
+    // --- 2. FULL BAREM PERSONEL VERİSİ EŞLEŞTİRME ---
     let aktifPersoneller: any[] = [];
     
     if (personelData && personelData.length > 0) {
-        // "Gerçekleşen" kelimesinin geçtiği satırı bul (Bölme noktası)
         const gerceklesenIndex = personelData.findIndex((row: any) => 
             row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen'))
         );
@@ -57,8 +52,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const hedefRows = gerceklesenIndex > -1 ? personelData.slice(0, gerceklesenIndex) : personelData;
         const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1) : [];
 
-        // Adım A: Üst taraftaki hedefleri isimlere göre hafızaya al (Dictionary oluştur)
         const personelDict: Record<string, any> = {};
+        
+        // Üst Tarafı Oku (Hedefler - 9 Barem)
         hedefRows.forEach((row: any) => {
             const magaza = row[0]?.trim() || "";
             const isim = row[1]?.trim() || "";
@@ -66,80 +62,106 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 personelDict[isim] = {
                     isim: isim,
                     magaza: magaza.toUpperCase(),
-                    hedef: parseNum(row[2]), // C Sütunu: 2. El Cihaz Barem 1 Hedefi
-                    satilan: 0 // İlk başta 0, alt taraftan güncellenecek
+                    hedefler: {
+                        ikinciEl: parseNum(row[2]),
+                        ikinciElKazanc: parseNum(row[3]),
+                        birinciElTablet: parseNum(row[4]),
+                        ikinciElSaat: parseNum(row[5]),
+                        stokCihaz: parseNum(row[6]),
+                        ynaSaat: parseNum(row[7]),
+                        aksesuarCiro: parseNum(row[8]),
+                        degerPuan: parseNum(row[9]),
+                        servisKazanc: parseNum(row[10])
+                    },
+                    // İlk başta sıfırla, alt tarafta dolacak
+                    gerceklesen: { ikinciEl: 0, ikinciElKazanc: 0, birinciElTablet: 0, ikinciElSaat: 0, stokCihaz: 0, ynaSaat: 0, aksesuarCiro: 0, degerPuan: 0, servisKazanc: 0 }
                 };
             }
         });
 
-        // Adım B: Alt taraftaki isimleri bul ve satışları üsttekiyle eşleştir
+        // Alt Tarafı Oku (Gerçekleşenler - 9 Barem)
         gerceklesenRows.forEach((row: any) => {
             const isimA = row[0]?.trim() || "";
             const isimB = row[1]?.trim() || "";
             
             let matchedName = "";
-            let satilanDeger = 0;
+            let offset = 0;
 
-            // İsim A sütunundaysa değeri B veya C'den al, İsim B'deyse değeri C'den al.
             if (personelDict[isimA]) {
-                matchedName = isimA;
-                satilanDeger = parseNum(row[1] || row[2]); 
+                matchedName = isimA; offset = 1; 
             } else if (personelDict[isimB]) {
-                matchedName = isimB;
-                satilanDeger = parseNum(row[2]); 
+                matchedName = isimB; offset = 2; 
             }
 
             if (matchedName) {
-                personelDict[matchedName].satilan = satilanDeger;
+                personelDict[matchedName].gerceklesen = {
+                    ikinciEl: parseNum(row[offset]),
+                    ikinciElKazanc: parseNum(row[offset + 1]),
+                    birinciElTablet: parseNum(row[offset + 2]),
+                    ikinciElSaat: parseNum(row[offset + 3]),
+                    stokCihaz: parseNum(row[offset + 4]),
+                    ynaSaat: parseNum(row[offset + 5]),
+                    aksesuarCiro: parseNum(row[offset + 6]),
+                    degerPuan: parseNum(row[offset + 7]),
+                    servisKazanc: parseNum(row[offset + 8])
+                };
             }
         });
 
-        // Adım C: Sadece seçili olan şubeyi filtrele, sırala ve matematiksel hesapları yap
+        // Filtrele, Ana Gidişatı Hesapla ve Sırala
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza === selectedBranch.trim().toUpperCase())
             .map((p: any) => {
-                const projeksiyon = Math.round((p.satilan / currentDay) * daysInMonth);
+                const anaHedef = p.hedefler.ikinciEl;
+                const anaSatilan = p.gerceklesen.ikinciEl;
+                const projeksiyon = Math.round((anaSatilan / currentDay) * daysInMonth);
                 return {
                     ...p,
+                    anaHedef,
+                    anaSatilan,
                     projeksiyon,
-                    basariYuzdesi: p.hedef > 0 ? Math.min(100, Math.round((p.satilan / p.hedef) * 100)) : 0,
-                    isBasarili: projeksiyon >= p.hedef
+                    basariYuzdesi: anaHedef > 0 ? Math.min(100, Math.round((anaSatilan / anaHedef) * 100)) : 0,
+                    isBasarili: projeksiyon >= anaHedef
                 };
             })
-            .sort((a: any, b: any) => b.satilan - a.satilan); // Satışa göre en çoktan aza sırala
+            .sort((a: any, b: any) => b.anaSatilan - a.anaSatilan);
     }
 
 
-    // --- MODAL İÇİ BİLEŞENLER ---
+    // --- PROGRESS BAR BİLEŞENİ (HEM ŞUBE HEM PERSONEL İÇİN ORTAK KULLANIM) ---
     const DepartmanProgressBar = ({ title, data, colorClass }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
-        const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v}`;
+        const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v.toLocaleString('tr-TR')}`;
 
         return (
-            <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
-                <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                    {isBasarili ? 'BAŞARILI GİDİŞAT' : 'RİSKLİ GİDİŞAT'}
-                </div>
+            <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800">
+                {data.hedef > 0 && (
+                    <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                        {isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
+                    </div>
+                )}
                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-1">{title}</h4>
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
                         <p className={`text-[9px] font-black uppercase tracking-wider ${kalan > 0 ? 'text-[#E11D48]' : 'text-emerald-500'}`}>
-                            {kalan > 0 ? `Kalan: ${formatVal(kalan)}` : 'TAMAMLANDI'}
+                            {data.hedef > 0 ? (kalan > 0 ? `Kalan: ${formatVal(kalan)}` : 'TAMAMLANDI') : 'HEDEF YOK'}
                         </p>
                     </div>
                 </div>
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
                     <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
                 </div>
-                <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
-                    <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
-                    <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>{formatVal(projeksiyon)}</span>
-                </div>
+                {data.hedef > 0 && (
+                    <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
+                        <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
+                        <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>{formatVal(projeksiyon)}</span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -178,9 +200,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
-            {/* --- MAĞAZA GİDİŞAT ALANI --- */}
+            {/* --- MAĞAZA VE PERSONEL ALANI --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    {/* Sol Kısım - Mağaza Özeti */}
                     <div className="xl:col-span-2">
                         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
                             <div className="flex justify-between items-center mb-6">
@@ -236,7 +259,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    {/* --- YENİ PERSONEL LİDERLİK TABLOSU --- */}
+                    {/* Sağ Kısım - Personel Liderlik Tablosu */}
                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-[320px]">
                         <div className="flex items-center gap-3 mb-4 shrink-0">
                             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
@@ -244,21 +267,25 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedBranch} Liderlik Tablosu</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
                             </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                             {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
-                                <div key={index} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <div 
+                                    key={index} 
+                                    onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}
+                                    className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative"
+                                >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                                            index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500'
+                                            index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500 group-hover:bg-sky-200 group-hover:text-sky-700'
                                         }`}>
                                             {index + 1}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1">
+                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1 group-hover:text-sky-700 transition-colors">
                                                 {p.isim.split(' ')[0]} {p.isim.split(' ')[1] ? p.isim.split(' ')[1].charAt(0) + '.' : ''}
                                                 {index === 0 && <span className="text-amber-500 text-sm">🏆</span>}
                                             </h4>
@@ -269,11 +296,16 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-black text-slate-800 dark:text-white leading-none">{p.satilan} <span className="text-[10px] font-medium text-slate-400">/ {p.hedef}</span></p>
-                                        <p className={`text-[8px] font-black uppercase tracking-widest mt-1 ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                            {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
-                                        </p>
+                                    <div className="text-right flex items-center gap-3">
+                                        <div className="group-hover:-translate-x-2 transition-transform">
+                                            <p className="text-lg font-black text-slate-800 dark:text-white leading-none">{p.anaSatilan} <span className="text-[10px] font-medium text-slate-400">/ {p.anaHedef}</span></p>
+                                            <p className={`text-[8px] font-black uppercase tracking-widest mt-1 ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
+                                            </p>
+                                        </div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-sky-500 absolute right-4 bg-sky-50 pl-2">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                        </div>
                                     </div>
                                 </div>
                             )) : (
@@ -308,7 +340,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
                     <div className="flex items-center gap-4 mb-6 relative z-10">
                         <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
                         </div>
                         <div>
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
@@ -328,6 +360,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
 
+                    {/* Mağaza Ay Sonu Tahmini */}
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
@@ -362,12 +395,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </div>
                                 </div>
                             </div>
-                            <div className="p-4 bg-slate-50 border-t border-slate-100">
-                                <button onClick={() => setActiveModal(null)} className="w-full py-3 bg-[#1E293B] hover:bg-slate-800 text-white font-bold rounded-xl text-sm">Kapat</button>
-                            </div>
                         </div>
                     )}
 
+                    {/* Mağaza Departman Hedefleri */}
                     {activeModal === 'departman' && metrics && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
@@ -379,12 +410,47 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <div className="p-6 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
-                                    <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
-                                    <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
-                                    <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
+                            <div className="p-6 grid grid-cols-2 gap-4">
+                                <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
+                                <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
+                                <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
+                                <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* YENİ: Personel Full Barem Detayları */}
+                    {activeModal === 'personel_detay' && selectedPersonel && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50 flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                                        {selectedPersonel.isim} 
+                                        <span className="bg-amber-500/20 border border-amber-500/50 text-amber-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">TÜM BAREMLER</span>
+                                    </h3>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
+                                        {selectedPersonel.magaza} PERSONEL PERFORMANS DETAYI
+                                    </p>
+                                </div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {[
+                                        { title: "2. EL CİHAZ (ADET)", data: {hedef: selectedPersonel.hedefler.ikinciEl, satilan: selectedPersonel.gerceklesen.ikinciEl, isCurrency: false}, color: "bg-sky-500" },
+                                        { title: "2. EL KAZANÇ (TL)", data: {hedef: selectedPersonel.hedefler.ikinciElKazanc, satilan: selectedPersonel.gerceklesen.ikinciElKazanc, isCurrency: true}, color: "bg-emerald-500" },
+                                        { title: "1. EL + TABLET (ADET)", data: {hedef: selectedPersonel.hedefler.birinciElTablet, satilan: selectedPersonel.gerceklesen.birinciElTablet, isCurrency: false}, color: "bg-purple-500" },
+                                        { title: "2. EL SAAT & TABLET", data: {hedef: selectedPersonel.hedefler.ikinciElSaat, satilan: selectedPersonel.gerceklesen.ikinciElSaat, isCurrency: false}, color: "bg-indigo-500" },
+                                        { title: "STOK CİHAZ", data: {hedef: selectedPersonel.hedefler.stokCihaz, satilan: selectedPersonel.gerceklesen.stokCihaz, isCurrency: false}, color: "bg-orange-500" },
+                                        { title: "YNA SAAT", data: {hedef: selectedPersonel.hedefler.ynaSaat, satilan: selectedPersonel.gerceklesen.ynaSaat, isCurrency: false}, color: "bg-rose-500" },
+                                        { title: "AKSESUAR CİRO (TL)", data: {hedef: selectedPersonel.hedefler.aksesuarCiro, satilan: selectedPersonel.gerceklesen.aksesuarCiro, isCurrency: true}, color: "bg-amber-500" },
+                                        { title: "DEĞER PUAN", data: {hedef: selectedPersonel.hedefler.degerPuan, satilan: selectedPersonel.gerceklesen.degerPuan, isCurrency: false}, color: "bg-blue-500" },
+                                        { title: "TEKNİK SERVİS (TL)", data: {hedef: selectedPersonel.hedefler.servisKazanc, satilan: selectedPersonel.gerceklesen.servisKazanc, isCurrency: true}, color: "bg-fuchsia-500" }
+                                    ].filter(s => s.data.hedef > 0 || s.data.satilan > 0).map((s, i) => (
+                                        <DepartmanProgressBar key={i} title={s.title} data={s.data} colorClass={s.color} />
+                                    ))}
                                 </div>
                             </div>
                         </div>
