@@ -49,19 +49,27 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // Şube Puanı Hesaplama (10 üzerinden, görseldeki 8.5 gibi)
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
-    // --- MODAL İÇİ BİLEŞENLER ---
-    const DepartmanProgressBar = ({ title, data, colorClass, bgClass }: any) => {
+    // --- MODAL İÇİ BİLEŞENLER (GÜNCELLENDİ) ---
+    const DepartmanProgressBar = ({ title, data, colorClass }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
+        
+        // HEDEFE ÖZEL AY SONU PROJEKSİYON HESABI
+        const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
+        const isBasarili = projeksiyon >= data.hedef;
+        
         const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v}`;
 
         return (
             <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute top-0 right-4 bg-[#E11D48] text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest">
-                    HEDEF NOKTASI
+                {/* RİSK / BAŞARI ETİKETİ */}
+                <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                    {isBasarili ? 'BAŞARILI GİDİŞAT' : 'RİSKLİ GİDİŞAT'}
                 </div>
+                
                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-1">{title}</h4>
+                
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
@@ -70,8 +78,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
-                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div className={`h-full ${colorClass} rounded-full`} style={{ width: `${yuzde}%` }}></div>
+                
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
+                    <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
+                </div>
+                
+                {/* AY SONU TAHMİNİ */}
+                <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
+                    <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
+                    <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>
+                        {formatVal(projeksiyon)}
+                    </span>
                 </div>
             </div>
         );
@@ -113,7 +130,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
-            {/* --- VİDEODAKİ GİBİ MAĞAZA GİDİŞAT ALANI --- */}
+            {/* --- MAĞAZA GİDİŞAT ALANI --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div className="xl:col-span-2">
@@ -137,7 +154,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             {metrics ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
                                     
-                                    {/* Sol Kart: Bu Ay Toplam 2. El Satış (Sarımsı) */}
+                                    {/* Sol Kart: Bu Ay Toplam 2. El Satış */}
                                     <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
                                         <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam 2. El Satış</p>
                                         <div className="flex items-baseline gap-1.5">
@@ -146,7 +163,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         </div>
                                     </div>
 
-                                    {/* Sağ Kart: Ay Sonu Tahmini (Pembe/Kırmızımsı) */}
+                                    {/* Sağ Kart: Ay Sonu Tahmini */}
                                     <div 
                                         onClick={() => setActiveModal('tahmin')}
                                         className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group"
@@ -257,7 +274,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         onClick={() => setActiveModal(null)}
                     ></div>
 
-                    {/* MODAL 1: TAHMİN DETAYI (Videodaki 1. Modal) */}
+                    {/* MODAL 1: TAHMİN DETAYI (Grafiksiz Temiz Versiyon) */}
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             {/* Üst Başlık */}
@@ -292,26 +309,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-                                    <span className="text-slate-500 text-sm font-medium">Tahmini Adet:</span>
-                                    <span className={`text-xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
-                                    <span className="text-slate-500 text-sm font-medium">Adet</span>
-                                </div>
-
-                                {/* Sembolik Grafik Alanı */}
-                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 relative h-40 flex items-end justify-between overflow-hidden">
-                                    {/* Basit bir CSS Alan Grafiği Temsili */}
-                                    <div className="absolute inset-0 opacity-20">
-                                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full text-sky-400" fill="currentColor">
-                                            <polygon points="0,100 0,60 20,70 40,40 60,50 80,20 100,10 100,100" />
-                                        </svg>
+                                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-5">
+                                    <div>
+                                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Gidişata Göre Ay Sonu</p>
+                                        <p className="text-slate-400 text-[11px]">Sistem tarafından hesaplanan net adet</p>
                                     </div>
-                                    <div className="absolute top-2 left-3 right-3 flex justify-between text-[9px] font-bold text-slate-400">
-                                        <span>&lt; Bu Ay</span>
-                                        <span className="text-rose-400">GERÇEKLEŞEN: {anaSatis}</span>
-                                    </div>
-                                    <div className="w-full flex justify-between px-2 pb-1 z-10 text-[9px] text-slate-400 font-medium border-t border-slate-200 pt-1">
-                                        <span>1. Hft</span><span>2. Hft</span><span>3. Hft</span><span>4. Hft</span>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className={`text-3xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                        <span className="text-slate-500 text-sm font-medium">Adet</span>
                                     </div>
                                 </div>
                             </div>
@@ -324,14 +329,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
 
-                    {/* MODAL 2: DEPARTMAN HEDEFLERİ (Videodaki 2. Modal Siyah Temalı) */}
+                    {/* MODAL 2: DEPARTMAN HEDEFLERİ (Siyah Temalı, Stoksuz, Bütün Baremlerde Hesaplama) */}
                     {activeModal === 'departman' && metrics && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
                             {/* Üst Başlık */}
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
-                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">AYLIK SATIŞ RAPORU</p>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">GÜNCEL HIZ VE AY SONU PROJEKSİYONLARI</p>
                                 </div>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -344,18 +349,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
                                     <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
                                     <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
-                                </div>
-                                
-                                {/* Stok Durumu (Sabit Sembolik Veri) */}
-                                <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative mt-2">
-                                    <div className="flex justify-between items-end mb-2">
-                                        <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">STOKTAKİ CİHAZ SAYISI</h4>
-                                        <p className="text-lg font-black text-white">40 <span className="text-xs font-medium text-slate-500">/ 100</span></p>
-                                    </div>
-                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-orange-500 rounded-full" style={{ width: '40%' }}></div>
-                                    </div>
-                                    <p className="text-right text-[8px] text-orange-400 font-bold uppercase mt-2 tracking-widest">HEDEFLENEN 100 ADET</p>
                                 </div>
                             </div>
                         </div>
