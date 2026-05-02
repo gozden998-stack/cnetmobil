@@ -19,6 +19,9 @@ export async function GET() {
     { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
     { id: 'Depo', range: 'DEPO!A1:B1000' },
 
+    // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU (SORUN BURADAYDI) ---
+    { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
+
     // --- YENİ EKLENEN MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
     { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
