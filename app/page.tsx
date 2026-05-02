@@ -35,8 +35,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [ikinciElData, setIkinciElData] = useState<any[][]>([]); 
   const [imeiData, setImeiData] = useState<any[][]>([]);
   
-  // EKLENEN: Mağaza Gidişat Verisi İçin State
+  // EKLENEN: Mağaza ve Personel Gidişat Verisi İçin Stateler
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
+  const [personelData, setPersonelData] = useState<any[][]>([]);
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -371,8 +372,9 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       if (allData.Depo) setImeiData(allData.Depo);
       
-      // EKLENEN: Mağaza Gidişat Verisini Çekme Köprüsü
+      // EKLENEN: Mağaza Gidişat ve Personel Verisini Çekme Köprüsü
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
+      if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
 
       if (allData.Servis) {
         const loadedServis: any = {};
@@ -902,7 +904,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                  </div>
               ) : (
-                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} />
+                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} />
               )
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
