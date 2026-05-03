@@ -38,15 +38,26 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
         };
     }
-// --- DİNAMİK TARİH VE GÜN HESAPLAMA (Sheets Kontrollü) ---
+// --- AKILLI TARİH YAKALAYICI (İsim Bağımsız) ---
     const getTargetDay = () => {
-        // Konsola yazdırarak verinin gelip gelmediğini kontrol edelim (F12 -> Console kısmında görünür)
-        console.log("Sheets'ten Gelen Tarih:", config.Guncellenen_Tarih);
+        // Hata ayıklama: Config içinde ne var ne yok hepsini konsola döker
+        console.log("Gelen Veri Paketi (Config):", config);
+
+        let detectedDate = "";
+
+        // Config içindeki tüm başlıkları tara
+        Object.keys(config || {}).forEach(key => {
+            const upperKey = key.toUpperCase();
+            // İçinde GUNCEL, TARIH veya GUN kelimesi geçen anahtarı bul
+            if (upperKey.includes("GUNCEL") || upperKey.includes("TARIH") || upperKey.includes("GÜNCEL")) {
+                detectedDate = config[key];
+            }
+        });
+
+        console.log("Sistemin Otomatik Yakaladığı Tarih:", detectedDate);
 
         try {
-            const dateStr = String(config.Guncellenen_Tarih || "").trim(); 
-            
-            // Eğer tarih "03.05.2026" veya "03/05/2026" formatındaysa ayırır
+            const dateStr = String(detectedDate || "").trim();
             const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
             
             if (separator) {
@@ -57,15 +68,21 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             console.error("Tarih ayrıştırma hatası:", e);
         }
         
-        // Veri gelmezse hata vermemesi için bugünün gününü alır
-        return new Date().getDate(); 
+        return new Date().getDate(); // Hiçbir şey bulunamazsa bugüne döner
     };
 
     const getDaysInMonth = () => {
+        let detectedDate = "";
+        Object.keys(config || {}).forEach(key => {
+            const upperKey = key.toUpperCase();
+            if (upperKey.includes("GUNCEL") || upperKey.includes("TARIH") || upperKey.includes("GÜNCEL")) {
+                detectedDate = config[key];
+            }
+        });
+
         try {
-            const dateStr = String(config.Guncellenen_Tarih || "").trim();
+            const dateStr = String(detectedDate).trim();
             const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
-            
             if (separator) {
                 const parts = dateStr.split(separator);
                 const month = parseInt(parts[1]);
