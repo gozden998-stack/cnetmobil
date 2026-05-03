@@ -394,7 +394,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                             {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => {
-                                // --- GÖRSEL ÇALIŞMA: KLASMAN BELİRLEME ---
                                 const getRank = (puan: number) => {
                                     const pVal = parseFloat(puan.toString());
                                     if (pVal >= 9.0) return { label: 'PRO', color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/20' };
@@ -404,13 +403,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 const trendUp = parseFloat(p.puanTahmin) >= parseFloat(p.toplamPuan);
 
                                 return (
-                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative overflow-hidden">
+                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
+                                        className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
+                                            index === 0 ? 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-800/50 border-amber-200 dark:border-amber-700/50 hover:shadow-md hover:border-amber-300' :
+                                            index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
+                                            index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
+                                            'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
+                                        }`}>
+                                        
                                         <div className="flex items-center gap-4">
                                             <div className="relative">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${
-                                                    index === 0 ? 'bg-amber-400 text-white shadow-md' : 
-                                                    index === 1 ? 'bg-slate-300 text-slate-700 shadow-md' : 
-                                                    index === 2 ? 'bg-orange-300 text-orange-900 shadow-md' : 
+                                                <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
+                                                    index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
+                                                    index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
+                                                    index === 2 ? 'bg-gradient-to-br from-orange-300 to-rose-400 text-white shadow-lg shadow-orange-500/40' : 
                                                     'bg-slate-200 text-slate-500'
                                                 }`}>
                                                     {index + 1}
@@ -430,23 +436,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
 
-                                        {/* --- YENİ SAĞ TARAF (RİSKLİ/ELITE SİLİNDİ, ÖZEL ROZETLER GELDİ) --- */}
+                                        {/* --- YENİ EKLENEN ÖZEL ROZETLER --- */}
                                         <div className="text-right flex items-center gap-4">
                                             <div className="flex flex-col items-end">
                                                 {index === 0 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-amber-500 text-white border-amber-600 shadow-sm flex items-center gap-1.5">
-                                                        🏆 LİDER SATICI
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)] border border-yellow-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🏆</span> LİDER SATICI
                                                     </div>
                                                 ) : index === 1 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-slate-500 text-white border-slate-600 shadow-sm flex items-center gap-1.5">
-                                                        🎯 ÜSTÜN PERFORMANS
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥈</span> ÜSTÜN PERFORMANS
                                                     </div>
                                                 ) : index === 2 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-orange-500 text-white border-orange-600 shadow-sm flex items-center gap-1.5">
-                                                        🚀 YÜKSELEN YILDIZ
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)] border border-orange-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥉</span> YÜKSELEN YILDIZ
                                                     </div>
                                                 ) : (
-                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border}`}>
+                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border} group-hover:scale-105`}>
                                                         {rank.label}
                                                     </div>
                                                 )}
