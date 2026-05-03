@@ -38,58 +38,45 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
         };
     }
-// --- AKILLI TARİH YAKALAYICI (İsim Bağımsız) ---
+// --- AKILLI TARİH YAKALAYICI (BAŞLIK İSMİNDEN BAĞIMSIZ, FORMATI TARAR) ---
     const getTargetDay = () => {
-        // Hata ayıklama: Config içinde ne var ne yok hepsini konsola döker
-        console.log("Gelen Veri Paketi (Config):", config);
+        let bulunanTarih = "";
 
-        let detectedDate = "";
-
-        // Config içindeki tüm başlıkları tara
-        Object.keys(config || {}).forEach(key => {
-            const upperKey = key.toUpperCase();
-            // İçinde GUNCEL, TARIH veya GUN kelimesi geçen anahtarı bul
-            if (upperKey.includes("GUNCEL") || upperKey.includes("TARIH") || upperKey.includes("GÜNCEL")) {
-                detectedDate = config[key];
+        // Config içindeki tüm değerleri gez, "01.05.2026" formatında olanı yakala
+        Object.values(config || {}).forEach(deger => {
+            const s = String(deger).trim();
+            // Nokta kontrolü ve 3 parçalı tarih yapısını (GG.AA.YYYY) kontrol eder
+            if (s.includes('.') && s.split('.').length === 3) {
+                bulunanTarih = s;
             }
         });
 
-        console.log("Sistemin Otomatik Yakaladığı Tarih:", detectedDate);
-
-        try {
-            const dateStr = String(detectedDate || "").trim();
-            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
-            
-            if (separator) {
-                const dayPart = parseInt(dateStr.split(separator)[0]); 
-                if (!isNaN(dayPart) && dayPart > 0) return dayPart;
-            }
-        } catch (e) {
-            console.error("Tarih ayrıştırma hatası:", e);
+        if (bulunanTarih) {
+            const gun = parseInt(bulunanTarih.split('.')[0]);
+            // Eğer sayı geçerliyse o günü döndür
+            if (!isNaN(gun) && gun > 0) return gun;
         }
-        
-        return new Date().getDate(); // Hiçbir şey bulunamazsa bugüne döner
+
+        // Eğer tabloda hiçbir yerde tarih formatı bulamazsa mecburen bugüne döner
+        return new Date().getDate(); 
     };
 
     const getDaysInMonth = () => {
-        let detectedDate = "";
-        Object.keys(config || {}).forEach(key => {
-            const upperKey = key.toUpperCase();
-            if (upperKey.includes("GUNCEL") || upperKey.includes("TARIH") || upperKey.includes("GÜNCEL")) {
-                detectedDate = config[key];
+        let bulunanTarih = "";
+        Object.values(config || {}).forEach(deger => {
+            const s = String(deger).trim();
+            if (s.includes('.') && s.split('.').length === 3) {
+                bulunanTarih = s;
             }
         });
 
-        try {
-            const dateStr = String(detectedDate).trim();
-            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
-            if (separator) {
-                const parts = dateStr.split(separator);
-                const month = parseInt(parts[1]);
-                const year = parseInt(parts[2]);
-                return new Date(year, month, 0).getDate();
-            }
-        } catch (e) {}
+        if (bulunanTarih) {
+            const parcalar = bulunanTarih.split('.');
+            const ay = parseInt(parcalar[1]);
+            const yil = parseInt(parcalar[2]);
+            // Ayın kaç çektiğini otomatik hesaplar
+            return new Date(yil, ay, 0).getDate();
+        }
         return 31; 
     };
 
