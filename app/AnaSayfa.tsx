@@ -9,11 +9,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
-        if (!val) return 0;
+        if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
         let strVal = String(val).trim();
-        strVal = strVal.replace(/\./g, '');
-        strVal = strVal.replace(/,/g, '.');
+        // Binlik noktaları temizle, virgülü noktaya çevir (1.500,50 -> 1500.50)
+        if (strVal.includes('.') && strVal.includes(',')) {
+            strVal = strVal.replace(/\./g, '').replace(',', '.');
+        } else if (strVal.includes(',')) {
+            strVal = strVal.replace(',', '.');
+        }
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };
@@ -85,11 +89,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- [YENİ] HASSAS PUAN HESAPLAMA MOTORU (Adet arttıkça artar, Max'ta durur) ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
+        if (!target || target === 0) return 0;
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
         const rule = dinamikPuanKurallari[baremName.toUpperCase()];
         if (!rule) return 0;
 
-        const perf = val / (target || 1);
+        const perf = val / target;
         if (rule.kural70 && perf < 0.7) return 0; // %70 barajı
         
         let calculated = perf * rule.hedefPuan;
@@ -206,11 +211,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
             .map((p: any) => {
-                // --- PUAN TOPLAMA ---
+                // --- PUAN TOPLAMA (DOĞRU TOPLAMA İÇİN BAREMLER ÜZERİNDEN DÖNÜLÜR) ---
                 let pAnlik = 0, pTahmin = 0;
-                Object.keys(p.gerceklesen).forEach(bn => {
-                    pAnlik += calculatePoint(p.gerceklesen[bn], p.hedefler[bn], bn, false);
-                    pTahmin += calculatePoint(p.gerceklesen[bn], p.hedefler[bn], bn, true);
+                dinamikBaremler.forEach(barem => {
+                    const bn = barem.name;
+                    const hVal = p.hedefler[bn] || 0;
+                    const gVal = p.gerceklesen[bn] || 0;
+                    pAnlik += calculatePoint(gVal, hVal, bn, false);
+                    pTahmin += calculatePoint(gVal, hVal, bn, true);
                 });
 
                 const projeksiyon = Math.round((p.anaSatilan / currentDay) * daysInMonth);
