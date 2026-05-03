@@ -20,10 +20,10 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
   // --- KANAL KONTROLÜ ---
   const isCmrMode = selectedBranch?.toUpperCase().includes('CMR');
 
-  // Başlangıç mesajı kanala göre belirlenir
+  // Başlangıç mesajı
   const initialBotMsg = isCmrMode 
-    ? " Kimin barem durumuna bakalım?"
-    : "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
+    ? "Sistem aktif. Sorgulamak istediğiniz personelin ismini yazabilirsiniz."
+    : "C-BOT Asistan yakında hizmete sunulacaktır.";
 
   const [chatHistory, setChatHistory] = useState<Message[]>([
     { sender: 'bot', text: initialBotMsg }
@@ -32,7 +32,6 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- SAYFA KONTROLÜ ---
-  // Sadece ana sayfada (/) görünür. Cihaz Sat ve Teknik Takip sayfalarında gizlenir.
   const isHiddenPage = pathname === '/cihaz-sat' || pathname === '/teknik-takip';
   const isHomePage = pathname === '/';
 
@@ -49,11 +48,10 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
   // --- CMR BAREM SÜZME MOTORU ---
   const veriyiSuzVeYorumla = (input: string) => {
     if (!isCmrMode) {
-      return "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
+      return "C-BOT Asistan şu an bu kanal için geliştirme aşamasındadır.";
     }
 
     const msg = input.toLowerCase().trim();
-    // Portal verilerinde (AnaSayfa'dan gelen aktifPersoneller) isim arar
     const personel = portalData.find(p => 
       msg.includes(p.isim.toLowerCase()) || msg.includes(p.isim.split(' ')[0].toLowerCase())
     );
@@ -65,13 +63,13 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
       const fark = hedef - gerceklesen;
 
       if (personel.isBasarili) {
-        return `🌟 **Tebrikler ${personel.isim}!** \n\n**Durum:** Başarılı \n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Baremi doldurmuşsun abi. Cnetmobil hedefleri doğrultusunda primin hayırlı olsun!`;
+        return `🌟 **Tebrikler ${personel.isim}!** \n\n**Durum:** Başarılı \n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Barem hedefi tamamlanmıştır. Cnetmobil hedefleri doğrultusunda performansınız oldukça başarılıdır.`;
       } else {
-        return `⚠️ **${personel.isim}**, barem gidişatın şu an RİSKLİ görünüyor abi. \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefi yakalamak için ${fark} adet daha 2. El satış yapman lazım. Tempoyu biraz daha artırmalıyız!`;
+        return `⚠️ **${personel.isim}**, barem gidişatı şu an RİSKLİ görünmektedir. \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefe ulaşmak için ${fark} adet daha 2. El satışı yapılması gerekmektedir. Performans artışı önerilir.`;
       }
     }
 
-    return "Bu ismi personel listesinde süzemedim abi. İsmi (Örn: Mustafa) tam yazar mısın?";
+    return "Belirtilen isim personel listesinde bulunamadı. Lütfen tam ismi kontrol ederek tekrar yazınız.";
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -92,11 +90,9 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
 
   return (
     <>
-      {/* C-BOT Penceresi */}
       {isOpen && (
         <div className="fixed bottom-24 right-6 w-80 md:w-96 h-[550px] bg-white rounded-[2rem] shadow-[0_20px_80px_rgba(0,0,0,0.2)] flex flex-col z-[99999] overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-300">
           
-          {/* HEADER */}
           <div className="bg-[#0052D4] p-5 text-white flex flex-col shadow-lg">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-3">
@@ -115,7 +111,7 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
                     </div>
                     <span className="text-green-400 text-[9px] font-bold tracking-widest uppercase">
-                      {isCmrMode ? "VERİLER SÜZÜLÜYOR" : "YAKINDA"}
+                      {isCmrMode ? "SİSTEM ÇEVRİMİÇİ" : "BEKLEMEDE"}
                     </span>
                   </div>
                 </div>
@@ -129,7 +125,6 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
             </div>
           </div>
           
-          {/* MESAJ ALANI */}
           <div className="flex-1 overflow-y-auto p-5 bg-white space-y-4">
             {chatHistory.map((msg, index) => (
               <div key={index} className={`flex flex-col ${msg.sender === 'bot' ? 'items-start' : 'items-end'}`}>
@@ -142,18 +137,17 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
                 </div>
               </div>
             ))}
-            {isTyping && <div className="text-[10px] text-blue-500 font-bold animate-pulse ml-2">Baremler taranıyor...</div>}
+            {isTyping && <div className="text-[10px] text-blue-500 font-bold animate-pulse ml-2">Analiz ediliyor...</div>}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* INPUT ALANI */}
           <div className="p-4 bg-white border-t border-slate-50">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input 
                 type="text" 
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder={isCmrMode ? "Personel ismi yazın..." : "C-BOT Yakında..."}
+                placeholder={isCmrMode ? "İsim giriniz..." : "Servis dışı"}
                 disabled={!isCmrMode}
                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0052D4] transition-all disabled:opacity-50"
               />
@@ -169,7 +163,6 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
         </div>
       )}
 
-      {/* FLOATING BUTON */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-8 right-8 flex flex-col items-center z-[99999] group"
