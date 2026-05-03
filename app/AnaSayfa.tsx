@@ -180,9 +180,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
             {/* --- MAĞAZA GİDİŞAT ALANI --- */}
             {isCmr && (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div className="xl:col-span-2">
-                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                    <div className="w-full h-full">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-center min-h-[320px]">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                                     CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
@@ -237,7 +237,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
 
                     {/* --- YENİ PERSONEL LİDERLİK TABLOSU --- */}
-                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-[320px]">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
                         <div className="flex items-center gap-3 mb-4 shrink-0">
                             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
