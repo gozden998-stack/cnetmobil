@@ -21,11 +21,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return isNaN(parsed) ? 0 : parsed;
     };
 
-    // --- [DÜZELTİLDİ] İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
+    // --- İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
     const cleanKey = (s: string) => {
         return String(s || "")
             .replace(/[\s\.\-\+]/g, "") // Boşluk, nokta, tire ve artıları tamamen siler
-            .toLocaleUpperCase('tr-TR'); // Hata düzeltildi: toLocaleUpperCase kullanıldı
+            .toLocaleUpperCase('tr-TR'); // Türkçe karakter uyumlu büyütür
     };
 
     // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
@@ -66,7 +66,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
 
-    // --- [YENİ] DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
+    // --- DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
     const dinamikPuanKurallari: Record<string, any> = {};
     const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => 
         Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI")
@@ -92,7 +92,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
     }
 
-    // --- [YENİ] HASSAS PUAN HESAPLAMA MOTORU ---
+    // --- HASSAS PUAN HESAPLAMA MOTORU ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
         if (!target || target === 0) return 0;
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
@@ -130,7 +130,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
-
 
     // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
@@ -238,25 +237,35 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .sort((a: any, b: any) => b.anaSatilan - a.anaSatilan);
     }
 
-    // --- PROGRESS BAR BİLEŞENİ ---
-    const DepartmanProgressBar = ({ title, data, colorClass }: any) => {
+    // --- PROGRESS BAR BİLEŞENİ (GÜNCELLENDİ) ---
+    const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
+        
         const formatVal = (v: number) => data.isCurrency 
             ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` 
             : `${v.toLocaleString('tr-TR')}`;
 
         return (
-            <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800">
+            <div className={`bg-[#1E293B] border ${isRiskliBarem ? 'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800`}>
                 {data.hedef > 0 && (
                     <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                         {isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
                     </div>
                 )}
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-1">{title}</h4>
+                
+                <div className="flex justify-between items-start mb-3 mt-1">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</h4>
+                    {puan !== undefined && (
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isRiskliBarem ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>
+                            Puan: {puan}
+                        </span>
+                    )}
+                </div>
+
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
@@ -265,9 +274,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
+
+                {isRiskliBarem && (
+                   <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2 animate-pulse">
+                        <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">
+                            ⚠️ Riskli Barem Altındasın (Puan Alınamıyor)
+                        </p>
+                   </div>
+                )}
+
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
                     <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
                 </div>
+                
                 {data.hedef > 0 && (
                     <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
                         <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
@@ -524,8 +543,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                                        {selectedPersonel.isim} 
-                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Puan: {selectedPersonel.toplamPuan}</span>
+                                        {selectedPersonel.isim} 
+                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
                                         TÜM ŞUBELERDEKİ TOPLAM VERİLER
@@ -540,13 +559,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     {dinamikBaremler.map((barem, i) => {
                                         const hedef = selectedPersonel.hedefler[barem.name] || 0;
                                         const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
+                                        
+                                        // Bu barem için kuralı bul ve barajı kontrol et
+                                        const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
+                                        const isBelowBaraj = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
+                                        
+                                        // Puanı hesapla
+                                        const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
+
                                         if (hedef === 0 && satilan === 0) return null;
                                         return (
-                                            <DepartmanProgressBar 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
+                                                puan={baremPuanVal.toFixed(1)}
+                                                isRiskliBarem={isBelowBaraj}
                                             />
                                         );
                                     })}
