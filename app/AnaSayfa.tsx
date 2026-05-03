@@ -38,26 +38,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
         };
     }
-// --- AKILLI TARİH DEDEKTİFİ (TABLONUN İÇİNDE ARAR) ---
+// --- AKILLI TARİH DEDEKTİFİ (TypeScript Uyumlu) ---
     const getTargetDay = () => {
         let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
 
-        // Eğer Ayarlarda (Config) bulamazsa, Personel Tablosunun (personelData) satırlarını tek tek tarar
         if (!hamVeri && personelData) {
-            // Tablodaki tüm satırları gez
-            const tarihSatiri = personelData.find(row => 
-                Array.isArray(row) && row.some(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
+            // Tablodaki satırları gez ve "GÜNCELLENEN" kelimesini ara
+            const tarihSatiri = (personelData as any[]).find((row: any) => 
+                Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
             );
             
             if (tarihSatiri) {
-                // "GÜNCELLENEN" yazısının kaçıncı hücrede olduğunu bul
-                const hucresiIdx = tarihSatiri.findIndex(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
-                // Onun hemen sağındaki hücreyi (tarihi) al
+                // "GÜNCELLENEN" hücresinin yanındaki (sağındaki) tarihi al
+                const hucresiIdx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
                 hamVeri = tarihSatiri[hucresiIdx + 1];
             }
         }
-
-        console.log("Sistemin Tablo İçinde Bulduğu Tarih:", hamVeri);
 
         try {
             const dateStr = String(hamVeri || "").trim();
@@ -67,15 +63,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 if (!isNaN(gun) && gun > 0) return gun;
             }
         } catch (e) {}
-        return new Date().getDate(); // Bulamazsa bugüne döner
+        return new Date().getDate(); 
     };
 
     const getDaysInMonth = () => {
         let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
         if (!hamVeri && personelData) {
-            const tarihSatiri = personelData.find(row => Array.isArray(row) && row.some(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN")));
+            const tarihSatiri = (personelData as any[]).find((row: any) => 
+                Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
+            );
             if (tarihSatiri) {
-                const idx = tarihSatiri.findIndex(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
+                const idx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
                 hamVeri = tarihSatiri[idx + 1];
             }
         }
