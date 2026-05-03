@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation'; // Sayfa kontrolü için eklendi
+"use client";
+
+import React, { useEffect, useState, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [] }: any) {
-    const pathname = usePathname(); // Mevcut yolu alıyoruz
-    
     // --- MODAL KONTROLLERİ ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
+    const pathname = usePathname();
 
     const isCmr = selectedBranch.includes('CMR');
 
@@ -160,6 +161,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     return (
         <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
+            
             {/* Karşılama Ekranı */}
             <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -191,6 +193,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
+            {/* --- MAĞAZA VE PERSONEL ALANI --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div className="xl:col-span-2">
@@ -206,7 +209,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     {subePuani} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
-                            {metrics && (
+
+                            {metrics ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
                                     <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
                                         <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam 2. El Satış</p>
@@ -239,6 +243,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         </div>
                                     </div>
                                 </div>
+                            ) : (
+                                <div className="h-24 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">VERİ BEKLENİYOR</p>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -253,15 +261,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
                             </div>
                         </div>
+
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                             {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
-                                <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative">
+                                <div 
+                                    key={index} 
+                                    onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}
+                                    className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative"
+                                >
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500'}`}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                                            index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500 group-hover:bg-sky-200 group-hover:text-sky-700'
+                                        }`}>
                                             {index + 1}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1 group-hover:text-sky-700">
+                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1 group-hover:text-sky-700 transition-colors">
                                                 {p.isim.split(' ')[0]} {p.isim.split(' ')[1] ? p.isim.split(' ')[1].charAt(0) + '.' : ''}
                                                 {index === 0 && <span className="text-amber-500 text-sm">🏆</span>}
                                             </h4>
@@ -279,9 +294,16 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
                                             </p>
                                         </div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-sky-500 absolute right-4 bg-sky-50 pl-2">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                        </div>
                                     </div>
                                 </div>
-                            )) : null}
+                            )) : (
+                                <div className="h-full flex flex-col items-center justify-center opacity-50">
+                                    <p className="font-bold text-slate-400 uppercase text-xs tracking-widest text-center">Şubeye ait personel<br/>verisi bekleniyor</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -316,7 +338,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <p className="text-sm text-slate-500 dark:text-slate-400">Müşteriye sunulacak fırsatlar</p>
                         </div>
                     </div>
-                    <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
+                    <div className="flex-1 flex items-center justify-center bg-gradient-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
                         <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
                              {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
                         </div>
@@ -324,108 +346,214 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* MODALLAR (AYNI KALDI) */}
+            {/* MODAL EKRANLARI */}
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
-                    {/* Tahmin, Departman ve Personel Detay Modalları buraya gelecek (Kodunu bozmadım) */}
+
+                    {activeModal === 'tahmin' && (
+                        <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+                            <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                                <h3 className="text-lg font-bold text-slate-800">2. El Ay Sonu Tahmini</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-5">
+                                {!anaBasarili ? (
+                                    <div className="bg-[#FEF2F2] border border-[#FECDD3] rounded-xl p-4 flex gap-3">
+                                        <div className="text-[#E11D48] mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div>
+                                        <div>
+                                            <h4 className="text-[#E11D48] font-bold text-sm mb-1">Hedefin Gerisindesiniz!</h4>
+                                            <p className="text-rose-900/70 text-[11px] leading-relaxed">Mevcut satış hızınıza göre ay sonu tahmini {anaProjeksiyon} adet, hedefinizin ({anaHedef}) altında kalıyor.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
+                                        <div className="text-emerald-500 mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                                        <div>
+                                            <h4 className="text-emerald-700 font-bold text-sm mb-1">Harika Gidiyorsunuz!</h4>
+                                            <p className="text-emerald-600/80 text-[11px] leading-relaxed">Mevcut hızınızla hedefi aşarak ay sonunu {anaProjeksiyon} adetle kapatmanız öngörülüyor.</p>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-5">
+                                    <div><p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Gidişata Göre Ay Sonu</p></div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className={`text-3xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                        <span className="text-slate-500 text-sm font-medium">Adet</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeModal === 'departman' && metrics && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800">
+                                <div>
+                                    <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">GÜNCEL HIZ VE AY SONU PROJEKSİYONLARI</p>
+                                </div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 grid grid-cols-2 gap-4">
+                                <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
+                                <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
+                                <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
+                                <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeModal === 'personel_detay' && selectedPersonel && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50 flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                                        {selectedPersonel.isim} 
+                                        <span className="bg-amber-500/20 border border-amber-500/50 text-amber-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">TÜM BAREMLER</span>
+                                    </h3>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
+                                        {selectedPersonel.magaza} PERSONEL PERFORMANS DETAYI
+                                    </p>
+                                </div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {[
+                                        { title: "2. EL CİHAZ (ADET)", data: {hedef: selectedPersonel.hedefler.ikinciEl, satilan: selectedPersonel.gerceklesen.ikinciEl, isCurrency: false}, color: "bg-sky-500" },
+                                        { title: "2. EL KAZANÇ (TL)", data: {hedef: selectedPersonel.hedefler.ikinciElKazanc, satilan: selectedPersonel.gerceklesen.ikinciElKazanc, isCurrency: true}, color: "bg-emerald-500" },
+                                        { title: "1. EL + TABLET (ADET)", data: {hedef: selectedPersonel.hedefler.birinciElTablet, satilan: selectedPersonel.gerceklesen.birinciElTablet, isCurrency: false}, color: "bg-purple-500" },
+                                        { title: "2. EL SAAT & TABLET", data: {hedef: selectedPersonel.hedefler.ikinciElSaat, satilan: selectedPersonel.gerceklesen.ikinciElSaat, isCurrency: false}, color: "bg-indigo-500" },
+                                        { title: "STOK CİHAZ", data: {hedef: selectedPersonel.hedefler.stokCihaz, satilan: selectedPersonel.gerceklesen.stokCihaz, isCurrency: false}, color: "bg-orange-500" },
+                                        { title: "YNA SAAT", data: {hedef: selectedPersonel.hedefler.ynaSaat, satilan: selectedPersonel.gerceklesen.ynaSaat, isCurrency: false}, color: "bg-rose-500" },
+                                        { title: "AKSESUAR CİRO (TL)", data: {hedef: selectedPersonel.hedefler.aksesuarCiro, satilan: selectedPersonel.gerceklesen.aksesuarCiro, isCurrency: true}, color: "bg-amber-500" },
+                                        { title: "DEĞER PUAN", data: {hedef: selectedPersonel.hedefler.degerPuan, satilan: selectedPersonel.gerceklesen.degerPuan, isCurrency: false}, color: "bg-blue-500" },
+                                        { title: "TEKNİK SERVİS (TL)", data: {hedef: selectedPersonel.hedefler.servisKazanc, satilan: selectedPersonel.gerceklesen.servisKazanc, isCurrency: true}, color: "bg-fuchsia-500" }
+                                    ].filter(s => s.data.hedef > 0 || s.data.satilan > 0).map((s, i) => (
+                                        <DepartmanProgressBar key={i} title={s.title} data={s.data} colorClass={s.color} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* --- C-BOT PRO ENTEGRASYONU --- */}
-            {isCmr && <CBot portalData={aktifPersoneller} />}
+            {/* Sayfa linki "/" ise ve modül ana sayfadaysa bot görünür. */}
+            {pathname === '/' && (
+                <CBotInternal portalData={aktifPersoneller} selectedBranch={selectedBranch} />
+            )}
         </div>
     );
 }
 
-// --- C-BOT PRO BİLEŞENİ (Ana Sayfa İçinde) ---
-function CBot({ portalData }: { portalData: any[] }) {
-  const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-  const [inputValue, setInputValue] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [chatHistory, setChatHistory] = useState<any[]>([
-    { sender: 'bot', text: "Selam abi! Cnetmobil gidişat verilerini anlık süzüyorum. Kimin barem durumuna bakalım?" }
-  ]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+// --- C-BOT PRO BİLEŞENİ (AYNI DOSYADA, ALTTA) ---
+function CBotInternal({ portalData, selectedBranch }: { portalData: any[], selectedBranch: string }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState("");
+    const [isTyping, setIsTyping] = useState(false);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sadece ana sayfada (link "/") görünecek kuralı
-  if (pathname !== '/') return null;
+    const isCmrMode = selectedBranch.toUpperCase().includes('CMR');
+    const introMsg = isCmrMode 
+        ? "Selam abi! Cnetmobil gidişat verilerini anlık süzüyorum. Kimin barem durumuna bakalım?"
+        : "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, isTyping]);
+    const [chatHistory, setChatHistory] = useState<any[]>([
+        { sender: 'bot', text: introMsg }
+    ]);
 
-  const veriyiSuz = (input: string) => {
-    const msg = input.toLowerCase().trim();
-    const personel = portalData.find(p => 
-      msg.includes(p.isim.toLowerCase()) || msg.includes(p.isim.split(' ')[0].toLowerCase())
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [chatHistory, isTyping]);
+
+    const handleSend = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inputValue.trim()) return;
+
+        const userMsg = inputValue;
+        setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
+        setInputValue("");
+        setIsTyping(true);
+
+        setTimeout(() => {
+            let botResponse = "";
+            if (!isCmrMode) {
+                botResponse = "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
+            } else {
+                const searchName = userMsg.toLowerCase().trim();
+                const personel = portalData.find(p => 
+                    searchName.includes(p.isim.toLowerCase()) || 
+                    searchName.includes(p.isim.split(' ')[0].toLowerCase())
+                );
+
+                if (personel) {
+                    const yuzde = personel.basariYuzdesi;
+                    const fark = personel.anaHedef - personel.anaSatilan;
+                    botResponse = personel.isBasarili 
+                        ? `🌟 **Tebrikler ${personel.isim}!** \n\nDurumun başarılı görünüyor. Gidişatın: ${personel.anaSatilan}/${personel.anaHedef} (%${yuzde}). Baremi doldurmuşsun abi, primin hayırlı olsun!`
+                        : `⚠️ **${personel.isim}**, durumun şu an RİSKLİ görünüyor. \n\nGidişatın: ${personel.anaSatilan}/${personel.anaHedef} (%${yuzde}). Baremi yakalamak için ${fark} adet daha işlem yapman lazım. Tempoyu biraz artırmalıyız abi!`;
+                } else {
+                    botResponse = "Bu ismi personel listesinde süzemedim abi. İsmi (örn: Mustafa) tam yazar mısın?";
+                }
+            }
+            setChatHistory(prev => [...prev, { sender: 'bot', text: botResponse }]);
+            setIsTyping(false);
+        }, 800);
+    };
+
+    return (
+        <>
+            {isOpen && (
+                <div className="fixed bottom-24 right-6 w-[350px] md:w-[420px] h-[550px] bg-white rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,82,212,0.3)] flex flex-col z-[100000] overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-300 font-sans">
+                    <div className="bg-[#0052D4] p-6 text-white flex justify-between items-center shadow-lg">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#0052D4] font-black">C</div>
+                            <div>
+                                <span className="font-bold uppercase block leading-none">C-BOT PRO</span>
+                                <span className="text-[9px] font-bold text-green-300 uppercase tracking-widest">
+                                    {isCmrMode ? "Veriler Süzülüyor" : "Yakında Aktif"}
+                                </span>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsOpen(false)} className="text-white hover:opacity-70 transition-opacity">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-white scroll-smooth">
+                        {chatHistory.map((m, i) => (
+                            <div key={i} className={`flex ${m.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
+                                <div className={`px-4 py-2 rounded-2xl text-[13.5px] max-w-[85%] leading-relaxed shadow-sm ${m.sender === 'bot' ? 'bg-slate-100 text-slate-700 rounded-tl-none border border-slate-200' : 'bg-[#0052D4] text-white rounded-tr-none'}`}>
+                                    {m.text}
+                                </div>
+                            </div>
+                        ))}
+                        {isTyping && <div className="text-[10px] text-blue-500 font-bold animate-pulse ml-2">Sistem taranıyor...</div>}
+                    </div>
+                    <form onSubmit={handleSend} className="p-5 border-t flex gap-3 bg-white">
+                        <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="İsim yazın..." className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-[#0052D4] transition-all" />
+                        <button type="submit" className="bg-[#0052D4] text-white p-3 rounded-2xl shadow-md hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                    </form>
+                </div>
+            )}
+            <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-8 right-8 z-[100000] group flex flex-col items-center">
+                <div className="bg-[#0052D4] text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg mb-[-4px] z-10 uppercase tracking-widest border border-white/20 transition-transform group-hover:scale-110">C-BOT</div>
+                <div className="w-16 h-16 rounded-full bg-white border-2 border-[#0052D4] shadow-[0_12px_40px_rgba(0,82,212,0.4)] flex items-center justify-center group-hover:scale-110 active:scale-90 transition-all duration-300">
+                    <span className="text-[#0052D4] font-black text-2xl">C</span>
+                </div>
+            </button>
+        </>
     );
-
-    if (personel) {
-      const yuzde = personel.basariYuzdesi;
-      const hedef = personel.anaHedef;
-      const gerceklesen = personel.anaSatilan;
-      const fark = hedef - gerceklesen;
-
-      if (personel.isBasarili) {
-        return `🌟 **Tebrikler ${personel.isim}!** \n\n**Durum:** Başarılı \n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Baremi doldurmuşsun, ay sonu hedefin garantide abi. Primin hayırlı olsun!`;
-      } else {
-        return `⚠️ **${personel.isim}**, barem gidişatın şu an RİSKLİ görünüyor abi. \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefi yakalamak için ${fark} adet daha 2. El cihaz alman lazım. Tempoyu süzdüğüm kadarıyla %15 artırman gerekiyor!`;
-      }
-    }
-    return "Bu ismi personel listesinde süzemedim abi. İsmi tam yazar mısın?";
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim()) return;
-    const userMsg = inputValue;
-    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setInputValue("");
-    setIsTyping(true);
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, { sender: 'bot', text: veriyiSuz(userMsg) }]);
-      setIsTyping(false);
-    }, 800);
-  };
-
-  return (
-    <>
-      {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[350px] md:w-[420px] h-[550px] bg-white rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,0,0,0.3)] flex flex-col z-[100000] overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-300">
-          <div className="bg-[#0052D4] p-6 text-white flex flex-col relative shadow-lg">
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md"><span className="text-[#0052D4] font-black text-2xl">C</span></div>
-                <div className="flex flex-col"><span className="font-bold text-lg uppercase tracking-tight leading-none">C-BOT PRO</span><div className="text-[10px] text-green-100 font-bold mt-2 uppercase bg-white/10 px-2 py-0.5 rounded-full w-fit">Veriler Süzülüyor</div></div>
-              </div>
-              <button onClick={() => setIsOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full text-white font-bold transition-all text-xl">✕</button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-white">
-            {chatHistory.map((msg, index) => (
-              <div key={index} className={`flex ${msg.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`px-5 py-3 rounded-[1.6rem] text-[14px] max-w-[85%] leading-relaxed shadow-sm ${msg.sender === 'bot' ? 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100' : 'bg-[#0052D4] text-white rounded-tr-none shadow-lg shadow-blue-200'}`}>{msg.text}</div>
-              </div>
-            ))}
-            {isTyping && <div className="text-[11px] text-blue-500 animate-pulse font-bold ml-2">Baremler süzülüyor...</div>}
-            <div ref={messagesEndRef} />
-          </div>
-          <div className="p-6 bg-white border-t border-slate-50">
-            <form onSubmit={handleSendMessage} className="flex gap-3">
-              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="İsim yazın (Örn: Mustafa)..." className="flex-1 bg-slate-50 border-2 border-blue-50 rounded-2xl px-5 py-3.5 text-sm focus:border-[#0052D4] outline-none transition-all placeholder:text-slate-400" />
-              <button type="submit" className="bg-[#0052D4] text-white p-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-      <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-8 right-8 z-[100000] group flex flex-col items-center">
-        <div className="bg-[#0052D4] text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg mb-[-4px] z-10 uppercase tracking-widest border border-white/20 transition-transform group-hover:scale-110">C-BOT</div>
-        <div className="w-16 h-16 rounded-full bg-white border-2 border-[#0052D4] shadow-[0_12px_40px_rgba(0,82,212,0.4)] flex items-center justify-center group-hover:scale-110 active:scale-90 transition-all duration-300"><span className="text-[#0052D4] font-black text-2xl relative z-10">C</span></div>
-      </button>
-    </>
-  );
 }
