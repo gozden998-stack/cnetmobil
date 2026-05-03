@@ -13,7 +13,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return parseInt(cleanVal, 10) || 0;
     };
 
-    // --- 1. MAĞAZA VERİSİNİ AYIKLA ---
+    // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) ---
     const branchIndex = (gidisatData || []).findIndex((row: any) => 
         row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
     );
@@ -30,7 +30,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         };
     }
 
-    // --- TARİH VE PROJEKSİYON HESAPLAMALARI ---
     const today = new Date();
     const currentDay = today.getDate() || 1; 
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
@@ -41,96 +40,120 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaBasarili = anaProjeksiyon >= anaHedef;
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
-    // --- 2. FULL BAREM PERSONEL VERİSİ EŞLEŞTİRME (ÇALIŞAN MOTOR) ---
+
+    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU (YENİ) ---
     let aktifPersoneller: any[] = [];
+    let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
-        // Güvenli Arama (Crash önleyici)
+        // Renk paleti (Yeni barem eklendikçe sırayla bu renkleri alır)
+        const colorPalette = [
+            "bg-sky-500", "bg-emerald-500", "bg-purple-500", "bg-indigo-500", 
+            "bg-orange-500", "bg-rose-500", "bg-amber-500", "bg-blue-500", "bg-fuchsia-500"
+        ];
+
+        // "Gerçekleşen" satırını bul
         const gerceklesenIndex = personelData.findIndex((row: any) => 
             Array.isArray(row) && row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen'))
         );
 
-        const hedefRows = gerceklesenIndex > -1 ? personelData.slice(0, gerceklesenIndex) : personelData;
+        // 1. SATIRDAN BAŞLIKLARI (BAREMLERİ) OTOMATİK OKU
+        const baslikSatiri = personelData[0] || [];
+        baslikSatiri.forEach((cell: any, index: number) => {
+            // Sütun C (index 2) ve sonrasındaki başlıkları yakala
+            if (index >= 2) {
+                const baslikAdi = String(cell || "").trim();
+                // Boş değilse ve alakasız bir kelime değilse barem olarak kaydet
+                if (baslikAdi && !baslikAdi.toLowerCase().includes('gerçekleşen') && !baslikAdi.toLowerCase().includes('isim')) {
+                    // Akıllı Para Birimi Algılama
+                    const isCurrency = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(keyword => baslikAdi.toUpperCase().includes(keyword));
+                    
+                    dinamikBaremler.push({
+                        indexOffset: index - 2, // 0'dan başlayarak sırası
+                        orijinalIndex: index,   // Google Sheets'teki gerçek sütun sırası
+                        name: baslikAdi,
+                        isCurrency: isCurrency,
+                        color: colorPalette[dinamikBaremler.length % colorPalette.length]
+                    });
+                }
+            }
+        });
+
+        // Verileri hedef ve gerçekleşen olarak ikiye böl
+        const hedefRows = gerceklesenIndex > -1 ? personelData.slice(1, gerceklesenIndex) : personelData.slice(1);
         const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1) : [];
 
         const personelDict: Record<string, any> = {};
         
-        // Üst Tarafı Oku (Hedefler - 9 Barem)
+        // ÜST TARAF: HEDEFLERİ DİNAMİK OKU
         hedefRows.forEach((row: any) => {
             if (!Array.isArray(row)) return;
             const magaza = row[0]?.trim() || "";
             const isim = row[1]?.trim() || "";
+            
             if (magaza && isim && magaza.toUpperCase().includes('CMR')) {
                 personelDict[isim] = {
                     isim: isim,
                     magaza: magaza.toUpperCase(),
-                    hedefler: {
-                        ikinciEl: parseNum(row[2]),
-                        ikinciElKazanc: parseNum(row[3]),
-                        birinciElTablet: parseNum(row[4]),
-                        ikinciElSaat: parseNum(row[5]),
-                        stokCihaz: parseNum(row[6]),
-                        ynaSaat: parseNum(row[7]),
-                        aksesuarCiro: parseNum(row[8]),
-                        degerPuan: parseNum(row[9]),
-                        servisKazanc: parseNum(row[10])
-                    },
-                    gerceklesen: { ikinciEl: 0, ikinciElKazanc: 0, birinciElTablet: 0, ikinciElSaat: 0, stokCihaz: 0, ynaSaat: 0, aksesuarCiro: 0, degerPuan: 0, servisKazanc: 0 }
+                    hedefler: {},
+                    gerceklesen: {},
+                    anaHedef: 0,
+                    anaSatilan: 0
                 };
+                
+                // Bulunan tüm başlıklar için hedefleri kaydet
+                dinamikBaremler.forEach(barem => {
+                    const deger = parseNum(row[barem.orijinalIndex]);
+                    personelDict[isim].hedefler[barem.name] = deger;
+                    
+                    // Tablodaki ilk baremi (Sütun C) ana liderlik hedefi olarak belirle
+                    if (barem.indexOffset === 0) personelDict[isim].anaHedef = deger;
+                });
             }
         });
 
-        // Alt Tarafı Oku (Gerçekleşenler - 9 Barem)
+        // ALT TARAF: GERÇEKLEŞENLERİ DİNAMİK OKU
         gerceklesenRows.forEach((row: any) => {
             if (!Array.isArray(row)) return;
             const isimA = row[0]?.trim() || "";
             const isimB = row[1]?.trim() || "";
             
             let matchedName = "";
-            let offset = 0;
+            let dataStartOffset = 0;
 
+            // İsim A'daysa satışlar B'den (offset 1), İsim B'deyse C'den (offset 2) başlar
             if (personelDict[isimA]) {
-                matchedName = isimA; offset = 1; 
+                matchedName = isimA; dataStartOffset = 1; 
             } else if (personelDict[isimB]) {
-                matchedName = isimB; offset = 2; 
+                matchedName = isimB; dataStartOffset = 2; 
             }
 
             if (matchedName) {
-                personelDict[matchedName].gerceklesen = {
-                    ikinciEl: parseNum(row[offset]),
-                    ikinciElKazanc: parseNum(row[offset + 1]),
-                    birinciElTablet: parseNum(row[offset + 2]),
-                    ikinciElSaat: parseNum(row[offset + 3]),
-                    stokCihaz: parseNum(row[offset + 4]),
-                    ynaSaat: parseNum(row[offset + 5]),
-                    aksesuarCiro: parseNum(row[offset + 6]),
-                    degerPuan: parseNum(row[offset + 7]),
-                    servisKazanc: parseNum(row[offset + 8])
-                };
+                dinamikBaremler.forEach(barem => {
+                    const deger = parseNum(row[dataStartOffset + barem.indexOffset]);
+                    personelDict[matchedName].gerceklesen[barem.name] = deger;
+                    
+                    if (barem.indexOffset === 0) personelDict[matchedName].anaSatilan = deger;
+                });
             }
         });
 
-        // Filtrele, Ana Gidişatı Hesapla ve Sırala
+        // FİLTRELE VE SIRALA
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza === selectedBranch.trim().toUpperCase())
             .map((p: any) => {
-                const anaHedef = p.hedefler.ikinciEl;
-                const anaSatilan = p.gerceklesen.ikinciEl;
-                const projeksiyon = Math.round((anaSatilan / currentDay) * daysInMonth);
+                const projeksiyon = Math.round((p.anaSatilan / currentDay) * daysInMonth);
                 return {
                     ...p,
-                    anaHedef,
-                    anaSatilan,
                     projeksiyon,
-                    basariYuzdesi: anaHedef > 0 ? Math.min(100, Math.round((anaSatilan / anaHedef) * 100)) : 0,
-                    isBasarili: projeksiyon >= anaHedef
+                    basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0,
+                    isBasarili: projeksiyon >= p.anaHedef
                 };
             })
             .sort((a: any, b: any) => b.anaSatilan - a.anaSatilan);
     }
 
-
-    // --- PROGRESS BAR BİLEŞENİ (HEM ŞUBE HEM PERSONEL İÇİN ORTAK KULLANIM) ---
+    // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
@@ -425,7 +448,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
 
-                    {/* Personel Full Barem Detayları (Üstüne Tıklanınca Açılan) */}
+                    {/* PERSONEL FULL BAREM DETAYLARI - ARTIK %100 DİNAMİK SHEETS BAĞLANTILI */}
                     {activeModal === 'personel_detay' && selectedPersonel && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50 flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
@@ -444,19 +467,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <div className="p-6 overflow-y-auto custom-scrollbar">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {[
-                                        { title: "2. EL CİHAZ (ADET)", data: {hedef: selectedPersonel.hedefler.ikinciEl, satilan: selectedPersonel.gerceklesen.ikinciEl, isCurrency: false}, color: "bg-sky-500" },
-                                        { title: "2. EL KAZANÇ (TL)", data: {hedef: selectedPersonel.hedefler.ikinciElKazanc, satilan: selectedPersonel.gerceklesen.ikinciElKazanc, isCurrency: true}, color: "bg-emerald-500" },
-                                        { title: "1. EL + TABLET (ADET)", data: {hedef: selectedPersonel.hedefler.birinciElTablet, satilan: selectedPersonel.gerceklesen.birinciElTablet, isCurrency: false}, color: "bg-purple-500" },
-                                        { title: "2. EL SAAT & TABLET", data: {hedef: selectedPersonel.hedefler.ikinciElSaat, satilan: selectedPersonel.gerceklesen.ikinciElSaat, isCurrency: false}, color: "bg-indigo-500" },
-                                        { title: "STOK CİHAZ", data: {hedef: selectedPersonel.hedefler.stokCihaz, satilan: selectedPersonel.gerceklesen.stokCihaz, isCurrency: false}, color: "bg-orange-500" },
-                                        { title: "YNA SAAT", data: {hedef: selectedPersonel.hedefler.ynaSaat, satilan: selectedPersonel.gerceklesen.ynaSaat, isCurrency: false}, color: "bg-rose-500" },
-                                        { title: "AKSESUAR CİRO (TL)", data: {hedef: selectedPersonel.hedefler.aksesuarCiro, satilan: selectedPersonel.gerceklesen.aksesuarCiro, isCurrency: true}, color: "bg-amber-500" },
-                                        { title: "DEĞER PUAN", data: {hedef: selectedPersonel.hedefler.degerPuan, satilan: selectedPersonel.gerceklesen.degerPuan, isCurrency: false}, color: "bg-blue-500" },
-                                        { title: "TEKNİK SERVİS (TL)", data: {hedef: selectedPersonel.hedefler.servisKazanc, satilan: selectedPersonel.gerceklesen.servisKazanc, isCurrency: true}, color: "bg-fuchsia-500" }
-                                    ].filter(s => s.data.hedef > 0 || s.data.satilan > 0).map((s, i) => (
-                                        <DepartmanProgressBar key={i} title={s.title} data={s.data} colorClass={s.color} />
-                                    ))}
+                                    {dinamikBaremler.map((barem, i) => {
+                                        const hedef = selectedPersonel.hedefler[barem.name] || 0;
+                                        const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
+                                        
+                                        // Eğer bu baremde hedeflenen ve satılan hiçbir şey yoksa kutuyu kalabalık yapmaması için gizle
+                                        if (hedef === 0 && satilan === 0) return null;
+
+                                        return (
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
+                                            />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
