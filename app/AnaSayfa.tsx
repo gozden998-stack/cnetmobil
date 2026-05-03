@@ -234,10 +234,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     isBasarili: projeksiyon >= p.anaHedef
                 };
             })
-            .sort((a: any, b: any) => b.anaSatilan - a.anaSatilan);
+            // --- [GÜNCEL] SIRALAMA ARTIK PUANA GÖRE YAPILIYOR ---
+            .sort((a: any, b: any) => parseFloat(b.toplamPuan) - parseFloat(a.toplamPuan));
     }
 
-    // --- PROGRESS BAR BİLEŞENİ (GÜNCELLENDİ) ---
+    // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
@@ -559,12 +560,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     {dinamikBaremler.map((barem, i) => {
                                         const hedef = selectedPersonel.hedefler[barem.name] || 0;
                                         const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
-                                        
-                                        // Bu barem için kuralı bul ve barajı kontrol et
                                         const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
                                         const isBelowBaraj = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
-                                        
-                                        // Puanı hesapla
                                         const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
 
                                         if (hedef === 0 && satilan === 0) return null;
