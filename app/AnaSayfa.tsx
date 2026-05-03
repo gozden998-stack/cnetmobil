@@ -277,7 +277,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
 
                 {isRiskliBarem && (
-                   <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2">
+                   <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2 animate-pulse">
                         <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">
                             ⚠️ Riskli Barem Altındasın (Puan Alınamıyor)
                         </p>
@@ -302,11 +302,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
             
             {/* Karşılama Ekranı */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col gap-3">
                     <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider uppercase w-max backdrop-blur-sm shadow-inner">
                         <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]"></span>
                         </span>
                         {selectedBranch} Şubesi Aktif
@@ -402,72 +403,76 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 const trendUp = parseFloat(p.puanTahmin) >= parseFloat(p.toplamPuan);
 
                                 return (
-                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative overflow-hidden">
+                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
+                                        className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
+                                            // --- 1. SIRA İÇİN ÖZEL STİL VE EFEKTLER ---
+                                            index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-400 dark:border-amber-500 shadow-[0_0_20px_rgba(251,191,36,0.3)] transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10' :
+                                            index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
+                                            index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
+                                            'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
+                                        }`}>
                                         
-                                        <div className="flex items-center gap-4">
-                                            {/* SADECE BU BÖLÜM DEĞİŞTİ - PREMIUM MADALYALAR EKLENDİ */}
-                                            <div className="relative flex-shrink-0">
-                                                {index === 0 ? (
-                                                    <div className="relative w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 shadow-[0_0_15px_rgba(251,191,36,0.5)] border-2 border-yellow-100">
-                                                        <span className="absolute -top-4 text-2xl drop-shadow-md">👑</span>
-                                                        <span className="font-black text-amber-900 text-xl drop-shadow-sm">1</span>
-                                                        {/* Sabit Yıldızlar */}
-                                                        <span className="absolute -left-3 top-0 text-sm">✨</span>
-                                                        <span className="absolute -right-3 bottom-0 text-sm">✨</span>
-                                                        <span className="absolute -bottom-2 left-2 text-xs">🌟</span>
-                                                    </div>
-                                                ) : index === 1 ? (
-                                                    <div className="relative w-11 h-11 flex items-center justify-center rounded-full bg-gradient-to-br from-slate-100 via-slate-300 to-slate-400 shadow-[0_0_10px_rgba(148,163,184,0.4)] border-2 border-white ml-0.5">
-                                                        <span className="absolute -top-3.5 text-xl drop-shadow-md">👑</span>
-                                                        <span className="font-black text-slate-700 text-lg drop-shadow-sm">2</span>
-                                                    </div>
-                                                ) : index === 2 ? (
-                                                    <div className="relative w-11 h-11 flex items-center justify-center rounded-full bg-gradient-to-br from-orange-100 via-orange-300 to-orange-400 shadow-[0_0_10px_rgba(251,146,60,0.4)] border-2 border-white ml-0.5">
-                                                        <span className="absolute -top-3.5 text-xl drop-shadow-md">👑</span>
-                                                        <span className="font-black text-orange-900 text-lg drop-shadow-sm">3</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-black text-xs ml-1">
-                                                        {index + 1}
-                                                    </div>
-                                                )}
-                                            </div>
+                                        {/* 1. SIRA - HAVAI FİŞEK/YILDIZ EFEKTLERİ */}
+                                        {index === 0 && (
+                                            <>
+                                                <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl animate-pulse"></div>
+                                                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl animate-pulse delay-75"></div>
+                                                <div className="absolute top-2 left-1/4 text-[10px] animate-ping opacity-70">✨</div>
+                                                <div className="absolute bottom-2 right-1/3 text-[12px] animate-bounce opacity-50">🌟</div>
+                                                <div className="absolute top-4 right-1/4 text-[8px] animate-ping delay-150 opacity-60">✨</div>
+                                            </>
+                                        )}
 
+                                        <div className="flex items-center gap-4 relative z-10">
+                                            <div className="relative">
+                                                {/* 1. SIRA - NUMARA ARKASI PULSE EFEKTİ */}
+                                                {index === 0 && (
+                                                    <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>
+                                                )}
+                                                <div className={`relative w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
+                                                    index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
+                                                    index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
+                                                    index === 2 ? 'bg-gradient-to-br from-orange-300 to-rose-400 text-white shadow-lg shadow-orange-500/40' : 
+                                                    'bg-slate-200 text-slate-500'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
+                                            </div>
                                             <div>
-                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1.5 group-hover:text-sky-700 transition-colors">
+                                                <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-700 dark:text-amber-400 text-base' : 'text-slate-800 dark:text-white group-hover:text-sky-700'}`}>
                                                     {p.isim}
                                                     <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>
                                                         {trendUp ? '↗' : '↘'}
                                                     </span>
                                                 </h4>
                                                 <div className="flex gap-2 mt-1">
-                                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shadow-sm">Puan: {p.toplamPuan}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter opacity-70">Tahmin: {p.puanTahmin}</span>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded shadow-sm ${index === 0 ? 'text-amber-800 bg-amber-200/50' : 'text-emerald-600 bg-emerald-50'}`}>Puan: {p.toplamPuan}</span>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-tighter opacity-70 ${index === 0 ? 'text-amber-600' : 'text-slate-400'}`}>Tahmin: {p.puanTahmin}</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="text-right flex items-center gap-4">
+                                        <div className="text-right flex items-center gap-4 relative z-10">
                                             <div className="flex flex-col items-end">
                                                 {index === 0 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-amber-500 text-white border-amber-600 shadow-sm flex items-center gap-1.5">
-                                                        🏆 LİDER SATICI
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[11px] font-black tracking-widest bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.6)] border border-yellow-300 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[16px] animate-bounce inline-block">🏆</span> SATIŞ LİDERİ
                                                     </div>
                                                 ) : index === 1 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-slate-500 text-white border-slate-600 shadow-sm flex items-center gap-1.5">
-                                                        🎯 ÜSTÜN PERFORMANS
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥈</span> ELİT SATICI
                                                     </div>
                                                 ) : index === 2 ? (
-                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-orange-500 text-white border-orange-600 shadow-sm flex items-center gap-1.5">
-                                                        🚀 YÜKSELEN YILDIZ
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)] border border-orange-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥉</span> UZMAN SATICI
                                                     </div>
                                                 ) : (
-                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border}`}>
+                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border} group-hover:scale-105`}>
                                                         {rank.label}
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="text-slate-300 group-hover:text-sky-500 transition-all transform group-hover:translate-x-1">
+                                            <div className={`transition-all transform group-hover:translate-x-1 ${index === 0 ? 'text-amber-500' : 'text-slate-300 group-hover:text-sky-500'}`}>
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                             </div>
                                         </div>
@@ -512,7 +517,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                     <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
-                        <div className="whitespace-nowrap font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
+                        <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
                              {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
                         </div>
                     </div>
@@ -523,7 +528,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     {activeModal === 'tahmin' && (
-                        <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+                        <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
                                 <h3 className="text-lg font-bold text-slate-800">2. El Ay Sonu Tahmini</h3>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
@@ -562,7 +567,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
                     {activeModal === 'departman' && metrics && (
-                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden border border-slate-700/50">
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
@@ -581,7 +586,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
                     {activeModal === 'personel_detay' && selectedPersonel && (
-                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
