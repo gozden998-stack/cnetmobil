@@ -7,10 +7,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const isCmr = selectedBranch.includes('CMR');
 
+    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
         if (!val) return 0;
-        const cleanVal = String(val).replace(/\./g, '').replace(/,/g, '');
-        return parseInt(cleanVal, 10) || 0;
+        if (typeof val === 'number') return val;
+        
+        let strVal = String(val).trim();
+        // 1. Binlik ayracı olan noktaları tamamen sil (Örn: 17.000 -> 17000)
+        strVal = strVal.replace(/\./g, '');
+        // 2. Kuruş ayracı olan virgülü noktaya çevir ki sistem ondalık sayı anlasın (Örn: 989,84 -> 989.84)
+        strVal = strVal.replace(/,/g, '.');
+        
+        const parsed = parseFloat(strVal);
+        return isNaN(parsed) ? 0 : parsed;
     };
 
     // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) ---
@@ -41,12 +50,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
 
-    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU (YENİ) ---
+    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
-        // Renk paleti (Yeni barem eklendikçe sırayla bu renkleri alır)
+        // Renk paleti
         const colorPalette = [
             "bg-sky-500", "bg-emerald-500", "bg-purple-500", "bg-indigo-500", 
             "bg-orange-500", "bg-rose-500", "bg-amber-500", "bg-blue-500", "bg-fuchsia-500"
@@ -69,8 +78,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     const isCurrency = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(keyword => baslikAdi.toUpperCase().includes(keyword));
                     
                     dinamikBaremler.push({
-                        indexOffset: index - 2, // 0'dan başlayarak sırası
-                        orijinalIndex: index,   // Google Sheets'teki gerçek sütun sırası
+                        indexOffset: index - 2,
+                        orijinalIndex: index,
                         name: baslikAdi,
                         isCurrency: isCurrency,
                         color: colorPalette[dinamikBaremler.length % colorPalette.length]
@@ -101,7 +110,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     anaSatilan: 0
                 };
                 
-                // Bulunan tüm başlıklar için hedefleri kaydet
                 dinamikBaremler.forEach(barem => {
                     const deger = parseNum(row[barem.orijinalIndex]);
                     personelDict[isim].hedefler[barem.name] = deger;
@@ -121,7 +129,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             let matchedName = "";
             let dataStartOffset = 0;
 
-            // İsim A'daysa satışlar B'den (offset 1), İsim B'deyse C'den (offset 2) başlar
             if (personelDict[isimA]) {
                 matchedName = isimA; dataStartOffset = 1; 
             } else if (personelDict[isimB]) {
@@ -138,7 +145,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             }
         });
 
-        // FİLTRELE VE SIRALA
+        // FİLTRELE VE SIRALA (Ana satış adedine göre en çoktan aza)
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza === selectedBranch.trim().toUpperCase())
             .map((p: any) => {
@@ -160,7 +167,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
-        const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR')} ₺` : `${v.toLocaleString('tr-TR')}`;
+        
+        // Kuruşlu ve TL simgeli gösterim
+        const formatVal = (v: number) => data.isCurrency 
+            ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` 
+            : `${v.toLocaleString('tr-TR')}`;
 
         return (
             <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800">
@@ -448,7 +459,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
 
-                    {/* PERSONEL FULL BAREM DETAYLARI - ARTIK %100 DİNAMİK SHEETS BAĞLANTILI */}
+                    {/* PERSONEL FULL BAREM DETAYLARI - %100 DİNAMİK SHEETS BAĞLANTILI */}
                     {activeModal === 'personel_detay' && selectedPersonel && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50 flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
