@@ -38,24 +38,36 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
         };
     }
-
-   // --- DİNAMİK TARİH VE GÜN HESAPLAMA (Sheets'ten Gelen Veriye Göre) ---
+// --- DİNAMİK TARİH VE GÜN HESAPLAMA (Sheets Kontrollü) ---
     const getTargetDay = () => {
+        // Konsola yazdırarak verinin gelip gelmediğini kontrol edelim (F12 -> Console kısmında görünür)
+        console.log("Sheets'ten Gelen Tarih:", config.Guncellenen_Tarih);
+
         try {
-            const dateStr = config.Guncellenen_Tarih || ""; 
-            if (dateStr && dateStr.includes('.')) {
-                const dayPart = parseInt(dateStr.split('.')[0]); 
+            const dateStr = String(config.Guncellenen_Tarih || "").trim(); 
+            
+            // Eğer tarih "03.05.2026" veya "03/05/2026" formatındaysa ayırır
+            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            
+            if (separator) {
+                const dayPart = parseInt(dateStr.split(separator)[0]); 
                 if (!isNaN(dayPart) && dayPart > 0) return dayPart;
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error("Tarih ayrıştırma hatası:", e);
+        }
+        
+        // Veri gelmezse hata vermemesi için bugünün gününü alır
         return new Date().getDate(); 
     };
 
     const getDaysInMonth = () => {
         try {
-            const dateStr = config.Guncellenen_Tarih || "";
-            if (dateStr && dateStr.includes('.')) {
-                const parts = dateStr.split('.');
+            const dateStr = String(config.Guncellenen_Tarih || "").trim();
+            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            
+            if (separator) {
+                const parts = dateStr.split(separator);
                 const month = parseInt(parts[1]);
                 const year = parseInt(parts[2]);
                 return new Date(year, month, 0).getDate();
@@ -66,6 +78,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
+  
     
     const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
     const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
