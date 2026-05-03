@@ -1,24 +1,5 @@
 import React, { useEffect, useState } from 'react';
 
-// --- ÇELENK (WREATH) SVG BİLEŞENİ ---
-const WreathIcon = ({ fillClass }: { fillClass: string }) => (
-    <svg className={`absolute inset-0 w-full h-full ${fillClass} drop-shadow-sm`} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        {/* Sol Dal */}
-        <path d="M 50 95 C 15 90 5 50 15 25 C 20 15 35 10 45 20 C 35 25 30 35 30 50 C 30 70 40 85 50 95 Z" fill="currentColor" opacity="0.85"/>
-        {/* Sol Yapraklar */}
-        <path d="M 20 60 Q 10 50 15 40 Q 25 45 20 60 Z" fill="currentColor" />
-        <path d="M 25 40 Q 15 30 25 20 Q 35 30 25 40 Z" fill="currentColor" />
-        <path d="M 25 80 Q 10 70 15 60 Q 30 65 25 80 Z" fill="currentColor" />
-
-        {/* Sağ Dal */}
-        <path d="M 50 95 C 85 90 95 50 85 25 C 80 15 65 10 55 20 C 65 25 70 35 70 50 C 70 70 60 85 50 95 Z" fill="currentColor" opacity="0.85"/>
-        {/* Sağ Yapraklar */}
-        <path d="M 80 60 Q 90 50 85 40 Q 75 45 80 60 Z" fill="currentColor" />
-        <path d="M 75 40 Q 90 30 75 20 Q 65 30 75 40 Z" fill="currentColor" />
-        <path d="M 75 80 Q 90 70 85 60 Q 70 65 75 80 Z" fill="currentColor" />
-    </svg>
-);
-
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | null>(null);
@@ -424,48 +405,41 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 return (
                                     <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
                                         className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
-                                            index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.2)] hover:shadow-[0_0_20px_rgba(251,191,36,0.4)]' :
-                                            index === 1 ? 'bg-gradient-to-r from-slate-50 to-slate-100 border-slate-300 hover:shadow-md' :
-                                            index === 2 ? 'bg-gradient-to-r from-orange-50 to-orange-100 border-orange-300 hover:shadow-md' :
-                                            'bg-slate-50 border-slate-100 hover:bg-sky-50 hover:border-sky-200'
+                                            // --- 1. SIRA İÇİN ÖZEL STİL VE EFEKTLER ---
+                                            index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-400 dark:border-amber-500 shadow-[0_0_20px_rgba(251,191,36,0.3)] transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10' :
+                                            index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
+                                            index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
+                                            'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
                                         }`}>
+                                        
+                                        {/* 1. SIRA - HAVAI FİŞEK/YILDIZ EFEKTLERİ */}
+                                        {index === 0 && (
+                                            <>
+                                                <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl animate-pulse"></div>
+                                                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl animate-pulse delay-75"></div>
+                                                <div className="absolute top-2 left-1/4 text-[10px] animate-ping opacity-70">✨</div>
+                                                <div className="absolute bottom-2 right-1/3 text-[12px] animate-bounce opacity-50">🌟</div>
+                                                <div className="absolute top-4 right-1/4 text-[8px] animate-ping delay-150 opacity-60">✨</div>
+                                            </>
+                                        )}
 
                                         <div className="flex items-center gap-4 relative z-10">
                                             <div className="relative">
-                                                {index === 0 ? (
-                                                    <div className="relative w-16 h-16 flex items-center justify-center drop-shadow-md -ml-2">
-                                                        <WreathIcon fillClass="text-yellow-400" />
-                                                        <div className="absolute -top-3 z-20 text-xl drop-shadow-md">👑</div>
-                                                        <div className="relative z-10 flex items-center justify-center w-8 h-8 bg-gradient-to-br from-yellow-100 to-yellow-300 rounded-full border-2 border-yellow-400 shadow-sm">
-                                                            <span className="font-black text-amber-700 text-base">1</span>
-                                                        </div>
-                                                        <span className="absolute top-0 -left-1 text-sm drop-shadow-sm">✨</span>
-                                                        <span className="absolute top-2 -right-2 text-lg drop-shadow-sm">⭐</span>
-                                                        <span className="absolute bottom-1 left-1 text-base drop-shadow-sm">🌟</span>
-                                                        <span className="absolute -bottom-1 right-2 text-sm drop-shadow-sm">✨</span>
-                                                    </div>
-                                                ) : index === 1 ? (
-                                                    <div className="relative w-14 h-14 flex items-center justify-center drop-shadow-sm -ml-1">
-                                                        <WreathIcon fillClass="text-slate-400" />
-                                                        <div className="relative z-10 flex items-center justify-center w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-300 rounded-full border border-slate-400 shadow-sm">
-                                                            <span className="font-black text-slate-700 text-base">2</span>
-                                                        </div>
-                                                    </div>
-                                                ) : index === 2 ? (
-                                                    <div className="relative w-14 h-14 flex items-center justify-center drop-shadow-sm -ml-1">
-                                                        <WreathIcon fillClass="text-orange-400" />
-                                                        <div className="relative z-10 flex items-center justify-center w-8 h-8 bg-gradient-to-br from-orange-100 to-orange-300 rounded-full border border-orange-400 shadow-sm">
-                                                            <span className="font-black text-orange-800 text-base">3</span>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-11 h-11 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-black text-sm border-2 border-white shadow-sm">
-                                                        {index + 1}
-                                                    </div>
+                                                {/* 1. SIRA - NUMARA ARKASI PULSE EFEKTİ */}
+                                                {index === 0 && (
+                                                    <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>
                                                 )}
+                                                <div className={`relative w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
+                                                    index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
+                                                    index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
+                                                    index === 2 ? 'bg-gradient-to-br from-orange-300 to-rose-400 text-white shadow-lg shadow-orange-500/40' : 
+                                                    'bg-slate-200 text-slate-500'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
                                             </div>
                                             <div>
-                                                <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-800 text-base' : 'text-slate-800 group-hover:text-sky-700'}`}>
+                                                <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-700 dark:text-amber-400 text-base' : 'text-slate-800 dark:text-white group-hover:text-sky-700'}`}>
                                                     {p.isim}
                                                     <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>
                                                         {trendUp ? '↗' : '↘'}
@@ -482,7 +456,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <div className="flex flex-col items-end">
                                                 {index === 0 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[11px] font-black tracking-widest bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.6)] border border-yellow-300 flex items-center gap-2 transform group-hover:scale-105 transition-all">
-                                                        <span className="text-[16px] inline-block">🏆</span> SATIŞ LİDERİ
+                                                        <span className="text-[16px] animate-bounce inline-block">🏆</span> SATIŞ LİDERİ
                                                     </div>
                                                 ) : index === 1 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
