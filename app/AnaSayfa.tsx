@@ -19,7 +19,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };
+        const parseNum = (val: any) => {
+        // ... (buradaki kodlar) ...
+        return isNaN(parsed) ? 0 : parsed;
+    };
 
+    // BURAYA YAPIŞTIR (Tarih Dedektifi)
     // --- AKILLI TARİH DEDEKTİFİ (TypeScript Uyumlu) ---
     const getTargetDay = () => {
         let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
@@ -328,16 +333,26 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
 
                     {/* SAĞ KUTU - PERSONEL LİDERLİK TABLOSU */}
-                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
-                        <div className="flex items-center gap-3 mb-4 shrink-0">
-                            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
-                            </div>
-                        </div>
+<div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
+    {/* Başlık Alanı: justify-between ile başlığı sola, tarihi sağa yaslıyoruz */}
+    <div className="flex items-center justify-between mb-4 shrink-0">
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+            </div>
+            <div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
+            </div>
+        </div>
+
+        {/* DİNAMİK TARİH ETİKETİ */}
+        <div className="text-right">
+            <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] px-2.5 py-1.5 rounded-xl font-black border border-slate-200 dark:border-slate-700 shadow-sm">
+                GÜNCELLEME: {lastUpdatedDate || "---"}
+            </span>
+        </div>
+    </div>
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                             {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
