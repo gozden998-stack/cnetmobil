@@ -12,7 +12,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
         let strVal = String(val).trim();
-        // Binlik noktaları temizle, virgülü noktaya çevir (1.500,50 -> 1500.50)
         if (strVal.includes('.') && strVal.includes(',')) {
             strVal = strVal.replace(/\./g, '').replace(',', '.');
         } else if (strVal.includes(',')) {
@@ -20,6 +19,13 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         }
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
+    };
+
+    // --- [EKLENEN 1. BLOK] İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
+    const cleanKey = (s: string) => {
+        return String(s || "")
+            .replace(/[\s\.\-\+]/g, "") // Boşluk, nokta, tire ve artıları tamamen siler
+            .toUpperCase('tr-TR');      // Türkçe karakter uyumlu büyütür
     };
 
     // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
@@ -60,7 +66,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
 
-    // --- [YENİ] DİNAMİK PUAN AYAR DEDEKTÖRÜ (Sheets'ten Kuralları Okur) ---
+    // --- [EKLENEN 3. BLOK] DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
     const dinamikPuanKurallari: Record<string, any> = {};
     const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => 
         Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI")
@@ -74,31 +80,39 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
         baslikSatiri.forEach((cell: any, idx: number) => {
             if (idx >= 1) {
-                const bName = String(cell || "").trim().toUpperCase();
-                if (bName && !bName.includes("TOPLAMI")) {
-                    const has70Rule = kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"));
-                    dinamikPuanKurallari[bName] = {
+                const bKey = cleanKey(cell); // İsmi temizleyerek anahtar yap
+                if (bKey && !bKey.includes("TOPLAM")) {
+                    dinamikPuanKurallari[bKey] = {
                         hedefPuan: parseNum(puanSatiri[idx]),
                         maxPuan: parseNum(maxPuanSatiri[idx]),
-                        kural70: has70Rule
+                        kural70: kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"))
                     };
                 }
             }
         });
     }
 
-    // --- [YENİ] HASSAS PUAN HESAPLAMA MOTORU (Adet arttıkça artar, Max'ta durur) ---
+    // --- [EKLENEN 2. BLOK] HASSAS PUAN HESAPLAMA MOTORU ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
         if (!target || target === 0) return 0;
+        
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
-        const rule = dinamikPuanKurallari[baremName.toUpperCase()];
-        if (!rule) return 0;
+        const cleanedBaremName = cleanKey(baremName);
+        const rule = dinamikPuanKurallari[cleanedBaremName];
+
+        if (!rule) {
+            console.warn(`Barem kuralı bulunamadı: ${baremName} (Temizlenmiş: ${cleanedBaremName})`);
+            return 0;
+        }
 
         const perf = val / target;
-        if (rule.kural70 && perf < 0.7) return 0; // %70 barajı
+
+        // %70 Baraj Kuralı
+        if (rule.kural70 && perf < 0.7) return 0;
         
         let calculated = perf * rule.hedefPuan;
-        return Math.min(rule.maxPuan, calculated); // Max Puan sınırı
+        // Max Puan Sınırı
+        return Math.min(rule.maxPuan, calculated);
     };
     
     // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) ---
@@ -125,7 +139,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
 
 
-    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU (TEKİL İSİM TOPLAMA DESTEKLİ) ---
+    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
     let dinamikBaremler: any[] = [];
     
@@ -158,7 +172,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
         const personelDict: Record<string, any> = {};
         
-        // ÜST TARAF: HEDEFLERİ TOPLAYARAK OKU
         hedefRows.forEach((row: any) => {
             if (!Array.isArray(row)) return;
             const magaza = row[0]?.trim() || "";
@@ -184,7 +197,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             }
         });
 
-        // ALT TARAF: GERÇEKLEŞENLERİ TOPLAYARAK OKU
         gerceklesenRows.forEach((row: any) => {
             if (!Array.isArray(row)) return;
             const isimA = row[0]?.trim() || "";
@@ -211,7 +223,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
             .map((p: any) => {
-                // --- PUAN TOPLAMA (DOĞRU TOPLAMA İÇİN BAREMLER ÜZERİNDEN DÖNÜLÜR) ---
                 let pAnlik = 0, pTahmin = 0;
                 dinamikBaremler.forEach(barem => {
                     const bn = barem.name;
@@ -241,7 +252,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
-        
         const formatVal = (v: number) => data.isCurrency 
             ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` 
             : `${v.toLocaleString('tr-TR')}`;
@@ -298,10 +308,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
-                <button 
-                    onClick={() => setAppMode('alim')} 
-                    className="relative z-10 group bg-white text-sky-600 px-7 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:bg-slate-50 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1"
-                >
+                <button onClick={() => setAppMode('alim')} className="relative z-10 group bg-white text-sky-600 px-7 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:bg-slate-50 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1">
                     <div className="bg-sky-50 p-2 rounded-xl group-hover:bg-sky-100 transition-colors">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                     </div>
@@ -309,25 +316,18 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </button>
             </div>
 
-            {/* --- EŞİT YAN YANA MAĞAZA VE PERSONEL ALANI --- */}
             {isCmr && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                    
-                    {/* SOL KUTU - MAĞAZA GİDİŞAT */}
                     <div className="w-full h-full">
                         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-center min-h-[320px]">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                                     CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
                                 </h3>
-                                <button 
-                                    onClick={() => setActiveModal('departman')}
-                                    className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-4 py-2 rounded-xl font-black text-lg flex items-center gap-1 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                                >
+                                <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-4 py-2 rounded-xl font-black text-lg flex items-center gap-1 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
                                     {subePuani} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
-
                             {metrics ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
                                     <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
@@ -337,10 +337,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <span className="text-sm font-bold text-slate-500">Adet</span>
                                         </div>
                                     </div>
-                                    <div 
-                                        onClick={() => setActiveModal('tahmin')}
-                                        className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group"
-                                    >
+                                    <div onClick={() => setActiveModal('tahmin')} className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group">
                                         {!anaBasarili && (
                                             <div className="absolute top-4 right-4 bg-[#FB7185] text-white text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase shadow-sm z-10 flex items-center gap-1">
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -369,7 +366,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    {/* SAĞ KUTU - PERSONEL LİDERLİK TABLOSU */}
                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
                         <div className="flex items-center justify-between mb-4 shrink-0">
                             <div className="flex items-center gap-3">
@@ -381,8 +377,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
                                 </div>
                             </div>
-
-                            {/* DİNAMİK TARİH ETİKETİ */}
                             <div className="text-right">
                                 <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] px-2.5 py-1.5 rounded-xl font-black border border-slate-200 dark:border-slate-700 shadow-sm">
                                     GÜNCELLEME: {lastUpdatedDate || "---"}
@@ -392,15 +386,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                             {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
-                                <div 
-                                    key={index} 
-                                    onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}
-                                    className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative"
-                                >
+                                <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                                            index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500 group-hover:bg-sky-200 group-hover:text-sky-700'
-                                        }`}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500 group-hover:bg-sky-200 group-hover:text-sky-700'}`}>
                                             {index + 1}
                                         </div>
                                         <div>
@@ -408,13 +396,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 {p.isim.split(' ')[0]} {p.isim.split(' ')[1] ? p.isim.split(' ')[1].charAt(0) + '.' : ''}
                                                 {index === 0 && <span className="text-amber-500 text-sm">🏆</span>}
                                             </h4>
-                                            
-                                            {/* PUAN GÖSTERİMİ */}
                                             <div className="flex gap-2 mt-1">
                                                 <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shadow-sm">Puan: {p.toplamPuan}</span>
                                                 <span className="text-[10px] font-bold text-slate-400">Tahmin: {p.puanTahmin}</span>
                                             </div>
-
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
                                                     <div className={`h-full ${p.isBasarili ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
@@ -444,7 +429,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* Alt Bilgi Panelleri */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                     <div className="flex items-center gap-4 mb-6">
@@ -481,12 +465,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* MODAL EKRANLARI */}
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
-
-                    {/* Mağaza Ay Sonu Tahmini */}
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
@@ -526,8 +507,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                         </div>
                     )}
-
-                    {/* Mağaza Departman Hedefleri */}
                     {activeModal === 'departman' && metrics && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
@@ -547,14 +526,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                         </div>
                     )}
-
-                    {/* PERSONEL FULL BAREM DETAYLARI */}
                     {activeModal === 'personel_detay' && selectedPersonel && (
                         <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                                        {selectedPersonel.isim} 
+                                        {selectedPersonel.isim} 
                                         <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Puan: {selectedPersonel.toplamPuan}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
@@ -572,11 +549,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
                                         if (hedef === 0 && satilan === 0) return null;
                                         return (
-                                            <DepartmanProgressBar 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
                                             />
                                         );
                                     })}
