@@ -38,51 +38,60 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
         };
     }
-// --- AKILLI TARİH YAKALAYICI (BAŞLIK İSMİNDEN BAĞIMSIZ, FORMATI TARAR) ---
+// --- AKILLI TARİH DEDEKTİFİ (TABLONUN İÇİNDE ARAR) ---
     const getTargetDay = () => {
-        let bulunanTarih = "";
+        let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
 
-        // Config içindeki tüm değerleri gez, "01.05.2026" formatında olanı yakala
-        Object.values(config || {}).forEach(deger => {
-            const s = String(deger).trim();
-            // Nokta kontrolü ve 3 parçalı tarih yapısını (GG.AA.YYYY) kontrol eder
-            if (s.includes('.') && s.split('.').length === 3) {
-                bulunanTarih = s;
+        // Eğer Ayarlarda (Config) bulamazsa, Personel Tablosunun (personelData) satırlarını tek tek tarar
+        if (!hamVeri && personelData) {
+            // Tablodaki tüm satırları gez
+            const tarihSatiri = personelData.find(row => 
+                Array.isArray(row) && row.some(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
+            );
+            
+            if (tarihSatiri) {
+                // "GÜNCELLENEN" yazısının kaçıncı hücrede olduğunu bul
+                const hucresiIdx = tarihSatiri.findIndex(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
+                // Onun hemen sağındaki hücreyi (tarihi) al
+                hamVeri = tarihSatiri[hucresiIdx + 1];
             }
-        });
-
-        if (bulunanTarih) {
-            const gun = parseInt(bulunanTarih.split('.')[0]);
-            // Eğer sayı geçerliyse o günü döndür
-            if (!isNaN(gun) && gun > 0) return gun;
         }
 
-        // Eğer tabloda hiçbir yerde tarih formatı bulamazsa mecburen bugüne döner
-        return new Date().getDate(); 
+        console.log("Sistemin Tablo İçinde Bulduğu Tarih:", hamVeri);
+
+        try {
+            const dateStr = String(hamVeri || "").trim();
+            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            if (separator) {
+                const gun = parseInt(dateStr.split(separator)[0]);
+                if (!isNaN(gun) && gun > 0) return gun;
+            }
+        } catch (e) {}
+        return new Date().getDate(); // Bulamazsa bugüne döner
     };
 
     const getDaysInMonth = () => {
-        let bulunanTarih = "";
-        Object.values(config || {}).forEach(deger => {
-            const s = String(deger).trim();
-            if (s.includes('.') && s.split('.').length === 3) {
-                bulunanTarih = s;
+        let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
+        if (!hamVeri && personelData) {
+            const tarihSatiri = personelData.find(row => Array.isArray(row) && row.some(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN")));
+            if (tarihSatiri) {
+                const idx = tarihSatiri.findIndex(cell => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
+                hamVeri = tarihSatiri[idx + 1];
             }
-        });
-
-        if (bulunanTarih) {
-            const parcalar = bulunanTarih.split('.');
-            const ay = parseInt(parcalar[1]);
-            const yil = parseInt(parcalar[2]);
-            // Ayın kaç çektiğini otomatik hesaplar
-            return new Date(yil, ay, 0).getDate();
         }
+        try {
+            const dateStr = String(hamVeri).trim();
+            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            if (separator) {
+                const parcalar = dateStr.split(separator);
+                return new Date(parseInt(parcalar[2]), parseInt(parcalar[1]), 0).getDate();
+            }
+        } catch (e) {}
         return 31; 
     };
 
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
-  
     
     const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
     const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
