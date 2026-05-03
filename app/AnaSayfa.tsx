@@ -39,9 +39,33 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         };
     }
 
-    const today = new Date();
-    const currentDay = today.getDate() || 1; 
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
+   // --- DİNAMİK TARİH VE GÜN HESAPLAMA (Sheets'ten Gelen Veriye Göre) ---
+    const getTargetDay = () => {
+        try {
+            const dateStr = config.Guncellenen_Tarih || ""; 
+            if (dateStr && dateStr.includes('.')) {
+                const dayPart = parseInt(dateStr.split('.')[0]); 
+                if (!isNaN(dayPart) && dayPart > 0) return dayPart;
+            }
+        } catch (e) {}
+        return new Date().getDate(); 
+    };
+
+    const getDaysInMonth = () => {
+        try {
+            const dateStr = config.Guncellenen_Tarih || "";
+            if (dateStr && dateStr.includes('.')) {
+                const parts = dateStr.split('.');
+                const month = parseInt(parts[1]);
+                const year = parseInt(parts[2]);
+                return new Date(year, month, 0).getDate();
+            }
+        } catch (e) {}
+        return 31; 
+    };
+
+    const currentDay = getTargetDay(); 
+    const daysInMonth = getDaysInMonth();
     
     const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
     const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
