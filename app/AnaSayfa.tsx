@@ -405,15 +405,31 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 return (
                                     <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
                                         className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
-                                            index === 0 ? 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-800/50 border-amber-200 dark:border-amber-700/50 hover:shadow-md hover:border-amber-300' :
+                                            // --- 1. SIRA İÇİN ÖZEL STİL VE EFEKTLER ---
+                                            index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-400 dark:border-amber-500 shadow-[0_0_20px_rgba(251,191,36,0.3)] transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10' :
                                             index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
                                             index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
                                             'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
                                         }`}>
                                         
-                                        <div className="flex items-center gap-4">
+                                        {/* 1. SIRA - HAVAI FİŞEK/YILDIZ EFEKTLERİ */}
+                                        {index === 0 && (
+                                            <>
+                                                <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl animate-pulse"></div>
+                                                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl animate-pulse delay-75"></div>
+                                                <div className="absolute top-2 left-1/4 text-[10px] animate-ping opacity-70">✨</div>
+                                                <div className="absolute bottom-2 right-1/3 text-[12px] animate-bounce opacity-50">🌟</div>
+                                                <div className="absolute top-4 right-1/4 text-[8px] animate-ping delay-150 opacity-60">✨</div>
+                                            </>
+                                        )}
+
+                                        <div className="flex items-center gap-4 relative z-10">
                                             <div className="relative">
-                                                <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
+                                                {/* 1. SIRA - NUMARA ARKASI PULSE EFEKTİ */}
+                                                {index === 0 && (
+                                                    <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>
+                                                )}
+                                                <div className={`relative w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
                                                     index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
                                                     index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
                                                     index === 2 ? 'bg-gradient-to-br from-orange-300 to-rose-400 text-white shadow-lg shadow-orange-500/40' : 
@@ -423,24 +439,24 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 </div>
                                             </div>
                                             <div>
-                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1.5 group-hover:text-sky-700 transition-colors">
+                                                <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-700 dark:text-amber-400 text-base' : 'text-slate-800 dark:text-white group-hover:text-sky-700'}`}>
                                                     {p.isim}
                                                     <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>
                                                         {trendUp ? '↗' : '↘'}
                                                     </span>
                                                 </h4>
                                                 <div className="flex gap-2 mt-1">
-                                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shadow-sm">Puan: {p.toplamPuan}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter opacity-70">Tahmin: {p.puanTahmin}</span>
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded shadow-sm ${index === 0 ? 'text-amber-800 bg-amber-200/50' : 'text-emerald-600 bg-emerald-50'}`}>Puan: {p.toplamPuan}</span>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-tighter opacity-70 ${index === 0 ? 'text-amber-600' : 'text-slate-400'}`}>Tahmin: {p.puanTahmin}</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="text-right flex items-center gap-4">
+                                        <div className="text-right flex items-center gap-4 relative z-10">
                                             <div className="flex flex-col items-end">
                                                 {index === 0 ? (
-                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)] border border-yellow-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
-                                                        <span className="text-[14px]">🏆</span> SATIŞ LİDERİ
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[11px] font-black tracking-widest bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.6)] border border-yellow-300 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[16px] animate-bounce inline-block">🏆</span> SATIŞ LİDERİ
                                                     </div>
                                                 ) : index === 1 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
@@ -456,7 +472,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="text-slate-300 group-hover:text-sky-500 transition-all transform group-hover:translate-x-1">
+                                            <div className={`transition-all transform group-hover:translate-x-1 ${index === 0 ? 'text-amber-500' : 'text-slate-300 group-hover:text-sky-500'}`}>
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                                             </div>
                                         </div>
