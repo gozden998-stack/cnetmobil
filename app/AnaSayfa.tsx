@@ -7,44 +7,35 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const isCmr = selectedBranch.includes('CMR');
 
-    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
+  // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        
         let strVal = String(val).trim();
         strVal = strVal.replace(/\./g, '');
         strVal = strVal.replace(/,/g, '.');
-        
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };
-        const parseNum = (val: any) => {
-        // ... (buradaki kodlar) ...
-        return isNaN(parsed) ? 0 : parsed;
-    };
 
-    // BURAYA YAPIŞTIR (Tarih Dedektifi)
-    // --- AKILLI TARİH DEDEKTİFİ (TypeScript Uyumlu) ---
-    const getTargetDay = () => {
-        let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
-
-        if (!hamVeri && personelData) {
-            const tarihSatiri = (personelData as any[]).find((row: any) => 
-                Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
-            );
-            
-            if (tarihSatiri) {
-                const hucresiIdx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
-                hamVeri = tarihSatiri[hucresiIdx + 1];
-            }
+    // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
+    let lastUpdatedDate = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
+    if (!lastUpdatedDate && personelData) {
+        const tarihSatiri = (personelData as any[]).find((row: any) => 
+            Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
+        );
+        if (tarihSatiri) {
+            const hucresiIdx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
+            lastUpdatedDate = String(tarihSatiri[hucresiIdx + 1] || "").trim();
         }
+    }
 
+    // --- GÜN VE AY HESAPLAMALARI ---
+    const getTargetDay = () => {
         try {
-            const dateStr = String(hamVeri || "").trim();
-            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
             if (separator) {
-                const gun = parseInt(dateStr.split(separator)[0]);
+                const gun = parseInt(lastUpdatedDate.split(separator)[0]);
                 if (!isNaN(gun) && gun > 0) return gun;
             }
         } catch (e) {}
@@ -52,21 +43,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     };
 
     const getDaysInMonth = () => {
-        let hamVeri = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
-        if (!hamVeri && personelData) {
-            const tarihSatiri = (personelData as any[]).find((row: any) => 
-                Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
-            );
-            if (tarihSatiri) {
-                const idx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
-                hamVeri = tarihSatiri[idx + 1];
-            }
-        }
         try {
-            const dateStr = String(hamVeri).trim();
-            const separator = dateStr.includes('.') ? '.' : (dateStr.includes('/') ? '/' : null);
+            const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
             if (separator) {
-                const parcalar = dateStr.split(separator);
+                const parcalar = lastUpdatedDate.split(separator);
                 return new Date(parseInt(parcalar[2]), parseInt(parcalar[1]), 0).getDate();
             }
         } catch (e) {}
