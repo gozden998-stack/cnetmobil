@@ -234,7 +234,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     isBasarili: projeksiyon >= p.anaHedef
                 };
             })
-            // --- [GÜNCEL] SIRALAMA ARTIK PUANA GÖRE YAPILIYOR ---
+            // --- SIRALAMA PUANA GÖRE ---
             .sort((a: any, b: any) => parseFloat(b.toplamPuan) - parseFloat(a.toplamPuan));
     }
 
@@ -381,14 +381,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
                         <div className="flex items-center justify-between mb-4 shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">TÜM DETAYLAR İÇİN TIKLAYIN</p>
-                                </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">LİDERLİK TABLOSU</p>
                             </div>
                             <div className="text-right">
                                 <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] px-2.5 py-1.5 rounded-xl font-black border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -398,41 +393,62 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                            {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => (
-                                <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500 group-hover:bg-sky-200 group-hover:text-sky-700'}`}>
-                                            {index + 1}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1 group-hover:text-sky-700 transition-colors">
-                                                {p.isim.split(' ')[0]} {p.isim.split(' ')[1] ? p.isim.split(' ')[1].charAt(0) + '.' : ''}
-                                                {index === 0 && <span className="text-amber-500 text-sm">🏆</span>}
-                                            </h4>
-                                            <div className="flex gap-2 mt-1">
-                                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shadow-sm">Puan: {p.toplamPuan}</span>
-                                                <span className="text-[10px] font-bold text-slate-400">Tahmin: {p.puanTahmin}</span>
+                            {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => {
+                                // --- GÖRSEL ÇALIŞMA: KLASMAN BELİRLEME ---
+                                const getRank = (puan: number) => {
+                                    const pVal = parseFloat(puan.toString());
+                                    if (pVal >= 9.0) return { label: 'ELITE', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20' };
+                                    if (pVal >= 7.5) return { label: 'PRO', color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/20' };
+                                    return { label: 'STANDART', color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
+                                };
+                                const rank = getRank(p.toplamPuan);
+                                const trendUp = parseFloat(p.puanTahmin) >= parseFloat(p.toplamPuan);
+
+                                return (
+                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative overflow-hidden">
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500'}`}>
+                                                    {index + 1}
+                                                </div>
+                                                {index === 0 && <span className="absolute -top-1 -right-1 text-lg">👑</span>}
                                             </div>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                    <div className={`h-full ${p.isBasarili ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1.5 group-hover:text-sky-700 transition-colors">
+                                                    {p.isim}
+                                                    <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>
+                                                        {trendUp ? '↗' : '↘'}
+                                                    </span>
+                                                </h4>
+                                                <div className="flex gap-2 mt-1">
+                                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded shadow-sm">Puan: {p.toplamPuan}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter opacity-70">Tahmin: {p.puanTahmin}</span>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="text-right flex items-center gap-3">
-                                        <div className="group-hover:-translate-x-2 transition-transform">
-                                            <p className="text-lg font-black text-slate-800 dark:text-white leading-none">{p.anaSatilan} <span className="text-[10px] font-medium text-slate-400">/ {p.anaHedef}</span></p>
-                                            <p className={`text-[8px] font-black uppercase tracking-widest mt-1 ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
-                                            </p>
+
+                                        {/* --- [GÖRSEL ÇALIŞMA] SAĞ TARAF: ADETLER GİZLENDİ, ROZET VE TREND EKLENDİ --- */}
+                                        <div className="text-right flex items-center gap-4">
+                                            <div className="flex flex-col items-end">
+                                                <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border}`}>
+                                                    {rank.label}
+                                                </div>
+                                                <div className="mt-1.5 flex items-center gap-1.5">
+                                                    <div className="w-12 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                        <div className={`h-full ${p.isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                                    </div>
+                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                        {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-slate-300 group-hover:text-sky-500 transition-all transform group-hover:translate-x-1">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                            </div>
                                         </div>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-sky-500 absolute right-4 bg-sky-50 pl-2">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                                        </div>
                                     </div>
-                                </div>
-                            )) : (
+                                );
+                            }) : (
                                 <div className="h-full flex flex-col items-center justify-center opacity-50">
                                     <p className="font-bold text-slate-400 uppercase text-xs tracking-widest text-center">Şubeye ait personel<br/>verisi bekleniyor</p>
                                 </div>
@@ -544,7 +560,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                                        {selectedPersonel.isim} 
+                                        {selectedPersonel.isim} 
                                         <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
@@ -566,11 +582,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                                         if (hedef === 0 && satilan === 0) return null;
                                         return (
-                                            <DepartmanProgressBar 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
                                                 puan={baremPuanVal.toFixed(1)}
                                                 isRiskliBarem={isBelowBaraj}
                                             />
