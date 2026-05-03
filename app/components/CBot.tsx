@@ -1,25 +1,23 @@
-// ... (Önceki AnaSayfa kodların aynı kalıyor, sadece CBot çağrısını ve bileşenini güncelliyoruz)
+"use client";
 
-            {/* --- C-BOT PRO ENTEGRASYONU --- */}
-            {/* Bot artık her kanalda görünecek ama içeriği kanala göre değişecek */}
-            <CBot 
-                portalData={aktifPersoneller} 
-                selectedBranch={selectedBranch} 
-            />
-        </div>
-    );
+import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+
+interface CBotProps {
+  portalData: any[];
+  selectedBranch: string;
 }
 
-// --- C-BOT PRO BİLEŞENİ (Sayfa ve Kanal Kontrollü) ---
-function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranch: string }) {
+export default function CBot({ portalData, selectedBranch }: CBotProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   
-  // Kanal kontrolü: CMR dışındakiler için kısıtlı mod
-  const isCmrMode = selectedBranch.toUpperCase().includes('CMR');
+  // --- KANAL KONTROLÜ ---
+  const isCmrMode = selectedBranch?.toUpperCase().includes('CMR');
   
+  // Başlangıç mesajı kanala göre değişir
   const initialMsg = isCmrMode 
     ? "Selam abi! Cnetmobil gidişat verilerini anlık süzüyorum. Kimin barem durumuna bakalım?"
     : "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
@@ -31,23 +29,21 @@ function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranc
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // --- SAYFA GİZLEME KURALLARI ---
-  // Sadece ana sayfada (/) görünür. Cihaz Sat ve Teknik Takip modüllerinde personeli meşgul etmez.
-  const isHiddenPage = pathname === '/cihaz-sat' || pathname === '/teknik-takip';
-  if (isHiddenPage || pathname !== '/') return null;
+  // Sadece ana sayfada (/) görünür.
+  if (pathname !== '/') return null;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isTyping]);
 
   const veriyiSuz = (input: string) => {
-    // Eğer CMR modu değilse, strateji üretme, duyuruyu tekrarla
+    // Eğer CMR modu değilse, strateji üretme
     if (!isCmrMode) {
       return "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
     }
 
     const msg = input.toLowerCase().trim();
-    // Cnetmobil portalındaki aktif personelleri (iPhone, Samsung vb. odaklı) süzme işlemi
-    const personel = portalData.find(p => 
+    const personel = portalData?.find(p => 
       msg.includes(p.isim.toLowerCase()) || msg.includes(p.isim.split(' ')[0].toLowerCase())
     );
 
@@ -60,10 +56,10 @@ function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranc
       if (personel.isBasarili) {
         return `🌟 **Tebrikler ${personel.isim}!** \n\n**Durum:** Başarılı \n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Baremi doldurmuşsun abi. Cnetmobil hedefleri doğrultusunda primin hayırlı olsun!`;
       } else {
-        return `⚠️ **${personel.isim}**, barem gidişatın şu an RİSKLİ görünüyor abi. \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefi yakalamak için ${fark} adet daha işlem yapman lazım. Tempoyu süzdüğüm kadarıyla biraz daha artırman gerekiyor!`;
+        return `⚠️ **${personel.isim}**, barem gidişatın şu an RİSKLİ görünüyor . \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefi yakalamak için ${fark} adet daha işlem yapman lazım. Tempoyu süzdüğüm kadarıyla biraz daha artırman gerekiyor!`;
       }
     }
-    return "Bu ismi personel listesinde süzemedim abi. İsmi tam yazar mısın?";
+    return "Bu ismi personel listesinde süzemedim . İsmi tam yazar mısın?";
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -86,7 +82,9 @@ function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranc
           <div className="bg-[#0052D4] p-6 text-white flex flex-col relative shadow-lg">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md"><span className="text-[#0052D4] font-black text-2xl">C</span></div>
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md">
+                  <span className="text-[#0052D4] font-black text-2xl">C</span>
+                </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-lg uppercase tracking-tight leading-none">C-BOT PRO</span>
                   <div className="text-[10px] text-green-100 font-bold mt-2 uppercase bg-white/10 px-2 py-0.5 rounded-full w-fit">
@@ -100,7 +98,7 @@ function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranc
           <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-white">
             {chatHistory.map((msg, index) => (
               <div key={index} className={`flex ${msg.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`px-5 py-3 rounded-[1.6rem] text-[14px] max-w-[85%] leading-relaxed shadow-sm ${msg.sender === 'bot' ? 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100' : 'bg-[#0052D4] text-white rounded-tr-none shadow-lg shadow-blue-200'}`}>{msg.text}</div>
+                <div className={`px-5 py-3 rounded-[1.6rem] text-[14px] max-w-[85%] leading-relaxed shadow-sm ${msg.sender === 'bot' ? 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100' : 'bg-[#0052D4] text-white rounded-tr-none shadow-lg'}`}>{msg.text}</div>
               </div>
             ))}
             {isTyping && <div className="text-[11px] text-blue-500 animate-pulse font-bold ml-2">Sistem taranıyor...</div>}
@@ -118,7 +116,9 @@ function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranc
       )}
       <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-8 right-8 z-[100000] group flex flex-col items-center">
         <div className="bg-[#0052D4] text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg mb-[-4px] z-10 uppercase tracking-widest border border-white/20 transition-transform group-hover:scale-110">C-BOT</div>
-        <div className="w-16 h-16 rounded-full bg-white border-2 border-[#0052D4] shadow-[0_12px_40px_rgba(0,82,212,0.4)] flex items-center justify-center group-hover:scale-110 active:scale-90 transition-all duration-300"><span className="text-[#0052D4] font-black text-2xl relative z-10">C</span></div>
+        <div className="w-16 h-16 rounded-full bg-white border-2 border-[#0052D4] shadow-[0_12px_40_rgba(0,82,212,0.4)] flex items-center justify-center group-hover:scale-110 active:scale-90 transition-all duration-300">
+          <span className="text-[#0052D4] font-black text-2xl relative z-10">C</span>
+        </div>
       </button>
     </>
   );
