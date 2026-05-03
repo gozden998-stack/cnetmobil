@@ -397,8 +397,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 // --- GÖRSEL ÇALIŞMA: KLASMAN BELİRLEME ---
                                 const getRank = (puan: number) => {
                                     const pVal = parseFloat(puan.toString());
-                                    if (pVal >= 9.0) return { label: 'ELITE', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20' };
-                                    if (pVal >= 7.5) return { label: 'PRO', color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/20' };
+                                    if (pVal >= 9.0) return { label: 'PRO', color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/20' };
                                     return { label: 'STANDART', color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
                                 };
                                 const rank = getRank(p.toplamPuan);
@@ -408,10 +407,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-sky-50 hover:border-sky-200 transition-all group relative overflow-hidden">
                                         <div className="flex items-center gap-4">
                                             <div className="relative">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${index === 0 ? 'bg-amber-400 text-white shadow-md' : 'bg-slate-200 text-slate-500'}`}>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${
+                                                    index === 0 ? 'bg-amber-400 text-white shadow-md' : 
+                                                    index === 1 ? 'bg-slate-300 text-slate-700 shadow-md' : 
+                                                    index === 2 ? 'bg-orange-300 text-orange-900 shadow-md' : 
+                                                    'bg-slate-200 text-slate-500'
+                                                }`}>
                                                     {index + 1}
                                                 </div>
-                                                {index === 0 && <span className="absolute -top-1 -right-1 text-lg">👑</span>}
                                             </div>
                                             <div>
                                                 <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-1.5 group-hover:text-sky-700 transition-colors">
@@ -427,20 +430,26 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
 
-                                        {/* --- [GÖRSEL ÇALIŞMA] SAĞ TARAF: ADETLER GİZLENDİ, ROZET VE TREND EKLENDİ --- */}
+                                        {/* --- YENİ SAĞ TARAF (RİSKLİ/ELITE SİLİNDİ, ÖZEL ROZETLER GELDİ) --- */}
                                         <div className="text-right flex items-center gap-4">
                                             <div className="flex flex-col items-end">
-                                                <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border}`}>
-                                                    {rank.label}
-                                                </div>
-                                                <div className="mt-1.5 flex items-center gap-1.5">
-                                                    <div className="w-12 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                        <div className={`h-full ${p.isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                                {index === 0 ? (
+                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-amber-500 text-white border-amber-600 shadow-sm flex items-center gap-1.5">
+                                                        🏆 LİDER SATICI
                                                     </div>
-                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${p.isBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {p.isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
-                                                    </p>
-                                                </div>
+                                                ) : index === 1 ? (
+                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-slate-500 text-white border-slate-600 shadow-sm flex items-center gap-1.5">
+                                                        🎯 ÜSTÜN PERFORMANS
+                                                    </div>
+                                                ) : index === 2 ? (
+                                                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest border bg-orange-500 text-white border-orange-600 shadow-sm flex items-center gap-1.5">
+                                                        🚀 YÜKSELEN YILDIZ
+                                                    </div>
+                                                ) : (
+                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border}`}>
+                                                        {rank.label}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-slate-300 group-hover:text-sky-500 transition-all transform group-hover:translate-x-1">
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
