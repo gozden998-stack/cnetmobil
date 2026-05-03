@@ -436,20 +436,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
 
-                                        {/* --- YENİ EKLENEN ÖZEL ROZETLER --- */}
                                         <div className="text-right flex items-center gap-4">
                                             <div className="flex flex-col items-end">
                                                 {index === 0 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)] border border-yellow-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
-                                                        <span className="text-[14px]">🏆</span> LİDER SATICI
+                                                        <span className="text-[14px]">🏆</span> SATIŞ LİDERİ
                                                     </div>
                                                 ) : index === 1 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
-                                                        <span className="text-[14px]">🥈</span> ÜSTÜN PERFORMANS
+                                                        <span className="text-[14px]">🥈</span> ELİT SATICI
                                                     </div>
                                                 ) : index === 2 ? (
                                                     <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)] border border-orange-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
-                                                        <span className="text-[14px]">🥉</span> YÜKSELEN YILDIZ
+                                                        <span className="text-[14px]">🥉</span> UZMAN SATICI
                                                     </div>
                                                 ) : (
                                                     <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border} group-hover:scale-105`}>
