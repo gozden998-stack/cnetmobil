@@ -1,123 +1,124 @@
-"use client";
+// ... (Önceki AnaSayfa kodların aynı kalıyor, sadece CBot çağrısını ve bileşenini güncelliyoruz)
 
-import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation'; // Sayfa kontrolü için eklendi
+            {/* --- C-BOT PRO ENTEGRASYONU --- */}
+            {/* Bot artık her kanalda görünecek ama içeriği kanala göre değişecek */}
+            <CBot 
+                portalData={aktifPersoneller} 
+                selectedBranch={selectedBranch} 
+            />
+        </div>
+    );
+}
 
-// Tip Tanımlamaları ve Bot Verisi (Dokunulmadı)
-interface Option { label: string; next: string; }
-interface BotStep { message: string; options: Option[]; }
-interface Message { sender: 'bot' | 'user'; text: string; options?: Option[]; }
-
-const botData: Record<string, BotStep> = {
-  start: {
-    message: "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.",
-    options: [] 
-  }
-};
-
-export default function CBot() {
-  const pathname = usePathname(); // Mevcut yolu alır
+// --- C-BOT PRO BİLEŞENİ (Sayfa ve Kanal Kontrollü) ---
+function CBot({ portalData, selectedBranch }: { portalData: any[], selectedBranch: string }) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<Message[]>([
-    { sender: 'bot', text: botData.start.message, options: botData.start.options }
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  
+  // Kanal kontrolü: CMR dışındakiler için kısıtlı mod
+  const isCmrMode = selectedBranch.toUpperCase().includes('CMR');
+  
+  const initialMsg = isCmrMode 
+    ? "Selam abi! Cnetmobil gidişat verilerini anlık süzüyorum. Kimin barem durumuna bakalım?"
+    : "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
+
+  const [chatHistory, setChatHistory] = useState<any[]>([
+    { sender: 'bot', text: initialMsg }
   ]);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // --- SAYFA KONTROL MANTIGI ---
-  // Sadece ana sayfada (/) görünür. 
-  // /cihaz-sat ve /teknik-takip rotalarında kod null döner ve hiçbir şey render etmez.
+  // --- SAYFA GİZLEME KURALLARI ---
+  // Sadece ana sayfada (/) görünür. Cihaz Sat ve Teknik Takip modüllerinde personeli meşgul etmez.
   const isHiddenPage = pathname === '/cihaz-sat' || pathname === '/teknik-takip';
-  const isHomePage = pathname === '/';
-
-  // Eğer gizli sayfadaysak veya ana sayfa dışında bir yerdeysek (isteğine göre) botu gösterme
-  if (isHiddenPage || !isHomePage) {
-    return null;
-  }
+  if (isHiddenPage || pathname !== '/') return null;
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, isTyping]);
+
+  const veriyiSuz = (input: string) => {
+    // Eğer CMR modu değilse, strateji üretme, duyuruyu tekrarla
+    if (!isCmrMode) {
+      return "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
     }
-  }, [chatHistory, isOpen]);
+
+    const msg = input.toLowerCase().trim();
+    // Cnetmobil portalındaki aktif personelleri (iPhone, Samsung vb. odaklı) süzme işlemi
+    const personel = portalData.find(p => 
+      msg.includes(p.isim.toLowerCase()) || msg.includes(p.isim.split(' ')[0].toLowerCase())
+    );
+
+    if (personel) {
+      const yuzde = personel.basariYuzdesi;
+      const hedef = personel.anaHedef;
+      const gerceklesen = personel.anaSatilan;
+      const fark = hedef - gerceklesen;
+
+      if (personel.isBasarili) {
+        return `🌟 **Tebrikler ${personel.isim}!** \n\n**Durum:** Başarılı \n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Baremi doldurmuşsun abi. Cnetmobil hedefleri doğrultusunda primin hayırlı olsun!`;
+      } else {
+        return `⚠️ **${personel.isim}**, barem gidişatın şu an RİSKLİ görünüyor abi. \n\n**Gidişat:** ${gerceklesen} / ${hedef} (%${yuzde}) \n**Analiz:** Hedefi yakalamak için ${fark} adet daha işlem yapman lazım. Tempoyu süzdüğüm kadarıyla biraz daha artırman gerekiyor!`;
+      }
+    }
+    return "Bu ismi personel listesinde süzemedim abi. İsmi tam yazar mısın?";
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+    const userMsg = inputValue;
+    setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
+    setInputValue("");
+    setIsTyping(true);
+    setTimeout(() => {
+      setChatHistory(prev => [...prev, { sender: 'bot', text: veriyiSuz(userMsg) }]);
+      setIsTyping(false);
+    }, 800);
+  };
 
   return (
     <>
-      {/* C-BOT Penceresi */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-80 md:w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col z-[9999] overflow-hidden border border-slate-200 transition-all">
-          
-          {/* HEADER: GETMOBIL TARZI + CNET MAVİSİ + YANIP SÖNEN YEŞİL IŞIK */}
-          <div className="bg-[#0052D4] p-4 text-white flex flex-col z-[9999] shadow-lg">
+        <div className="fixed bottom-24 right-6 w-[350px] md:w-[420px] h-[550px] bg-white rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,0,0,0.3)] flex flex-col z-[100000] overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-300">
+          <div className="bg-[#0052D4] p-6 text-white flex flex-col relative shadow-lg">
             <div className="flex justify-between items-start">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-white rounded flex items-center justify-center font-bold text-xl text-[#0052D4] shadow-sm">
-                  C
-                </div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md"><span className="text-[#0052D4] font-black text-2xl">C</span></div>
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm tracking-tight text-white">Cnetmobil</span>
-                    <span className="text-white/90 font-medium text-sm">Asistan</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 mt-1 border border-green-400/30 rounded-full px-2 py-0.5 w-fit bg-green-500/10">
-                    <div className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
-                    </div>
-                    <span className="text-green-400 text-[10px] font-bold tracking-widest uppercase animate-pulse">
-                      ÇEVRİMİÇİ
-                    </span>
+                  <span className="font-bold text-lg uppercase tracking-tight leading-none">C-BOT PRO</span>
+                  <div className="text-[10px] text-green-100 font-bold mt-2 uppercase bg-white/10 px-2 py-0.5 rounded-full w-fit">
+                    {isCmrMode ? "Veriler Süzülüyor" : "Yakında Hizmetinizde"}
                   </div>
                 </div>
               </div>
-
-              <div className="flex items-center gap-1">
-                <button className="hover:bg-white/10 p-1.5 rounded-full transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-                <button onClick={() => setIsOpen(false)} className="hover:bg-white/10 p-1.5 rounded-full transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-              </div>
+              <button onClick={() => setIsOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full text-white font-bold transition-all text-xl">✕</button>
             </div>
-            <span className="text-white/90 text-[13px] mt-3 pl-12 font-medium">
-              Sana nasıl yardımcı olabilirim?
-            </span>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-3">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-white">
             {chatHistory.map((msg, index) => (
-              <div key={index} className={`flex flex-col ${msg.sender === 'bot' ? 'items-start' : 'items-end'}`}>
-                <div className={`px-4 py-2 rounded-2xl text-[13px] max-w-[90%] shadow-sm ${
-                  msg.sender === 'bot' 
-                  ? 'bg-white text-slate-800 rounded-tl-none border border-slate-100' 
-                  : 'bg-[#0052D4] text-white rounded-tr-none'
-                }`}>
-                  {msg.text}
-                </div>
+              <div key={index} className={`flex ${msg.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
+                <div className={`px-5 py-3 rounded-[1.6rem] text-[14px] max-w-[85%] leading-relaxed shadow-sm ${msg.sender === 'bot' ? 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100' : 'bg-[#0052D4] text-white rounded-tr-none shadow-lg shadow-blue-200'}`}>{msg.text}</div>
               </div>
             ))}
+            {isTyping && <div className="text-[11px] text-blue-500 animate-pulse font-bold ml-2">Sistem taranıyor...</div>}
             <div ref={messagesEndRef} />
+          </div>
+          <div className="p-6 bg-white border-t border-slate-50">
+            <form onSubmit={handleSendMessage} className="flex gap-3">
+              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Mesajınızı yazın..." className="flex-1 bg-slate-50 border-2 border-blue-50 rounded-2xl px-5 py-3.5 text-sm focus:border-[#0052D4] outline-none transition-all placeholder:text-slate-400" />
+              <button type="submit" className="bg-[#0052D4] text-white p-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </form>
           </div>
         </div>
       )}
-
-      {/* --- KİBAR ROBOT BUTON --- */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="cbot-floating-btn fixed bottom-6 right-6 flex flex-col items-center z-[9999] group"
-      >
-        <div className="bg-[#0052D4] text-white text-[9px] font-bold px-2 py-0.5 rounded-t-md shadow-md mb-[-1px] z-10 uppercase tracking-widest border-x border-t border-white/20 transition-transform group-hover:scale-105">
-          C-BOT
-        </div>
-        <div className="w-12 h-12 rounded-full bg-white border-2 border-[#4364F7] shadow-lg flex items-center justify-center overflow-hidden relative transition-all group-hover:scale-110 group-active:scale-90">
-          <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-[#0052D4]" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" fill="#F0F7FF"/>
-            <rect x="7.5" y="10" width="2" height="2" rx="1" fill="#0052D4"/>
-            <rect x="14.5" y="10" width="2" height="2" rx="1" fill="#0052D4"/>
-            <path d="M9 15.5C9 15.5 10 17 12 17C14 17 15 15.5 15 15.5" stroke="#0052D4" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-        </div>
+      <button onClick={() => setIsOpen(!isOpen)} className="fixed bottom-8 right-8 z-[100000] group flex flex-col items-center">
+        <div className="bg-[#0052D4] text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg mb-[-4px] z-10 uppercase tracking-widest border border-white/20 transition-transform group-hover:scale-110">C-BOT</div>
+        <div className="w-16 h-16 rounded-full bg-white border-2 border-[#0052D4] shadow-[0_12px_40px_rgba(0,82,212,0.4)] flex items-center justify-center group-hover:scale-110 active:scale-90 transition-all duration-300"><span className="text-[#0052D4] font-black text-2xl relative z-10">C</span></div>
       </button>
     </>
   );
