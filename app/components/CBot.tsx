@@ -22,7 +22,7 @@ export default function CBot({ portalData = [], selectedBranch = "" }: CBotProps
 
   // Başlangıç mesajı kanala göre belirlenir
   const initialBotMsg = isCmrMode 
-    ? "Selam abi! Cnetmobil gidişat verilerini anlık süzüyorum. Kimin barem durumuna bakalım?"
+    ? " Kimin barem durumuna bakalım?"
     : "İyi eğitimli sohbet botu C-BOT Asistan, yakında hizmetinize sunulacaktır.";
 
   const [chatHistory, setChatHistory] = useState<Message[]>([
