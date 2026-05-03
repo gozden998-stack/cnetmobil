@@ -21,11 +21,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return isNaN(parsed) ? 0 : parsed;
     };
 
-    // --- [EKLENEN 1. BLOK] İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
+    // --- [DÜZELTİLDİ] İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
     const cleanKey = (s: string) => {
         return String(s || "")
             .replace(/[\s\.\-\+]/g, "") // Boşluk, nokta, tire ve artıları tamamen siler
-            .toUpperCase('tr-TR');      // Türkçe karakter uyumlu büyütür
+            .toLocaleUpperCase('tr-TR'); // Hata düzeltildi: toLocaleUpperCase kullanıldı
     };
 
     // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
@@ -66,7 +66,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
 
-    // --- [EKLENEN 3. BLOK] DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
+    // --- [YENİ] DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
     const dinamikPuanKurallari: Record<string, any> = {};
     const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => 
         Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI")
@@ -80,7 +80,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
         baslikSatiri.forEach((cell: any, idx: number) => {
             if (idx >= 1) {
-                const bKey = cleanKey(cell); // İsmi temizleyerek anahtar yap
+                const bKey = cleanKey(cell);
                 if (bKey && !bKey.includes("TOPLAM")) {
                     dinamikPuanKurallari[bKey] = {
                         hedefPuan: parseNum(puanSatiri[idx]),
@@ -92,26 +92,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
     }
 
-    // --- [EKLENEN 2. BLOK] HASSAS PUAN HESAPLAMA MOTORU ---
+    // --- [YENİ] HASSAS PUAN HESAPLAMA MOTORU ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
         if (!target || target === 0) return 0;
-        
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
         const cleanedBaremName = cleanKey(baremName);
         const rule = dinamikPuanKurallari[cleanedBaremName];
 
-        if (!rule) {
-            console.warn(`Barem kuralı bulunamadı: ${baremName} (Temizlenmiş: ${cleanedBaremName})`);
-            return 0;
-        }
+        if (!rule) return 0;
 
         const perf = val / target;
-
-        // %70 Baraj Kuralı
         if (rule.kural70 && perf < 0.7) return 0;
         
         let calculated = perf * rule.hedefPuan;
-        // Max Puan Sınırı
         return Math.min(rule.maxPuan, calculated);
     };
     
