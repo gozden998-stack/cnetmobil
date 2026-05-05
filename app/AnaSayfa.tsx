@@ -115,53 +115,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return Math.min(rule.maxPuan, calculated);
     };
     
-    // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) - YENİ DİNAMİK SİSTEM ---
+    // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) ---
     const branchIndex = (gidisatData || []).findIndex((row: any) => 
-        Array.isArray(row) && row.some((cell: any) => typeof cell === 'string' && cell.trim().toUpperCase().includes(selectedBranch.trim().toUpperCase()))
+        row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
     );
 
-    let metrics: any = null;
-    let dinamikSubeKutulari: any[] = [];
-
-    if (branchIndex !== -1) {
-        let hedefRow = gidisatData[branchIndex] || [];
-        let satilanRow = gidisatData[branchIndex + 1] || [];
-
-        // Şube isminin olduğu satırda hedef sayıları yoksa, bir alt satır Hedef'tir, onun altı Satılan'dır.
-        const hasNumber = (r: any[]) => r.some((val, idx) => idx > 0 && parseNum(val) > 0);
-        
-        if (!hasNumber(hedefRow) && gidisatData[branchIndex + 1]) {
-            hedefRow = gidisatData[branchIndex + 1] || [];
-            satilanRow = gidisatData[branchIndex + 2] || [];
-        }
-
-        // --- DİNAMİK KUTU OLUŞTURMA (Hedefe Göre) ---
-        const headerRow = gidisatData[0] || [];
-        const colorPalette = ["bg-sky-500", "bg-purple-500", "bg-emerald-500", "bg-fuchsia-500", "bg-amber-500", "bg-rose-500", "bg-indigo-500", "bg-orange-500"];
-        
-        if (headerRow.length > 1) {
-            let colorIdx = 0;
-            headerRow.forEach((colName: any, idx: number) => {
-                if (idx > 0 && colName && String(colName).trim() !== "") {
-                    const hName = String(colName).trim();
-                    const hVal = parseNum(hedefRow[idx]);
-                    const sVal = parseNum(satilanRow[idx]);
-                    
-                    // Sadece hedefi veya satılanı olanlara kutu ekle
-                    if (hVal > 0 || sVal > 0) {
-                        const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => hName.toUpperCase().includes(k));
-                        dinamikSubeKutulari.push({
-                            title: hName.toUpperCase(),
-                            data: { hedef: hVal, satilan: sVal, isCurrency: isCurr },
-                            colorClass: colorPalette[colorIdx % colorPalette.length]
-                        });
-                        colorIdx++;
-                    }
-                }
-            });
-        }
-
-        // Ana göstergeler için Fallback koruması (Kod kırılmasın diye)
+    let metrics = null;
+    if (branchIndex !== -1 && gidisatData[branchIndex + 1] && gidisatData[branchIndex + 2]) {
+        const hedefRow = gidisatData[branchIndex + 1];
+        const satilanRow = gidisatData[branchIndex + 2];
         metrics = {
             ikinciElAdet: { hedef: parseNum(hedefRow[1]), satilan: parseNum(satilanRow[1]), isCurrency: false },
             ikinciElKazanc: { hedef: parseNum(hedefRow[2]), satilan: parseNum(satilanRow[2]), isCurrency: true },
@@ -170,20 +132,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         };
     }
     
-    // Ön taraftaki büyük gösterge için "İkinci El Adet" bilgisini güvenli yakala
-    let gercekAnaSatis = metrics?.ikinciElAdet?.satilan || 0;
-    let gercekAnaHedef = metrics?.ikinciElAdet?.hedef || 0;
-
-    if (dinamikSubeKutulari.length > 0) {
-        const ikinciElKutusu = dinamikSubeKutulari.find(k => (k.title.includes('2') || k.title.includes('İKİNCİ')) && (k.title.includes('ADET') || k.title.includes('SATIŞ')));
-        if (ikinciElKutusu) {
-            gercekAnaSatis = ikinciElKutusu.data.satilan;
-            gercekAnaHedef = ikinciElKutusu.data.hedef;
-        }
-    }
-
-    const anaSatis = gercekAnaSatis;
-    const anaHedef = gercekAnaHedef;
+    const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
+    const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
     const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
@@ -631,24 +581,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {dinamikSubeKutulari.length > 0 ? (
-                                    dinamikSubeKutulari.map((kutu, idx) => (
-                                        <DepartmanProgressBar 
-                                            key={idx} 
-                                            title={kutu.title} 
-                                            data={kutu.data} 
-                                            colorClass={kutu.colorClass} 
-                                        />
-                                    ))
-                                ) : (
-                                    <>
-                                        <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
-                                        <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
-                                        <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
-                                        <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
-                                    </>
-                                )}
+                            <div className="p-6 grid grid-cols-2 gap-4">
+                                <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
+                                <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
+                                <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
+                                <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
                             </div>
                         </div>
                     )}
@@ -657,7 +594,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                                        {selectedPersonel.isim} 
+                                        {selectedPersonel.isim} 
                                         <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
@@ -679,11 +616,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                                         if (hedef === 0 && satilan === 0) return null;
                                         return (
-                                            <DepartmanProgressBar 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
                                                 puan={baremPuanVal.toFixed(1)}
                                                 isRiskliBarem={isBelowBaraj}
                                             />
