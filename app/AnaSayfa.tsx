@@ -7,16 +7,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const isCmr = selectedBranch.includes('CMR');
 
-    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
+    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU (150.000 DÜZELTMESİ) ---
     const parseNum = (val: any) => {
         if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
         let strVal = String(val).trim();
+        
         if (strVal.includes('.') && strVal.includes(',')) {
+            // Örn: 150.000,00 -> Noktayı sil, virgülü nokta yap
             strVal = strVal.replace(/\./g, '').replace(',', '.');
         } else if (strVal.includes(',')) {
+            // Örn: 150000,00 -> Virgülü nokta yap
             strVal = strVal.replace(',', '.');
+        } else if (strVal.includes('.')) {
+            // Örn: 150.000 -> Sadece nokta varsa bu binlik ayracıdır, noktayı sil
+            strVal = strVal.replace(/\./g, '');
         }
+        
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };
@@ -405,14 +412,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 return (
                                     <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
                                         className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
-                                            // --- 1. SIRA İÇİN ÖZEL STİL VE EFEKTLER ---
                                             index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-400 dark:border-amber-500 shadow-[0_0_20px_rgba(251,191,36,0.3)] transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10' :
                                             index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
                                             index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
                                             'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
                                         }`}>
                                         
-                                        {/* 1. SIRA - HAVAI FİŞEK/YILDIZ EFEKTLERİ */}
                                         {index === 0 && (
                                             <>
                                                 <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl animate-pulse"></div>
@@ -425,7 +430,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                                         <div className="flex items-center gap-4 relative z-10">
                                             <div className="relative">
-                                                {/* 1. SIRA - NUMARA ARKASI PULSE EFEKTİ */}
                                                 {index === 0 && (
                                                     <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>
                                                 )}
