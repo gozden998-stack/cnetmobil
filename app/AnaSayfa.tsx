@@ -595,7 +595,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
                                         {selectedPersonel.isim} 
-                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
+                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.puanTahmin}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
                                         TÜM ŞUBELERDEKİ TOPLAM VERİLER
