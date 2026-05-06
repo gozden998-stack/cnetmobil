@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// 1. Edge Runtime: API'yi hızlandırır ve Serverless kotasını (GB-Saat) harcamaz.
+export const runtime = 'edge';
+
+// 2. Revalidate: Vercel'e bu API yanıtını 180 saniye (3 dk) boyunca önbellekte tutmasını söyler.
+// 'force-dynamic' satırı kaldırıldı çünkü o her F5'te Sheets'e gitmeye zorluyordu.
+export const revalidate = 180;
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
 
   const tables = [
-    // --- MEVCUT B2B TABLOLARI ---
     { id: 'Devices', range: 'Google Sheets ile Kurumsal Alım Sistemi!A2:F1000' },
     { id: 'Ayarlar', range: 'Ayarlar!A1:B25' },
     { id: 'Alimlar', range: 'Alimlar!A2:H500' },
@@ -18,11 +22,8 @@ export async function GET() {
     { id: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' },
     { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
     { id: 'Depo', range: 'DEPO!A1:B1000' },
-
-    // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU (SORUN BURADAYDI) ---
     { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
     { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
-    // --- YENİ EKLENEN MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
     { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
   ];
@@ -31,7 +32,11 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    const res = await fetch(url, { cache: 'no-store' });
+    // Google Sheets'e giderken Vercel'in bu ara isteği de 3 dk saklamasını sağlıyoruz.
+    const res = await fetch(url, { 
+      next: { revalidate: 180 } 
+    });
+    
     const data = await res.json();
 
     if (!data.valueRanges) {
@@ -46,7 +51,16 @@ export async function GET() {
     const rawString = JSON.stringify(results);
     const maskedPayload = Buffer.from(rawString).toString('base64');
 
-    return NextResponse.json({ payload: maskedPayload });
+    // 3. Yanıtı Cache-Control başlıklarıyla döndürüyoruz.
+    // Bu sayede F5 yapılsa bile 180 saniye dolmadan Sheets'e asla gidilmez.
+    return NextResponse.json(
+      { payload: maskedPayload },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=60',
+        },
+      }
+    );
 
   } catch (error) {
     console.error("Sheets verisi çekilirken hata:", error);
