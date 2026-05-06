@@ -140,6 +140,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
+    let sirketSampiyonlari: any[] = []; // YENİ: TÜM CMR ŞAMPİYONLARI İÇİN
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
@@ -219,6 +220,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             }
         });
 
+        // 1. Sadece Seçili Şubedeki Personel (Gidişat Listesi)
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
             .map((p: any) => {
@@ -241,8 +243,28 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     isBasarili: projeksiyon >= p.anaHedef
                 };
             })
-            // --- SIRALAMA TAHMİNE GÖRE YENİLENDİ ---
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
+
+        // 2. YENİ: Tüm CMR Şubeleri Arası Genel Şampiyonlar Listesi (Top 3)
+        sirketSampiyonlari = Object.values(personelDict)
+            .filter((p: any) => p.magaza.includes('CMR')) // Sadece CMR 4 mağaza arası
+            .map((p: any) => {
+                let pAnlik = 0, pTahmin = 0;
+                dinamikBaremler.forEach(barem => {
+                    const bn = barem.name;
+                    const hVal = p.hedefler[bn] || 0;
+                    const gVal = p.gerceklesen[bn] || 0;
+                    pAnlik += calculatePoint(gVal, hVal, bn, false);
+                    pTahmin += calculatePoint(gVal, hVal, bn, true);
+                });
+                return {
+                    ...p,
+                    toplamPuan: pAnlik.toFixed(1),
+                    puanTahmin: pTahmin.toFixed(1),
+                };
+            })
+            .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin))
+            .slice(0, 3); // Sadece İlk 3 Kişiyi Al
     }
 
     // --- PROGRESS BAR BİLEŞENİ ---
@@ -390,7 +412,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="flex items-center justify-between mb-4 shrink-0">
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">LİDERLİK TABLOSU</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ŞUBE LİDERLİK TABLOSU</p>
                             </div>
                             <div className="text-right">
                                 <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] px-2.5 py-1.5 rounded-xl font-black border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -492,41 +514,98 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+            {/* KOŞULLU ALT GÖVDE: CMR HARİCİ İÇİN DUYURULAR, CMR İÇİN ŞAMPİYONLAR */}
+            {!isCmr ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Merkez Duyuruları</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Yönetimden gelen son bildirimler</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Merkez Duyuruları</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Yönetimden gelen son bildirimler</p>
+                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 flex-1 border border-slate-100 dark:border-slate-800/50">
+                            <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+                                {config.Duyuru_Metni || "Şu an için aktif bir mağaza duyurusu bulunmamaktadır."}
+                            </p>
                         </div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 flex-1 border border-slate-100 dark:border-slate-800/50">
-                        <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-wrap text-sm md:text-base">
-                            {config.Duyuru_Metni || "Şu an için aktif bir mağaza duyurusu bulunmamaktadır."}
-                        </p>
-                    </div>
-                </div>
 
-                <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
-                    <div className="flex items-center gap-4 mb-6 relative z-10">
-                        <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                    <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
+                        <div className="flex items-center gap-4 mb-6 relative z-10">
+                            <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Müşteriye sunulacak fırsatlar</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Müşteriye sunulacak fırsatlar</p>
-                        </div>
-                    </div>
-                    <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
-                        <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
-                             {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
+                        <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
+                            <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
+                                 {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            ) : (
+                <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
+                            <span className="text-3xl animate-bounce">🏆</span>
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Şirket Şampiyonları</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Tüm CMR Şubeleri Arası Liderlik Tablosu (İlk 3)</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {sirketSampiyonlari.map((sampiyon, idx) => {
+                            const isFirst = idx === 0;
+                            const isSecond = idx === 1;
+                            const isThird = idx === 2;
+
+                            return (
+                                <div key={idx} className={`relative rounded-3xl p-6 border flex flex-col items-center text-center transition-all transform hover:-translate-y-2 ${
+                                    isFirst ? 'bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-300 dark:border-amber-500/50 shadow-[0_10px_25px_rgba(251,191,36,0.2)]' :
+                                    isSecond ? 'bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 border-slate-300 dark:border-slate-600 shadow-lg' :
+                                    'bg-gradient-to-b from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-900 border-orange-200 dark:border-orange-700/30 shadow-md'
+                                }`}>
+                                    {isFirst && <div className="absolute -top-3 bg-amber-500 text-white text-[11px] font-black px-4 py-1 rounded-full shadow-md uppercase tracking-widest">Lider</div>}
+                                    
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black mb-4 shadow-inner border-2 border-white/50 ${
+                                        isFirst ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white' :
+                                        isSecond ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white' :
+                                        'bg-gradient-to-br from-orange-300 to-rose-400 text-white'
+                                    }`}>
+                                        {idx + 1}
+                                    </div>
+                                    
+                                    <h4 className={`font-black text-xl mb-1 ${isFirst ? 'text-amber-700 dark:text-amber-400' : isSecond ? 'text-slate-700 dark:text-slate-300' : 'text-orange-700 dark:text-orange-400'}`}>
+                                        {sampiyon.isim}
+                                    </h4>
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6">{sampiyon.magaza}</p>
+
+                                    <div className="w-full space-y-3">
+                                        <div className="flex justify-between items-center bg-white/60 dark:bg-black/20 rounded-xl px-4 py-3">
+                                            <span className="text-[11px] font-black text-slate-500 uppercase">Anlık Puan</span>
+                                            <span className="font-black text-lg text-slate-800 dark:text-white">{sampiyon.toplamPuan}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-white/60 dark:bg-black/20 rounded-xl px-4 py-3">
+                                            <span className="text-[11px] font-black text-slate-500 uppercase">Ay Sonu Tahmin</span>
+                                            <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">{sampiyon.puanTahmin}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
