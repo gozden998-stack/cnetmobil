@@ -140,7 +140,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
-    let sirketSampiyonlari: any[] = []; // YENİ: TÜM CMR ŞAMPİYONLARI İÇİN
+    let sirketSampiyonlari: any[] = [];
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
@@ -220,7 +220,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             }
         });
 
-        // 1. Sadece Seçili Şubedeki Personel (Gidişat Listesi)
         aktifPersoneller = Object.values(personelDict)
             .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
             .map((p: any) => {
@@ -245,9 +244,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
 
-        // 2. YENİ: Tüm CMR Şubeleri Arası Genel Şampiyonlar Listesi (Top 3)
         sirketSampiyonlari = Object.values(personelDict)
-            .filter((p: any) => p.magaza.includes('CMR')) // Sadece CMR 4 mağaza arası
+            .filter((p: any) => p.magaza.includes('CMR')) 
             .map((p: any) => {
                 let pAnlik = 0, pTahmin = 0;
                 dinamikBaremler.forEach(barem => {
@@ -264,7 +262,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 };
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin))
-            .slice(0, 3); // Sadece İlk 3 Kişiyi Al
+            .slice(0, 3); 
     }
 
     // --- PROGRESS BAR BİLEŞENİ ---
@@ -514,7 +512,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* KOŞULLU ALT GÖVDE: CMR HARİCİ İÇİN DUYURULAR, CMR İÇİN ŞAMPİYONLAR */}
             {!isCmr ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
@@ -553,13 +550,39 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             ) : (
                 <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
-                            <span className="text-3xl animate-bounce">🏆</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
+                                <span className="text-3xl animate-bounce">🏆</span>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Şirket Şampiyonları</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Tüm CMR Şubeleri Arası Liderlik Tablosu (İlk 3)</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Şirket Şampiyonları</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Tüm CMR Şubeleri Arası Liderlik Tablosu (İlk 3)</p>
+                        
+                        <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex items-center gap-2 px-3 border-r border-slate-200 dark:border-slate-700">
+                                <span className="text-lg">🥇</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase">1. Ödülü</span>
+                                    <span className="text-sm font-black text-amber-500">+5 Puan</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 border-r border-slate-200 dark:border-slate-700">
+                                <span className="text-lg">🥈</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase">2. Ödülü</span>
+                                    <span className="text-sm font-black text-slate-500">+3 Puan</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 px-3">
+                                <span className="text-lg">🥉</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase">3. Ödülü</span>
+                                    <span className="text-sm font-black text-orange-500">+1 Puan</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -577,6 +600,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 }`}>
                                     {isFirst && <div className="absolute -top-3 bg-amber-500 text-white text-[11px] font-black px-4 py-1 rounded-full shadow-md uppercase tracking-widest">Lider</div>}
                                     
+                                    <div className={`absolute top-4 right-4 flex flex-col items-center justify-center w-11 h-11 rounded-full shadow-sm border ${
+                                        isFirst ? 'bg-amber-100 text-amber-600 border-amber-200 shadow-amber-500/20' :
+                                        isSecond ? 'bg-slate-100 text-slate-600 border-slate-200 shadow-slate-500/20' :
+                                        'bg-orange-100 text-orange-600 border-orange-200 shadow-orange-500/20'
+                                    }`}>
+                                        <span className="text-sm font-black leading-none">+{isFirst ? '5' : isSecond ? '3' : '1'}</span>
+                                        <span className="text-[7px] font-black uppercase leading-none mt-0.5">PUAN</span>
+                                    </div>
+
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black mb-4 shadow-inner border-2 border-white/50 ${
                                         isFirst ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white' :
                                         isSecond ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white' :
