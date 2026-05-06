@@ -241,8 +241,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     isBasarili: projeksiyon >= p.anaHedef
                 };
             })
-            // --- SIRALAMA PUANA GÖRE ---
-            .sort((a: any, b: any) => parseFloat(b.toplamPuan) - parseFloat(a.toplamPuan));
+            // --- SIRALAMA TAHMİNE GÖRE YENİLENDİ ---
+            .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
     }
 
     // --- PROGRESS BAR BİLEŞENİ ---
@@ -594,8 +594,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
                                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                                        {selectedPersonel.isim} 
-                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.puanTahmin}</span>
+                                        {selectedPersonel.isim} 
+                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
                                     </h3>
                                     <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
                                         TÜM ŞUBELERDEKİ TOPLAM VERİLER
@@ -616,11 +616,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                                         if (hedef === 0 && satilan === 0) return null;
                                         return (
-                                            <DepartmanProgressBar 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
                                                 puan={baremPuanVal.toFixed(1)}
                                                 isRiskliBarem={isBelowBaraj}
                                             />
