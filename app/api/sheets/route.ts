@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
@@ -30,14 +29,16 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    const res = await fetch(url, { cache: 'no-store' });
+    // DEĞİŞEN KISIM: cache: 'no-store' silindi, yerine etiketli cache eklendi.
+    // Bu sayede Vercel veriyi hafızasına alacak ve 'sheets-data' olarak etiketleyecek.
+    const res = await fetch(url, { next: { tags: ['sheets-data'] } });
     const data = await res.json();
 
     if (!data.valueRanges) {
       throw new Error("Google'dan veri alınamadı.");
     }
 
-    const results: any = {};
+    const results = {};
     tables.forEach((table, index) => {
       results[table.id] = data.valueRanges[index].values || [];
     });
