@@ -257,8 +257,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
-      // 🚀 VERCEL KOTA OPTİMİZASYONU 1: 'no-store' silindi, 3 dakikalık (180 sn) Cache eklendi.
-      const res = await fetch('/api/sheets', { next: { revalidate: 180 } });
+      const res = await fetch('/api/sheets'); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
