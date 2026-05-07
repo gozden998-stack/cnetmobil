@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+// 🚀 KOTA KORUMA KİLİDİ 1: 
+// Bu satırlar Vercel'e "Ben sana yenile demeden bu sayfayı asla değiştirme" der.
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
@@ -25,6 +30,9 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
+    // 🚀 KOTA KORUMA KİLİDİ 2: 
+    // tags: ['sheets-data'] -> Butonla eşleşen anahtar.
+    // cache: 'force-cache' -> Veriyi hafızaya çiviler.
     const res = await fetch(url, { 
       next: { tags: ['sheets-data'] },
       cache: 'force-cache' 
@@ -34,7 +42,6 @@ export async function GET() {
 
     if (!data.valueRanges) throw new Error("Google'dan veri alınamadı.");
 
-    // --- HATALI SATIR BURADAYDI, DÜZELTİLDİ ---
     const results: Record<string, any> = {}; 
     
     tables.forEach((table, index) => {
@@ -44,9 +51,19 @@ export async function GET() {
     const rawString = JSON.stringify(results);
     const maskedPayload = Buffer.from(rawString).toString('base64');
 
-    return NextResponse.json({ payload: maskedPayload });
+    // 🚀 KOTA KORUMA KİLİDİ 3: 
+    // Cache-Control başlığı ekleyerek tarayıcının ve Vercel CDN'in veriyi dondurmasını sağlıyoruz.
+    return NextResponse.json(
+      { payload: maskedPayload },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=59',
+        },
+      }
+    );
 
   } catch (error) {
+    console.error("Hata:", error);
     return NextResponse.json({ error: "Veri çekilemedi" }, { status: 500 });
   }
 }
