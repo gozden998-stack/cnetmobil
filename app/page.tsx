@@ -1234,10 +1234,35 @@ export default function CnetmobilCmrFinalUltimate() {
                       )}
                    </div>
 
-                   <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap w-full md:w-auto shrink-0 flex items-center justify-center gap-2 btn-click">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      PANELİ KAPAT
-                   </button>
+                   <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                      {/* YENİ EKLENEN: FİYAT LİSTESİ YENİLEME BUTONU */}
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/revalidate?tag=sheets-data');
+                            const data = await res.json();
+                            if (data.success) {
+                              alert("Fiyatlar Başarıyla Güncellendi! ✅ Yeni fiyatları görmek için sayfa yenileniyor...");
+                              window.location.reload(); 
+                            } else {
+                              alert("Bir hata oluştu. ❌");
+                            }
+                          } catch (e) {
+                            alert("Bağlantı hatası!");
+                          }
+                        }}
+                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-emerald-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        FİYATLARI YENİLE
+                      </button>
+
+                      {/* MEVCUT: PANELİ KAPAT BUTONU */}
+                      <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        PANELİ KAPAT
+                      </button>
+                   </div>
                 </div>
               )}
 
