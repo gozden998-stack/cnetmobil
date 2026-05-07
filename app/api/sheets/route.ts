@@ -25,7 +25,6 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    // 🚀 ÖNEMLİ: force-cache ekleyerek Vercel'e "ben demeden asla Google'a gitme" diyoruz.
     const res = await fetch(url, { 
       next: { tags: ['sheets-data'] },
       cache: 'force-cache' 
@@ -35,7 +34,9 @@ export async function GET() {
 
     if (!data.valueRanges) throw new Error("Google'dan veri alınamadı.");
 
-    const results = {};
+    // --- HATALI SATIR BURADAYDI, DÜZELTİLDİ ---
+    const results: Record<string, any> = {}; 
+    
     tables.forEach((table, index) => {
       results[table.id] = data.valueRanges[index].values || [];
     });
