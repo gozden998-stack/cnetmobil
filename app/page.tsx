@@ -398,20 +398,10 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  useEffect(() => { 
-    loadData(); 
-    // 🚀 VERCEL KOTA OPTİMİZASYONU 2: 45 saniyede bir olan veri çekme 3 dakikaya (180 sn) çıkartıldı.
-    const intervalId = setInterval(() => { loadData(); }, 180000); 
-    
-    // 🚀 VERCEL KOTA OPTİMİZASYONU 3: Sekme değiştiğinde baştan veri indirme iptal edildi.
-    // const handleFocus = () => { loadData(); };
-    // window.addEventListener('focus', handleFocus);
-    
-    return () => { 
-      clearInterval(intervalId); 
-      // window.removeEventListener('focus', handleFocus); 
-    };
+    useEffect(() => {
+    loadData();
   }, [step]);
+
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
