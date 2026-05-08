@@ -43,7 +43,8 @@ export default function CnetmobilCmrFinalUltimate() {
   const [personelData, setPersonelData] = useState<any[][]>([]);
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
-  
+  const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
+
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
@@ -112,15 +113,13 @@ export default function CnetmobilCmrFinalUltimate() {
     
     const checkUpdateSignal = async () => {
       try {
-        // Cache'i kırmak için timestamp ekledik
-        const res = await fetch(`/api/revalidate?check=1&t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch('/api/revalidate?check=1');
         const data = await res.json();
         
         if (data.version) {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version !== currentVersion) {
-            // Versiyon değiştiyse modalı göster
             setShowUpdateModal(true);
           }
         }
@@ -129,8 +128,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    // Kontrol periyodu: 15 saniye (Anlık tepki için düşürüldü)
-    const interval = setInterval(checkUpdateSignal, 15000); 
+    const interval = setInterval(checkUpdateSignal, 60000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -774,7 +772,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
         <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
            <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
            
@@ -1241,11 +1239,10 @@ export default function CnetmobilCmrFinalUltimate() {
                       <button 
                         onClick={async () => {
                           try {
-                            // Admin tetiklediğinde backend'e sinyal gönderilir
                             const res = await fetch('/api/revalidate?tag=sheets-data');
                             const data = await res.json();
                             if (data.success) {
-                              alert("Fiyatlar Başarıyla Güncellendi! ✅ Tüm bayilere bildirim gönderildi.");
+                              alert("Fiyatlar Başarıyla Güncellendi! ✅ Yeni fiyatları görmek için sayfa yenileniyor...");
                               window.location.reload(); 
                             } else {
                               alert("Bir hata oluştu. ❌");
