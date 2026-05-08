@@ -107,7 +107,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT): Admin panelinden "Fiyatları Yenile" dendiğinde çalışır ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT) ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
@@ -128,7 +128,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    const interval = setInterval(checkUpdateSignal, 60000); // 1 dakikada bir kontrol eder, kotayı yormaz
+    const interval = setInterval(checkUpdateSignal, 60000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -307,8 +307,8 @@ export default function CnetmobilCmrFinalUltimate() {
           if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
               const prevTabletMap = new Map();
               prevCepTabletRef.current.forEach(row => {
-                  if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); // Apple
-                  if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); // Android
+                  if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); 
+                  if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); 
               });
 
               const changedPrices: string[] = [];
@@ -1750,7 +1750,7 @@ export default function CnetmobilCmrFinalUltimate() {
         ))}
       </div>
 
-      {/* 🚀 ADMIN GÜNCELLEME ZORUNLU MODALI (Sen Admin panelinde butona bastığında çıkar) */}
+      {/* 🚀 ADMIN GÜNCELLEME ZORUNLU MODALI */}
       {showUpdateModal && (
         <div className="fixed inset-0 z-[10000] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center">
           <div className="max-w-md w-full bg-white p-10 rounded-[50px] shadow-2xl animate-in zoom-in duration-500 border-4 border-blue-600">
@@ -1797,11 +1797,11 @@ export default function CnetmobilCmrFinalUltimate() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Müşteri Adı Soyadı</label>
-                  <input type="text" placeholder="Örn: Gökhan Özden" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300 uppercase" />
+                  <input type="text" placeholder="Ad Soyad" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300 uppercase" />
                 </div>
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Telefon Numarası</label>
-                  <input type="text" placeholder="Örn: 0535 893 04 51" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300" />
+                  <input type="text" placeholder="Telefon" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300" />
                 </div>
               </div>
 
