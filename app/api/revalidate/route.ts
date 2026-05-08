@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
   // Sen butona bastığında veya Sheets güncellendiğinde:
   if (tag === 'sheets-data') {
     lastUpdate = Date.now(); 
-    revalidateTag('sheets-data'); 
+    
+    // YENİ: Next.js 16+ sürümlerinde ikinci parametre (profile) zorunludur.
+    // 'max' profili, veriyi arka planda en güncel haliyle yenilemek için idealdir.
+    revalidateTag('sheets-data', 'max'); 
     
     return NextResponse.json({ 
       success: true, 
