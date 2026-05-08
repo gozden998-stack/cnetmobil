@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// Opsiyonel: Veriyi 30 saniyede bir tazelemek istersen:
-// export const revalidate = 30; 
-
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
 
+  // Çevresel değişken kontrolü (Hata almamak için önemli)
+  if (!SHEET_ID || !API_KEY) {
+    return NextResponse.json({ error: "Eksik yapılandırma: API_KEY veya SHEET_ID bulunamadı." }, { status: 500 });
+  }
+
   const tables = [
+    // Sayfa isimlerinde boşluk veya özel karakter varsa 'Sayfa İsmi'!Range formatı en güvenlisidir.
     { id: 'Devices', range: "'Google Sheets ile Kurumsal Alım Sistemi'!A2:F1000" },
     { id: 'Ayarlar', range: "Ayarlar!A1:B25" },
     { id: 'Alimlar', range: "Alimlar!A2:H500" },
@@ -30,25 +33,29 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    // 'no-store' yerine kısa süreli cache veya default davranış tercih edilebilir
-    const res = await fetch(url, { 
-      next: { revalidate: 10 } // Veriyi 10 saniyede bir günceller, trafiği azaltır.
-    });
-    
+    const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
 
-    if (!data.valueRanges) throw new Error("Google API Hatası");
+    if (!data.valueRanges) {
+      console.error("Google API Hatası:", data);
+      throw new Error("Google'dan veri alınamadı.");
+    }
 
     const results: Record<string, any[]> = {};
+    
     tables.forEach((table, index) => {
+      // Değer yoksa boş dizi ata
       results[table.id] = data.valueRanges[index]?.values || [];
     });
 
-    // Maskeleme (Base64) kaldırıldı, doğrudan JSON dönüyoruz.
-    // Bu, veri boyutunu %30-40 oranında küçültecektir.
-    return NextResponse.json(results);
+    // Maskeleme işlemi
+    const rawString = JSON.stringify(results);
+    const maskedPayload = Buffer.from(rawString).toString('base64');
+
+    return NextResponse.json({ payload: maskedPayload });
 
   } catch (error: any) {
-    return NextResponse.json({ error: "Veri çekilemedi" }, { status: 500 });
+    console.error("Sheets verisi çekilirken hata:", error.message);
+    return NextResponse.json({ error: "Veri çekilemedi", detail: error.message }, { status: 500 });
   }
 }
