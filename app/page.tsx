@@ -29,13 +29,16 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
 
+  // --- 🚀 GÜNCELLEME BEKÇİSİ STATELERİ ---
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<number | null>(null);
+
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
   const [ikinciElData, setIkinciElData] = useState<any[][]>([]); 
   const [imeiData, setImeiData] = useState<any[][]>([]);
   
-  // EKLENEN: Mağaza ve Personel Gidişat Verisi İçin Stateler
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
   const [personelData, setPersonelData] = useState<any[][]>([]);
 
@@ -77,12 +80,10 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
 
-  // --- EKLENEN BİLDİRİM (TOAST) STATELERİ VE REFLERİ ---
   const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
-  // ---------------------------------------------------
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -105,6 +106,31 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
+
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT): Admin panelinden "Fiyatları Yenile" dendiğinde çalışır ---
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const checkUpdateSignal = async () => {
+      try {
+        const res = await fetch('/api/revalidate?check=1');
+        const data = await res.json();
+        
+        if (data.version) {
+          if (currentVersion === null) {
+            setCurrentVersion(data.version);
+          } else if (data.version !== currentVersion) {
+            setShowUpdateModal(true);
+          }
+        }
+      } catch (e) {
+        console.error("Güncelleme kontrolü başarısız.");
+      }
+    };
+
+    const interval = setInterval(checkUpdateSignal, 60000); // 1 dakikada bir kontrol eder, kotayı yormaz
+    return () => clearInterval(interval);
+  }, [currentVersion, isLoggedIn]);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -143,6 +169,7 @@ export default function CnetmobilCmrFinalUltimate() {
           if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
             setSelectedBranch(session.branch);
             setIsLoggedIn(true);
+            setAuthLoading(false);
           } else {
             localStorage.removeItem('cnet_session');
           }
@@ -156,7 +183,7 @@ export default function CnetmobilCmrFinalUltimate() {
     verifySession();
   }, []);
 
- const handleLogin = async () => {
+  const handleLogin = async () => {
   if(!entryPass) return;
   setLoginLoading(true);
 
@@ -262,14 +289,10 @@ export default function CnetmobilCmrFinalUltimate() {
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      // --- EKLENEN BİLDİRİM VE KIYASLAMA MANTIĞI BAŞLANGICI ---
       let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
       const isInitialLoad = prevDbRef.current.length === 0;
 
-      // Sadece ilk yükleme bittikten sonraki fetch işlemlerinde bildirim ver (uygulama açılır açılmaz uyarı vermemesi için)
       if (!isInitialLoad && !loading) { 
-          
-          // 1. YENİ CİHAZ EKLENME KONTROLÜ
           if (allData.Devices) {
               const currentDeviceNames = prevDbRef.current.map(d => d.name);
               const newDevices = allData.Devices.filter((d: any) => d[1] && !currentDeviceNames.includes(d[1]));
@@ -281,7 +304,6 @@ export default function CnetmobilCmrFinalUltimate() {
               });
           }
 
-          // 2. FİYAT GÜNCELLEMESİ KONTROLÜ (CepTablet üzerinden)
           if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
               const prevTabletMap = new Map();
               prevCepTabletRef.current.forEach(row => {
@@ -291,14 +313,12 @@ export default function CnetmobilCmrFinalUltimate() {
 
               const changedPrices: string[] = [];
               allData.CepTablet.forEach((row: any) => {
-                  // Apple tarafı kontrol
                   if (row[0]) {
                       const prev = prevTabletMap.get(row[0]);
                       if (prev && (prev.k !== row[1] || prev.s !== row[2])) {
                           if(!changedPrices.includes(row[0])) changedPrices.push(row[0]);
                       }
                   }
-                  // Android tarafı kontrol
                   if (row[5]) {
                       const prev = prevTabletMap.get(row[5]);
                       if (prev && (prev.k !== row[6] || prev.s !== row[7])) {
@@ -318,7 +338,6 @@ export default function CnetmobilCmrFinalUltimate() {
           }
       }
 
-      // Ekranda gösterilecek bildirim varsa ekle ve 8 saniye sonra silinmesi için zamanla
       if (newNotifications.length > 0) {
           setToastMessages(prev => [...prev, ...newNotifications]);
           newNotifications.forEach(notification => {
@@ -328,7 +347,6 @@ export default function CnetmobilCmrFinalUltimate() {
           });
       }
 
-      // Ref'leri güncel verilerle doldur ki bir sonraki sefer karşılaştırma yapabilelim
       if (allData.Devices) {
           prevDbRef.current = allData.Devices.map((row: any) => ({
               brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -338,8 +356,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.CepTablet) {
           prevCepTabletRef.current = allData.CepTablet;
       }
-      // --- EKLENEN BİLDİRİM VE KIYASLAMA MANTIĞI BİTİŞİ ---
-
 
       if (allData.Devices) {
         setDb(allData.Devices.map((row: any) => ({
@@ -372,7 +388,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       if (allData.Depo) setImeiData(allData.Depo);
       
-      // EKLENEN: Mağaza Gidişat ve Personel Verisini Çekme Köprüsü
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
 
@@ -393,12 +408,12 @@ export default function CnetmobilCmrFinalUltimate() {
 
       setLoading(false);
     } catch (e) {
-      console.error("Veri tünelinde veya maske çözmede hata oluştu:", e);
+      console.error("Veri tünelinde hata:", e);
       setLoading(false);
     }
   };
 
-    useEffect(() => {
+  useEffect(() => {
     loadData();
   }, [step]);
 
@@ -454,18 +469,18 @@ export default function CnetmobilCmrFinalUltimate() {
       let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
       if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === 'ZUMAY KANALI') {
-         finalCash = Math.round(finalCash * 0.92);
+          finalCash = Math.round(finalCash * 0.92);
       }
 
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
       
       if (customOffer && parseInt(customOffer) > finalCash) {
-         setCustomOffer(finalCash.toString());
+          setCustomOffer(finalCash.toString());
       }
       
       if (customTradeOffer && parseInt(customTradeOffer) > finalTrade) {
-         setCustomTradeOffer(finalTrade.toString());
+          setCustomTradeOffer(finalTrade.toString());
       }
     }
   }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); 
@@ -757,7 +772,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
         <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
            <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4" /></svg>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
            
@@ -805,7 +820,7 @@ export default function CnetmobilCmrFinalUltimate() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* TOPBAR (ÜST MENÜ - KOYU RENK KALDI ÇÜNKÜ ÇERÇEVE İÇİN ÇOK ŞIK DURUYOR) */}
+      {/* TOPBAR */}
       <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
         <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
           <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
@@ -906,14 +921,14 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">DEPO LİSTESİ</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -941,14 +956,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'kampanya_sifir' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-red-600">KAMPANYALI SIFIR LİSTE</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
 
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -979,14 +994,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-orange-500">2.EL FİYAT LİSTESİ</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -1021,14 +1036,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
-                 </div>
-                 <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
+                  </div>
+                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -1061,14 +1076,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'cep_tablet' && step < 99 ? (
             <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
@@ -1134,14 +1149,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'yna_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1194,18 +1209,16 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
           
-          /* YÖNETİCİ GÖRÜNÜMÜ - ÜST KONTROL BAR EKLENDİ */
+          /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {isAdmin && (
                 <div className="mb-6 bg-white border border-slate-200 p-4 rounded-[28px] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                    <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto no-scrollbar">
-                      {/* ŞUBE FİLTRESİ */}
                       <select value={adminSelectedBranch} onChange={(e) => setAdminSelectedBranch(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
                         <option value="TÜM ŞUBELER">TÜM ŞUBELER</option>
                         {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                       </select>
-                      {/* TARİH FİLTRESİ */}
                       <select value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
                          <option value="TÜM ZAMANLAR">TÜM ZAMANLAR</option>
                          <option value="BUGÜN">BUGÜN</option>
@@ -1214,7 +1227,6 @@ export default function CnetmobilCmrFinalUltimate() {
                          <option value="ÖZEL">ÖZEL</option>
                       </select>
 
-                      {/* ÖZEL TARİH SEÇİMİ */}
                       {dateFilterType === 'ÖZEL' && (
                         <div className="flex items-center gap-2">
                            <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-slate-50 text-slate-800 text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500" />
@@ -1224,7 +1236,6 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
 
                    <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                      {/* YENİ EKLENEN: FİYAT LİSTESİ YENİLEME BUTONU */}
                       <button 
                         onClick={async () => {
                           try {
@@ -1246,7 +1257,6 @@ export default function CnetmobilCmrFinalUltimate() {
                         FİYATLARI YENİLE
                       </button>
 
-                      {/* MEVCUT: PANELİ KAPAT BUTONU */}
                       <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         PANELİ KAPAT
@@ -1289,12 +1299,12 @@ export default function CnetmobilCmrFinalUltimate() {
 
                   return (
                     <div key={brand} 
-                          onClick={() => {
-                            setSelectedBrand(brand); 
-                            setStep(2); 
-                            resetSelection();
-                          }} 
-                          className={`bg-white p-8 rounded-[40px] shadow-sm border flex flex-col items-center justify-center text-center h-64 group transition-all hover:-translate-y-2 hover:shadow-xl cursor-pointer btn-click ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100 hover:border-slate-200'}`}>
+                         onClick={() => {
+                           setSelectedBrand(brand); 
+                           setStep(2); 
+                           resetSelection();
+                         }} 
+                         className={`bg-white p-8 rounded-[40px] shadow-sm border flex flex-col items-center justify-center text-center h-64 group transition-all hover:-translate-y-2 hover:shadow-xl cursor-pointer btn-click ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100 hover:border-slate-200'}`}>
                       <div className="h-24 w-full flex items-center justify-center mb-6 transition-all duration-500 transform group-hover:scale-110">
                         <img src={finalLogo} className="max-h-full max-w-[120px] object-contain" alt={brand} />
                       </div>
@@ -1721,7 +1731,7 @@ export default function CnetmobilCmrFinalUltimate() {
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
-      {/* YENİ EKLENEN BİLDİRİM (TOAST) UI */}
+      {/* TOAST BİLDİRİMLERİ */}
       <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
         {toastMessages.map((toast) => (
           <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
@@ -1739,6 +1749,31 @@ export default function CnetmobilCmrFinalUltimate() {
           </div>
         ))}
       </div>
+
+      {/* 🚀 ADMIN GÜNCELLEME ZORUNLU MODALI (Sen Admin panelinde butona bastığında çıkar) */}
+      {showUpdateModal && (
+        <div className="fixed inset-0 z-[10000] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full bg-white p-10 rounded-[50px] shadow-2xl animate-in zoom-in duration-500 border-4 border-blue-600">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter mb-4">
+              FİYATLAR <span className="text-blue-600">GÜNCELLENDİ</span>
+            </h2>
+            <p className="text-slate-500 font-bold text-sm mb-8 leading-relaxed uppercase">
+              Yönetici yeni fiyat listesini yayınladı.<br/>Devam etmek için listeyi yenilemeniz gerekmektedir.
+            </p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+            >
+              LİSTEYİ ŞİMDİ YENİLE
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
