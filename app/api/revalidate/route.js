@@ -1,10 +1,10 @@
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 
-// Bu değişken sadece Admin butona bastığında değişecek
+// Dikkat: Bu değişken sunucu her yeniden başladığında sıfırlanır (Vercel'de kalıcı olmaz)
 let lastUpdate = Date.now(); 
 
-export async function GET(request: Request) {
+export async function GET(request) { // ": Request" kısmını sildik
   const { searchParams } = new URL(request.url);
   const tag = searchParams.get('tag');
   const check = searchParams.get('check');
