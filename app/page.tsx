@@ -43,8 +43,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [personelData, setPersonelData] = useState<any[][]>([]);
 
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
-  const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
-
+  
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
   const [config, setConfig] = useState<any>({});
@@ -107,13 +106,14 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT) ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT): Fiyatlar güncellendiğinde uyarı verir ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
     const checkUpdateSignal = async () => {
       try {
-        const res = await fetch('/api/revalidate?check=1');
+        // Cache'i kırmak için timestamp ve no-store ekledik
+        const res = await fetch(`/api/revalidate?check=1&t=${Date.now()}`, { cache: 'no-store' });
         const data = await res.json();
         
         if (data.version) {
@@ -128,7 +128,8 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    const interval = setInterval(checkUpdateSignal, 60000); 
+    // Kontrol periyodu: 30 saniye (Hızlı tepki için düşürüldü)
+    const interval = setInterval(checkUpdateSignal, 30000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -772,7 +773,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
         <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
            <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
            </div>
            <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
            
