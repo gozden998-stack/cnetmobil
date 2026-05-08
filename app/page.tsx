@@ -106,13 +106,13 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT): Fiyatlar güncellendiğinde uyarı verir ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT) ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
     const checkUpdateSignal = async () => {
       try {
-        // Cache'i kırmak için timestamp ve no-store ekledik
+        // Cache'i kırmak için timestamp ekledik
         const res = await fetch(`/api/revalidate?check=1&t=${Date.now()}`, { cache: 'no-store' });
         const data = await res.json();
         
@@ -120,6 +120,7 @@ export default function CnetmobilCmrFinalUltimate() {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version !== currentVersion) {
+            // Versiyon değiştiyse modalı göster
             setShowUpdateModal(true);
           }
         }
@@ -128,8 +129,8 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    // Kontrol periyodu: 30 saniye (Hızlı tepki için düşürüldü)
-    const interval = setInterval(checkUpdateSignal, 30000); 
+    // Kontrol periyodu: 15 saniye (Anlık tepki için düşürüldü)
+    const interval = setInterval(checkUpdateSignal, 15000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -1240,10 +1241,11 @@ export default function CnetmobilCmrFinalUltimate() {
                       <button 
                         onClick={async () => {
                           try {
+                            // Admin tetiklediğinde backend'e sinyal gönderilir
                             const res = await fetch('/api/revalidate?tag=sheets-data');
                             const data = await res.json();
                             if (data.success) {
-                              alert("Fiyatlar Başarıyla Güncellendi! ✅ Yeni fiyatları görmek için sayfa yenileniyor...");
+                              alert("Fiyatlar Başarıyla Güncellendi! ✅ Tüm bayilere bildirim gönderildi.");
                               window.location.reload(); 
                             } else {
                               alert("Bir hata oluştu. ❌");
