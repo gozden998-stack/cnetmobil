@@ -1,11 +1,25 @@
-import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
+import { NextResponse } from 'next/server';
 
-export async function GET(request) {
-  const tag = request.nextUrl.searchParams.get('tag');
-  if (tag) {
-    revalidateTag(tag); // Hafızayı temizle emri
-    return NextResponse.json({ revalidated: true, now: Date.now() });
+// Bu değişken sadece Admin butona bastığında değişecek
+let lastUpdate = Date.now(); 
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const tag = searchParams.get('tag');
+  const check = searchParams.get('check');
+
+  // Personel ekranı "Güncelleme var mı?" diye soruyorsa:
+  if (check) {
+    return NextResponse.json({ version: lastUpdate });
   }
-  return NextResponse.json({ message: 'Tag belirtilmedi' });
+
+  // Sen butona bastığında:
+  if (tag === 'sheets-data') {
+    lastUpdate = Date.now(); // Sinyali güncelle
+    revalidateTag(tag); // Vercel önbelleğini temizle
+    return NextResponse.json({ success: true, version: lastUpdate });
+  }
+
+  return NextResponse.json({ success: false });
 }
