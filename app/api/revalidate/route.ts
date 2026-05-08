@@ -1,10 +1,10 @@
 import { revalidateTag } from 'next/cache';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Sunucu çalıştığı sürece son güncelleme zamanını tutar
-let lastUpdate = Date.now(); 
+// Sunucu bazlı değişken (Vercel'de geçici hafızada durur)
+let lastUpdate: number = Date.now(); 
 
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tag = searchParams.get('tag');
   const check = searchParams.get('check');
@@ -14,20 +14,16 @@ export async function GET(request) {
     return NextResponse.json({ version: lastUpdate });
   }
 
-  // Google Sheets verisi güncellendiğinde veya butona basıldığında:
+  // Sen butona bastığında veya Sheets güncellendiğinde:
   if (tag === 'sheets-data') {
-    lastUpdate = Date.now(); // Zaman damgasını güncelle
-    revalidateTag('sheets-data'); // Vercel önbelleğini temizle
+    lastUpdate = Date.now(); 
+    revalidateTag('sheets-data'); 
     
     return NextResponse.json({ 
       success: true, 
-      version: lastUpdate,
-      message: "Veriler başarıyla yenilendi" 
+      version: lastUpdate 
     });
   }
 
-  return NextResponse.json({ 
-    success: false, 
-    message: "Hatalı parametre veya eksik tag" 
-  });
+  return NextResponse.json({ success: false });
 }
