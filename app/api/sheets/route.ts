@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// DİKKAT: 'force-dynamic' kaldırıldı, veri artık cache'lenecek.
+export const revalidate = false; 
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
 
-  // Çevresel değişken kontrolü (Hata almamak için önemli)
   if (!SHEET_ID || !API_KEY) {
-    return NextResponse.json({ error: "Eksik yapılandırma: API_KEY veya SHEET_ID bulunamadı." }, { status: 500 });
+    return NextResponse.json({ error: "Yapılandırma eksik" }, { status: 500 });
   }
 
   const tables = [
-    // Sayfa isimlerinde boşluk veya özel karakter varsa 'Sayfa İsmi'!Range formatı en güvenlisidir.
     { id: 'Devices', range: "'Google Sheets ile Kurumsal Alım Sistemi'!A2:F1000" },
     { id: 'Ayarlar', range: "Ayarlar!A1:B25" },
     { id: 'Alimlar', range: "Alimlar!A2:H500" },
@@ -24,38 +23,32 @@ export async function GET() {
     { id: 'IkinciEl', range: "'2.EL FİYAT LİSTESİ'!A1:D1000" },
     { id: 'Depo', range: "DEPO!A1:B1000" },
     { id: 'MagazaGidisat', range: "MagazaGidisat!A1:E100" },
-    { id: 'PersonelGidisat', range: "PersonelGidisat!A2:L100" },
-    { id: 'CustomerDevices', range: "'Cihaz Sat'!A2:F1000" },
-    { id: 'CustomerConfig', range: "'Cihaz Sat'!N2:O50" }
+    { id: 'PersonelGidisat', range: "PersonelGidisat!A2:L100" }
   ];
 
   try {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    const res = await fetch(url, { cache: 'no-store' });
+    // 'next: { tags: [...] }' ekleyerek bu veriyi etiketliyoruz. 
+    // Böylece butona basınca sadece bu veriyi temizleyebileceğiz.
+    const res = await fetch(url, { 
+      next: { tags: ['sheets-data'] } 
+    });
+    
     const data = await res.json();
 
-    if (!data.valueRanges) {
-      console.error("Google API Hatası:", data);
-      throw new Error("Google'dan veri alınamadı.");
-    }
+    if (!data.valueRanges) throw new Error("Google Veri Hatası");
 
     const results: Record<string, any[]> = {};
-    
     tables.forEach((table, index) => {
-      // Değer yoksa boş dizi ata
       results[table.id] = data.valueRanges[index]?.values || [];
     });
 
-    // Maskeleme işlemi
-    const rawString = JSON.stringify(results);
-    const maskedPayload = Buffer.from(rawString).toString('base64');
-
+    const maskedPayload = Buffer.from(JSON.stringify(results)).toString('base64');
     return NextResponse.json({ payload: maskedPayload });
 
   } catch (error: any) {
-    console.error("Sheets verisi çekilirken hata:", error.message);
-    return NextResponse.json({ error: "Veri çekilemedi", detail: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
