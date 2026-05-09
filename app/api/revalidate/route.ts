@@ -1,28 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
+import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Sistem her çalıştığında bir versiyon numarası oluşturur. 
+// Yönetici fiyatları yenilediğinde bu numara değişecek ve tüm ekranlar bunu fark edecek.
+let globalVersion = Date.now();
 
-export async function GET(request: NextRequest) {
-  const tag = request.nextUrl.searchParams.get('tag');
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const check = searchParams.get('check');
+  const tag = searchParams.get('tag');
 
-  if (!tag) {
-    return NextResponse.json({ message: 'Tag parametresi eksik' }, { status: 400 });
+  // 1. DURUM: Personel ekranları "Güncelleme var mı?" diye sorduğunda çalışır
+  if (check === '1') {
+    return NextResponse.json({ version: globalVersion });
   }
 
-  try {
-    // NEXT.JS YENİ SÜRÜM GÜNCELLEMESİ: 
-    // 2. parametre olarak { expire: 0 } ekledik. 
-    // Anlamı: Önbelleği bekleme süresi olmadan hemen ve tamamen sil.
-    revalidateTag(tag, { expire: 0 });
-    
-    return NextResponse.json({ 
-      revalidated: true, 
-      now: Date.now(), 
-      success: true,
-      tag: tag 
-    });
-  } catch (err) {
-    return NextResponse.json({ message: 'Revalidate hatası', error: err }, { status: 500 });
+  // 2. DURUM: Yönetici "FİYATLARI YENİLE" butonuna bastığında çalışır
+  if (tag) {
+    try {
+      // Vercel'in önbelleğini (cache) temizle
+      revalidateTag(tag);
+      
+      // Yeni bir versiyon numarası belirle (Ekranlara güncelleme uyarısı gitmesi için)
+      globalVersion = Date.now(); 
+      
+      return NextResponse.json({ 
+        revalidated: true, 
+        now: Date.now(), 
+        success: true,
+        message: 'Önbellek temizlendi ve yeni versiyon yayınlandı.'
+      });
+    } catch (err) {
+      return NextResponse.json({ message: 'Yenileme hatası', success: false }, { status: 500 });
+    }
   }
+
+  return NextResponse.json({ message: 'Geçersiz istek' }, { status: 400 });
 }
