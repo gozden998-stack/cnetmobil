@@ -103,7 +103,7 @@ export default function CnetmobilCmrFinalUltimate() {
     "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
     "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
-  };
+  ];
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
@@ -113,7 +113,8 @@ export default function CnetmobilCmrFinalUltimate() {
     
     const checkUpdateSignal = async () => {
       try {
-        const res = await fetch('/api/revalidate?check=1');
+        // 🚀 DEĞİŞİKLİK BURADA: Artık Vercel'in global önbelleğine (CDN) bakıyoruz!
+        const res = await fetch('/api/version', { cache: 'no-store' });
         const data = await res.json();
         
         if (data.version) {
