@@ -1,9 +1,10 @@
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 
-// Sistem her çalıştığında bir versiyon numarası oluşturur. 
-// Yönetici fiyatları yenilediğinde bu numara değişecek ve tüm ekranlar bunu fark edecek.
-let globalVersion = Date.now();
+// 🚀 DÜZELTME BURADA: Başlangıç değeri artık Date.now() değil, 0.
+// Vercel uyku moduna geçip uyandığında bu değer 0 olacak. 
+// Ekrandaki versiyon 0'dan büyük olacağı için sahte alarm ASLA tetiklenmeyecek!
+let globalVersion = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
         revalidated: true, 
         now: Date.now(), 
         success: true,
+        version: globalVersion, // Yenilenen versiyonu da bilgi olarak dönüyoruz
         message: 'Önbellek başarıyla temizlendi ve yeni versiyon yayınlandı.'
       });
     } catch (err) {
