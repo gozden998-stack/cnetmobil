@@ -413,9 +413,20 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+  // --- YENİ EKLENEN ÖN BELLEK TEMİZLEME VE YENİLEME FONKSİYONU ---
+  const refreshDataCache = async () => {
+    try {
+      await fetch('/api/revalidate?tag=sheets-data');
+      await loadData();
+    } catch (e) {
+      console.error("Önbellek temizlenirken hata oluştu", e);
+    }
+  };
+
+  // --- ARTIK SADECE SAYFA İLK AÇILDIĞINDA VERİ ÇEKİLECEK ---
   useEffect(() => {
     loadData();
-  }, [step]);
+  }, []); 
 
 
   useEffect(() => {
@@ -537,7 +548,7 @@ export default function CnetmobilCmrFinalUltimate() {
           });
 
           alert("Yönetici paneline gönderildi");
-          setTimeout(() => { loadData(); }, 2500);
+          setTimeout(() => { refreshDataCache(); }, 2500);
 
         } catch (e) { console.error(e); }
     }
@@ -565,7 +576,7 @@ export default function CnetmobilCmrFinalUltimate() {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
-      setTimeout(loadData, 2000);
+      setTimeout(refreshDataCache, 2000);
     } catch (e) { console.error(e); }
   };
 
@@ -578,7 +589,7 @@ export default function CnetmobilCmrFinalUltimate() {
         body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
       });
       alert("Tüm geçmiş temizlendi.");
-      loadData();
+      refreshDataCache();
     } catch (e) { console.error(e); }
   };
 
@@ -608,7 +619,7 @@ export default function CnetmobilCmrFinalUltimate() {
       });
       alert("Cihaz başarıyla eklendi!");
       setNewDevice({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
-      setTimeout(loadData, 1500);
+      setTimeout(refreshDataCache, 1500);
     } catch (e) { console.error(e); }
   };
 
