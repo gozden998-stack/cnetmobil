@@ -130,7 +130,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    const interval = setInterval(checkUpdateSignal, 5000); // 5 Saniyede bir anlık kontrol
+    const interval = setInterval(checkUpdateSignal, 1000); // 1 Saniyede bir anlık kontrol
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
