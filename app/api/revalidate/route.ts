@@ -1,32 +1,26 @@
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidateTag, revalidatePath } from 'next/cache'; // DOĞRU İMPORT BURASI
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const tag = searchParams.get('tag');
+  try {
+    const { searchParams } = new URL(request.url);
+    const tag = searchParams.get('tag');
 
-  // Yalnızca Yönetici "FİYATLARI YENİLE" butonuna bastığında bu blok çalışır
-  if (tag) {
-    try {
-      // 1. Google Sheets verisini önbellekten (cache) temizle
+    // 1. Tag belirtilmişse onu, yoksa varsayılanı temizle
+    if (tag) {
+      revalidateTag(tag);
+    } else {
       revalidateTag('sheets-data');
-      
-      // 2. Ana sayfayı temizle
-      revalidatePath('/', 'layout');
-      
-      // 3. 🚀 BÜTÜN MAĞAZALARI AYNI ANDA TETİKLEYEN SİNYAL:
-      // Global versiyon hafızasını temizliyoruz. Vercel tüm ekranlara anında yeni saati fırlatıyor!
-      revalidatePath('/api/version');
-      
-      return NextResponse.json({ 
-        success: true,
-        now: Date.now(),
-        message: 'Önbellek başarıyla temizlendi ve tüm mağazalara sinyal gönderildi.'
-      });
-    } catch (err) {
-      return NextResponse.json({ message: 'Yenileme hatası', success: false }, { status: 500 });
     }
-  }
+    
+    // 2. Ana sayfayı temizle (Sadece '/' yeterlidir, 'layout' parametresi bazen tip hatası verebilir)
+    revalidatePath('/');
 
-  return NextResponse.json({ message: 'Geçersiz istek (Tag bulunamadı)' }, { status: 400 });
+    return NextResponse.json({ revalidated: true, now: Date.now() });
+  } catch (error) {
+    return NextResponse.json(
+      { revalidated: false, message: 'Önbellek temizlenirken hata oluştu' },
+      { status: 500 }
+    );
+  }
 }
