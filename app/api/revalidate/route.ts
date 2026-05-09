@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 
-// KRİTİK: Build hatasını önlemek için bu rotanın statik olmadığını belirtiyoruz
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -12,8 +11,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Hafızadaki (cache) veriyi temizler
-    revalidateTag(tag);
+    // NEXT.JS YENİ SÜRÜM GÜNCELLEMESİ: 
+    // 2. parametre olarak { expire: 0 } ekledik. 
+    // Anlamı: Önbelleği bekleme süresi olmadan hemen ve tamamen sil.
+    revalidateTag(tag, { expire: 0 });
     
     return NextResponse.json({ 
       revalidated: true, 
