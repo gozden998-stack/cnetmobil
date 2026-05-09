@@ -80,7 +80,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
 
-  const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
+  const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price', items?: string[]}[]>([]);
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
@@ -120,8 +120,7 @@ export default function CnetmobilCmrFinalUltimate() {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version > currentVersion) {
-            // Sadece versiyon BÜYÜDÜĞÜNDE (Yani patron gerçekten butona bastığında) modalı aç
-            setCurrentVersion(data.version); // Eşitle ki sonsuz döngüye girmesin
+            setCurrentVersion(data.version); 
             setShowUpdateModal(true);
           }
         }
@@ -291,52 +290,83 @@ export default function CnetmobilCmrFinalUltimate() {
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
+      // GÜNCELLENEN BİLDİRİM VE DİFF MANTIĞI
+      let newNotifications: {id: number, text: string, type: 'new' | 'price', items?: string[]}[] = [];
       const isInitialLoad = prevDbRef.current.length === 0;
 
       if (!isInitialLoad && !loading) { 
+          // Yeni Eklenen Cihazlar Kontrolü (Alım Sistemi)
           if (allData.Devices) {
               const currentDeviceNames = prevDbRef.current.map(d => d.name);
               const newDevices = allData.Devices.filter((d: any) => d[1] && !currentDeviceNames.includes(d[1]));
               
-              const uniqueNewDevices = Array.from(new Set(newDevices.map((d: any) => d[1])));
-              uniqueNewDevices.forEach(deviceName => {
+              const uniqueNewDevices = Array.from(new Set(newDevices.map((d: any) => d[1]))) as string[];
+              if (uniqueNewDevices.length > 0) {
                   toastIdCounter.current += 1;
-                  newNotifications.push({ id: toastIdCounter.current, text: `🎉 STOĞA YENİ CİHAZ GELDİ: ${deviceName}`, type: 'new' });
+                  newNotifications.push({ 
+                    id: toastIdCounter.current, 
+                    text: `🎉 SİSTEME YENİ CİHAZ EKLENDİ`, 
+                    type: 'new',
+                    items: uniqueNewDevices
+                  });
+              }
+          }
+
+          // Fiyat Değişiklikleri Kontrolü (Alım ve Satış)
+          let changedItems: string[] = [];
+
+          // Cihaz Alım Listesi Değişim Kontrolü
+          if (allData.Devices && prevDbRef.current.length > 0) {
+              const prevDeviceMap = new Map();
+              prevDbRef.current.forEach(d => prevDeviceMap.set(d.name, { base: d.base, minPrice: d.minPrice }));
+              allData.Devices.forEach((row: any) => {
+                  const name = row[1];
+                  if (name) {
+                      const prev = prevDeviceMap.get(name);
+                      const currentBase = parseInt(row[3]) || 0;
+                      const currentMin = parseInt(row[5]) || 0;
+                      if (prev && (prev.base !== currentBase || prev.minPrice !== currentMin)) {
+                          changedItems.push(`🔄 ${name} (Alım Fiyatı)`);
+                      }
+                  }
               });
           }
 
-          if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
+          // Satış (Cep Tablet) Listesi Değişim Kontrolü
+          // SADECE ZUMAY BU BİLDİRİMİ GÖRMESİN (Çünkü menüsünde yok), DİĞERLERİ (Vodafone dahil) GÖRSÜN
+          if (!isZumay && allData.CepTablet && prevCepTabletRef.current.length > 0) {
               const prevTabletMap = new Map();
               prevCepTabletRef.current.forEach(row => {
                   if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); 
                   if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); 
               });
 
-              const changedPrices: string[] = [];
               allData.CepTablet.forEach((row: any) => {
                   if (row[0]) {
                       const prev = prevTabletMap.get(row[0]);
                       if (prev && (prev.k !== row[1] || prev.s !== row[2])) {
-                          if(!changedPrices.includes(row[0])) changedPrices.push(row[0]);
+                          changedItems.push(`🍎 ${row[0]} (Satış Fiyatı)`);
                       }
                   }
                   if (row[5]) {
                       const prev = prevTabletMap.get(row[5]);
                       if (prev && (prev.k !== row[6] || prev.s !== row[7])) {
-                          if(!changedPrices.includes(row[5])) changedPrices.push(row[5]);
+                          changedItems.push(`🤖 ${row[5]} (Satış Fiyatı)`);
                       }
                   }
               });
+          }
 
-              if (changedPrices.length > 0) {
-                  toastIdCounter.current += 1;
-                  if (changedPrices.length > 3) {
-                      newNotifications.push({ id: toastIdCounter.current, text: `🔄 SİSTEMDE FİYATLAR GÜNCELLENDİ (${changedPrices.length} cihaz)`, type: 'price' });
-                  } else {
-                      newNotifications.push({ id: toastIdCounter.current, text: `💰 FİYAT GÜNCELLENDİ: ${changedPrices.join(', ')}`, type: 'price' });
-                  }
-              }
+          changedItems = Array.from(new Set(changedItems));
+
+          if (changedItems.length > 0) {
+              toastIdCounter.current += 1;
+              newNotifications.push({ 
+                id: toastIdCounter.current, 
+                text: `💰 FİYATLAR GÜNCELLENDİ (${changedItems.length} Kalem)`, 
+                type: 'price',
+                items: changedItems
+              });
           }
       }
 
@@ -345,7 +375,7 @@ export default function CnetmobilCmrFinalUltimate() {
           newNotifications.forEach(notification => {
               setTimeout(() => {
                   setToastMessages(prev => prev.filter(m => m.id !== notification.id));
-              }, 8000);
+              }, 15000); // 15 SANİYE BEKLEME SÜRESİ
           });
       }
 
@@ -424,11 +454,9 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- ARTIK SADECE SAYFA İLK AÇILDIĞINDA VERİ ÇEKİLECEK ---
   useEffect(() => {
     loadData();
   }, []); 
-
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -550,7 +578,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
           alert("Yönetici paneline gönderildi");
           
-          // Arka planda Vercel cache'i temizle ve veriyi güncelle
           await fetch('/api/revalidate?tag=sheets-data');
           setTimeout(() => { refreshDataCache(); }, 2500);
 
@@ -792,7 +819,7 @@ export default function CnetmobilCmrFinalUltimate() {
            <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
            </div>
-           <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
+           <h1 className="text-2xl font-black italic mb-8 uppercase">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
            
            <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
                <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
@@ -836,6 +863,11 @@ export default function CnetmobilCmrFinalUltimate() {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes shrink {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
       `}</style>
 
       {/* TOPBAR */}
@@ -1744,21 +1776,50 @@ export default function CnetmobilCmrFinalUltimate() {
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
-      {/* TOAST BİLDİRİMLERİ */}
-      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
+      {/* YENİ EKLENEN TOAST BİLDİRİMLERİ BÖLÜMÜ - DETAYLI VE 15 SANİYELİK */}
+      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-4 pointer-events-none print:hidden max-w-sm w-full items-end">
         {toastMessages.map((toast) => (
-          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
-              {toast.type === 'new' ? (
-                <span className="text-lg">📦</span>
-              ) : (
-                <span className="text-lg">💵</span>
-              )}
+          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-3xl shadow-2xl p-5 border flex flex-col gap-3 backdrop-blur-xl w-full max-h-[60vh] overflow-hidden pointer-events-auto ${toast.type === 'new' ? 'bg-emerald-600/95 border-emerald-400 text-white shadow-emerald-900/30' : 'bg-slate-900/95 border-blue-500 text-white shadow-blue-900/30'}`}>
+            
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${toast.type === 'new' ? 'bg-emerald-500' : 'bg-blue-600'}`}>
+                {toast.type === 'new' ? (
+                  <span className="text-2xl">📦</span>
+                ) : (
+                  <span className="text-2xl animate-bounce">💵</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-start">
+                   <p className={`text-[10px] font-black uppercase tracking-widest ${toast.type === 'new' ? 'text-emerald-200' : 'text-blue-300'}`}>
+                     {toast.type === 'new' ? 'SİSTEME EKLENDİ' : 'GÜNCEL FİYAT LİSTESİ'}
+                   </p>
+                   <button onClick={() => setToastMessages(prev => prev.filter(m => m.id !== toast.id))} className="text-white/50 hover:text-white transition-colors" title="Kapat">
+                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                   </button>
+                </div>
+                <p className="font-black text-sm leading-tight mt-0.5">{toast.text}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'SİSTEM BİLDİRİMİ' : 'FİYAT GÜNCELLEMESİ'}</p>
-              <p className="font-bold text-sm leading-tight mt-0.5 max-w-[250px]">{toast.text}</p>
+
+            {/* Değişen Kalemler Listesi */}
+            {toast.items && toast.items.length > 0 && (
+              <div className="mt-2 bg-black/20 rounded-2xl p-3 overflow-y-auto custom-scrollbar max-h-[30vh]">
+                <ul className="space-y-2">
+                  {toast.items.map((item, idx) => (
+                    <li key={idx} className="text-xs font-bold text-white/90 border-b border-white/10 pb-2 last:border-0 last:pb-0">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Animasyonlu Progress Bar (15 saniyede sıfırlanır) */}
+            <div className="w-full h-1 bg-black/20 rounded-full overflow-hidden mt-1">
+               <div className="h-full bg-white/50 rounded-full animate-[shrink_15s_linear_forwards]" style={{ width: '100%' }}></div>
             </div>
+
           </div>
         ))}
       </div>
