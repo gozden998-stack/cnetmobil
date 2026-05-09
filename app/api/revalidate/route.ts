@@ -1,4 +1,4 @@
-import { revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 
 // Sistem her çalıştığında bir versiyon numarası oluşturur. 
@@ -18,8 +18,9 @@ export async function GET(request: Request) {
   // 2. DURUM: Yönetici "FİYATLARI YENİLE" butonuna bastığında çalışır
   if (tag) {
     try {
-      // Vercel'in önbelleğini (cache) temizle
-      revalidateTag(tag);
+      // revalidateTag yerine revalidatePath kullanıyoruz. 
+      // '/' ve 'layout' diyerek tüm sitenin ana hafızasını temizlediğimizi garantiye alıyoruz.
+      revalidatePath('/', 'layout');
       
       // Yeni bir versiyon numarası belirle (Ekranlara güncelleme uyarısı gitmesi için)
       globalVersion = Date.now(); 
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
         revalidated: true, 
         now: Date.now(), 
         success: true,
-        message: 'Önbellek temizlendi ve yeni versiyon yayınlandı.'
+        message: 'Önbellek başarıyla temizlendi ve yeni versiyon yayınlandı.'
       });
     } catch (err) {
       return NextResponse.json({ message: 'Yenileme hatası', success: false }, { status: 500 });
