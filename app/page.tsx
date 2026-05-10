@@ -5,8 +5,6 @@ import YoneticiPaneli from './components/YoneticiPaneli';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
-// Yeni oluşturduğumuz Cache API Linki
-const CACHE_API_URL = "https://script.google.com/macros/s/AKfycbzJUVfD9ewF9yNPTBbegIxXBbFIyWXnX4c4Yb5jDR5IBaJ2kztYgdtumlTaytTtr9N-KA/exec";
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
@@ -31,8 +29,8 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ STATELERİ (Vercel Dostu) ---
-  const [lastPayload, setLastPayload] = useState<string | null>(null);
+  // --- 🚀 GÜNCELLEME BEKÇİSİ STATELERİ ---
+  const [currentVersion, setCurrentVersion] = useState<number | null>(null);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -108,36 +106,32 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 VERCEL DOSTU YENİ GÜNCELLEME BEKÇİSİ (15 SANİYE) ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (OTOMATİK YENİLEME) ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
     const checkUpdateSignal = async () => {
       try {
-        // Vercel yerine doğrudan Google Apps Script API'sine gidiyoruz
-        const res = await fetch(CACHE_API_URL, { cache: 'no-store' });
+        const res = await fetch('/api/revalidate?check=1', { cache: 'no-store' });
         const data = await res.json();
         
-        setLastPayload((prevPayload) => {
-          // Eğer elimizde zaten bir veri varsa VE yeni gelen veri eskisinden farklıysa...
-          if (prevPayload && prevPayload !== data.payload) {
-             console.log("Yeni güncelleme algılandı! Ekran yenileniyor...");
-             window.location.reload(); 
+        if (data.version) {
+          if (currentVersion === null) {
+            setCurrentVersion(data.version);
+          } else if (data.version > currentVersion) {
+            // YENİ VERSİYON GELDİ! MODAL GÖSTERME, DİREKT SAYFAYI YENİLE!
+            window.location.reload(); 
+            setCurrentVersion(data.version); // Eşitle ki sonsuz döngüye girmesin
           }
-          return data.payload;
-        });
+        }
       } catch (e) {
-        console.error("Güncelleme kontrolü başarısız.", e);
+        console.error("Güncelleme kontrolü başarısız.");
       }
     };
 
-    // İlk açılışta veriyi kaydet
-    checkUpdateSignal();
-    
-    // 15 saniyede bir kontrol et (Vercel kotalarını sıfır etkiler)
-    const interval = setInterval(checkUpdateSignal, 15000); 
+    const interval = setInterval(checkUpdateSignal, 1000); // 1 Saniyede bir anlık kontrol
     return () => clearInterval(interval);
-  }, [isLoggedIn]);
+  }, [currentVersion, isLoggedIn]);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -291,8 +285,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
-      // Vercel Limitlerini korumak için doğrudan CACHE_API_URL'ye bağlanıyoruz
-      const res = await fetch(CACHE_API_URL, { cache: 'no-store' }); 
+      const res = await fetch('/api/sheets'); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
