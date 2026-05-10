@@ -30,7 +30,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
 
   // --- 🚀 GÜNCELLEME BEKÇİSİ STATELERİ ---
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<number | null>(null);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
@@ -107,22 +106,22 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (HEARTBEAT) - SÜRE 5 SANİYEYE DÜŞTÜ ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (OTOMATİK YENİLEME) ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
     const checkUpdateSignal = async () => {
       try {
-        const res = await fetch('/api/revalidate?check=1');
+        const res = await fetch('/api/revalidate?check=1', { cache: 'no-store' });
         const data = await res.json();
         
         if (data.version) {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version > currentVersion) {
-            // Sadece versiyon BÜYÜDÜĞÜNDE (Yani patron gerçekten butona bastığında) modalı aç
+            // YENİ VERSİYON GELDİ! MODAL GÖSTERME, DİREKT SAYFAYI YENİLE!
+            window.location.reload(); 
             setCurrentVersion(data.version); // Eşitle ki sonsuz döngüye girmesin
-            setShowUpdateModal(true);
           }
         }
       } catch (e) {
@@ -1762,35 +1761,6 @@ export default function CnetmobilCmrFinalUltimate() {
           </div>
         ))}
       </div>
-
-      {/* 🚀 ZORUNLU ŞIK GÜNCELLEME BİLDİRİMİ (Ekran arkası görünür, ama kilitlenir) */}
-      {showUpdateModal && (
-        <div className="fixed inset-0 z-[10000] bg-slate-900/30 backdrop-blur-sm flex items-start justify-center pt-10 sm:pt-20 px-4 print:hidden animate-in fade-in duration-300">
-          <div className="bg-slate-900/95 backdrop-blur-xl p-2 pl-6 sm:pl-8 rounded-full shadow-2xl shadow-blue-900/40 border border-slate-700 flex flex-col sm:flex-row items-center gap-4 sm:gap-8 animate-in slide-in-from-top-10 fade-in duration-500">
-            
-            <div className="flex items-center gap-3">
-               <span className="relative flex h-3 w-3 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
-               </span>
-               <p className="text-white font-bold text-[11px] sm:text-sm tracking-widest uppercase">
-                 Sistemde yeni fiyatlar yayınlandı
-               </p>
-            </div>
-
-            <button 
-              onClick={() => {
-                 setShowUpdateModal(false);
-                 refreshDataCache(); 
-              }} 
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/30 active:scale-95 btn-click"
-            >
-              LİSTEYİ GÜNCELLE
-            </button>
-
-          </div>
-        </div>
-      )}
 
       {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
