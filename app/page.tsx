@@ -130,7 +130,7 @@ export default function CnetmobilCmrFinalUltimate() {
     };
 
     // DEĞİŞİKLİK: 1 saniyeden 5 dakikaya (300.000 ms) çekildi. Kota dostu.
-    const interval = setInterval(checkUpdateSignal, 300000); 
+    const interval = setInterval(checkUpdateSignal, 30000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
