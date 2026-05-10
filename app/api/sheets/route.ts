@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// DİKKAT: 'force-dynamic' kaldırıldı, veri artık cache'lenecek.
-export const revalidate = false; 
+// 5 dakikada bir (300 saniye) veriyi "Bakkal"da (Edge Cache) tazelemesini söyler.
+export const revalidate = 300; 
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
@@ -11,6 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: "Yapılandırma eksik" }, { status: 500 });
   }
 
+  // Senin 12 sayfalık liste yapın
   const tables = [
     { id: 'Devices', range: "'Google Sheets ile Kurumsal Alım Sistemi'!A2:F1000" },
     { id: 'Ayarlar', range: "Ayarlar!A1:B25" },
@@ -30,10 +31,13 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    // 'next: { tags: [...] }' ekleyerek bu veriyi etiketliyoruz. 
-    // Böylece butona basınca sadece bu veriyi temizleyebileceğiz.
+    // Veriyi 300 saniye boyunca Vercel'in önbelleğinde (Edge) tutar.
+    // 50 personel sorsa bile Vercel sadece 1 kez Google'a gider.
     const res = await fetch(url, { 
-      next: { tags: ['sheets-data'] } 
+      next: { 
+        revalidate: 300, 
+        tags: ['sheets-data'] 
+      } 
     });
     
     const data = await res.json();
@@ -45,6 +49,7 @@ export async function GET() {
       results[table.id] = data.valueRanges[index]?.values || [];
     });
 
+    // Veriyi paketleyip (Base64) gönderiyoruz
     const maskedPayload = Buffer.from(JSON.stringify(results)).toString('base64');
     return NextResponse.json({ payload: maskedPayload });
 
