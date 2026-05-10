@@ -41,6 +41,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
   const [personelData, setPersonelData] = useState<any[][]>([]);
 
+  const servisFiyatlariRef = useRef<any>({});
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
 
@@ -106,7 +107,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (OTOMATİK YENİLEME) ---
+  // --- 🚀 GÜNCELLEME BEKÇİSİ (KOTA DOSTU MOD) ---
   useEffect(() => {
     if (!isLoggedIn) return;
     
@@ -119,9 +120,8 @@ export default function CnetmobilCmrFinalUltimate() {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version > currentVersion) {
-            // YENİ VERSİYON GELDİ! MODAL GÖSTERME, DİREKT SAYFAYI YENİLE!
             window.location.reload(); 
-            setCurrentVersion(data.version); // Eşitle ki sonsuz döngüye girmesin
+            setCurrentVersion(data.version);
           }
         }
       } catch (e) {
@@ -129,7 +129,8 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    const interval = setInterval(checkUpdateSignal, 1000); // 1 Saniyede bir anlık kontrol
+    // DEĞİŞİKLİK: 1 saniyeden 5 dakikaya (300.000 ms) çekildi. Kota dostu.
+    const interval = setInterval(checkUpdateSignal, 300000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -176,7 +177,7 @@ export default function CnetmobilCmrFinalUltimate() {
           }
         }
       } catch (e) {
-         localStorage.removeItem('cnet_session');
+          localStorage.removeItem('cnet_session');
       }
       setAuthLoading(false);
     };
@@ -285,6 +286,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
+      // Vercel Edge Cache sayesinde bu istek artık kota harcamaz
       const res = await fetch('/api/sheets'); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
@@ -414,7 +416,6 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- ÖN BELLEK TEMİZLEME VE YENİLEME FONKSİYONU ---
   const refreshDataCache = async () => {
     try {
       await loadData();
@@ -423,9 +424,12 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- ARTIK SADECE SAYFA İLK AÇILDIĞINDA VERİ ÇEKİLECEK ---
+  // --- 🚀 OTOMATİK VERİ ÇEKİMİ (5 DAKİKA) ---
   useEffect(() => {
     loadData();
+    // Sayfayı yenilemeden 5 dakikada bir verileri arka planda günceller.
+    const interval = setInterval(loadData, 300000); 
+    return () => clearInterval(interval);
   }, []); 
 
 
@@ -549,7 +553,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
           alert("Yönetici paneline gönderildi");
           
-          // Arka planda Vercel cache'i temizle ve veriyi güncelle
           await fetch('/api/revalidate?tag=sheets-data');
           setTimeout(() => { refreshDataCache(); }, 2500);
 
@@ -938,14 +941,14 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">DEPO LİSTESİ</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -973,14 +976,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'kampanya_sifir' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-red-600">KAMPANYALI SIFIR LİSTE</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
 
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -1011,14 +1014,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-orange-500">2.EL FİYAT LİSTESİ</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -1053,14 +1056,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
-                 </div>
-                 <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
+                  </div>
+                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
@@ -1093,14 +1096,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'cep_tablet' && step < 99 ? (
             <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
@@ -1166,14 +1169,14 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'yna_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                 <div>
+                  <div>
                     <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
+                  </div>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1258,7 +1261,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           try {
                             alert("✅ Fiyatlar başarıyla tetiklendi! Tüm mağaza ekranlarına anlık bildirim gönderiliyor...");
                             await fetch('/api/revalidate?tag=sheets-data');
-                            refreshDataCache(); // Arkadan kendi ekranını da yenile
+                            refreshDataCache(); 
                           } catch (e) {
                             alert("Bağlantı hatası!");
                           }
