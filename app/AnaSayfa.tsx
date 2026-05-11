@@ -14,13 +14,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         let strVal = String(val).trim();
         
         if (strVal.includes('.') && strVal.includes(',')) {
-            // Örn: 150.000,00 -> Noktayı sil, virgülü nokta yap
             strVal = strVal.replace(/\./g, '').replace(',', '.');
         } else if (strVal.includes(',')) {
-            // Örn: 150000,00 -> Virgülü nokta yap
             strVal = strVal.replace(',', '.');
         } else if (strVal.includes('.')) {
-            // Örn: 150.000 -> Sadece nokta varsa bu binlik ayracıdır, noktayı sil
             strVal = strVal.replace(/\./g, '');
         }
         
@@ -31,8 +28,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
     const cleanKey = (s: string) => {
         return String(s || "")
-            .replace(/[\s\.\-\+]/g, "") // Boşluk, nokta, tire ve artıları tamamen siler
-            .toLocaleUpperCase('tr-TR'); // Türkçe karakter uyumlu büyütür
+            .replace(/[\s\.\-\+]/g, "") 
+            .toLocaleUpperCase('tr-TR'); 
     };
 
     // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
@@ -115,28 +112,106 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return Math.min(rule.maxPuan, calculated);
     };
     
-    // --- 1. MAĞAZA VERİSİNİ AYIKLA (Gidişat) ---
+    // --- 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA ---
     const branchIndex = (gidisatData || []).findIndex((row: any) => 
         row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
     );
 
-    let metrics = null;
-    if (branchIndex !== -1 && gidisatData[branchIndex + 1] && gidisatData[branchIndex + 2]) {
-        const hedefRow = gidisatData[branchIndex + 1];
-        const satilanRow = gidisatData[branchIndex + 2];
-        metrics = {
-            ikinciElAdet: { hedef: parseNum(hedefRow[1]), satilan: parseNum(satilanRow[1]), isCurrency: false },
-            ikinciElKazanc: { hedef: parseNum(hedefRow[2]), satilan: parseNum(satilanRow[2]), isCurrency: true },
-            birinciElTablet: { hedef: parseNum(hedefRow[3]), satilan: parseNum(satilanRow[3]), isCurrency: false },
-            teknikServis: { hedef: parseNum(hedefRow[4]), satilan: parseNum(satilanRow[4]), isCurrency: true }
+    let dinamikMagazaMetrikleri: any[] = [];
+    let magazaAnlikPuan = 0;
+    let magazaTahminPuan = 0;
+    
+    let anaSatis = 0;
+    let anaHedef = 0;
+    let anaMetrikAdi = "2. EL CİHAZ"; // Tabloda veri olmazsa varsayılan
+
+    if (branchIndex !== -1) {
+        let hedefRow: any[] = [];
+        let satilanRow: any[] = [];
+        let hedefPuanRow: any[] = [];
+        let maxPuanRow: any[] = [];
+
+        // Dinamik başlık bulma (HEDEF, GERÇEKLEŞEN, HEDEF PUANI, MAX PUAN)
+        for (let i = branchIndex + 1; i < (gidisatData || []).length; i++) {
+            const row = gidisatData[i];
+            if (!row || !row[0]) continue;
+            const baslik = String(row[0]).trim().toUpperCase();
+            
+            if (baslik !== "HEDEF" && !baslik.includes("GERÇEKLEŞEN") && !baslik.includes("SATILAN") && !baslik.includes("PUAN")) {
+                break; // Başka şubeye geçildi
+            }
+            if (baslik === "HEDEF") hedefRow = row;
+            else if (baslik.includes("GERÇEKLEŞEN") || baslik.includes("SATILAN")) satilanRow = row;
+            else if (baslik.includes("HEDEF PUANI")) hedefPuanRow = row;
+            else if (baslik.includes("MAX PUAN")) maxPuanRow = row;
+        }
+
+        // Bulunamazsa eski format indeksleme (Yedek)
+        if (hedefRow.length === 0) hedefRow = gidisatData[branchIndex + 1] || [];
+        if (satilanRow.length === 0) satilanRow = gidisatData[branchIndex + 2] || [];
+
+        const calcStorePts = (actual: number, target: number, hp: number, mp: number, isProj: boolean) => {
+            if (!target || target === 0 || !hp) return 0;
+            const val = isProj ? (actual / currentDay) * daysInMonth : actual;
+            const perf = val / target;
+            let calculated = perf * hp;
+            return Math.min(mp || hp, calculated);
         };
+
+        const baslikSatiri = gidisatData[0] || [];
+        const colorPalette = ["bg-sky-500", "bg-purple-500", "bg-emerald-500", "bg-fuchsia-500", "bg-orange-500", "bg-blue-500", "bg-rose-500", "bg-indigo-500", "bg-amber-500"];
+        let colorIndex = 0;
+
+        baslikSatiri.forEach((cell: any, idx: number) => {
+            if (idx >= 1) { // 0. index "ŞUBE" vb. olduğu için atlanır
+                const baslikAdi = String(cell || "").trim();
+                
+                if (baslikAdi && !baslikAdi.toLowerCase().includes('toplam') && !baslikAdi.toLowerCase().includes('puan')) {
+                    const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(keyword => baslikAdi.toUpperCase().includes(keyword));
+                    
+                    const h = parseNum(hedefRow[idx]);
+                    const s = parseNum(satilanRow[idx]);
+                    const hp = parseNum(hedefPuanRow[idx]);
+                    const mp = parseNum(maxPuanRow[idx]);
+                    
+                    const anlik = calcStorePts(s, h, hp, mp, false);
+                    const tahmin = calcStorePts(s, h, hp, mp, true);
+
+                    magazaAnlikPuan += anlik;
+                    magazaTahminPuan += tahmin;
+
+                    dinamikMagazaMetrikleri.push({
+                        name: baslikAdi,
+                        color: colorPalette[colorIndex % colorPalette.length],
+                        data: {
+                            hedef: h,
+                            satilan: s,
+                            isCurrency: isCurr,
+                            hedefPuan: hp,
+                            maxPuan: mp,
+                            anlikPuan: anlik,
+                            tahminPuan: tahmin
+                        }
+                    });
+
+                    // Ana sayfa vitrini için ilk tespit edilen hedefi "Ana Metrik" olarak alıyoruz
+                    if (colorIndex === 0) {
+                        anaSatis = s;
+                        anaHedef = h;
+                        anaMetrikAdi = baslikAdi;
+                    }
+                    
+                    colorIndex++;
+                }
+            }
+        });
     }
     
-    const anaSatis = metrics?.ikinciElAdet?.satilan || 0;
-    const anaHedef = metrics?.ikinciElAdet?.hedef || 0;
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
-    const subePuani = anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0";
+    const subePuani = magazaTahminPuan > 0 
+        ? magazaTahminPuan.toFixed(1) 
+        : (anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0");
 
     // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
@@ -368,10 +443,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     {subePuani} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
-                            {metrics ? (
+                            {dinamikMagazaMetrikleri.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
                                     <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
-                                        <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam 2. El Satış</p>
+                                        <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam {anaMetrikAdi}</p>
                                         <div className="flex items-baseline gap-1.5">
                                             <span className="text-4xl font-black text-slate-900">{anaSatis}</span>
                                             <span className="text-sm font-bold text-slate-500">Adet</span>
@@ -385,7 +460,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         )}
                                         <p className="text-rose-600 font-bold text-sm mb-3 flex items-center gap-2">
-                                            <span className="text-lg">⏳</span> Ay Sonu 2. El Tahmini
+                                            <span className="text-lg">⏳</span> Ay Sonu {anaMetrikAdi} Tahmini
                                         </p>
                                         <div className="flex justify-between items-end">
                                             <div className="flex items-baseline gap-1.5">
@@ -645,7 +720,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
-                                <h3 className="text-lg font-bold text-slate-800">2. El Ay Sonu Tahmini</h3>
+                                <h3 className="text-lg font-bold text-slate-800">Ay Sonu {anaMetrikAdi} Tahmini</h3>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
@@ -681,22 +756,34 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                         </div>
                     )}
-                    {activeModal === 'departman' && metrics && (
-                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
+                    {activeModal === 'departman' && dinamikMagazaMetrikleri.length > 0 && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
-                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">GÜNCEL HIZ VE AY SONU PROJEKSİYONLARI</p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase">GÜNCEL HIZ VE AY SONU PROJEKSİYONLARI</p>
+                                        {magazaTahminPuan > 0 && (
+                                            <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-black tracking-widest">
+                                                TOPLAM PUAN: {magazaTahminPuan.toFixed(1)}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <div className="p-6 grid grid-cols-2 gap-4">
-                                <DepartmanProgressBar title="2. EL CİHAZ SATIŞ" data={metrics.ikinciElAdet} colorClass="bg-sky-500" />
-                                <DepartmanProgressBar title="1. EL CİHAZ SATIŞ" data={metrics.birinciElTablet} colorClass="bg-purple-500" />
-                                <DepartmanProgressBar title="2. EL KAZANÇ" data={metrics.ikinciElKazanc} colorClass="bg-emerald-500" />
-                                <DepartmanProgressBar title="SERVİS KAZANÇ" data={metrics.teknikServis} colorClass="bg-fuchsia-500" />
+                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {dinamikMagazaMetrikleri.map((metrik, idx) => (
+                                    <DepartmanProgressBar 
+                                        key={idx}
+                                        title={metrik.name} 
+                                        data={metrik.data} 
+                                        colorClass={metrik.color} 
+                                        puan={metrik.data.hedefPuan > 0 ? `${metrik.data.tahminPuan.toFixed(1)} / ${metrik.data.maxPuan}` : undefined} 
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}
