@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+export const runtime = 'edge';
 
 // 🚀 DEĞİŞİKLİK 1: Tüm sayfayı donduran 'export const revalidate = 300;' satırını kaldırdık.
 // 🚀 DEĞİŞİKLİK 2: Route'u her zaman dinlemeye (dinamik) açık hale getirdik.
