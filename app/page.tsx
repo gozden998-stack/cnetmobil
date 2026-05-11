@@ -120,6 +120,7 @@ export default function CnetmobilCmrFinalUltimate() {
           if (currentVersion === null) {
             setCurrentVersion(data.version);
           } else if (data.version > currentVersion) {
+            // Versiyon değiştiyse ekranı sert yeniler
             window.location.reload(); 
             setCurrentVersion(data.version);
           }
@@ -129,7 +130,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    const interval = setInterval(checkUpdateSignal, 300000); 
+    const interval = setInterval(checkUpdateSignal, 300000); // 5 dakikada bir yoklar
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
 
@@ -185,64 +186,64 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
   const handleLogin = async () => {
-  if(!entryPass) return;
-  setLoginLoading(true);
+    if(!entryPass) return;
+    setLoginLoading(true);
 
-  try {
-    const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: entryPass, mode: loginMode })
-    });
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: entryPass, mode: loginMode })
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok || !data.success) {
-      alert(data.message || "Hatalı Şifre!");
-      setLoginLoading(false);
-      return;
+      if (!res.ok || !data.success) {
+        alert(data.message || "Hatalı Şifre!");
+        setLoginLoading(false);
+        return;
+      }
+
+      const matchedBranch = data.branch;
+
+      if (loginMode === 'yonetici') {
+         setIsMasterAccess(true);
+         setIsAdmin(true);
+         setSelectedBranch('CMR MERKEZ'); 
+         setIsLoggedIn(true);
+         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+         setLoginLoading(false);
+         return;
+      }
+
+      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setLoginLoading(false);
+        return;
+      }
+
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      const currentIp = ipData.ip;
+
+      if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
+        setSelectedBranch(matchedBranch);
+        setIsMasterAccess(false);
+        setIsLoggedIn(true);
+        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+      } else {
+        alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
+      }
+
+    } catch (error) {
+      alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
     }
-
-    const matchedBranch = data.branch;
-
-    if (loginMode === 'yonetici') {
-       setIsMasterAccess(true);
-       setIsAdmin(true);
-       setSelectedBranch('CMR MERKEZ'); 
-       setIsLoggedIn(true);
-       localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-       setLoginLoading(false);
-       return;
-    }
-
-    if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
-      setSelectedBranch(matchedBranch);
-      setIsMasterAccess(false);
-      setIsLoggedIn(true);
-      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-      setLoginLoading(false);
-      return;
-    }
-
-    const ipRes = await fetch('https://api.ipify.org?format=json');
-    const ipData = await ipRes.json();
-    const currentIp = ipData.ip;
-
-    if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
-      setSelectedBranch(matchedBranch);
-      setIsMasterAccess(false);
-      setIsLoggedIn(true);
-      localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
-    } else {
-      alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
-    }
-
-  } catch (error) {
-    alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
-  }
-  
-  setLoginLoading(false);
-};
+    
+    setLoginLoading(false);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('cnet_session');
@@ -283,13 +284,15 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  // bypassClientCache parametresi eklendi
   const loadData = async (bypassClientCache = false) => {
     try {
-      // Vercel Edge Cache sayesinde bu istek artık kota harcamaz
-      // Tarayıcı önbelleğini atlamak için t parametresi eklendi
-      const fetchUrl = bypassClientCache ? `/api/sheets?t=${Date.now()}` : '/api/sheets';
-      const res = await fetch(fetchUrl); 
+      // DÜZELTME: t=Date.now() KULLANMIYORUZ! Vercel CDN kotasını korumak için.
+      // Sadece yönetici "Yenile" dediğinde bypassClientCache tetiklenir, header üzerinden cache kırılır.
+      const fetchOptions: RequestInit = bypassClientCache 
+        ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
+        : {};
+
+      const res = await fetch('/api/sheets', fetchOptions); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
@@ -420,23 +423,16 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const refreshDataCache = async () => {
     try {
-      await loadData(true); // YENİLEME ESNASINDA İSTEMCİ ÖN BELLEĞİNİ GEÇ
+      await loadData(true); 
     } catch (e) {
       console.error("Önbellek temizlenirken hata oluştu", e);
     }
   };
 
-  // --- 🚀 OTOMATİK VERİ ÇEKİMİ (5 DAKİKA) ---
+  // --- 🚀 İLK YÜKLEME ---
   useEffect(() => {
     loadData();
-    // Sayfayı yenilemeden 5 dakikada bir verileri arka planda günceller.
-    const interval = setInterval(async () => {
-       // Sunucu cache'ini (Edge) arka planda kota yemeden kırar
-       await fetch('/api/revalidate?tag=sheets-data').catch(() => {});
-       // Cache kırıldıktan sonra yeni veriyi zorunlu olarak çeker
-       setTimeout(() => { loadData(true); }, 2000);
-    }, 300000); 
-    return () => clearInterval(interval);
+    // Kota yiyen 5 dakikalık setInterval tamamen KALDIRILDI!
   }, []); 
 
 
@@ -1266,12 +1262,14 @@ export default function CnetmobilCmrFinalUltimate() {
                       <button 
                         onClick={async () => {
                           try {
-                            alert("✅ Fiyatlar başarıyla tetiklendi! Sisteme yeni veriler çekiliyor...");
+                            alert("✅ Sistem güncelleniyor! Vercel önbelleği temizlenip sayfa yenilenecek, lütfen bekleyin...");
                             await fetch('/api/revalidate?tag=sheets-data');
-                            // Revalidate'in bitmesini bekleyip 2 saniye sonra cache'i atlayarak yeni veriyi çekiyoruz
-                            setTimeout(() => { refreshDataCache(); }, 2000); 
+                            setTimeout(() => { 
+                                // SAYFAYI TAMAMEN SIFIRLAYARAK EN GÜNCEL VERİYLE AÇAR
+                                window.location.reload(); 
+                            }, 2500); 
                           } catch (e) {
-                            alert("Bağlantı hatası!");
+                            alert("Bağlantı hatası! İnternetinizi kontrol edin.");
                           }
                         }}
                         className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-emerald-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click"
