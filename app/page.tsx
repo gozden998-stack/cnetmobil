@@ -129,7 +129,6 @@ export default function CnetmobilCmrFinalUltimate() {
       }
     };
 
-    // DEĞİŞİKLİK: 1 saniyeden 5 dakikaya (300.000 ms) çekildi. Kota dostu.
     const interval = setInterval(checkUpdateSignal, 300000); 
     return () => clearInterval(interval);
   }, [currentVersion, isLoggedIn]);
@@ -284,10 +283,13 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const loadData = async () => {
+  // bypassClientCache parametresi eklendi
+  const loadData = async (bypassClientCache = false) => {
     try {
       // Vercel Edge Cache sayesinde bu istek artık kota harcamaz
-      const res = await fetch('/api/sheets'); 
+      // Tarayıcı önbelleğini atlamak için t parametresi eklendi
+      const fetchUrl = bypassClientCache ? `/api/sheets?t=${Date.now()}` : '/api/sheets';
+      const res = await fetch(fetchUrl); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
@@ -418,7 +420,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const refreshDataCache = async () => {
     try {
-      await loadData();
+      await loadData(true); // YENİLEME ESNASINDA İSTEMCİ ÖN BELLEĞİNİ GEÇ
     } catch (e) {
       console.error("Önbellek temizlenirken hata oluştu", e);
     }
@@ -428,7 +430,12 @@ export default function CnetmobilCmrFinalUltimate() {
   useEffect(() => {
     loadData();
     // Sayfayı yenilemeden 5 dakikada bir verileri arka planda günceller.
-    const interval = setInterval(loadData, 300000); 
+    const interval = setInterval(async () => {
+       // Sunucu cache'ini (Edge) arka planda kota yemeden kırar
+       await fetch('/api/revalidate?tag=sheets-data').catch(() => {});
+       // Cache kırıldıktan sonra yeni veriyi zorunlu olarak çeker
+       setTimeout(() => { loadData(true); }, 2000);
+    }, 300000); 
     return () => clearInterval(interval);
   }, []); 
 
@@ -1259,9 +1266,10 @@ export default function CnetmobilCmrFinalUltimate() {
                       <button 
                         onClick={async () => {
                           try {
-                            alert("✅ Fiyatlar başarıyla tetiklendi! Tüm mağaza ekranlarına anlık bildirim gönderiliyor...");
+                            alert("✅ Fiyatlar başarıyla tetiklendi! Sisteme yeni veriler çekiliyor...");
                             await fetch('/api/revalidate?tag=sheets-data');
-                            refreshDataCache(); 
+                            // Revalidate'in bitmesini bekleyip 2 saniye sonra cache'i atlayarak yeni veriyi çekiyoruz
+                            setTimeout(() => { refreshDataCache(); }, 2000); 
                           } catch (e) {
                             alert("Bağlantı hatası!");
                           }
