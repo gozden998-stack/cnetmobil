@@ -96,7 +96,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
     }
 
-    // --- HASSAS PUAN HESAPLAMA MOTORU ---
+    // --- HASSAS PUAN HESAPLAMA MOTORU (PERSONEL İÇİN) ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
         if (!target || target === 0) return 0;
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
@@ -112,43 +112,42 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return Math.min(rule.maxPuan, calculated);
     };
     
-    // --- 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA ---
-    const branchIndex = (gidisatData || []).findIndex((row: any) => 
-        row[0] && typeof row[0] === 'string' && row[0].trim().toUpperCase() === selectedBranch.trim().toUpperCase()
-    );
-
+    // =========================================================================
+    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA (YENİ SİSTEM)
+    // =========================================================================
     let dinamikMagazaMetrikleri: any[] = [];
     let magazaAnlikPuan = 0;
     let magazaTahminPuan = 0;
     
     let anaSatis = 0;
     let anaHedef = 0;
-    let anaMetrikAdi = "2. EL CİHAZ"; // Tabloda veri olmazsa varsayılan
+    let anaMetrikAdi = "VERİ YOK"; 
 
-    if (branchIndex !== -1) {
-        let hedefRow: any[] = [];
-        let satilanRow: any[] = [];
-        let hedefPuanRow: any[] = [];
-        let maxPuanRow: any[] = [];
+    const hIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "HEDEF");
+    const gIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "GERÇEKLEŞEN");
+    const pIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "HEDEF PUANI");
 
-        // Dinamik başlık bulma (HEDEF, GERÇEKLEŞEN, HEDEF PUANI, MAX PUAN)
-        for (let i = branchIndex + 1; i < (gidisatData || []).length; i++) {
-            const row = gidisatData[i];
-            if (!row || !row[0]) continue;
-            const baslik = String(row[0]).trim().toUpperCase();
-            
-            if (baslik !== "HEDEF" && !baslik.includes("GERÇEKLEŞEN") && !baslik.includes("SATILAN") && !baslik.includes("PUAN")) {
-                break; // Başka şubeye geçildi
+    if (hIdx !== -1 && gIdx !== -1 && pIdx !== -1) {
+        const hHeaders = gidisatData[hIdx];
+        const gHeaders = gidisatData[gIdx];
+        const pHeaders = gidisatData[pIdx];
+
+        let hedefRow: any = null, gerceklesenRow: any = null;
+        const brUpper = selectedBranch.toUpperCase().trim();
+
+        for (let i = hIdx + 1; i < gIdx; i++) {
+            if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper) { hedefRow = gidisatData[i]; break; }
+        }
+        for (let i = gIdx + 1; i < pIdx; i++) {
+            if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper || String(gidisatData[i]?.[1] || "").trim().toUpperCase() === brUpper) { 
+                gerceklesenRow = gidisatData[i]; break; 
             }
-            if (baslik === "HEDEF") hedefRow = row;
-            else if (baslik.includes("GERÇEKLEŞEN") || baslik.includes("SATILAN")) satilanRow = row;
-            else if (baslik.includes("HEDEF PUANI")) hedefPuanRow = row;
-            else if (baslik.includes("MAX PUAN")) maxPuanRow = row;
         }
 
-        // Bulunamazsa eski format indeksleme (Yedek)
-        if (hedefRow.length === 0) hedefRow = gidisatData[branchIndex + 1] || [];
-        if (satilanRow.length === 0) satilanRow = gidisatData[branchIndex + 2] || [];
+        const puanRow = gidisatData[pIdx + 1];
+        const maxPuanRow = gidisatData[pIdx + 2];
+        const colorPalette = ["bg-sky-500", "bg-purple-500", "bg-orange-500", "bg-emerald-500", "bg-blue-500", "bg-rose-500", "bg-amber-500", "bg-indigo-500", "bg-fuchsia-500"];
+        let colorIndex = 0;
 
         const calcStorePts = (actual: number, target: number, hp: number, mp: number, isProj: boolean) => {
             if (!target || target === 0 || !hp) return 0;
@@ -158,60 +157,51 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             return Math.min(mp || hp, calculated);
         };
 
-        const baslikSatiri = gidisatData[0] || [];
-        const colorPalette = ["bg-sky-500", "bg-purple-500", "bg-emerald-500", "bg-fuchsia-500", "bg-orange-500", "bg-blue-500", "bg-rose-500", "bg-indigo-500", "bg-amber-500"];
-        let colorIndex = 0;
+        hHeaders.forEach((hNameRaw: any, colIdx: number) => {
+            const hName = String(hNameRaw || "").trim();
+            if (colIdx > 0 && hName && !hName.toUpperCase().includes('TOPLAM') && !hName.toUpperCase().includes('PUAN')) {
+                const cKey = cleanKey(hName);
 
-        baslikSatiri.forEach((cell: any, idx: number) => {
-            if (idx >= 1) { // 0. index "ŞUBE" vb. olduğu için atlanır
-                const baslikAdi = String(cell || "").trim();
+                const gCol = gHeaders.findIndex((gh: any) => cleanKey(gh) === cKey);
+                const pCol = pHeaders.findIndex((ph: any) => cleanKey(ph) === cKey);
+
+                const hVal = parseNum(hedefRow?.[colIdx]);
+                const sVal = gCol > -1 ? parseNum(gerceklesenRow?.[gCol]) : 0;
+                const hpVal = pCol > -1 ? parseNum(puanRow?.[pCol]) : 0;
+                const mpVal = pCol > -1 ? parseNum(maxPuanRow?.[pCol]) : hpVal; 
+
+                const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => hName.toUpperCase().includes(k));
                 
-                if (baslikAdi && !baslikAdi.toLowerCase().includes('toplam') && !baslikAdi.toLowerCase().includes('puan')) {
-                    const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(keyword => baslikAdi.toUpperCase().includes(keyword));
-                    
-                    const h = parseNum(hedefRow[idx]);
-                    const s = parseNum(satilanRow[idx]);
-                    const hp = parseNum(hedefPuanRow[idx]);
-                    const mp = parseNum(maxPuanRow[idx]);
-                    
-                    const anlik = calcStorePts(s, h, hp, mp, false);
-                    const tahmin = calcStorePts(s, h, hp, mp, true);
+                const anlikPts = calcStorePts(sVal, hVal, hpVal, mpVal, false);
+                const tahminPts = calcStorePts(sVal, hVal, hpVal, mpVal, true);
 
-                    magazaAnlikPuan += anlik;
-                    magazaTahminPuan += tahmin;
+                magazaAnlikPuan += anlikPts;
+                magazaTahminPuan += tahminPts;
 
-                    dinamikMagazaMetrikleri.push({
-                        name: baslikAdi,
-                        color: colorPalette[colorIndex % colorPalette.length],
-                        data: {
-                            hedef: h,
-                            satilan: s,
-                            isCurrency: isCurr,
-                            hedefPuan: hp,
-                            maxPuan: mp,
-                            anlikPuan: anlik,
-                            tahminPuan: tahmin
-                        }
-                    });
-
-                    // Ana sayfa vitrini için ilk tespit edilen hedefi "Ana Metrik" olarak alıyoruz
-                    if (colorIndex === 0) {
-                        anaSatis = s;
-                        anaHedef = h;
-                        anaMetrikAdi = baslikAdi;
+                dinamikMagazaMetrikleri.push({
+                    name: hName,
+                    color: colorPalette[colorIndex % colorPalette.length],
+                    data: {
+                        hedef: hVal,
+                        satilan: sVal,
+                        isCurrency: isCurr,
+                        hedefPuan: hpVal,
+                        maxPuan: mpVal,
+                        anlikPuan: anlikPts,
+                        tahminPuan: tahminPts
                     }
-                    
-                    colorIndex++;
+                });
+
+                if (colorIndex === 0) {
+                    anaSatis = sVal; anaHedef = hVal; anaMetrikAdi = hName;
                 }
+                colorIndex++;
             }
         });
     }
-    
+
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
-    const subePuani = magazaTahminPuan > 0 
-        ? magazaTahminPuan.toFixed(1) 
-        : (anaHedef > 0 ? Math.min(10, ((anaSatis / currentDay) * daysInMonth / anaHedef) * 10).toFixed(1) : "0.0");
 
     // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
     let aktifPersoneller: any[] = [];
@@ -342,27 +332,37 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
-        if (!data) return null;
+        if (!data || data.hedef === 0) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
         
+        const isRisky = (data.hedef > 0 && !isBasarili) || isRiskliBarem;
+
         const formatVal = (v: number) => data.isCurrency 
             ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` 
             : `${v.toLocaleString('tr-TR')}`;
 
         return (
-            <div className={`bg-[#1E293B] border ${isRiskliBarem ? 'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800`}>
+            <div className={`bg-[#1E293B] border ${isRisky ? 'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800`}>
                 {data.hedef > 0 && (
                     <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                         {isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
                     </div>
                 )}
+
+                {/* YENİ: Mağaza Barem İçi Puan Gösterimi (Sol Üst) */}
+                {data.hedefPuan > 0 && (
+                     <div className="absolute top-0 left-0 bg-sky-500/20 border-b border-r border-sky-500/30 text-sky-400 text-[10px] font-black px-3 py-1.5 rounded-br-xl tracking-widest shadow-sm flex items-center gap-1.5">
+                        <span className="text-[12px] animate-pulse">🎯</span>
+                        PUAN: {data.tahminPuan?.toFixed(1)} <span className="text-sky-500/50">/</span> {data.maxPuan}
+                    </div>
+                )}
                 
-                <div className="flex justify-between items-start mb-3 mt-1">
+                <div className="flex justify-between items-start mb-3 mt-4">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</h4>
-                    {puan !== undefined && (
+                    {puan !== undefined && !data.hedefPuan && (
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isRiskliBarem ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>
                             Puan: {puan}
                         </span>
@@ -372,7 +372,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
-                        <p className={`text-[9px] font-black uppercase tracking-wider ${kalan > 0 ? 'text-[#E11D48]' : 'text-emerald-500'}`}>
+                        <p className={`text-[9px] font-black uppercase tracking-wider ${kalan > 0 ? (isRisky ? 'text-rose-500' : 'text-[#E11D48]') : 'text-emerald-500'}`}>
                             {data.hedef > 0 ? (kalan > 0 ? `Kalan: ${formatVal(kalan)}` : 'TAMAMLANDI') : 'HEDEF YOK'}
                         </p>
                     </div>
@@ -381,7 +381,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 {isRiskliBarem && (
                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2 animate-pulse">
                         <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">
-                            ⚠️ Riskli Barem Altındasın (Puan Alınamıyor)
+                            ⚠️ BARAJ ALTINDA (Puan Alınamıyor)
                         </p>
                    </div>
                 )}
@@ -439,8 +439,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                                     CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
                                 </h3>
-                                <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-4 py-2 rounded-xl font-black text-lg flex items-center gap-1 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
-                                    {subePuani} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                {/* 1. YEŞİL BUTON: TOPLAM MAĞAZA TAHMİN PUANI */}
+                                <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-5 py-2.5 rounded-xl font-black text-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-b-4 border-green-700 active:border-b-0 active:translate-y-1">
+                                    {magazaTahminPuan.toFixed(1)} Puan <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
                             {dinamikMagazaMetrikleri.length > 0 ? (
@@ -761,16 +762,25 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase">GÜNCEL HIZ VE AY SONU PROJEKSİYONLARI</p>
-                                        {magazaTahminPuan > 0 && (
-                                            <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-black tracking-widest">
-                                                TOPLAM PUAN: {magazaTahminPuan.toFixed(1)}
-                                            </span>
-                                        )}
+                                    {/* 2. MODAL ÜST KISMI - DEVASA PUAN BAŞLIKLARI */}
+                                    <div className="flex flex-wrap items-center gap-3 mt-4">
+                                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 flex items-center gap-3">
+                                            <div className="text-emerald-500 text-2xl">🎯</div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Mağaza Ay Sonu Tahmin Puanı</span>
+                                                <span className="text-2xl font-black text-emerald-400 leading-none mt-1">{magazaTahminPuan.toFixed(1)} Puan</span>
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3 opacity-80">
+                                            <div className="text-sky-500 text-2xl">⚡</div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Şu Anki Toplanan Puan</span>
+                                                <span className="text-lg font-black text-sky-400 leading-none mt-1">{magazaAnlikPuan.toFixed(1)} Puan</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors mt-1">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
@@ -781,7 +791,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         title={metrik.name} 
                                         data={metrik.data} 
                                         colorClass={metrik.color} 
-                                        puan={metrik.data.hedefPuan > 0 ? `${metrik.data.tahminPuan.toFixed(1)} / ${metrik.data.maxPuan}` : undefined} 
                                     />
                                 ))}
                             </div>
