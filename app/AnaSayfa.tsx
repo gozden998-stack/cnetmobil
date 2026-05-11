@@ -32,7 +32,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .toLocaleUpperCase('tr-TR'); 
     };
 
-    // --- TARİH DEDEKTİFİ (Merkezi Veri Çekimi) ---
+    // --- TARİH DEDEKTİFİ (E-TABLODAKİ GÜNCELLENEN TARİHİ ÇEKER) ---
     let lastUpdatedDate = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
     if (!lastUpdatedDate && personelData) {
         const tarihSatiri = (personelData as any[]).find((row: any) => 
@@ -44,7 +44,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         }
     }
 
-    // --- GÜN VE AY HESAPLAMALARI ---
+    // --- E-TABLODAKİ TARİHE GÖRE GÜN VE AY HESAPLAMALARI (GİDİŞAT İÇİN KRİTİK) ---
     const getTargetDay = () => {
         try {
             const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
@@ -113,7 +113,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     };
     
     // =========================================================================
-    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA (YENİ SİSTEM)
+    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA (YAPAY ZEKA EŞLEŞTİRME - KORUNDU)
     // =========================================================================
     let dinamikMagazaMetrikleri: any[] = [];
     let magazaAnlikPuan = 0;
@@ -330,7 +330,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .slice(0, 3); 
     }
 
-    // --- PROGRESS BAR BİLEŞENİ ---
+    // --- PROGRESS BAR BİLEŞENİ (SADECE ANLIK PUAN GÖSTERİMİ) ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data || data.hedef === 0) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
@@ -352,11 +352,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* YENİ: Mağaza Barem İçi Puan Gösterimi (Sol Üst) */}
+                {/* YENİ: Mağaza Barem İçi Sadece "Anlık Puan" Gösterimi (Sol Üst) */}
                 {data.hedefPuan > 0 && (
                      <div className="absolute top-0 left-0 bg-sky-500/20 border-b border-r border-sky-500/30 text-sky-400 text-[10px] font-black px-3 py-1.5 rounded-br-xl tracking-widest shadow-sm flex items-center gap-1.5">
-                        <span className="text-[12px] animate-pulse">🎯</span>
-                        PUAN: {data.tahminPuan?.toFixed(1)} <span className="text-sky-500/50">/</span> {data.maxPuan}
+                        <span className="text-[12px] animate-pulse">⚡</span>
+                        ANLIK PUAN: {data.anlikPuan?.toFixed(1)}
                     </div>
                 )}
                 
@@ -435,13 +435,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                     <div className="w-full h-full">
                         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-center min-h-[320px]">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                                    CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
-                                </h3>
-                                {/* 1. YEŞİL BUTON: TOPLAM MAĞAZA TAHMİN PUANI */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+                                        CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
+                                    </h3>
+                                    {/* 1. YENİ: ÜST BOŞLUĞA GÜNCELLEME TARİHİ EKLENDİ */}
+                                    {lastUpdatedDate && (
+                                        <div className="mt-2 inline-flex items-center gap-1.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800 text-sky-600 dark:text-sky-400 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-sm">
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            SON GÜNCELLEME: {lastUpdatedDate}
+                                        </div>
+                                    )}
+                                </div>
+                                {/* 2. YEŞİL BUTON: SADECE ŞU ANKİ PUAN (ANLIK PUAN) YAZIYOR */}
                                 <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-5 py-2.5 rounded-xl font-black text-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-b-4 border-green-700 active:border-b-0 active:translate-y-1">
-                                    {magazaTahminPuan.toFixed(1)} Puan <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                    {magazaAnlikPuan.toFixed(1)} Puan <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
                             {dinamikMagazaMetrikleri.length > 0 ? (
@@ -762,20 +771,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex justify-between items-start p-6 border-b border-slate-800">
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
-                                    {/* 2. MODAL ÜST KISMI - DEVASA PUAN BAŞLIKLARI */}
+                                    {/* 3. MODAL İÇİ KOCAMAN PUAN TABELALARI YER DEĞİŞTİRDİ */}
                                     <div className="flex flex-wrap items-center gap-3 mt-4">
-                                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 flex items-center gap-3">
-                                            <div className="text-emerald-500 text-2xl">🎯</div>
+                                        {/* SOL: ANLIK PUAN (ÖN PLANDA) */}
+                                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 flex items-center gap-3 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                                            <div className="text-emerald-500 text-2xl">⚡</div>
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Mağaza Ay Sonu Tahmin Puanı</span>
-                                                <span className="text-2xl font-black text-emerald-400 leading-none mt-1">{magazaTahminPuan.toFixed(1)} Puan</span>
+                                                <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Şu Anki Toplanan Puan</span>
+                                                <span className="text-2xl font-black text-emerald-400 leading-none mt-1">{magazaAnlikPuan.toFixed(1)} Puan</span>
                                             </div>
                                         </div>
+                                        {/* SAĞ: AY SONU TAHMİN PUANI (İKİNCİL) */}
                                         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3 opacity-80">
-                                            <div className="text-sky-500 text-2xl">⚡</div>
+                                            <div className="text-sky-500 text-2xl">🎯</div>
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Şu Anki Toplanan Puan</span>
-                                                <span className="text-lg font-black text-sky-400 leading-none mt-1">{magazaAnlikPuan.toFixed(1)} Puan</span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Mağaza Ay Sonu Tahmin Puanı</span>
+                                                <span className="text-lg font-black text-sky-400 leading-none mt-1">{magazaTahminPuan.toFixed(1)} Puan</span>
                                             </div>
                                         </div>
                                     </div>
@@ -784,7 +795,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
                                 {dinamikMagazaMetrikleri.map((metrik, idx) => (
                                     <DepartmanProgressBar 
                                         key={idx}
