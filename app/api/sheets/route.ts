@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 
-// 5 dakikada bir (300 saniye) veriyi "Bakkal"da (Edge Cache) tazelemesini söyler.
-export const revalidate = 300; 
+// 🚀 DEĞİŞİKLİK 1: Tüm sayfayı donduran 'export const revalidate = 300;' satırını kaldırdık.
+// 🚀 DEĞİŞİKLİK 2: Route'u her zaman dinlemeye (dinamik) açık hale getirdik.
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
+// 🚀 DEĞİŞİKLİK 3: (request: Request) ekleyerek Next.js'e dışarıdan gelen URL parametrelerini (?t=...) dinlemesini söyledik.
+export async function GET(request: Request) {
   const SHEET_ID = process.env.SHEET_ID;
   const API_KEY = process.env.API_KEY;
 
@@ -31,8 +33,8 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    // Veriyi 300 saniye boyunca Vercel'in önbelleğinde (Edge) tutar.
-    // 50 personel sorsa bile Vercel sadece 1 kez Google'a gider.
+    // 🚀 DEĞİŞİKLİK 4: Sadece Fetch'in Bakkal'ını (Data Cache) aktif tutuyoruz.
+    // Bu sayede Google kotan korunur, ama Admin paneli "Yenile" dediğinde anında güncellenir.
     const res = await fetch(url, { 
       next: { 
         revalidate: 300, 
