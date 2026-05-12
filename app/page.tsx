@@ -2,12 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
@@ -86,29 +81,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
-// ... 91. satırdan sonra buraya yapıştır
-  useEffect(() => {
-    // Sayfa ilk açıldığında verileri bir kez çek
-    loadData();
-
-    // ⚡ Supabase Zil Sistemi (Gerçek Zamanlı Takip)
-    const channel = supabase
-      .channel('updates-channel')
-      .on(
-        'postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'updates' }, 
-        () => {
-          console.log('⚡ Supabase: Fiyatlar güncellendi, liste tazeleniyor...');
-          loadData(true); // Verileri zorla en güncel haliyle çek
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
