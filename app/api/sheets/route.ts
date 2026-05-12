@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Vercel'in arka planda sessizce 20 dakikada bir (1200 saniye) veriyi yenilemesini sağlar.
+// Bu sayede hem sayfa anında açılır hem de kota dostudur.
+export const revalidate = 1200;
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
@@ -19,10 +21,7 @@ export async function GET() {
     { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
     { id: 'Depo', range: 'DEPO!A1:B1000' },
 
-    // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU (SORUN BURADAYDI) ---
-    { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
-    { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
-    // --- YENİ EKLENEN MÜŞTERİ (TRADE-IN) TABLOLARI ---
+    // --- MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
     { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
   ];
@@ -31,14 +30,16 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    const res = await fetch(url, { cache: 'no-store' });
+    // cache: 'no-store' silindi. Next.js artık revalidate = 1200 kuralına uyacak.
+    const res = await fetch(url);
     const data = await res.json();
 
     if (!data.valueRanges) {
       throw new Error("Google'dan veri alınamadı.");
     }
 
-    const results: any = {};
+    // TypeScript hatasını önlemek için tip tanımlaması yapıldı
+    const results: Record<string, any[][]> = {};
     tables.forEach((table, index) => {
       results[table.id] = data.valueRanges[index].values || [];
     });
