@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
-
+// 🚀 Firebase Realtime Database SDK
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getDatabase, ref, onValue } from "firebase/database";
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
@@ -17,7 +19,13 @@ const MASTER_IPLER = [
   "95.70.226.118",
   "148.0.18.162"
 ];
+const firebaseConfig = {
+  databaseURL: "https://cnetmobil-portal-default-rtdb.europe-west1.firebasedatabase.app/",
+};
 
+// Next.js SSR uyumlu başlatma
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const database = getDatabase(app);
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -81,7 +89,18 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
+// ... 91. satırdaki toastIdCounter = useRef(0); kodundan hemen sonra buraya yapıştır:
 
+useEffect(() => {
+  const updatesRef = ref(database, 'updates/last_update');
+  const unsubscribe = onValue(updatesRef, (snapshot) => {
+    if (snapshot.exists()) {
+      console.log("⚡ Sheets sinyali geldi, portal güncelleniyor...");
+      loadData(true); 
+    }
+  });
+  return () => unsubscribe();
+}, []);
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
     { name: "CMR MERKEZ", phone: "905416801905" },
@@ -254,12 +273,17 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const loadData = async (bypassClientCache = false) => {
-    try {
-      const fetchOptions: RequestInit = bypassClientCache 
-        ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
-        : {};
-
+ const loadData = async (bypassClientCache: boolean = false) => {
+  try {
+    const fetchOptions: RequestInit = bypassClientCache 
+      ? { 
+          cache: 'no-store', 
+          headers: { 
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache' 
+          } 
+        } 
+      : {};
       const res = await fetch('/api/sheets', fetchOptions); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
