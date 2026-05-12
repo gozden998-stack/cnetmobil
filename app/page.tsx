@@ -397,11 +397,11 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- 🚀 İLK YÜKLEME VE 20 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
-  useEffect(() => {
-    loadData();
-    // 1.200.000 ms = 20 dakika. Vercel kotasını yormadan sayfayı arka planda sessizce günceller.
-    const intervalId = setInterval(() => { loadData(); }, 1200000);
+ // --- 🚀 İLK YÜKLEME VE 1 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
+useEffect(() => {
+  loadData();
+  // 60.000 ms = 1 dakika..
+    const intervalId = setInterval(() => { loadData(); }, 60000);
     return () => clearInterval(intervalId);
   }, []); 
 
