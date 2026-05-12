@@ -397,13 +397,17 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
- // --- 🚀 İLK YÜKLEME VE 1 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
+ // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
 useEffect(() => {
   loadData();
-  // 60.000 ms = 1 dakika..
-    const intervalId = setInterval(() => { loadData(); }, 60000);
-    return () => clearInterval(intervalId);
-  }, []); 
+  
+  // 300.000 ms = 5 dakika
+  const intervalId = setInterval(() => { 
+    loadData(); 
+  }, 300000);
+
+  return () => clearInterval(intervalId);
+}, []);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
