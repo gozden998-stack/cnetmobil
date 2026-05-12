@@ -3,6 +3,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
+// Firebase Importları
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+
+// Firebase Yapılandırması (Environment variables üzerinden çekilmesi önerilir)
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+};
+
+// Firebase'i başlat (Eğer daha önce başlatılmadıysa)
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const db_firestore = getFirestore(app);
+const auth_firebase = getAuth(app);
+
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
@@ -508,6 +528,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
+          // 1. Mevcut Google Sheets Kaydı
           await fetch(SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -522,6 +543,26 @@ export default function CnetmobilCmrFinalUltimate() {
               date: dateTime
             })
           });
+
+          // 2. 🔥 FIREBASE CLOUD YEDEKLEME (Yeni Eklendi)
+          try {
+            await addDoc(collection(db_firestore, "alimlar"), {
+              magaza: selectedBranch,
+              musteri: customer.name,
+              cihaz: selectedModelName,
+              kapasite: selectedCapacity?.cap,
+              imei: customer.imei,
+              nakit: finalCashPrice,
+              takas: finalTradePrice,
+              ekspertiz: status,
+              islemTuru: actionType,
+              olusturmaTarihi: serverTimestamp(),
+              formatliTarih: dateTime
+            });
+            console.log("Firebase kaydı başarılı.");
+          } catch (fbError) {
+            console.error("Firebase'e yazılamadı:", fbError);
+          }
 
           alert("Yönetici paneline gönderildi");
           setTimeout(() => { refreshDataCache(); }, 2500);
@@ -1122,7 +1163,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                                 <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
                                 <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[8] || '-'}</div>
+                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-green-500/50 border-l border-slate-200">{row[8] || '-'}</div>
                             </div>
                           )
                       })}
