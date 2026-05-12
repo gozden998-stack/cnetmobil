@@ -109,8 +109,7 @@ export default function CnetmobilCmrFinalUltimate() {
     };
   }, []);
 
-  // branches dizisi buradan devam eder...
-  const branches = [ ...
+
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
     { name: "CMR MERKEZ", phone: "905416801905" },
