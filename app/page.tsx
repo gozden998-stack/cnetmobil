@@ -5,6 +5,7 @@ import YoneticiPaneli from './components/YoneticiPaneli';
 // 🚀 Firebase Realtime Database SDK
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getDatabase, ref, onValue } from "firebase/database";
+
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
