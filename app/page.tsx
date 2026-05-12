@@ -29,9 +29,6 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
 
-  // --- 🚀 GÜNCELLEME BEKÇİSİ STATELERİ ---
-  const [currentVersion, setCurrentVersion] = useState<number | null>(null);
-
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
@@ -106,33 +103,6 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
-
-  // --- 🚀 GÜNCELLEME BEKÇİSİ (KOTA DOSTU MOD) ---
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    
-    const checkUpdateSignal = async () => {
-      try {
-        const res = await fetch('/api/revalidate?check=1', { cache: 'no-store' });
-        const data = await res.json();
-        
-        if (data.version) {
-          if (currentVersion === null) {
-            setCurrentVersion(data.version);
-          } else if (data.version > currentVersion) {
-            // Versiyon değiştiyse ekranı sert yeniler
-            window.location.reload(); 
-            setCurrentVersion(data.version);
-          }
-        }
-      } catch (e) {
-        console.error("Güncelleme kontrolü başarısız.");
-      }
-    };
-
-    const interval = setInterval(checkUpdateSignal, 300000); // 5 dakikada bir yoklar
-    return () => clearInterval(interval);
-  }, [currentVersion, isLoggedIn]);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -286,8 +256,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async (bypassClientCache = false) => {
     try {
-      // DÜZELTME: t=Date.now() KULLANMIYORUZ! Vercel CDN kotasını korumak için.
-      // Sadece yönetici "Yenile" dediğinde bypassClientCache tetiklenir, header üzerinden cache kırılır.
       const fetchOptions: RequestInit = bypassClientCache 
         ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
         : {};
@@ -429,12 +397,13 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- 🚀 İLK YÜKLEME ---
+  // --- 🚀 İLK YÜKLEME VE 20 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
     loadData();
-    // Kota yiyen 5 dakikalık setInterval tamamen KALDIRILDI!
+    // 1.200.000 ms = 20 dakika. Vercel kotasını yormadan sayfayı arka planda sessizce günceller.
+    const intervalId = setInterval(() => { loadData(); }, 1200000);
+    return () => clearInterval(intervalId);
   }, []); 
-
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -555,8 +524,6 @@ export default function CnetmobilCmrFinalUltimate() {
           });
 
           alert("Yönetici paneline gönderildi");
-          
-          await fetch('/api/revalidate?tag=sheets-data');
           setTimeout(() => { refreshDataCache(); }, 2500);
 
         } catch (e) { console.error(e); }
@@ -585,7 +552,6 @@ export default function CnetmobilCmrFinalUltimate() {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
-      await fetch('/api/revalidate?tag=sheets-data');
       setTimeout(refreshDataCache, 2000);
     } catch (e) { console.error(e); }
   };
@@ -599,7 +565,6 @@ export default function CnetmobilCmrFinalUltimate() {
         body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
       });
       alert("Tüm geçmiş temizlendi.");
-      await fetch('/api/revalidate?tag=sheets-data');
       refreshDataCache();
     } catch (e) { console.error(e); }
   };
@@ -630,7 +595,6 @@ export default function CnetmobilCmrFinalUltimate() {
       });
       alert("Cihaz başarıyla eklendi!");
       setNewDevice({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
-      await fetch('/api/revalidate?tag=sheets-data');
       setTimeout(refreshDataCache, 1500);
     } catch (e) { console.error(e); }
   };
@@ -1259,25 +1223,6 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
 
                    <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                      <button 
-                        onClick={async () => {
-                          try {
-                            alert("✅ Sistem güncelleniyor! Vercel önbelleği temizlenip sayfa yenilenecek, lütfen bekleyin...");
-                            await fetch('/api/revalidate?tag=sheets-data');
-                            setTimeout(() => { 
-                                // SAYFAYI TAMAMEN SIFIRLAYARAK EN GÜNCEL VERİYLE AÇAR
-                                window.location.reload(); 
-                            }, 2500); 
-                          } catch (e) {
-                            alert("Bağlantı hatası! İnternetinizi kontrol edin.");
-                          }
-                        }}
-                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-emerald-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        FİYATLARI YENİLE
-                      </button>
-
                       <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         PANELİ KAPAT
