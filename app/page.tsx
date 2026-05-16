@@ -605,16 +605,17 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  // KULLAN Butonu: Tarayıcı hafızasına kalıcı kaydeder ve ekranı anında günceller.
+  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
-    // 1. Tarayıcının kalıcı hafızasına kaydet (F5 atılsa bile silinmemesi için)
+    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('kullanilan_imei_' + imei, durumText);
+      const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
+      localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
     // 2. Ekranı anında kırmızı yap ve üstünü çiz
@@ -973,11 +974,32 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         
-                        // SİHİRLİ KISIM: Önce tarayıcı hafızasına bak, orada yoksa Vercel/Sheets'ten geleni kullan
+                        // SİHİRLİ KISIM: Süreli Hafıza Kontrolü
                         const imeiNo = row[1];
-                        const localDurum = typeof window !== 'undefined' ? localStorage.getItem('kullanilan_imei_' + imeiNo) : null;
-                        const guncelDurum = localDurum || row[2]; 
+                        let localDurum = null;
                         
+                        if (typeof window !== 'undefined') {
+                            const kayitStr = localStorage.getItem('kullanilan_imei_' + imeiNo);
+                            if (kayitStr) {
+                                try {
+                                    const kayit = JSON.parse(kayitStr);
+                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
+                                    
+                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
+                                    if (new Date().getTime() - kayit.timestamp < onDakika) {
+                                        localDurum = kayit.durum;
+                                    } else {
+                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
+                                        localStorage.removeItem('kullanilan_imei_' + imeiNo);
+                                    }
+                                } catch (e) {
+                                    // Eski sürümden kalan metinleri temizlemek için
+                                    localStorage.removeItem('kullanilan_imei_' + imeiNo);
+                                }
+                            }
+                        }
+                        
+                        const guncelDurum = localDurum || row[2]; 
                         const isUsed = guncelDurum && guncelDurum.toString().toUpperCase().includes('KULLANILDI');
                         
                         return (
