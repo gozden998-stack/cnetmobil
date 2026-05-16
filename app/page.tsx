@@ -254,21 +254,14 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  // --- 🚀 KOTAYI SIFIRLAYAN VE DİREKT GOOGLE'DAN ÇEKEN LOADDATA SİSTEMİ ---
   const loadData = async (bypassClientCache = false) => {
     try {
-      // Vercel'i aradan kaldırıp direkt Google Apps Script'e bağlanıyoruz.
-      // SCRIPT_URL sonuna eklenen zaman damgası Google'ın eski veriyi dayatmasını (cache) engeller.
-      const directGoogleUrl = `${SCRIPT_URL}?_cb=${new Date().getTime()}`;
+      const fetchOptions: RequestInit = bypassClientCache 
+        ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
+        : {};
 
-      const res = await fetch(directGoogleUrl, {
-        method: 'GET',
-        mode: 'cors'
-      }); 
-      
+      const res = await fetch('/api/sheets', fetchOptions); 
       const responseData = await res.json();
-      
-      // Google'dan gelen Base64 şifreli veriyi güvenle çözüyoruz
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
@@ -370,7 +363,9 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       
+      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
+      
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
 
@@ -404,11 +399,14 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+ // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
     loadData();
+    
+    // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
       loadData(); 
-    }, 300000); // 5 dakika
+    }, 300000);
 
     return () => clearInterval(intervalId);
   }, []);
@@ -418,7 +416,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -485,6 +483,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
+    
     const now = new Date();
     const dateFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' });
     const timeFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -613,7 +612,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
-    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür)
+    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
@@ -750,7 +749,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-          if (datePart && datePart.includes('.')) {
+                    if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
@@ -984,14 +983,17 @@ export default function CnetmobilCmrFinalUltimate() {
                             if (kayitStr) {
                                 try {
                                     const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000; 
+                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
                                     
+                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
                                     if (new Date().getTime() - kayit.timestamp < onDakika) {
                                         localDurum = kayit.durum;
                                     } else {
+                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
                                         localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                     }
                                 } catch (e) {
+                                    // Eski sürümden kalan metinleri temizlemek için
                                     localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                 }
                             }
@@ -1612,6 +1614,7 @@ export default function CnetmobilCmrFinalUltimate() {
               
               {/* SAĞ KISIM (FİYATLAR) */}
               <div className="lg:w-[350px] space-y-6 sticky top-32 h-fit">
+                
                 {appMode === 'servis' ? (
                   <div className="bg-white border border-orange-200 p-8 rounded-[32px] space-y-4 shadow-xl">
                       <div className="w-16 h-16 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -1641,6 +1644,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       </div>
                     ) : (
                       <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                        
                         <div className="bg-white p-8 rounded-[32px] shadow-xl border border-slate-100 text-center transition-all hover:-translate-y-1">
                           <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
                           <div className="text-4xl font-black italic tracking-tighter text-slate-900">
