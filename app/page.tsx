@@ -18,44 +18,6 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
-// --- 🔊 TARAYICI DİJİTAL SES ÜRETİCİSİ (DOSYA GEREKTİRMEZ) ---
-const playLiveNotificationSound = () => {
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    
-    // İlk Ton (Kibar bir başlangıç)
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 Notası
-    gain1.gain.setValueAtTime(0.1, ctx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start();
-    osc1.stop(ctx.currentTime + 0.15);
-
-    // İkinci Ton (Dınn efekti veren asıl ses)
-    setTimeout(() => {
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(880, ctx.currentTime); // A5 Notası
-      gain2.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start();
-      osc2.stop(ctx.currentTime + 0.4);
-    }, 80);
-
-  } catch (e) {
-    console.log("Ses çalma tarayıcı engeline takıldı:", e);
-  }
-};
-
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -76,7 +38,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
   const [personelData, setPersonelData] = useState<any[][]>([]);
 
+  const servisFiyatlariRef = useRef<any>({});
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
+  const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
 
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
@@ -114,20 +78,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
 
   const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
-  
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
-  const prevYnaRef = useRef<any[][]>([]);
-  const prevIkinciElRef = useRef<any[][]>([]);
-  const selectedBranchRef = useRef(selectedBranch);
   const toastIdCounter = useRef(0);
-
-  // 🎯 STALE CLOSURE (HAFIZA KİLİTLENMESİ) ENGELLEYİCİ REFERANSLAR
-  const selectedModelNameRef = useRef(selectedModelName);
-  const selectedCapacityRef = useRef(selectedCapacity);
-
-  useEffect(() => { selectedModelNameRef.current = selectedModelName; }, [selectedModelName]);
-  useEffect(() => { selectedCapacityRef.current = selectedCapacity; }, [selectedCapacity]);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -150,10 +103,6 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
-
-  useEffect(() => {
-    selectedBranchRef.current = selectedBranch;
-  }, [selectedBranch]);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -305,158 +254,118 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  // --- ⚡ KOTA DOSTU AKILLI CANLI VERİ TÜNELİ ---
-  const loadData = async () => {
+  const loadData = async (bypassClientCache = false) => {
     try {
-      const res = await fetch('/api/sheets', { cache: 'no-cache' }); 
+      const fetchOptions: RequestInit = bypassClientCache 
+        ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
+        : {};
+
+      const res = await fetch('/api/sheets', fetchOptions); 
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
       let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
-      const isZumayBranch = selectedBranchRef.current === 'ZUMAY KANALI';
+      const isInitialLoad = prevDbRef.current.length === 0;
 
-      // 🎯 BİLDİRİM MOTORU: Hafızada eski veri varsa yeni gelenle çatır çatır kıyaslar
-      if (!isZumayBranch) { 
-          let addedLines: string[] = [];
-          let priceLines: string[] = [];
-
-          const parseCepTablet = (data: any[][]) => {
-            const items: { name: string; kampanya: string; satis: string }[] = [];
-            data.forEach((row, idx) => {
-              if (idx === 0) return;
-              if (row[0] && row[0].trim() !== '') items.push({ name: row[0].trim(), kampanya: String(row[1] || ''), satis: String(row[2] || '') });
-              if (row[5] && row[5].trim() !== '') items.push({ name: row[5].trim(), kampanya: String(row[6] || ''), satis: String(row[7] || '') });
-            });
-            return items;
-          };
-
-          const parseYna = (data: any[][]) => {
-            const items: { name: string; fiyat: string }[] = [];
-            data.forEach((row, idx) => {
-              if (idx === 0) return;
-              if (row[0] && row[0].trim() !== '') items.push({ name: row[0].trim(), fiyat: String(row[1] || '') });
-              if (row[3] && row[3].trim() !== '') items.push({ name: row[3].trim(), fiyat: String(row[4] || '') });
-            });
-            return items;
-          };
-
-          const parseIkinciEl = (data: any[][]) => {
-            const items: { name: string; fiyat: string }[] = [];
-            data.forEach((row, idx) => {
-              if (idx === 0) return;
-              if (row[0] && row[0].trim() !== '') items.push({ name: row[0].trim(), fiyat: String(row[2] || '') });
-            });
-            return items;
-          };
-
-          // 2. El Listesi Canlı Kıyaslama Alanı
-          if (allData.IkinciEl && prevIkinciElRef.current && prevIkinciElRef.current.length > 0) {
-            const currentItems = parseIkinciEl(allData.IkinciEl);
-            const prevItems = parseIkinciEl(prevIkinciElRef.current);
-
-            currentItems.forEach(curr => {
-              const prev = prevItems.find(p => p.name === curr.name);
-              if (prev && prev.fiyat !== curr.fiyat) {
-                priceLines.push(`♻️ ${curr.name}\nEski: ${prev.fiyat || '-'} ➔ Yeni: ${curr.fiyat || '-'} TL`);
-              }
-            });
+      if (!isInitialLoad && !loading) { 
+          if (allData.Devices) {
+              const currentDeviceNames = prevDbRef.current.map(d => d.name);
+              const newDevices = allData.Devices.filter((d: any) => d[1] && !currentDeviceNames.includes(d[1]));
+              
+              const uniqueNewDevices = Array.from(new Set(newDevices.map((d: any) => d[1])));
+              uniqueNewDevices.forEach(deviceName => {
+                  toastIdCounter.current += 1;
+                  newNotifications.push({ id: toastIdCounter.current, text: `🎉 STOĞA YENİ CİHAZ GELDİ: ${deviceName}`, type: 'new' });
+              });
           }
 
-          // Ana Cihazlar Kontrolü
-          if (allData.Devices && prevDbRef.current && prevDbRef.current.length > 0) {
-            const currentDevices = allData.Devices.map((row: any) => ({
-              name: row[1] || '', cap: row[2] || '', base: parseInt(row[3]) || 0
-            }));
-            currentDevices.forEach(curr => {
-              const prev = prevDbRef.current.find(p => p.name === curr.name && p.cap === curr.cap);
-              if (prev && prev.base !== curr.base) {
-                priceLines.push(`📱 ${curr.name} (${curr.cap})\nEski: ${prev.base.toLocaleString()} ➔ Yeni: ${curr.base.toLocaleString()} TL`);
-              }
-            });
-          }
+          if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
+              const prevTabletMap = new Map();
+              prevCepTabletRef.current.forEach(row => {
+                  if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); 
+                  if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); 
+              });
 
-          // Cep + Tablet Kontrolü
-          if (allData.CepTablet && prevCepTabletRef.current && prevCepTabletRef.current.length > 0) {
-            const currentItems = parseCepTablet(allData.CepTablet);
-            const prevItems = parseCepTablet(prevCepTabletRef.current);
-            currentItems.forEach(curr => {
-              const prev = prevItems.find(p => p.name === curr.name);
-              if (prev && (prev.campaign !== curr.kampanya || prev.satis !== curr.satis)) {
-                priceLines.push(`💥 ${curr.name}\nKampanya: ${prev.kampanya || '-'} ➔ ${curr.kampanya || '-'} TL`);
-              }
-            });
-          }
+              const changedPrices: string[] = [];
+              allData.CepTablet.forEach((row: any) => {
+                  if (row[0]) {
+                      const prev = prevTabletMap.get(row[0]);
+                      if (prev && (prev.k !== row[1] || prev.s !== row[2])) {
+                          if(!changedPrices.includes(row[0])) changedPrices.push(row[0]);
+                      }
+                  }
+                  if (row[5]) {
+                      const prev = prevTabletMap.get(row[5]);
+                      if (prev && (prev.k !== row[6] || prev.s !== row[7])) {
+                          if(!changedPrices.includes(row[5])) changedPrices.push(row[5]);
+                      }
+                  }
+              });
 
-          // YNA Kontrolü
-          if (allData.YNA && prevYnaRef.current && prevYnaRef.current.length > 0) {
-            const currentItems = parseYna(allData.YNA);
-            const prevItems = parseYna(prevYnaRef.current);
-            currentItems.forEach(curr => {
-              const prev = prevItems.find(p => p.name === curr.name);
-              if (prev && prev.fiyat !== curr.fiyat) {
-                priceLines.push(`🎧 ${curr.name}\nFiyat: ${prev.fiyat || '-'} ➔ ${curr.fiyat || '-'} TL`);
+              if (changedPrices.length > 0) {
+                  toastIdCounter.current += 1;
+                  if (changedPrices.length > 3) {
+                      newNotifications.push({ id: toastIdCounter.current, text: `🔄 SİSTEMDE FİYATLAR GÜNCELLENDİ (${changedPrices.length} cihaz)`, type: 'price' });
+                  } else {
+                      newNotifications.push({ id: toastIdCounter.current, text: `💰 FİYAT GÜNCELLENDİ: ${changedPrices.join(', ')}`, type: 'price' });
+                  }
               }
-            });
-          }
-
-          if (priceLines.length > 0) {
-            toastIdCounter.current += 1;
-            let text = priceLines.slice(0, 5).join('\n');
-            newNotifications.push({ id: toastIdCounter.current, text: text, type: 'price' });
           }
       }
 
       if (newNotifications.length > 0) {
-          playLiveNotificationSound();
           setToastMessages(prev => [...prev, ...newNotifications]);
           newNotifications.forEach(notification => {
-              setTimeout(() => { setToastMessages(prev => prev.filter(m => m.id !== notification.id)); }, 12000); 
+              setTimeout(() => {
+                  setToastMessages(prev => prev.filter(m => m.id !== notification.id));
+              }, 8000);
           });
       }
 
-      // Geçmiş hafıza eşitlemeleri (Bir sonraki tur için taban oluşturur)
       if (allData.Devices) {
           prevDbRef.current = allData.Devices.map((row: any) => ({
               brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
               base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
           }));
       }
-      if (allData.CepTablet) prevCepTabletRef.current = allData.CepTablet;
-      if (allData.YNA) prevYnaRef.current = allData.YNA;
-      if (allData.IkinciEl) prevIkinciElRef.current = allData.IkinciEl;
+      if (allData.CepTablet) {
+          prevCepTabletRef.current = allData.CepTablet;
+      }
 
-      // Ekrana basılan State'lerin güncellenmesi
       if (allData.Devices) {
-        const freshDb = allData.Devices.map((row: any) => ({
+        setDb(allData.Devices.map((row: any) => ({
           brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
           base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
-        }));
-        setDb(freshDb);
-
-        if (selectedModelNameRef.current && selectedCapacityRef.current) {
-          const freshCapacity = freshDb.find((d: any) => d.name === selectedModelNameRef.current && d.cap === selectedCapacityRef.current.cap);
-          if (freshCapacity && freshCapacity.base !== selectedCapacityRef.current.base) {
-             setSelectedCapacity(freshCapacity);
-          }
-        }
+        })));
       }
 
       if (allData.Ayarlar) {
         const m: any = {};
-        allData.Ayarlar.forEach((row: any) => { m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); });
+        allData.Ayarlar.forEach((row: any) => { 
+          m[row[0]] = isNaN(Number(row[1])) ? row[1] : parseFloat(row[1]); 
+        });
         if (m.Ekran_Kirik_Android === undefined && m.Ekran_Kirik !== undefined) m.Ekran_Kirik_Android = m.Ekran_Kirik;
         if (m.Kasa_Kotu_Android === undefined && m.Kasa_Kotu !== undefined) m.Kasa_Kotu_Android = m.Kasa_Kotu;
         setConfig(m);
       }
 
-      if (allData.Alimlar) setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
-      if (allData.Markalar) setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
+      if (allData.Alimlar) {
+        setAlimlar(allData.Alimlar.map((val: any, index: number) => ({ data: val, sheetIndex: index + 2 })));
+      }
+
+      if (allData.Markalar) {
+        setBrandDb(allData.Markalar.map((row: any) => ({ name: row[0], logo: row[1] })));
+      }
+
       if (allData.CepTablet) setCepTabletData(allData.CepTablet);
       if (allData.YNA) setYnaData(allData.YNA);
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
+      
+      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
+      
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
 
@@ -464,8 +373,12 @@ export default function CnetmobilCmrFinalUltimate() {
         const loadedServis: any = {};
         allData.Servis.forEach((row: any) => {
           loadedServis[row[0]] = {
-            ekranOrj: row[1] || '', ekranOled: row[2] || '', ekranCipli: row[3] || '',
-            batarya: row[4] || '', arkaCam: row[5] || '', kasa: row[6] || ''
+            ekranOrj: row[1] || '',
+            ekranOled: row[2] || '',
+            ekranCipli: row[3] || '',
+            batarya: row[4] || '',
+            arkaCam: row[5] || '',
+            kasa: row[6] || ''
           };
         });
         setServisFiyatlari(loadedServis);
@@ -473,56 +386,37 @@ export default function CnetmobilCmrFinalUltimate() {
 
       setLoading(false);
     } catch (e) {
-      console.error("Veri tüneli hatası:", e);
+      console.error("Veri tünelinde hata:", e);
       setLoading(false);
     }
   };
 
   const refreshDataCache = async () => {
     try {
-      await loadData(); 
+      await loadData(true); 
     } catch (e) {
-      console.error("Manuel tetikleme hatası", e);
+      console.error("Önbellek temizlenirken hata oluştu", e);
     }
   };
 
-  // --- ⏱️ TEK VE GERÇEK CANLI SENKRONİZASYON MOTORU (KOTA DOSTU) ---
+ // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
-    loadData(); // Sayfa ilk açıldığında verileri doldur
+    loadData();
     
-    // 5 Dakikada bir sessiz ve taze kontrol döngüsü
+    // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
-      if (typeof document !== 'undefined' && !document.hidden) {
-        loadData(); 
-      }
-    }, 300000); 
+      loadData(); 
+    }, 300000);
 
-    const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        loadData(); // Sekme arkadan öne gelince anında tazele
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('visibilitychange', handleVisibilityChange);
-    }
-
-    return () => {
-      clearInterval(intervalId);
-      if (typeof window !== 'undefined') window.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []); // 🔒 TAMAMEN İZOLE: Sayfa açık kaldığı sürece tek bir merkezi motor çalışır.
-
-  // Seçili kapasiteyi güncel tutmak için useRef takibi
-  const selectedCapacityRef = useRef(selectedCapacity);
-  useEffect(() => { selectedCapacityRef.current = selectedCapacity; }, [selectedCapacity]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -688,7 +582,7 @@ export default function CnetmobilCmrFinalUltimate() {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
         body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
       });
-      alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Campanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
+      alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
       
       setConfig((prev: any) => {
           const newVal = isNaN(Number(val)) ? val : parseFloat(val);
@@ -711,17 +605,20 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
+  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
+    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
+    // 2. Ekranı anında kırmızı yap ve üstünü çiz
     setImeiData(prev => {
         const newData = [...prev];
         const rowIndex = newData.findIndex(r => r[1] === imei);
@@ -731,6 +628,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return newData;
     });
 
+    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -790,15 +688,15 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'yna_list', label: 'YNA List', visible: !isZumay },
         { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
         { 
-          id: 'kampanya_sifir', 
-          label: (
-            <div className="flex flex-col items-center justify-center -space-y-0.5">
-              <span className="font-black tracking-widest">KAMPANYALI</span>
-              <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
-            </div>
-          ), 
-          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
-        },
+  id: 'kampanya_sifir', 
+  label: (
+    <div className="flex flex-col items-center justify-center -space-y-0.5">
+      <span className="font-black tracking-widest">KAMPANYALI</span>
+      <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
+    </div>
+  ), 
+  visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
+},
         { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
@@ -851,7 +749,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-          if (datePart && datePart.includes('.')) {
+                    if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
@@ -1036,10 +934,10 @@ export default function CnetmobilCmrFinalUltimate() {
                  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
                     <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-xl shadow-red-500/20 text-white text-5xl font-black italic">Z</div>
                     <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-800 uppercase text-center">
-                       ZUMAY <span className="text-red-600">BAYİ PORTALİ</span>
+                       ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
                     </h2>
                     <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
-                       Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönlendirebilirsiniz.
+                       Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
                        <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-red-500">
@@ -1076,6 +974,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         
+                        // SİHİRLİ KISIM: Süreli Hafıza Kontrolü
                         const imeiNo = row[1];
                         let localDurum = null;
                         
@@ -1084,14 +983,17 @@ export default function CnetmobilCmrFinalUltimate() {
                             if (kayitStr) {
                                 try {
                                     const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000; 
+                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
                                     
+                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
                                     if (new Date().getTime() - kayit.timestamp < onDakika) {
                                         localDurum = kayit.durum;
                                     } else {
+                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
                                         localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                     }
                                 } catch (e) {
+                                    // Eski sürümden kalan metinleri temizlemek için
                                     localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                 }
                             }
@@ -1186,9 +1088,9 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="min-w-[650px]">
                   <div className="bg-orange-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-1 text-center border-l border-orange-600 pl-2">ÖZELLİK/DURUM</div>
-                    <div className="flex-1 text-center border-l border-orange-600 pl-2">FİYATI (TL)</div>
-                    <div className="flex-[2] text-right border-l border-orange-600 pr-2">AÇIKLAMA</div>
+                    <div className="flex-1 text-center border-l border-orange-500 pl-2">ÖZELLİK/DURUM</div>
+                    <div className="flex-1 text-center border-l border-orange-500 pl-2">FİYATI (TL)</div>
+                    <div className="flex-[2] text-right border-l border-orange-500 pr-2">AÇIKLAMA</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
@@ -1414,7 +1316,7 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
 
                    <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                      <button onClick={() => {setStep(1); resetSelection(); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
+                      <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         PANELİ KAPAT
                       </button>
@@ -1479,7 +1381,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : step === 2 ? (
             <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900 max-w-[1400px] mx-auto">
               <div className="flex items-center justify-between mb-8 mt-4">
-                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
+                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4 hover:bg-slate-50')}`}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                     Geri Dön
                   </button>
@@ -1885,19 +1787,23 @@ export default function CnetmobilCmrFinalUltimate() {
       </div>
 
       <footer className="mt-auto w-full border-t border-slate-200 py-6 text-center print:hidden bg-transparent">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALİ v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
+         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
       {/* TOAST BİLDİRİMLERİ */}
       <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
         {toastMessages.map((toast) => (
-          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-start gap-3 backdrop-blur-md max-w-[380px] bg-blue-600/90 border-blue-50 text-white`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-blue-500`}>
-              <span className="text-lg">💵</span>
+          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
+              {toast.type === 'new' ? (
+                <span className="text-lg">📦</span>
+              ) : (
+                <span className="text-lg">💵</span>
+              )}
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">CANLI FİYAT GÜNCELLEMESİ</p>
-              <p className="font-bold text-xs leading-normal mt-1 whitespace-pre-line tracking-tight">{toast.text}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'SİSTEM BİLDİRİMİ' : 'FİYAT GÜNCELLEMESİ'}</p>
+              <p className="font-bold text-sm leading-tight mt-0.5 max-w-[250px]">{toast.text}</p>
             </div>
           </div>
         ))}
@@ -1949,7 +1855,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     { month: 6, rate: 17.55 }, { month: 7, rate: 20.19 }, { month: 8, rate: 22.96 }, { month: 9, rate: 25.85 },
                     { month: 10, rate: 28.88 }, { month: 11, rate: 32.07 }, { month: 12, rate: 35.41 },
                   ].map((inst) => {
-                    const multiplier = 1 + (multiplier = 1 + (inst.rate / 100));
+                    const multiplier = 1 + (inst.rate / 100);
                     const total = Number(installmentAmount) * multiplier;
                     const monthly = total / inst.month;
                     
