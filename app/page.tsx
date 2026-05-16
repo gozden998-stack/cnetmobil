@@ -362,6 +362,8 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.YNA) setYnaData(allData.YNA);
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
+      
+      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
       
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
@@ -398,16 +400,16 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
  // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
-useEffect(() => {
-  loadData();
-  
-  // 300.000 ms = 5 dakika
-  const intervalId = setInterval(() => { 
-    loadData(); 
-  }, 300000);
+  useEffect(() => {
+    loadData();
+    
+    // 300.000 ms = 5 dakika
+    const intervalId = setInterval(() => { 
+      loadData(); 
+    }, 300000);
 
-  return () => clearInterval(intervalId);
-}, []);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -603,21 +605,29 @@ useEffect(() => {
     } catch (e) { console.error(e); }
   };
 
-  // Yeni Eklenen handleImeiKullan Fonksiyonu
+  // KULLAN Butonu: Tarayıcı hafızasına kalıcı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
-    // 1. Ekranı bekletmeden anında kırmızı yapmak için state'i güncelliyoruz (Optimistic Update)
-    const newImeiData = [...imeiData];
-    const rowIndex = newImeiData.findIndex(r => r[1] === imei);
-    
-    if (rowIndex !== -1) {
-       newImeiData[rowIndex][2] = `KULLANILDI - ${personelName.toUpperCase()}`;
-       setImeiData(newImeiData);
+    const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
+
+    // 1. Tarayıcının kalıcı hafızasına kaydet (F5 atılsa bile silinmemesi için)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kullanilan_imei_' + imei, durumText);
     }
 
-    // 2. Veriyi Google Sheets'e gönderiyoruz
+    // 2. Ekranı anında kırmızı yap ve üstünü çiz
+    setImeiData(prev => {
+        const newData = [...prev];
+        const rowIndex = newData.findIndex(r => r[1] === imei);
+        if (rowIndex !== -1) {
+            newData[rowIndex][2] = durumText;
+        }
+        return newData;
+    });
+
+    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -628,8 +638,6 @@ useEffect(() => {
           personel: personelName.toUpperCase() 
         })
       });
-      // Arka planda sessizce verileri tekrar çekip senkronize edelim
-      setTimeout(refreshDataCache, 1500);
     } catch (e) {
       console.error("IMEI kaydedilirken hata:", e);
       alert("Bağlantı hatası! Lütfen internetinizi kontrol edin.");
@@ -964,7 +972,14 @@ useEffect(() => {
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
-                        const isUsed = row[2] && row[2].toString().toUpperCase().includes('KULLANILDI');
+                        
+                        // SİHİRLİ KISIM: Önce tarayıcı hafızasına bak, orada yoksa Vercel/Sheets'ten geleni kullan
+                        const imeiNo = row[1];
+                        const localDurum = typeof window !== 'undefined' ? localStorage.getItem('kullanilan_imei_' + imeiNo) : null;
+                        const guncelDurum = localDurum || row[2]; 
+                        
+                        const isUsed = guncelDurum && guncelDurum.toString().toUpperCase().includes('KULLANILDI');
+                        
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isUsed ? 'bg-red-50' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white hover:bg-slate-100')}`}>
                           
@@ -979,7 +994,7 @@ useEffect(() => {
                           <div className="flex-[1] flex justify-end border-l border-slate-200 pl-4">
                               {isUsed ? (
                                   <div className="flex flex-col items-end">
-                                      <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">{row[2]}</span>
+                                      <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">{guncelDurum}</span>
                                   </div>
                               ) : (
                                   <button onClick={() => handleImeiKullan(row[1])} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm">
