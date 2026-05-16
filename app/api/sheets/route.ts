@@ -19,9 +19,11 @@ export async function GET() {
     { id: 'DisKanal', range: 'DIŞ KANAL SATIN ALMA!A1:C1000' },
     { id: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' },
     { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
-    { id: 'Depo', range: 'DEPO!A1:B1000' },
+    
+    // UFAK DOKUNUŞ: C sütunundaki "KULLANILDI" yazılarını da çekebilmek için B1000 olan yer C1000 yapıldı.
+    { id: 'Depo', range: 'DEPO!A1:C1000' },
 
-      // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU (SORUN BURADAYDI) ---
+    // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU ---
     { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
     { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
     // --- MÜŞTERİ (TRADE-IN) TABLOLARI ---
@@ -33,7 +35,6 @@ export async function GET() {
     const rangesQuery = tables.map(t => `ranges=${encodeURIComponent(t.range)}`).join('&');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${rangesQuery}&key=${API_KEY}`;
 
-    // cache: 'no-store' silindi. Next.js artık revalidate = 1200 kuralına uyacak.
     const res = await fetch(url);
     const data = await res.json();
 
@@ -41,7 +42,6 @@ export async function GET() {
       throw new Error("Google'dan veri alınamadı.");
     }
 
-    // TypeScript hatasını önlemek için tip tanımlaması yapıldı
     const results: Record<string, any[][]> = {};
     tables.forEach((table, index) => {
       results[table.id] = data.valueRanges[index].values || [];
