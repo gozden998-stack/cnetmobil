@@ -18,6 +18,44 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// --- 🔊 TARAYICI DİJİTAL SES ÜRETİCİSİ (DOSYA GEREKTİRMEZ) ---
+const playLiveNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    
+    // İlk Ton (Kibar bir başlangıç)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 Notası
+    gain1.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.15);
+
+    // İkinci Ton (Dınn efekti veren asıl ses)
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(880, ctx.currentTime); // A5 Notası
+      gain2.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.4);
+    }, 80);
+
+  } catch (e) {
+    console.log("Ses çalma tarayıcı engeline takıldı:", e);
+  }
+};
+
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -79,7 +117,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
   
-  // Canlı Takip Referans Kalıpları
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const prevYnaRef = useRef<any[][]>([]);
@@ -109,7 +146,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
-  // Şube değişimini referansa anlık eşitle (Interval döngüsünde bayat veri kalmaması için)
   useEffect(() => {
     selectedBranchRef.current = selectedBranch;
   }, [selectedBranch]);
@@ -278,12 +314,10 @@ export default function CnetmobilCmrFinalUltimate() {
       let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
       const isZumayBranch = selectedBranchRef.current === 'ZUMAY KANALI';
 
-      // --- Sadece Zumay Kanalı Değilse ve İlk Yükleme Bitmişse Kontrol Et ---
       if (!isZumayBranch && !loading) { 
           let addedLines: string[] = [];
           let priceLines: string[] = [];
 
-          // Yardımcı İç Veri Ayrıştırıcı Fonksiyonları
           const parseCepTablet = (data: any[][]) => {
             const items: { name: string; kampanya: string; satis: string }[] = [];
             data.forEach((row, idx) => {
@@ -323,7 +357,6 @@ export default function CnetmobilCmrFinalUltimate() {
             return items;
           };
 
-          // 1. Cep + Tablet Canlı Kontrolü
           if (allData.CepTablet && prevCepTabletRef.current && prevCepTabletRef.current.length > 0) {
             const currentItems = parseCepTablet(allData.CepTablet);
             const prevItems = parseCepTablet(prevCepTabletRef.current);
@@ -338,7 +371,6 @@ export default function CnetmobilCmrFinalUltimate() {
             });
           }
 
-          // 2. YNA Canlı Kontrolü
           if (allData.YNA && prevYnaRef.current && prevYnaRef.current.length > 0) {
             const currentItems = parseYna(allData.YNA);
             const prevItems = parseYna(prevYnaRef.current);
@@ -353,7 +385,6 @@ export default function CnetmobilCmrFinalUltimate() {
             });
           }
 
-          // 3. 2.El Fiyat Listesi Canlı Kontrolü
           if (allData.IkinciEl && prevIkinciElRef.current && prevIkinciElRef.current.length > 0) {
             const currentItems = parseIkinciEl(allData.IkinciEl);
             const prevItems = parseIkinciEl(prevIkinciElRef.current);
@@ -368,7 +399,6 @@ export default function CnetmobilCmrFinalUltimate() {
             });
           }
 
-          // Bildirimleri yapılandırılmış satırlara çevir (Maksimum 10 adet alt alta listeleme)
           if (addedLines.length > 0) {
             toastIdCounter.current += 1;
             let text = addedLines.slice(0, 10).join('\n');
@@ -385,15 +415,17 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       if (newNotifications.length > 0) {
+          // --- 🔔 CANLI SES UYARISI TETİKLENİYOR ---
+          playLiveNotificationSound();
+          
           setToastMessages(prev => [...prev, ...newNotifications]);
           newNotifications.forEach(notification => {
               setTimeout(() => {
                   setToastMessages(prev => prev.filter(m => m.id !== notification.id));
-              }, 12000); // Rapor geniş olduğu için görünürlük süresi 12 saniyeye çıkarıldı
+              }, 12000); 
           });
       }
 
-      // Geçmiş Veri Referans Hafızalarını Güncelle
       if (allData.Devices) {
           prevDbRef.current = allData.Devices.map((row: any) => ({
               brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -404,7 +436,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.YNA) prevYnaRef.current = allData.YNA;
       if (allData.IkinciEl) prevIkinciElRef.current = allData.IkinciEl;
 
-      // Normal State Güncelleştirmeleri
       if (allData.Devices) {
         setDb(allData.Devices.map((row: any) => ({
           brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
@@ -731,7 +762,7 @@ export default function CnetmobilCmrFinalUltimate() {
         ekranText += `%0A📱 Ekran (Çipli): ${sFiyat.ekranCipli ? sFiyat.ekranCipli + ' TL' : '-'}`;
     }
 
-    const message = `🔧 *CMR TEKNİK SERVİS TEKLİFİ*%0A📱 *Cihaz:* ${selectedModelName}%0A%0A*Onarım Fiyatları:*%0A${ekranText}%0A🔋 Batarya Değişimi: ${sFiyat.batarya || '-'} TL%0A💠 Arka Cam Değişimi: ${sFiyat.arkaCam || '-'} TL%0A🛠 Kasa Değişimi: ${sFiyat.kasa || '-'} TL%0A%0A🕒 _Fiyatlarımız anlık olup değişkenlikeyse yansıyabilir._`;
+    const message = `🔧 *CMR TEKNİK SERVİS TEKLİFİ*%0A📱 *Cihaz:* ${selectedModelName}%0A%0A*Onarım Fiyatları:*%0A${ekranText}%0A🔋 Batarya Değişimi: ${sFiyat.batarya || '-'} TL%0A💠 Arka Cam Değişimi: ${sFiyat.arkaCam || '-'} TL%0A🛠 Kasa Değişimi: ${sFiyat.kasa || '-'} TL%0A%0A🕒 _Fiyatlarımız anlık olup değişkenlik gösterebilir._`;
     window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
   };
 
@@ -1000,7 +1031,7 @@ export default function CnetmobilCmrFinalUltimate() {
                        ZUMAY <span className="text-red-600">BAYİ PORTALİ</span>
                     </h2>
                     <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
-                       Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
+                       Cihaz alım and dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
                        <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-red-500">
@@ -1375,7 +1406,7 @@ export default function CnetmobilCmrFinalUltimate() {
                    </div>
 
                    <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                      <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
+                      <button onClick={() => {setStep(1); resetSelection(); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         PANELİ KAPAT
                       </button>
@@ -1849,7 +1880,7 @@ export default function CnetmobilCmrFinalUltimate() {
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALİ v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
-      {/* TOAST BİLDİRİMLERİ (Yenilenmiş Geniş Tasarım - Alt Alta Destekli) */}
+      {/* TOAST BİLDİRİMLERİ */}
       <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
         {toastMessages.map((toast) => (
           <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-start gap-3 backdrop-blur-md max-w-[380px] ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
