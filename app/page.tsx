@@ -603,6 +603,39 @@ useEffect(() => {
     } catch (e) { console.error(e); }
   };
 
+  // Yeni Eklenen handleImeiKullan Fonksiyonu
+  const handleImeiKullan = async (imei: string) => {
+    const personelName = window.prompt("Lütfen isminizi giriniz:");
+    if (!personelName || personelName.trim() === "") return;
+
+    // 1. Ekranı bekletmeden anında kırmızı yapmak için state'i güncelliyoruz (Optimistic Update)
+    const newImeiData = [...imeiData];
+    const rowIndex = newImeiData.findIndex(r => r[1] === imei);
+    
+    if (rowIndex !== -1) {
+       newImeiData[rowIndex][2] = `KULLANILDI - ${personelName.toUpperCase()}`;
+       setImeiData(newImeiData);
+    }
+
+    // 2. Veriyi Google Sheets'e gönderiyoruz
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ 
+          type: "USE_IMEI", 
+          imei: imei, 
+          personel: personelName.toUpperCase() 
+        })
+      });
+      // Arka planda sessizce verileri tekrar çekip senkronize edelim
+      setTimeout(refreshDataCache, 1500);
+    } catch (e) {
+      console.error("IMEI kaydedilirken hata:", e);
+      alert("Bağlantı hatası! Lütfen internetinizi kontrol edin.");
+    }
+  };
+
   const handleSendInstallmentToWhatsApp = (month: number, totalAmount: number) => {
     if (!customer.name || !customer.phone) {
       alert("Lütfen önce yukarıdaki Müşteri Adı Soyadı ve Telefon Numarası alanlarını doldurunuz.");
@@ -923,19 +956,38 @@ useEffect(() => {
               </div>
               
               <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[400px]">
+                <div className="min-w-[500px]">
                   <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-[2] text-right border-l border-orange-400 pl-2">İMEİ BİLGİSİ</div>
+                    <div className="flex-[2] text-center border-l border-orange-400 pl-2">İMEİ BİLGİSİ</div>
+                    <div className="flex-[1] text-right border-l border-orange-400 pl-2">DURUM</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
+                        const isUsed = row[2] && row[2].toString().toUpperCase().includes('KULLANILDI');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center text-slate-700 group-hover:text-slate-900 transition-colors pr-4`}>
+                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isUsed ? 'bg-red-50' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white hover:bg-slate-100')}`}>
+                          
+                          <div className={`flex-[3] flex items-center ${isUsed ? 'text-red-700 line-through opacity-70' : 'text-slate-700 group-hover:text-slate-900'} transition-colors pr-4`}>
                               {row[0] || '-'}
                           </div>
-                          <div className={`flex-[2] text-right font-black text-sm whitespace-nowrap text-green-600 border-l border-slate-200 pl-4`}>{row[1] || '-'}</div>
+                          
+                          <div className={`flex-[2] text-center font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isUsed ? 'text-red-500 line-through opacity-70' : 'text-green-600'}`}>
+                              {row[1] || '-'}
+                          </div>
+
+                          <div className="flex-[1] flex justify-end border-l border-slate-200 pl-4">
+                              {isUsed ? (
+                                  <div className="flex flex-col items-end">
+                                      <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">{row[2]}</span>
+                                  </div>
+                              ) : (
+                                  <button onClick={() => handleImeiKullan(row[1])} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm">
+                                      KULLAN
+                                  </button>
+                              )}
+                          </div>
+
                         </div>
                     )})}
                   </div>
