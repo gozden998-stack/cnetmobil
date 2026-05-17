@@ -18,14 +18,6 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
-// Bildirim Sesi Fonksiyonu
-const playDingSound = () => {
-  try {
-    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-    audio.play().catch(() => {}); // Tarayıcı engeline takılırsa sessizce geç
-  } catch (e) {}
-};
-
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -85,13 +77,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const [ekspertizModalData, setEkspertizModalData] = useState<{customer: string, device: string, data: string} | null>(null);
 
-  // Gelişmiş Bildirim State'i (Detay dizisi eklendi)
-  const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price', details?: string[]}[]>([]);
-  
+  const [toastMessages, setToastMessages] = useState<{id: number, text: string, type: 'new' | 'price'}[]>([]);
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
-  const prevIkinciElRef = useRef<any[][]>([]);
-  const prevYnaRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
 
   const branches = [
@@ -277,123 +265,73 @@ export default function CnetmobilCmrFinalUltimate() {
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
 
-      let newNotifications: {id: number, text: string, type: 'new' | 'price', details?: string[]}[] = [];
+      let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
       const isInitialLoad = prevDbRef.current.length === 0;
 
-      // --- GELİŞMİŞ DEĞİŞİKLİK TESPİT SİSTEMİ ---
       if (!isInitialLoad && !loading) { 
-          const addedDevicesList: string[] = [];
-          const changedPricesList: string[] = [];
+          if (allData.Devices) {
+              const currentDeviceNames = prevDbRef.current.map(d => d.name);
+              const newDevices = allData.Devices.filter((d: any) => d[1] && !currentDeviceNames.includes(d[1]));
+              
+              const uniqueNewDevices = Array.from(new Set(newDevices.map((d: any) => d[1])));
+              uniqueNewDevices.forEach(deviceName => {
+                  toastIdCounter.current += 1;
+                  newNotifications.push({ id: toastIdCounter.current, text: `🎉 STOĞA YENİ CİHAZ GELDİ: ${deviceName}`, type: 'new' });
+              });
+          }
 
-          // 1. CEP TABLET & KAMPANYA SIFIR KONTROLÜ
           if (allData.CepTablet && prevCepTabletRef.current.length > 0) {
-              const prevMap = new Map();
+              const prevTabletMap = new Map();
               prevCepTabletRef.current.forEach(row => {
-                  if (row[0]) prevMap.set(`c_a_${row[0]}`, { f1: row[1], f2: row[2] }); // Apple
-                  if (row[5]) prevMap.set(`c_d_${row[5]}`, { f1: row[6], f2: row[7] }); // Android
-                  if (row[10]) prevMap.set(`c_k_${row[10]}`, { f1: row[11] }); // Kampanya Sıfır
+                  if (row[0]) prevTabletMap.set(row[0], { k: row[1], s: row[2] }); 
+                  if (row[5]) prevTabletMap.set(row[5], { k: row[6], s: row[7] }); 
               });
 
+              const changedPrices: string[] = [];
               allData.CepTablet.forEach((row: any) => {
                   if (row[0]) {
-                      const key = `c_a_${row[0]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(row[0]);
-                      else if (prevMap.get(key).f1 !== row[1] || prevMap.get(key).f2 !== row[2]) changedPricesList.push(row[0]);
+                      const prev = prevTabletMap.get(row[0]);
+                      if (prev && (prev.k !== row[1] || prev.s !== row[2])) {
+                          if(!changedPrices.includes(row[0])) changedPrices.push(row[0]);
+                      }
                   }
                   if (row[5]) {
-                      const key = `c_d_${row[5]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(row[5]);
-                      else if (prevMap.get(key).f1 !== row[6] || prevMap.get(key).f2 !== row[7]) changedPricesList.push(row[5]);
-                  }
-                  if (row[10]) {
-                      const key = `c_k_${row[10]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(row[10]);
-                      else if (prevMap.get(key).f1 !== row[11]) changedPricesList.push(row[10]);
+                      const prev = prevTabletMap.get(row[5]);
+                      if (prev && (prev.k !== row[6] || prev.s !== row[7])) {
+                          if(!changedPrices.includes(row[5])) changedPrices.push(row[5]);
+                      }
                   }
               });
-          }
 
-          // 2. İKİNCİ EL LİSTESİ KONTROLÜ
-          if (allData.IkinciEl && prevIkinciElRef.current.length > 0) {
-              const prevMap = new Map();
-              prevIkinciElRef.current.forEach(row => {
-                  if (row[0]) prevMap.set(`ie_${row[0]}_${row[1]}`, row[2]);
-              });
-              allData.IkinciEl.forEach((row: any) => {
-                  if (row[0]) {
-                      const key = `ie_${row[0]}_${row[1]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(`2.El: ${row[0]}`);
-                      else if (prevMap.get(key) !== row[2]) changedPricesList.push(`2.El: ${row[0]}`);
+              if (changedPrices.length > 0) {
+                  toastIdCounter.current += 1;
+                  if (changedPrices.length > 3) {
+                      newNotifications.push({ id: toastIdCounter.current, text: `🔄 SİSTEMDE FİYATLAR GÜNCELLENDİ (${changedPrices.length} cihaz)`, type: 'price' });
+                  } else {
+                      newNotifications.push({ id: toastIdCounter.current, text: `💰 FİYAT GÜNCELLENDİ: ${changedPrices.join(', ')}`, type: 'price' });
                   }
-              });
-          }
-
-          // 3. YNA LİSTESİ KONTROLÜ
-          if (allData.YNA && prevYnaRef.current.length > 0) {
-              const prevMap = new Map();
-              prevYnaRef.current.forEach(row => {
-                  if (row[0]) prevMap.set(`yna1_${row[0]}`, row[1]);
-                  if (row[3]) prevMap.set(`yna2_${row[3]}`, row[4]);
-              });
-              allData.YNA.forEach((row: any) => {
-                  if (row[0]) {
-                      const key = `yna1_${row[0]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(`Aksesuar: ${row[0]}`);
-                      else if (prevMap.get(key) !== row[1]) changedPricesList.push(`Aksesuar: ${row[0]}`);
-                  }
-                  if (row[3]) {
-                      const key = `yna2_${row[3]}`;
-                      if (!prevMap.has(key)) addedDevicesList.push(`Aksesuar: ${row[3]}`);
-                      else if (prevMap.get(key) !== row[4]) changedPricesList.push(`Aksesuar: ${row[3]}`);
-                  }
-              });
-          }
-
-          // Bildirimleri Oluştur
-          if (addedDevicesList.length > 0) {
-              toastIdCounter.current += 1;
-              newNotifications.push({ 
-                  id: toastIdCounter.current, 
-                  text: `🎉 LİSTELERE ${addedDevicesList.length} YENİ CİHAZ EKLENDİ`, 
-                  type: 'new',
-                  details: addedDevicesList
-              });
-          }
-
-          if (changedPricesList.length > 0) {
-              toastIdCounter.current += 1;
-              newNotifications.push({ 
-                  id: toastIdCounter.current, 
-                  text: `🔄 ${changedPricesList.length} CİHAZIN FİYATI GÜNCELLENDİ`, 
-                  type: 'price',
-                  details: changedPricesList
-              });
+              }
           }
       }
 
-      // Ekrana Bildirimleri Gönder ve Sesi Çal
       if (newNotifications.length > 0) {
           setToastMessages(prev => [...prev, ...newNotifications]);
-          playDingSound(); // Dın sesi
-          
-          // 15 Dakika (900.000 ms) sonra otomatik silinmesi için zamanlayıcı
           newNotifications.forEach(notification => {
               setTimeout(() => {
                   setToastMessages(prev => prev.filter(m => m.id !== notification.id));
-              }, 900000); 
+              }, 8000);
           });
       }
 
-      // Referansları Güncelle
       if (allData.Devices) {
           prevDbRef.current = allData.Devices.map((row: any) => ({
               brand: row[0] || '', name: row[1] || '', cap: row[2] || '',
               base: parseInt(row[3]) || 0, img: row[4]?.trim() || '', minPrice: parseInt(row[5]) || 0
           }));
       }
-      if (allData.CepTablet) prevCepTabletRef.current = allData.CepTablet;
-      if (allData.IkinciEl) prevIkinciElRef.current = allData.IkinciEl;
-      if (allData.YNA) prevYnaRef.current = allData.YNA;
+      if (allData.CepTablet) {
+          prevCepTabletRef.current = allData.CepTablet;
+      }
 
       if (allData.Devices) {
         setDb(allData.Devices.map((row: any) => ({
@@ -425,7 +363,9 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       
+      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
+      
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
 
@@ -665,17 +605,20 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
+  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
+    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
+    // 2. Ekranı anında kırmızı yap ve üstünü çiz
     setImeiData(prev => {
         const newData = [...prev];
         const rowIndex = newData.findIndex(r => r[1] === imei);
@@ -685,6 +628,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return newData;
     });
 
+    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -841,11 +785,6 @@ export default function CnetmobilCmrFinalUltimate() {
           dashboardStats.diger += 1;
       }
   });
-
-  // Bildirimi Kapatma Fonksiyonu
-  const closeToast = (id: number) => {
-    setToastMessages(prev => prev.filter(m => m.id !== id));
-  };
 
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
@@ -1851,38 +1790,21 @@ export default function CnetmobilCmrFinalUltimate() {
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
-      {/* TOAST BİLDİRİMLERİ (YENİ GELİŞMİŞ TASARIM) */}
-      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-auto print:hidden w-80 max-h-[80vh] overflow-y-auto no-scrollbar">
+      {/* TOAST BİLDİRİMLERİ */}
+      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
         {toastMessages.map((toast) => (
-          <div key={toast.id} className={`relative animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex flex-col gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/95 border-emerald-400 text-white' : 'bg-blue-600/95 border-blue-500 text-white'}`}>
-            <button onClick={() => closeToast(toast.id)} className="absolute top-3 right-3 text-white/70 hover:text-white bg-black/10 hover:bg-black/20 rounded-full p-1 transition-all" title="Kapat">
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
-                {toast.type === 'new' ? (
-                  <span className="text-lg">📦</span>
-                ) : (
-                  <span className="text-lg">💵</span>
-                )}
-              </div>
-              <div className="pr-6">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'YENİ CİHAZ EKLENDİ' : 'FİYAT GÜNCELLEMESİ'}</p>
-                <p className="font-bold text-sm leading-tight mt-0.5">{toast.text}</p>
-              </div>
+          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
+              {toast.type === 'new' ? (
+                <span className="text-lg">📦</span>
+              ) : (
+                <span className="text-lg">💵</span>
+              )}
             </div>
-            
-            {/* Detay Listesi (Hangi cihazların fiyatı değişti/eklendi) */}
-            {toast.details && toast.details.length > 0 && (
-               <div className="mt-2 bg-black/10 rounded-xl p-3 max-h-40 overflow-y-auto custom-scrollbar text-xs font-semibold leading-relaxed">
-                  {toast.details.map((item, idx) => (
-                      <div key={idx} className="border-b border-white/10 last:border-0 py-1.5 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white/50 shrink-0"></span>
-                          <span className="truncate">{item}</span>
-                      </div>
-                  ))}
-               </div>
-            )}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'SİSTEM BİLDİRİMİ' : 'FİYAT GÜNCELLEMESİ'}</p>
+              <p className="font-bold text-sm leading-tight mt-0.5 max-w-[250px]">{toast.text}</p>
+            </div>
           </div>
         ))}
       </div>
