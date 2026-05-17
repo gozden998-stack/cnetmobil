@@ -95,7 +95,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // MODEL BAZLI ANALİZ MOTORU
+        // MODEL BAZLI NET ANALİZ MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           let notificationItems: string[] = [];
 
@@ -170,18 +170,18 @@ export default function GlobalMarket() {
         .writing-mode-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
       `}</style>
 
-      {/* SIRALI VE AKICI ANİMASYONLU BİLDİRİM SİSTEMİ */}
+      {/* AKICI ANİMASYON KATMANI */}
       {toasts.length > 0 && (
         <div className="fixed right-0 top-1/4 z-[9999] print:hidden">
           
-          {/* A. PREMIUM BEYAZ POPUP PANEL KARTI */}
+          {/* A. PREMIUM BEYAZ BÜZÜLEN POPUP PANEL KARTI */}
           <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[420px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.15)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
             isOpen 
               ? 'opacity-100 translate-x-0 pointer-events-auto' 
               : 'opacity-0 translate-x-full pointer-events-none'
           }`}>
             
-            {/* Üst Kısım: Başlık ve Kapatma Çarpısı */}
+            {/* Üst Başlık ve Kapatma Çarpısı */}
             <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Bildirimler</h3>
@@ -200,7 +200,7 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* Orta Kısım: Sadece Model İsmi ve Yön Belirten Temiz Satırlar */}
+            {/* İçerik Satırları (Sadece Model ve Yön) */}
             <div className="p-4 px-5 max-h-[320px] overflow-y-auto no-scrollbar flex flex-col gap-2.5 bg-slate-50/40">
               {toasts.map((toast) => (
                 <div key={toast.id} className="flex flex-col gap-2">
@@ -227,31 +227,32 @@ export default function GlobalMarket() {
             </div>
           </div>
 
-          {/* B. SİZİN İSTEDİĞİNİZ ULTRA MİNİMAL AÇIK MAVİ DİKEY SEKME */}
+          {/* B. MİLİMETRİK ÖLÇÜLÜ, İNCE AÇIK MAVİ DİKEY SEKME BUTONU */}
           <div 
             onClick={() => setIsOpen(true)} 
-            className={`fixed right-0 top-1/4 bg-[#4da3ff] hover:bg-[#3ca0ff] text-white px-2 py-7 rounded-l-xl shadow-2xl flex flex-col items-center gap-3 cursor-pointer select-none border border-[#4da3ff] border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+            className={`fixed right-0 top-1/4 bg-[#54a3ff] hover:bg-[#4094ff] text-white w-9 py-8 rounded-l-xl shadow-2xl flex flex-col items-center justify-center gap-4 cursor-pointer select-none border border-[#54a3ff] border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
               isOpen 
                 ? 'translate-x-full opacity-0 pointer-events-none' 
                 : 'translate-x-0 opacity-100 pointer-events-auto'
             }`}
           >
-            {/* Mavi Yanıp Sönen Canlı Yayın Pulse Efekti */}
+            {/* Agresif Kırmızı Yerine Yumuşak Mavi Yan Yanıp Sönen Canlı Hücre */}
             {totalChangesCount > 0 && (
-              <div className="relative flex h-2 w-2 mb-0.5">
+              <div className="relative flex h-2 w-2 shadow-sm shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-700"></span>
               </div>
             )}
             
+            {/* Dikey Yazı Alanı */}
             <div 
-              className="writing-mode-vertical font-black tracking-widest text-[9px] text-white/95" 
+              className="writing-mode-vertical font-black tracking-widest text-[9px] text-white/95 text-center leading-none select-none" 
               style={{ transform: 'rotate(180deg)' }}
             >
               FİYAT DEĞİŞTİ
             </div>
             
-            <span className="text-[7px] text-white/80 font-bold">◀</span>
+            <span className="text-[7px] text-white/80 font-bold leading-none shrink-0">◀</span>
           </div>
 
         </div>
