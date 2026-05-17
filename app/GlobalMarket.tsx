@@ -42,62 +42,107 @@ export default function GlobalMarket() {
 
         const currentMap = new Map<string, number>();
         let newlyAdded: string[] = [];
-        let priceChanged: { name: string, diff: number }[] = [];
+        let priceChanged: { name: string, diff: number, price: number }[] = [];
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        const checkCategory = (data: any[][], nameIdx: number, priceIdx: number, prefix: string) => {
-          if (!data || !Array.isArray(data)) return;
-          data.forEach(row => {
-            const name = row[nameIdx]?.toString().trim();
-            const price = parsePrice(row[priceIdx]);
-            
-            if (!name || price === 0) return;
+        // 🚀 TÜM SÜTUNLARI EKSİKSİZ TARAYAN YENİ MOTOR
+        // 1. CEP TABLET (APPLE, ANDROID, KAMPANYA)
+        if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
+          allData.CepTablet.forEach(row => {
+            // Apple Tarama (İki fiyat sütununu da denetle: row[1] ve row[2])
+            const appleName = row[0]?.toString().trim();
+            if (appleName) {
+              const p1 = parsePrice(row[1]);
+              const p2 = parsePrice(row[2]);
+              if (p1 > 0) currentMap.set(`APPLE_${appleName}_v1`, p1);
+              if (p2 > 0) currentMap.set(`APPLE_${appleName}_v2`, p2);
+            }
+            // Android Tarama (İki fiyat sütununu da denetle: row[6] and row[7])
+            const androidName = row[5]?.toString().trim();
+            if (androidName) {
+              const p1 = parsePrice(row[6]);
+              const p2 = parsePrice(row[7]);
+              if (p1 > 0) currentMap.set(`ANDROID_${androidName}_v1`, p1);
+              if (p2 > 0) currentMap.set(`ANDROID_${androidName}_v2`, p2);
+            }
+            // Kampanya Sıfır Tarama
+            const kampanyaName = row[10]?.toString().trim();
+            const kampanyaPrice = parsePrice(row[11]);
+            if (kampanyaName && kampanyaPrice > 0) {
+              currentMap.set(`KAMPANYA_${kampanyaName}`, kampanyaPrice);
+            }
+          });
+        }
 
-            const key = `${prefix}_${name}`;
-            currentMap.set(key, price);
+        // 2. İKİNCİ EL LİSTESİ
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl)) {
+          allData.IkinciEl.forEach(row => {
+            const name = `${row[0] || ''} ${row[1] || ''}`.trim();
+            const price = parsePrice(row[2]);
+            if (name && price > 0) currentMap.set(`IKINCI_${name}`, price);
+          });
+        }
 
-            if (prevPricesMap.current && !isFirstLoad.current) {
-              const oldPrice = prevPricesMap.current.get(key);
+        // 3. YNA AKSESUAR LİSTESİ
+        if (allData.YNA && Array.isArray(allData.YNA)) {
+          allData.YNA.forEach(row => {
+            const n1 = row[0]?.toString().trim();
+            const p1 = parsePrice(row[1]);
+            if (n1 && p1 > 0) currentMap.set(`YNA1_${n1}`, p1);
+
+            const n2 = row[3]?.toString().trim();
+            const p2 = parsePrice(row[4]);
+            if (n2 && p2 > 0) currentMap.set(`YNA2_${n2}`, p2);
+          });
+        }
+
+        // Veri tabanında ürün yüklüyse kıyaslamaya başla
+        if (prevPricesMap.current && !isFirstLoad.current) {
+          
+          // DEĞİŞEN FİYATLARI BUL
+          prevPricesMap.current.forEach((oldPrice, key) => {
+            const currentPrice = currentMap.get(key);
+            if (currentPrice !== undefined && oldPrice !== currentPrice) {
               
-              if (oldPrice === undefined) {
-                newlyAdded.push(name);
-                newTickers.push({ 
-                  id: Date.now() + Math.random(), 
-                  text: `🆕 ${name} ${price.toLocaleString('tr-TR')} TL`, 
-                  type: 'new' 
+              // Temiz model adını ayıkla
+              let cleanName = key
+                .replace('APPLE_', '').replace('ANDROID_', '').replace('KAMPANYA_', '')
+                .replace('IKINCI_', '').replace('YNA1_', '').replace('YNA2_', '')
+                .replace('_v1', '').replace('_v2', '');
+
+              if (!priceChanged.some(p => p.name === cleanName)) {
+                const diff = currentPrice - oldPrice;
+                priceChanged.push({ name: cleanName, diff, price: currentPrice });
+                newTickers.push({
+                  id: Date.now() + Math.random(),
+                  text: `${diff > 0 ? '↑' : '↓'} ${cleanName} ${currentPrice.toLocaleString('tr-TR')} TL`,
+                  type: diff > 0 ? 'up' : 'down'
                 });
-              } else if (oldPrice !== price) {
-                const diff = price - oldPrice;
-                if (diff !== 0) {
-                  priceChanged.push({ name, diff });
-                  newTickers.push({ 
-                    id: Date.now() + Math.random(), 
-                    text: `${diff > 0 ? '↑' : '↓'} ${name} ${price.toLocaleString('tr-TR')} TL`, 
-                    type: diff > 0 ? 'up' : 'down' 
-                  });
-                }
               }
             }
           });
-        };
 
-        if (allData.CepTablet) {
-          checkCategory(allData.CepTablet, 0, 2, 'APPLE');
-          checkCategory(allData.CepTablet, 5, 7, 'ANDROID');
-          checkCategory(allData.CepTablet, 10, 11, 'KAMPANYA');
-        }
-        if (allData.IkinciEl) checkCategory(allData.IkinciEl, 0, 2, 'IKINCI_EL');
-        if (allData.YNA) {
-          checkCategory(allData.YNA, 0, 1, 'YNA1');
-          checkCategory(allData.YNA, 3, 4, 'YNA2');
-        }
+          // YENİ EKLENENLERİ BUL
+          currentMap.forEach((currentPrice, key) => {
+            if (!prevPricesMap.current!.has(key)) {
+              let cleanName = key
+                .replace('APPLE_', '').replace('ANDROID_', '').replace('KAMPANYA_', '')
+                .replace('IKINCI_', '').replace('YNA1_', '').replace('YNA2_', '')
+                .replace('_v1', '').replace('_v2', '');
 
-        if (currentMap.size < 10) return; 
+              if (!newlyAdded.includes(cleanName)) {
+                newlyAdded.push(cleanName);
+                newTickers.push({
+                  id: Date.now() + Math.random(),
+                  text: `🆕 ${cleanName} ${currentPrice.toLocaleString('tr-TR')} TL`,
+                  type: 'new'
+                });
+              }
+            }
+          });
 
-        if (!isFirstLoad.current && (newlyAdded.length > 0 || priceChanged.length > 0)) {
-          if (priceChanged.length > 10) {
-            console.warn("Toplu Excel formül güncellemesi engellendi.");
-          } else {
+          // BİLDİRİMLERİ TETİKLE (Spam Koruması: Aynı anda 10'dan fazla değilse)
+          if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
             let generatedToasts = [];
@@ -128,30 +173,27 @@ export default function GlobalMarket() {
               return updatedToasts;
             });
             
-            // Yeni gelenleri her zaman en başa ekle (Sonsuz döngüyü tazele)
             setTickerItems(prev => [...newTickers, ...prev].slice(0, 20));
           }
         }
 
+        // 🚀 KİLİT DÜZELTMESİ: Liste boş değilse ilk yükleme kilidini her halükarda kaldır
         prevPricesMap.current = currentMap;
-        isFirstLoad.current = false;
+        if (currentMap.size > 0) {
+          isFirstLoad.current = false;
+        }
 
       } catch (error) {}
     };
 
     fetchMarketData(); 
-    const interval = setInterval(fetchMarketData, 60000); 
+    const interval = setInterval(fetchMarketData, 30000); // Hızlı test için 30 saniyeye düşürüldü
 
     return () => clearInterval(interval);
   }, []);
 
   const removeToast = (id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
-  };
-
-  // Kayan yazıyı manuel temizleme fonksiyonu
-  const clearTicker = () => {
-    setTickerItems([]);
   };
 
   return (
@@ -170,15 +212,11 @@ export default function GlobalMarket() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* TİCKER ALANI */}
       {tickerItems.length > 0 && (
         <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] flex items-center border-b border-slate-800 shadow-lg print:hidden">
-          {/* Sol Başlık */}
           <div className="bg-blue-600 h-full px-4 flex items-center font-black text-[10px] tracking-widest uppercase z-10 shadow-xl shrink-0">
             CANLI PİYASA
           </div>
-          
-          {/* Kayan Yazı */}
           <div className="overflow-hidden flex-1 flex items-center h-full">
             <div className="animate-ticker cursor-default">
               {tickerItems.map((item, idx) => (
@@ -191,19 +229,12 @@ export default function GlobalMarket() {
               ))}
             </div>
           </div>
-
-          {/* 🚀 YENİ: TEMİZLE BUTONU */}
-          <button 
-            onClick={clearTicker} 
-            className="bg-slate-800 hover:bg-rose-600 transition-colors h-full px-4 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer"
-            title="Geçmiş bildirimleri temizle"
-          >
+          <button onClick={() => setTickerItems([])} className="bg-slate-800 hover:bg-rose-600 transition-colors h-full px-4 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer">
             TEMİZLE ✖
           </button>
         </div>
       )}
 
-      {/* TOAST (BİLDİRİM KUTULARI) */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col-reverse gap-4 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-right-8 fade-in duration-500 bg-slate-900/95 backdrop-blur-md border border-slate-700 w-80 rounded-2xl shadow-2xl overflow-hidden group">
