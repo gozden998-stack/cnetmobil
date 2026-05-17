@@ -1,19 +1,27 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
 
 export default function GlobalMarket() {
-  const pathname = usePathname();
-  const pathLower = pathname?.toLowerCase() || "";
-
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
+  const [activeChannel, setActiveChannel] = useState<string>(""); // Giriş yapan kanal adını tutacak
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
 
-  // ZUMAY KANALI KORUMASI
-  if (pathLower.includes('zumay')) {
+  // 🚀 KANAL BİLGİSİNİ HAFIZADAN OKUMA MOTORU
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // BİZİM İÇİN EN KRİTİK YER BURASI: 
+      // Giriş yapan bayinin adını tarayıcı hafızasından çekiyoruz.
+      // Eğer localStorage'da 'sube' veya 'channel' adında tutuyorsanız aşağıyı ona göre güncelleyin.
+      const subeAdi = localStorage.getItem('sube') || localStorage.getItem('channel') || "CMR_MERKEZ"; 
+      setActiveChannel(subeAdi.toLowerCase());
+    }
+  }, []);
+
+  // ❌ 1. FİLTRE: ZUMAY KANALI TAMAMEN KAPATILDI
+  if (activeChannel.includes('zumay')) {
     return null;
   }
 
@@ -34,6 +42,9 @@ export default function GlobalMarket() {
   };
 
   useEffect(() => {
+    // Kanal henüz yüklenmediyse veya Zumay ise hiçbir istek atma, sunucuyu yorma
+    if (!activeChannel || activeChannel.includes('zumay')) return;
+
     const fetchMarketData = async () => {
       try {
         const timestamp = Date.now();
@@ -79,8 +90,8 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİNİ TOPLA (VODAFONE DEĞİLSE)
-        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && !pathLower.includes('vodafone')) {
+        // ❌ 2. FİLTRE: VODAFONE İÇİN 2. ELİ KAZI (VODAFONE DEĞİLSE LİSTEYE EKLE)
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && !activeChannel.includes('vodafone')) {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
@@ -101,18 +112,14 @@ export default function GlobalMarket() {
           });
         }
 
-        // --- GÜVENLİ VE HATASIZ KARŞILAŞTIRMA MOTORU ---
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
-            
-            // Temiz Model Adı Ayıkla
             let cleanName = key
               .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '')
               .replace(/_v[12]$/, '');
 
             if (oldPrice === undefined) {
-              // YENİ ÜRÜN
               if (!newlyAdded.includes(cleanName)) {
                 newlyAdded.push(cleanName);
                 newTickers.push({
@@ -122,7 +129,6 @@ export default function GlobalMarket() {
                 });
               }
             } else if (oldPrice !== price) {
-              // FİYAT DEĞİŞİMİ
               const diff = price - oldPrice;
               if (diff !== 0 && !priceChanged.some(p => p.name === cleanName)) {
                 priceChanged.push({ name: cleanName, diff, price });
@@ -135,7 +141,6 @@ export default function GlobalMarket() {
             }
           });
 
-          // BİLDİRİMLERİ TETİKLE (Maksimum 10 ürün koruması aktif)
           if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
@@ -157,7 +162,6 @@ export default function GlobalMarket() {
               });
             }
 
-            // 🚀 ARTIK SETTIMEOUT YOK! Personel çarpıya basana kadar ekranda kalır.
             setToasts(prev => [...generatedToasts, ...prev].slice(0, 5));
             setTickerItems(prev => [...newTickers, ...prev].slice(0, 20));
           }
@@ -172,10 +176,10 @@ export default function GlobalMarket() {
     };
 
     fetchMarketData(); 
-    const interval = setInterval(fetchMarketData, 30000); // 30 Saniye kuralı korundu
+    const interval = setInterval(fetchMarketData, 30000); 
 
     return () => clearInterval(interval);
-  }, [pathname]);
+  }, [activeChannel]);
 
   const removeToast = (id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -184,20 +188,12 @@ export default function GlobalMarket() {
   return (
     <>
       <style>{`
-        @keyframes ticker {
-          0% { transform: translateX(100vw); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-ticker {
-          display: inline-block;
-          white-space: nowrap;
-          animation: ticker 30s linear infinite;
-        }
+        @keyframes ticker { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
+        .animate-ticker { display: inline-block; white-space: nowrap; animation: ticker 30s linear infinite; }
         .animate-ticker:hover { animation-play-state: paused; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* ÜST BORSA ŞERİDİ */}
       {tickerItems.length > 0 && (
         <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] flex items-center border-b border-slate-800 shadow-lg print:hidden">
           <div className="bg-blue-600 h-full px-4 flex items-center font-black text-[10px] tracking-widest uppercase z-10 shadow-xl shrink-0">
@@ -221,41 +217,22 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* 🚀 MODERN SAĞ ÜST BİLDİRİM ALANI (YENİLENDİ) */}
       <div className="fixed top-12 right-6 z-[9999] flex flex-col gap-4 w-85 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-top-8 fade-in duration-300 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden group">
-            {/* Renkli Üst Çizgi */}
             <div className={`h-1.5 w-full ${toast.type === 'price' ? 'bg-gradient-to-r from-orange-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-emerald-500'}`}></div>
-            
             <div className="p-4">
               <div className="flex justify-between items-center mb-2.5">
                 <h4 className="text-white font-black italic tracking-tight text-xs uppercase">{toast.title}</h4>
-                
-                {/* Belirginleştirilmiş Çarpı Butonu */}
-                <button 
-                  onClick={() => removeToast(toast.id)} 
-                  className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg p-1.5 transition-colors cursor-pointer border border-slate-700/60 shadow-md"
-                  title="Kapat"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                <button onClick={() => removeToast(toast.id)} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg p-1.5 transition-colors cursor-pointer border border-slate-700/60 shadow-md">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-
-              {/* Değişen Ürün Listesi */}
               <div className="bg-slate-950/60 rounded-xl p-3 max-h-40 overflow-y-auto no-scrollbar border border-slate-800">
                 {toast.items.map((item, i) => (
-                  <p key={i} className="text-slate-200 text-xs font-bold mb-1 last:mb-0">
-                    {item}
-                  </p>
+                  <p key={i} className="text-slate-200 text-xs font-bold mb-1 last:mb-0">{item}</p>
                 ))}
               </div>
-              
-              <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest mt-2 text-right">
-                Kapatmak için çarpıya basınız
-              </p>
             </div>
           </div>
         ))}
