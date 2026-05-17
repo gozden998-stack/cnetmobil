@@ -28,18 +28,20 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // 🚀 TAM İSABET KANAL TESPİTİ (Menüdeki kelimelerle karışmaması için tam öbek arıyoruz)
+        // 🚀 KANALLARI BİRBİRİNE KARIŞTIRMAYAN ULTRA-STRIKT GÖZETLEYİCİ
         let detectedChannel = "cmr_merkez";
         if (typeof document !== 'undefined') {
           const bodyText = document.body?.innerText?.toLowerCase() || "";
-          if (bodyText.includes("zumay kanali")) {
+          
+          // Artik düz "zumay" kelimesine bakmiyoruz! Sadece sag üstteki kanal etiketine bakiyoruz.
+          if (bodyText.includes("zumay kan")) {
             detectedChannel = "zumay";
-          } else if (bodyText.includes("vodafone kanali")) {
+          } else if (bodyText.includes("vodafone kan") || bodyText.includes("vodofone kan")) {
             detectedChannel = "vodafone";
           }
         }
 
-        // ZUMAY KORUMASI: Zumay kanalındaysa her şeyi tamamen kapat
+        // ZUMAY KORUMASI: Sadece ekranda Zumay etiketi varsa sistemi kilitler
         if (detectedChannel === "zumay") {
           setTickerItems([]);
           setToasts([]);
@@ -65,21 +67,27 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number }[] = [];
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 🎯 ORIJINAL ÇALIŞAN SÜTUN DÜZENİNE GERİ DÖNÜLDÜ
-        // 1. CEP TABLET
+        // ÇALIŞAN ÇİFT SÜTUNLU ORİJİNAL VERİ MOTORU
+        // 1. CEP TABLET (APPLE, ANDROID, KAMPANYA)
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
-            // Apple
+            // Apple (row[1] ve row[2])
             const appleName = row[0]?.toString().trim();
-            const applePrice = parsePrice(row[2]);
-            if (appleName && applePrice > 0) currentMap.set(`APPLE_${appleName}`, applePrice);
-
-            // Android
+            if (appleName) {
+              const p1 = parsePrice(row[1]);
+              const p2 = parsePrice(row[2]);
+              if (p1 > 0) currentMap.set(`APPLE_${appleName}_v1`, p1);
+              if (p2 > 0) currentMap.set(`APPLE_${appleName}_v2`, p2);
+            }
+            // Android (row[6] ve row[7])
             const androidName = row[5]?.toString().trim();
-            const androidPrice = parsePrice(row[7]);
-            if (androidName && androidPrice > 0) currentMap.set(`ANDROID_${androidName}`, androidPrice);
-
-            // Kampanya
+            if (androidName) {
+              const p1 = parsePrice(row[6]);
+              const p2 = parsePrice(row[7]);
+              if (p1 > 0) currentMap.set(`ANDROID_${androidName}_v1`, p1);
+              if (p2 > 0) currentMap.set(`ANDROID_${androidName}_v2`, p2);
+            }
+            // Kampanya Sıfır
             const kampanyaName = row[10]?.toString().trim();
             const kampanyaPrice = parsePrice(row[11]);
             if (kampanyaName && kampanyaPrice > 0) {
@@ -88,7 +96,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL (Vodafone kanalında değilse yükle)
+        // 2. İKİNCİ EL (Vodafone kanalında değilse yükler)
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && detectedChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
@@ -110,11 +118,14 @@ export default function GlobalMarket() {
           });
         }
 
-        // GÜVENLİ KARŞILAŞTIRMA MOTORU
+        // VERİ KARŞILAŞTIRMA MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
-            let cleanName = key.replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '');
+            
+            let cleanName = key
+              .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '')
+              .replace(/_v[12]$/, '');
 
             if (oldPrice === undefined) {
               if (!newlyAdded.includes(cleanName)) {
@@ -225,7 +236,7 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* SAĞ KENAR BUTONU VE İÇERİK PANELİ */}
+      {/* SAĞ KENAR YANIP SÖNEN BUTON VE PANELİ */}
       {toasts.length > 0 && (
         <div className="fixed right-0 top-1/3 z-[9999] flex items-start select-none print:hidden pointer-events-auto">
           
