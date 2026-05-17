@@ -18,16 +18,25 @@ interface ToastGroup {
 export default function GlobalMarket() {
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<ToastGroup[]>([]);
-  const [isHovered, setIsHovered] = useState<boolean>(false); // Hover takibi
-  const [activeChannel, setActiveChannel] = useState<string>("cmr_merkez"); 
+  const [isHovered, setIsHovered] = useState<boolean>(false); 
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
+  const hoverTimeout = useRef<any>(null);
 
-  // 🛑 ZUMAY KANALI KORUMASI: Boşa RAM ve CPU harcanmasını engeller
-  if (activeChannel === "zumay") {
-    return null;
-  }
+  // PREMIUM HOVER GECİKMESİ FONKSİYONLARI
+  const handleEnter = () => {
+    if (hoverTimeout.current) {
+      clearTimeout(hoverTimeout.current);
+    }
+    setIsHovered(true);
+  };
+
+  const handleLeave = () => {
+    hoverTimeout.current = setTimeout(() => {
+      setIsHovered(false);
+    }, 180);
+  };
 
   const playDing = () => {
     try {
@@ -48,38 +57,6 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // GÖRÜNÜRLÜK TABANLI AKILLI ŞUBE TESPİT MOTORU
-        let currentChannel = "cmr_merkez";
-        
-        if (typeof document !== 'undefined') {
-          const allElements = Array.from(document.querySelectorAll('*'));
-          
-          for (const el of allElements) {
-            const htmlEl = el as HTMLElement;
-            const txt = htmlEl.textContent?.replace(/\s+/g, ' ').trim() || "";
-            const isVisible = htmlEl.offsetWidth > 0 && htmlEl.offsetHeight > 0;
-
-            if (isVisible) {
-              if (txt === "ZUMAY KANALI") {
-                currentChannel = "zumay";
-                break;
-              } else if (txt === "VODAFONE KANALI" || txt === "VODOFONE KANALI") {
-                currentChannel = "vodafone";
-                break;
-              }
-            }
-          }
-        }
-
-        setActiveChannel(currentChannel);
-
-        if (currentChannel === "zumay") {
-          setTickerItems([]);
-          setToasts([]);
-          setIsHovered(false);
-          return;
-        }
-
         const timestamp = Date.now();
         const res = await fetch(`/api/sheets?_bust=${timestamp}`, { 
           cache: 'no-store', 
@@ -98,7 +75,7 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number, categoryLabel: string }[] = []; 
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 1. CEP TABLET VERİLERİ (Çift Sütun Güvenliği)
+        // 1. CEP TABLET VERİLERİNİ TOPLA
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -123,8 +100,8 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİ (Vodafone Korumalı)
-        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && currentChannel !== "vodafone") {
+        // 2. İKİNCİ EL VERİLERİNİ TOPLA (Artık kısıtlama olmadan herkes için yüklenir)
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl)) {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
@@ -132,7 +109,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 3. YNA AKSESUAR VERİLERİ
+        // 3. YNA AKSESUAR VERİLERİNİ TOPLA
         if (allData.YNA && Array.isArray(allData.YNA)) {
           allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
@@ -232,7 +209,10 @@ export default function GlobalMarket() {
     fetchMarketData(); 
     const interval = setInterval(fetchMarketData, 30000); 
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    };
   }, []);
 
   const clearNotifications = (e: React.MouseEvent) => {
@@ -277,23 +257,23 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* TİTREMEYİ ÖNLEYEN BİRLEŞİK HOVER SİSTEMİ */}
+      {/* SÜZÜLEN PANEL ALANI */}
       {toasts.length > 0 && (
         <div 
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
           className="fixed right-0 top-1/4 z-[9999] flex items-center print:hidden pointer-events-auto"
         >
           
-          {/* SAAS DASHBOARD PANEL KARTI */}
-          <div className={`bg-white border border-slate-200/90 w-[430px] rounded-l-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-300 transform ${
+          {/* ULTRA PREMIUM BLUR GLASS PANEL KARTI */}
+          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[430px] rounded-l-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-500 transform ${
             isHovered 
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto' 
-              : 'opacity-0 translate-x-12 scale-98 pointer-events-none absolute right-12'
+              : 'opacity-0 translate-x-6 scale-98 pointer-events-none absolute right-12'
           } ease-[cubic-bezier(0.16,1,0.3,1)]`}>
             
-            {/* ✖ ÜST KISIM: BAŞLIK VE KONTROLLÜ ÇARPI BUTONU */}
-            <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100 bg-white">
+            {/* Üst Kısım: Başlık ve Kapatma Çarpısı */}
+            <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100 bg-white/40">
               <div className="flex items-center gap-2">
                 <h3 className="text-slate-800 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
                 <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
@@ -301,8 +281,8 @@ export default function GlobalMarket() {
                 </span>
               </div>
               <button 
-                onClick={() => setIsHovered(false)} // 🚀 Çarpı simgesi paneli anında süzerek kapatır
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
+                onClick={() => setIsHovered(false)} 
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100/80 p-1.5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200"
                 title="Kapat"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,12 +291,12 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* ORTA KISIM: PREMİUM SATIRLAR */}
-            <div className="p-4 px-5 max-h-[340px] overflow-y-auto no-scrollbar flex flex-col gap-4 bg-slate-50/50 border-b border-slate-100">
+            {/* Orta Kısım: Finansal Dashboard Listelemesi */}
+            <div className="p-4 px-5 max-h-[340px] overflow-y-auto no-scrollbar flex flex-col gap-4 bg-slate-50/30 border-b border-slate-100">
               {toasts.map((toast) => (
                 <div key={toast.id} className="flex flex-col gap-2">
                   {toast.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3.5 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-slate-300/80 hover:shadow-md transition-all duration-200">
+                    <div key={i} className="flex items-center justify-between p-3.5 bg-white/90 backdrop-blur-md border border-slate-100 rounded-xl shadow-sm hover:border-slate-300/80 hover:shadow-md transition-all duration-200">
                       
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
@@ -346,10 +326,10 @@ export default function GlobalMarket() {
               ))}
             </div>
             
-            {/* 🔘 ALT KISIM: VİDEODAKİ SOFT GRİ "TEMİZLE" BUTONU */}
-            <div className="p-3.5 px-5 flex justify-end bg-white">
+            {/* Alt Kısım: "Hepsini Temizle" Butonu */}
+            <div className="p-3.5 px-5 flex justify-end bg-white/40">
               <button 
-                onClick={clearNotifications} // 🚀 Tüm bildirim geçmişini siler ve kapatır
+                onClick={clearNotifications} 
                 className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer border border-slate-200/30 active:scale-95 shadow-sm"
               >
                 Hepsini Temizle
@@ -358,11 +338,11 @@ export default function GlobalMarket() {
             
           </div>
 
-          {/* DİKEY BİLDİRİM FLAŞÖR ÇUBUĞU */}
+          {/* PULSE GLOW DESTEKLİ STANDART DİKEY SEKMELİ BUTON */}
           {!isHovered && (
             <div 
               onClick={() => setIsHovered(true)}
-              className="writing-mode-vertical px-3.5 py-8 bg-white hover:bg-slate-50 text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4"
+              className="writing-mode-vertical px-3.5 py-8 bg-white/95 backdrop-blur-xl hover:bg-slate-50 text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4 animate-[pulse_2s_infinite]"
             >
               {totalChangesCount > 0 && (
                 <div className="relative flex h-2 w-2 mb-1.5 transform rotate-90">
