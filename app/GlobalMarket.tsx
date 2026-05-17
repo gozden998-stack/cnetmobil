@@ -1,65 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
 
 export default function GlobalMarket() {
-  const pathname = usePathname();
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
-  const [activeChannel, setActiveChannel] = useState<string>(""); 
+  const [isOpen, setIsOpen] = useState<boolean>(false); // 🚀 Yeni: Detay panelinin açık/kapalı durumunu tutar
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
-
-  // 🚀 BÜTÜN TARAYICI HAFIZASINI TARAYAN AKILLI DEDEKTİF MOTORU
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const detectChannel = () => {
-        const searchPool: string[] = [];
-        
-        // 1. URL Kontrolü
-        searchPool.push(window.location.href.toLowerCase());
-        // 2. Çerez (Cookie) Kontrolü
-        searchPool.push(document.cookie.toLowerCase());
-        
-        // 3. LocalStorage'daki her şeyi oku
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key) {
-              searchPool.push(key.toLowerCase());
-              searchPool.push((localStorage.getItem(key) || "").toLowerCase());
-            }
-          }
-        } catch (e) {}
-
-        // 4. SessionStorage'daki her şeyi oku
-        try {
-          for (let i = 0; i < sessionStorage.length; i++) {
-            const key = sessionStorage.key(i);
-            if (key) {
-              searchPool.push(key.toLowerCase());
-              searchPool.push((sessionStorage.getItem(key) || "").toLowerCase());
-            }
-          }
-        } catch (e) {}
-
-        // Hepsini tek bir metne dönüştür ve içinde kelime ara
-        const fullText = searchPool.join(" ");
-        if (fullText.includes("zumay")) return "zumay";
-        if (fullText.includes("vodafone")) return "vodafone";
-        
-        return "cmr_merkez"; // Bulamazsa merkez kabul et
-      };
-
-      setActiveChannel(detectChannel());
-    }
-  }, [pathname]);
-
-  // ❌ 1. KORUMA: EĞER ZUMAY KANALI İSE SİSTEMİ TAMAMEN KAPA
-  if (activeChannel === "zumay") {
-    return null;
-  }
 
   const playDing = () => {
     try {
@@ -78,11 +26,27 @@ export default function GlobalMarket() {
   };
 
   useEffect(() => {
-    // Zumay ise veya kanal henüz çözülmediyse sunucuya istek atıp yorma
-    if (!activeChannel || activeChannel === "zumay") return;
-
     const fetchMarketData = async () => {
       try {
+        // EKRANDAKİ YAZILARDAN ANLIK KANAL TESPİTİ
+        let detectedChannel = "cmr_merkez";
+        if (typeof document !== 'undefined') {
+          const bodyText = document.body?.innerText?.toLowerCase() || "";
+          if (bodyText.includes("zumay") || bodyText.includes("zumay kanali")) {
+            detectedChannel = "zumay";
+          } else if (bodyText.includes("vodafone") || bodyText.includes("vodafone kanali")) {
+            detectedChannel = "vodafone";
+          }
+        }
+
+        // ZUMAY KORUMASI
+        if (detectedChannel === "zumay") {
+          setTickerItems([]);
+          setToasts([]);
+          setIsOpen(false);
+          return; 
+        }
+
         const timestamp = Date.now();
         const res = await fetch(`/api/sheets?_bust=${timestamp}`, { 
           cache: 'no-store', 
@@ -126,8 +90,8 @@ export default function GlobalMarket() {
           });
         }
 
-        // ❌ 2. KORUMA: VODAFONE KANALI İSE 2. ELİ HİÇBİR ŞEKİLDE LİSTEYE ALMA
-        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && activeChannel !== "vodafone") {
+        // VODAFONE KORUMASI
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && detectedChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
@@ -148,6 +112,7 @@ export default function GlobalMarket() {
           });
         }
 
+        // VERİ KARŞILAŞTIRMA
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
@@ -215,21 +180,34 @@ export default function GlobalMarket() {
     const interval = setInterval(fetchMarketData, 30000); 
 
     return () => clearInterval(interval);
-  }, [activeChannel]);
+  }, []);
 
-  const removeToast = (id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+  // Kapat butonuna basınca her şeyi sıfırlayan fonksiyon
+  const clearNotifications = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Sekmenin açılma tetikleyicisini engelle
+    setToasts([]);
+    setIsOpen(false);
   };
 
   return (
     <>
+      {/* 🚀 CSS ANIMASYONLARI (YANIP SÖNME VE BORSA ŞERİDİ) */}
       <style>{`
         @keyframes ticker { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
         .animate-ticker { display: inline-block; white-space: nowrap; animation: ticker 30s linear infinite; }
         .animate-ticker:hover { animation-play-state: paused; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        @keyframes borsaFlash {
+          0%, 100% { background-color: #f97316; box-shadow: 0 0 15px rgba(249, 115, 22, 0.6); }
+          50% { background-color: #dc2626; box-shadow: 0 0 0px rgba(220, 38, 38, 0); }
+        }
+        .animate-borsa-flash { animation: borsaFlash 1.5s infinite ease-in-out; }
+        
+        .writing-mode-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
       `}</style>
 
+      {/* ÜST BORSA ŞERİDİ */}
       {tickerItems.length > 0 && (
         <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] flex items-center border-b border-slate-800 shadow-lg print:hidden">
           <div className="bg-blue-600 h-full px-4 flex items-center font-black text-[10px] tracking-widest uppercase z-10 shadow-xl shrink-0">
@@ -253,27 +231,52 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* SAĞ ÜST BİLDİRİM ALANI (Profil Butonlarını Kapatmaması İçin top-16 Değerine Çekildi) */}
-      <div className="fixed top-16 right-6 z-[9999] flex flex-col gap-4 w-85 pointer-events-none print:hidden">
-        {toasts.map((toast) => (
-          <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-top-8 fade-in duration-300 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden group">
-            <div className={`h-1.5 w-full ${toast.type === 'price' ? 'bg-gradient-to-r from-orange-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-emerald-500'}`}></div>
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-2.5">
-                <h4 className="text-white font-black italic tracking-tight text-xs uppercase">{toast.title}</h4>
-                <button onClick={() => removeToast(toast.id)} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white rounded-lg p-1.5 transition-colors cursor-pointer border border-slate-700/60 shadow-md">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+      {/* 🚀 YENİ TASARIM: GİZLENEBİLİR VE YANIP SÖNEN SAĞ KENAR SEKMESİ */}
+      {toasts.length > 0 && (
+        <div className="fixed right-0 top-1/3 z-[9999] flex items-start select-none print:hidden pointer-events-auto">
+          
+          {/* İÇERİK PANELİ (AÇILINCA GÖRÜNÜR) */}
+          {isOpen && (
+            <div className="bg-slate-900/98 backdrop-blur-md border border-slate-700 w-80 rounded-l-2xl shadow-2xl overflow-hidden mr-[-1px] transition-all duration-300 animate-in slide-in-from-right-8">
+              <div className="bg-gradient-to-r from-orange-500 to-rose-600 p-3 flex justify-between items-center">
+                <span className="text-white font-black text-xs uppercase tracking-wider">🔔 PİYASA HAREKETLERİ</span>
+                <button 
+                  onClick={clearNotifications}
+                  className="bg-black/20 hover:bg-black/50 text-white rounded-md p-1 transition-colors cursor-pointer"
+                  title="Bildirimleri Tamamen Kapat"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              <div className="bg-slate-950/60 rounded-xl p-3 max-h-40 overflow-y-auto no-scrollbar border border-slate-800">
-                {toast.items.map((item, i) => (
-                  <p key={i} className="text-slate-200 text-xs font-bold mb-1 last:mb-0">{item}</p>
+              <div className="p-4 max-h-80 overflow-y-auto no-scrollbar flex flex-col gap-3 bg-slate-950/40">
+                {toasts.map((toast) => (
+                  <div key={toast.id} className="border border-slate-800 bg-slate-900/80 rounded-xl p-3">
+                    <h5 className="text-orange-400 font-extrabold text-[11px] uppercase tracking-wide mb-2">
+                      {toast.title}
+                    </h5>
+                    <div className="flex flex-col gap-1">
+                      {toast.items.map((item, i) => (
+                        <p key={i} className="text-slate-200 text-xs font-bold truncate">{item}</p>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
+          )}
+
+          {/* SIK DEĞİŞEN - YANIP SÖNEN DİKEY BUTON (DOKUNUNCA AÇILIR) */}
+          <div 
+            onClick={() => setIsOpen(!isOpen)}
+            className={`writing-mode-vertical px-3 py-6 rounded-l-xl text-white font-black tracking-widest text-xs uppercase cursor-pointer transition-all border-l border-t border-b border-orange-400/30 flex items-center gap-2 ${isOpen ? 'bg-slate-800' : 'animate-borsa-flash'}`}
+          >
+            <span className="transform rotate-90 text-sm mb-1">🔥</span>
+            FİYAT DEĞİŞTİ
+            {isOpen ? <span className="mt-2 text-[10px]">▶</span> : <span className="mt-2 text-[10px] animate-ping">◀</span>}
           </div>
-        ))}
-      </div>
+
+        </div>
+      )}
     </>
   );
 }
