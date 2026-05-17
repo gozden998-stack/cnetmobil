@@ -1,16 +1,30 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 
+interface PriceItem {
+  category: string;
+  name: string;
+  price: number;
+  diff: number;
+}
+
+interface ToastGroup {
+  id: number;
+  title: string;
+  items: PriceItem[];
+  type: 'price' | 'new';
+}
+
 export default function GlobalMarket() {
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
-  const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); // Panel açılış-kapanış kontrolü
-  const [activeChannel, setActiveChannel] = useState<string>("cmr_merkez"); // Dinamik kanal durumu
+  const [toasts, setToasts] = useState<ToastGroup[]>([]);
+  const [isHovered, setIsHovered] = useState<boolean>(false); // Hover takibi
+  const [activeChannel, setActiveChannel] = useState<string>("cmr_merkez"); 
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
 
-  // 🛑 DİNAMİK ZUMAY KORUMASI: Eğer aktif kanal Zumay ise component render olmaz, RAM yemez
+  // 🛑 ZUMAY KANALI KORUMASI: Boşa RAM ve CPU harcanmasını engeller
   if (activeChannel === "zumay") {
     return null;
   }
@@ -34,7 +48,7 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // 🚀 ULTRA AKILLI GÖRÜNÜRLÜK TARAYICISI
+        // GÖRÜNÜRLÜK TABANLI AKILLI ŞUBE TESPİT MOTORU
         let currentChannel = "cmr_merkez";
         
         if (typeof document !== 'undefined') {
@@ -43,8 +57,6 @@ export default function GlobalMarket() {
           for (const el of allElements) {
             const htmlEl = el as HTMLElement;
             const txt = htmlEl.textContent?.replace(/\s+/g, ' ').trim() || "";
-
-            // Sadece ekranda AKTİF ve GÖRÜNÜR olan elemanları kontrol et (Menü içindeki gizlileri eler)
             const isVisible = htmlEl.offsetWidth > 0 && htmlEl.offsetHeight > 0;
 
             if (isVisible) {
@@ -59,14 +71,12 @@ export default function GlobalMarket() {
           }
         }
 
-        // State'i güncelle ki yukarıdaki ana kilit (return null) tetiklenebilsin
         setActiveChannel(currentChannel);
 
-        // 🛑 ZUMAY EMİR KORUMASI: Fetch çalışmaz, motor başlamışsa durur
         if (currentChannel === "zumay") {
           setTickerItems([]);
           setToasts([]);
-          setIsOpen(false);
+          setIsHovered(false);
           return;
         }
 
@@ -88,7 +98,7 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number, categoryLabel: string }[] = []; 
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 1. CEP TABLET VERİLERİNİ TOPLA (Çift Sütun Motoru)
+        // 1. CEP TABLET VERİLERİ (Çift Sütun Güvenliği)
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -113,7 +123,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİNİ TOPLA (Vodafone kanalında DEĞİLSE yükler)
+        // 2. İKİNCİ EL VERİLERİ (Vodafone Korumalı)
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && currentChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
@@ -122,7 +132,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 3. YNA AKSESUAR VERİLERİNİ TOPLA
+        // 3. YNA AKSESUAR VERİLERİ
         if (allData.YNA && Array.isArray(allData.YNA)) {
           allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
@@ -135,7 +145,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // --- GÜVENLİ VE HATASIZ KARŞILAŞTIRMA MOTORU ---
+        // VERİ KARŞILAŞTIRMA MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
@@ -177,21 +187,32 @@ export default function GlobalMarket() {
           if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
-            let generatedToasts = [];
+            let generatedToasts: ToastGroup[] = [];
             if (priceChanged.length > 0) {
               generatedToasts.push({
                 id: Date.now(),
-                title: `🔥 ${priceChanged.length} Üründe Fiyat Değişti`,
-                items: priceChanged.map(p => `• ${p.categoryLabel} Fiyat Tablosunda Fiyat Değişti: ${p.name} -> ${p.price.toLocaleString('tr-TR')} TL`),
-                type: 'price' as const
+                title: `Fiyatı Değişen Ürünler`,
+                type: 'price',
+                items: priceChanged.map(p => ({
+                  category: p.categoryLabel,
+                  name: p.name,
+                  price: p.price,
+                  diff: p.diff
+                }))
               });
             }
+            
             if (newlyAdded.length > 0) {
               generatedToasts.push({
                 id: Date.now() + 1,
-                title: `🆕 ${newlyAdded.length} Yeni Cihaz Eklendi`,
-                items: newlyAdded.map(n => `• Yeni Ürün Eklendi: ${n}`),
-                type: 'new' as const
+                title: `Yeni Eklenen Ürünler`,
+                type: 'new',
+                items: newlyAdded.map(n => ({
+                  category: "Yeni",
+                  name: n,
+                  price: 0,
+                  diff: 0
+                }))
               });
             }
 
@@ -217,69 +238,72 @@ export default function GlobalMarket() {
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
     setToasts([]);
-    setIsOpen(false);
+    setIsHovered(false);
   };
+
+  const totalChangesCount = toasts.reduce((acc, toast) => acc + toast.items.length, 0);
 
   return (
     <>
-      {/* CSS EFEKTLERİ */}
       <style>{`
         @keyframes ticker { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
         .animate-ticker { display: inline-block; white-space: nowrap; animation: ticker 30s linear infinite; }
         .animate-ticker:hover { animation-play-state: paused; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        @keyframes borsaFlash {
-          0%, 100% { background-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
-          50% { background-color: #ef4444; box-shadow: 0 0 0px rgba(239, 68, 68, 0); }
-        }
-        .animate-borsa-flash { animation: borsaFlash 1.5s infinite ease-in-out; }
-        
         .writing-mode-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
       `}</style>
 
       {/* ÜST BORSA ŞERİDİ */}
       {tickerItems.length > 0 && (
-        <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] flex items-center border-b border-slate-800 shadow-lg print:hidden">
-          <div className="bg-blue-600 h-full px-4 flex items-center font-black text-[10px] tracking-widest uppercase z-10 shadow-xl shrink-0">
-            CANLI PİYASA
+        <div className="fixed top-0 left-0 w-full h-8 bg-slate-900 text-white z-[9999] flex items-center border-b border-slate-800 shadow-md print:hidden">
+          <div className="bg-blue-600 h-full px-4 flex items-center font-bold text-[10px] tracking-wider uppercase z-10 shrink-0">
+            CANLI AKIŞ
           </div>
           <div className="overflow-hidden flex-1 flex items-center h-full">
             <div className="animate-ticker cursor-default">
               {tickerItems.map((item, idx) => (
-                <span key={item.id} className="mx-6 font-bold text-xs tracking-wide">
+                <span key={item.id} className="mx-6 font-semibold text-xs tracking-wide">
                   <span className={item.type === 'up' ? 'text-emerald-400' : item.type === 'down' ? 'text-rose-400' : 'text-amber-400'}>
                     {item.text}
                   </span>
-                  {idx !== tickerItems.length - 1 && <span className="mx-6 text-slate-600">|</span>}
+                  {idx !== tickerItems.length - 1 && <span className="mx-6 text-slate-700">|</span>}
                 </span>
               ))}
             </div>
           </div>
-          <button onClick={() => setTickerItems([])} className="bg-slate-800 hover:bg-rose-600 transition-colors h-full px-4 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer">
-            TEMİZLE ✖
+          <button onClick={() => setTickerItems([])} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors h-full px-3.5 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer">
+            ✖
           </button>
         </div>
       )}
 
-      {/* SAĞ KENAR: YAĞ GİBİ SÜZÜLEREK GİRİP ÇIKAN PREMIUM PANEL ALANI */}
+      {/* TİTREMEYİ ÖNLEYEN BİRLEŞİK HOVER SİSTEMİ */}
       {toasts.length > 0 && (
-        <div className="fixed right-0 top-1/3 z-[9999] flex items-center select-none print:hidden pointer-events-auto">
+        <div 
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className="fixed right-0 top-1/4 z-[9999] flex items-center print:hidden pointer-events-auto"
+        >
           
-          {/* ÇİFT YÖNLÜ SÜZÜLEN - PREMIUM BEYAZ KART PANELİ */}
-          <div className={`bg-white border border-slate-100 w-96 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.15)] overflow-hidden mr-3 transition-all duration-300 transform ${
-            isOpen 
+          {/* SAAS DASHBOARD PANEL KARTI */}
+          <div className={`bg-white border border-slate-200/90 w-[430px] rounded-l-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-300 transform ${
+            isHovered 
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto' 
-              : 'opacity-0 translate-x-12 scale-95 pointer-events-none absolute right-12'
-          }`}>
+              : 'opacity-0 translate-x-12 scale-98 pointer-events-none absolute right-12'
+          } ease-[cubic-bezier(0.16,1,0.3,1)]`}>
             
-            {/* Üst Kısım: Başlık ve Çarpı İşareti */}
-            <div className="p-5 flex justify-between items-center border-b border-slate-50">
-              <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
+            {/* ✖ ÜST KISIM: BAŞLIK VE KONTROLLÜ ÇARPI BUTONU */}
+            <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100 bg-white">
+              <div className="flex items-center gap-2">
+                <h3 className="text-slate-800 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
+                <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  {totalChangesCount} Bildirim
+                </span>
+              </div>
               <button 
-                onClick={() => setIsOpen(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                title="Paneli Gizle"
+                onClick={() => setIsHovered(false)} // 🚀 Çarpı simgesi paneli anında süzerek kapatır
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1.5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
+                title="Kapat"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -287,40 +311,69 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* Orta Kısım: Değişen Tablo İçerikleri */}
-            <div className="p-5 max-h-72 overflow-y-auto no-scrollbar flex flex-col gap-3 bg-white">
+            {/* ORTA KISIM: PREMİUM SATIRLAR */}
+            <div className="p-4 px-5 max-h-[340px] overflow-y-auto no-scrollbar flex flex-col gap-4 bg-slate-50/50 border-b border-slate-100">
               {toasts.map((toast) => (
                 <div key={toast.id} className="flex flex-col gap-2">
                   {toast.items.map((item, i) => (
-                    <p key={i} className="text-slate-700 text-xs font-semibold bg-slate-50 border border-slate-100 rounded-xl p-3.5 leading-relaxed shadow-sm">
-                      {item}
-                    </p>
+                    <div key={i} className="flex items-center justify-between p-3.5 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-slate-300/80 hover:shadow-md transition-all duration-200">
+                      
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
+                          item.category === 'Apple' ? 'bg-slate-900 text-white' :
+                          item.category === 'Android' ? 'bg-emerald-600 text-white' :
+                          item.category === '2.El' ? 'bg-amber-500 text-white' :
+                          item.category === 'Aksesuar' ? 'bg-indigo-600 text-white' :
+                          'bg-blue-600 text-white'
+                        }`}>
+                          {item.category}
+                        </span>
+                        <p className="text-slate-700 text-xs font-bold truncate max-w-[210px]">{item.name}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-xs font-extrabold ${item.diff > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {item.diff > 0 ? '↑' : '↓'}
+                        </span>
+                        <span className="text-slate-900 font-black text-xs tracking-tight">
+                          {item.price > 0 ? `${item.price.toLocaleString('tr-TR')} TL` : 'Yeni Ürün'}
+                        </span>
+                      </div>
+
+                    </div>
                   ))}
                 </div>
               ))}
             </div>
             
-            {/* Alt Kısım: Videodaki Soft Gri Buton Stilinde "Temizle" Tuşu */}
-            <div className="p-4 px-5 border-t border-slate-50 flex justify-end bg-white">
+            {/* 🔘 ALT KISIM: VİDEODAKİ SOFT GRİ "TEMİZLE" BUTONU */}
+            <div className="p-3.5 px-5 flex justify-end bg-white">
               <button 
-                onClick={clearNotifications} 
-                className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm border border-slate-100/50"
+                onClick={clearNotifications} // 🚀 Tüm bildirim geçmişini siler ve kapatır
+                className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer border border-slate-200/30 active:scale-95 shadow-sm"
               >
-                Temizle
+                Hepsini Temizle
               </button>
             </div>
             
           </div>
 
           {/* DİKEY BİLDİRİM FLAŞÖR ÇUBUĞU */}
-          <div 
-            onClick={() => setIsOpen(!isOpen)}
-            className={`writing-mode-vertical px-3.5 py-7 rounded-l-2xl text-white font-black tracking-widest text-[10px] uppercase cursor-pointer transition-all border-l border-t border-b flex items-center gap-2.5 shadow-xl ${isOpen ? 'bg-blue-600 border-blue-500' : 'animate-borsa-flash border-orange-400/20'}`}
-          >
-            <span className="transform rotate-90 text-xs mb-1">🔔</span>
-            FİYAT DEĞİŞTİ
-            {isOpen ? <span className="mt-1 text-[8px]">▶</span> : <span className="mt-1 text-[8px] animate-ping">◀</span>}
-          </div>
+          {!isHovered && (
+            <div 
+              onClick={() => setIsHovered(true)}
+              className="writing-mode-vertical px-3.5 py-8 bg-white hover:bg-slate-50 text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4"
+            >
+              {totalChangesCount > 0 && (
+                <div className="relative flex h-2 w-2 mb-1.5 transform rotate-90">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                </div>
+              )}
+              FİYAT DEĞİŞTİ
+              <span className="mt-1 text-[8px] text-slate-400 group-hover:text-slate-800 transition-colors">◀</span>
+            </div>
+          )}
 
         </div>
       )}
