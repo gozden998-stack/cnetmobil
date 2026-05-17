@@ -18,25 +18,10 @@ interface ToastGroup {
 export default function GlobalMarket() {
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<ToastGroup[]>([]);
-  const [isHovered, setIsHovered] = useState<boolean>(false); 
+  const [isOpen, setIsOpen] = useState<boolean>(false); // 🚀 Tıklama tabanlı açılış kontrolü
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
-  const hoverTimeout = useRef<any>(null);
-
-  // PREMIUM HOVER GECİKMESİ FONKSİYONLARI
-  const handleEnter = () => {
-    if (hoverTimeout.current) {
-      clearTimeout(hoverTimeout.current);
-    }
-    setIsHovered(true);
-  };
-
-  const handleLeave = () => {
-    hoverTimeout.current = setTimeout(() => {
-      setIsHovered(false);
-    }, 180);
-  };
 
   const playDing = () => {
     try {
@@ -100,7 +85,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİNİ TOPLA (Artık kısıtlama olmadan herkes için yüklenir)
+        // 2. İKİNCİ EL VERİLERİNİ TOPLA
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl)) {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
@@ -209,16 +194,13 @@ export default function GlobalMarket() {
     fetchMarketData(); 
     const interval = setInterval(fetchMarketData, 30000); 
 
-    return () => {
-      clearInterval(interval);
-      if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
     setToasts([]);
-    setIsHovered(false);
+    setIsOpen(false);
   };
 
   const totalChangesCount = toasts.reduce((acc, toast) => acc + toast.items.length, 0);
@@ -257,31 +239,27 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* SÜZÜLEN PANEL ALANI */}
+      {/* TIKLAMA TABANLI PANEL ALANI */}
       {toasts.length > 0 && (
-        <div 
-          onMouseEnter={handleEnter}
-          onMouseLeave={handleLeave}
-          className="fixed right-0 top-1/4 z-[9999] flex items-center print:hidden pointer-events-auto"
-        >
+        <div className="fixed right-0 top-1/4 z-[9999] flex items-center print:hidden pointer-events-auto">
           
-          {/* ULTRA PREMIUM BLUR GLASS PANEL KARTI */}
-          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[430px] rounded-l-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-500 transform ${
-            isHovered 
+          {/* 🚀 VİDEODAKİ GİBİ SÜZÜLEN BLUR GLASS PANEL KARTI (SABİT KONUMLANDIRILDI) */}
+          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-500 transform ease-[cubic-bezier(0.16,1,0.3,1)] absolute right-14 ${
+            isOpen 
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto' 
-              : 'opacity-0 translate-x-6 scale-98 pointer-events-none absolute right-12'
-          } ease-[cubic-bezier(0.16,1,0.3,1)]`}>
+              : 'opacity-0 translate-x-6 scale-95 pointer-events-none'
+          }`}>
             
-            {/* Üst Kısım: Başlık ve Kapatma Çarpısı */}
+            {/* ✖ ÜST KISIM: BAŞLIK VE KAPATMA ÇARPI İŞARETİ */}
             <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100 bg-white/40">
               <div className="flex items-center gap-2">
-                <h3 className="text-slate-800 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
+                <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
                 <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {totalChangesCount} Bildirim
+                  {totalChangesCount} Ürün
                 </span>
               </div>
               <button 
-                onClick={() => setIsHovered(false)} 
+                onClick={() => setIsOpen(false)} // Çarpıya basınca sadece paneli yumuşakça kapatır
                 className="text-slate-400 hover:text-slate-600 hover:bg-slate-100/80 p-1.5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200"
                 title="Kapat"
               >
@@ -291,7 +269,7 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* Orta Kısım: Finansal Dashboard Listelemesi */}
+            {/* ORTA KISIM: LİSTELEME SATIRLARI */}
             <div className="p-4 px-5 max-h-[340px] overflow-y-auto no-scrollbar flex flex-col gap-4 bg-slate-50/30 border-b border-slate-100">
               {toasts.map((toast) => (
                 <div key={toast.id} className="flex flex-col gap-2">
@@ -326,10 +304,10 @@ export default function GlobalMarket() {
               ))}
             </div>
             
-            {/* Alt Kısım: "Hepsini Temizle" Butonu */}
+            {/* 🔘 ALT KISIM: VİDEODAKİ GİBİ GRİ "TEMİZLE" BUTONU */}
             <div className="p-3.5 px-5 flex justify-end bg-white/40">
               <button 
-                onClick={clearNotifications} 
+                onClick={clearNotifications} // Hafızayı siler ve paneli kapatır
                 className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer border border-slate-200/30 active:scale-95 shadow-sm"
               >
                 Hepsini Temizle
@@ -338,22 +316,25 @@ export default function GlobalMarket() {
             
           </div>
 
-          {/* PULSE GLOW DESTEKLİ STANDART DİKEY SEKMELİ BUTON */}
-          {!isHovered && (
-            <div 
-              onClick={() => setIsHovered(true)}
-              className="writing-mode-vertical px-3.5 py-8 bg-white/95 backdrop-blur-xl hover:bg-slate-50 text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4 animate-[pulse_2s_infinite]"
-            >
-              {totalChangesCount > 0 && (
-                <div className="relative flex h-2 w-2 mb-1.5 transform rotate-90">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                </div>
-              )}
-              FİYAT DEĞİŞTİ
-              <span className="mt-1 text-[8px] text-slate-400 group-hover:text-slate-800 transition-colors">◀</span>
-            </div>
-          )}
+          {/* 🚀 SABİT DİKEY BUTON (TIKLAMA ÖZELLİKLİ & GLOW PULSE EFEKTLİ) */}
+          <div 
+            onClick={() => setIsOpen(!isOpen)} // Tıklayınca aç kapa yapar
+            className={`writing-mode-vertical px-3.5 py-8 bg-white/95 backdrop-blur-xl text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4 ${
+              !isOpen ? 'animate-[pulse_2s_infinite]' : 'bg-slate-50'
+            }`}
+          >
+            {/* Canlı Yayın Nabız Noktası */}
+            {totalChangesCount > 0 && (
+              <div className="relative flex h-2 w-2 mb-1.5 transform rotate-90">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </div>
+            )}
+            FİYAT DEĞİŞTİ
+            <span className={`text-[8px] transition-transform duration-300 text-slate-400 group-hover:text-slate-800 ${isOpen ? 'rotate-180' : ''}`}>
+              ◀
+            </span>
+          </div>
 
         </div>
       )}
