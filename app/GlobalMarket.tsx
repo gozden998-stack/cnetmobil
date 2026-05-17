@@ -1,27 +1,63 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function GlobalMarket() {
+  const pathname = usePathname();
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
-  const [activeChannel, setActiveChannel] = useState<string>(""); // Giriş yapan kanal adını tutacak
+  const [activeChannel, setActiveChannel] = useState<string>(""); 
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
 
-  // 🚀 KANAL BİLGİSİNİ HAFIZADAN OKUMA MOTORU
+  // 🚀 BÜTÜN TARAYICI HAFIZASINI TARAYAN AKILLI DEDEKTİF MOTORU
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // BİZİM İÇİN EN KRİTİK YER BURASI: 
-      // Giriş yapan bayinin adını tarayıcı hafızasından çekiyoruz.
-      // Eğer localStorage'da 'sube' veya 'channel' adında tutuyorsanız aşağıyı ona göre güncelleyin.
-      const subeAdi = localStorage.getItem('sube') || localStorage.getItem('channel') || "CMR_MERKEZ"; 
-      setActiveChannel(subeAdi.toLowerCase());
-    }
-  }, []);
+      const detectChannel = () => {
+        const searchPool: string[] = [];
+        
+        // 1. URL Kontrolü
+        searchPool.push(window.location.href.toLowerCase());
+        // 2. Çerez (Cookie) Kontrolü
+        searchPool.push(document.cookie.toLowerCase());
+        
+        // 3. LocalStorage'daki her şeyi oku
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+              searchPool.push(key.toLowerCase());
+              searchPool.push((localStorage.getItem(key) || "").toLowerCase());
+            }
+          }
+        } catch (e) {}
 
-  // ❌ 1. FİLTRE: ZUMAY KANALI TAMAMEN KAPATILDI
-  if (activeChannel.includes('zumay')) {
+        // 4. SessionStorage'daki her şeyi oku
+        try {
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key) {
+              searchPool.push(key.toLowerCase());
+              searchPool.push((sessionStorage.getItem(key) || "").toLowerCase());
+            }
+          }
+        } catch (e) {}
+
+        // Hepsini tek bir metne dönüştür ve içinde kelime ara
+        const fullText = searchPool.join(" ");
+        if (fullText.includes("zumay")) return "zumay";
+        if (fullText.includes("vodafone")) return "vodafone";
+        
+        return "cmr_merkez"; // Bulamazsa merkez kabul et
+      };
+
+      setActiveChannel(detectChannel());
+    }
+  }, [pathname]);
+
+  // ❌ 1. KORUMA: EĞER ZUMAY KANALI İSE SİSTEMİ TAMAMEN KAPA
+  if (activeChannel === "zumay") {
     return null;
   }
 
@@ -42,8 +78,8 @@ export default function GlobalMarket() {
   };
 
   useEffect(() => {
-    // Kanal henüz yüklenmediyse veya Zumay ise hiçbir istek atma, sunucuyu yorma
-    if (!activeChannel || activeChannel.includes('zumay')) return;
+    // Zumay ise veya kanal henüz çözülmediyse sunucuya istek atıp yorma
+    if (!activeChannel || activeChannel === "zumay") return;
 
     const fetchMarketData = async () => {
       try {
@@ -65,7 +101,7 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number }[] = [];
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 1. CEP TABLET VERİLERİNİ TOPLA
+        // CEP TABLET VERİLERİ
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -90,8 +126,8 @@ export default function GlobalMarket() {
           });
         }
 
-        // ❌ 2. FİLTRE: VODAFONE İÇİN 2. ELİ KAZI (VODAFONE DEĞİLSE LİSTEYE EKLE)
-        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && !activeChannel.includes('vodafone')) {
+        // ❌ 2. KORUMA: VODAFONE KANALI İSE 2. ELİ HİÇBİR ŞEKİLDE LİSTEYE ALMA
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && activeChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
@@ -99,7 +135,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 3. YNA AKSESUAR VERİLERİNİ TOPLA
+        // YNA AKSESUAR VERİLERİ
         if (allData.YNA && Array.isArray(allData.YNA)) {
           allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
@@ -217,7 +253,8 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      <div className="fixed top-12 right-6 z-[9999] flex flex-col gap-4 w-85 pointer-events-none print:hidden">
+      {/* SAĞ ÜST BİLDİRİM ALANI (Profil Butonlarını Kapatmaması İçin top-16 Değerine Çekildi) */}
+      <div className="fixed top-16 right-6 z-[9999] flex flex-col gap-4 w-85 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-top-8 fade-in duration-300 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl overflow-hidden group">
             <div className={`h-1.5 w-full ${toast.type === 'price' ? 'bg-gradient-to-r from-orange-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-emerald-500'}`}></div>
