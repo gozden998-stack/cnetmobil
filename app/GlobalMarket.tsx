@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 export default function GlobalMarket() {
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); // 🚀 Yeni: Detay panelinin açık/kapalı durumunu tutar
+  const [isOpen, setIsOpen] = useState<boolean>(false); 
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
@@ -28,18 +28,18 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // EKRANDAKİ YAZILARDAN ANLIK KANAL TESPİTİ
+        // 🚀 TAM İSABET KANAL TESPİTİ (Menüdeki kelimelerle karışmaması için tam öbek arıyoruz)
         let detectedChannel = "cmr_merkez";
         if (typeof document !== 'undefined') {
           const bodyText = document.body?.innerText?.toLowerCase() || "";
-          if (bodyText.includes("zumay") || bodyText.includes("zumay kanali")) {
+          if (bodyText.includes("zumay kanali")) {
             detectedChannel = "zumay";
-          } else if (bodyText.includes("vodafone") || bodyText.includes("vodafone kanali")) {
+          } else if (bodyText.includes("vodafone kanali")) {
             detectedChannel = "vodafone";
           }
         }
 
-        // ZUMAY KORUMASI
+        // ZUMAY KORUMASI: Zumay kanalındaysa her şeyi tamamen kapat
         if (detectedChannel === "zumay") {
           setTickerItems([]);
           setToasts([]);
@@ -65,23 +65,21 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number }[] = [];
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // CEP TABLET VERİLERİ
+        // 🎯 ORIJINAL ÇALIŞAN SÜTUN DÜZENİNE GERİ DÖNÜLDÜ
+        // 1. CEP TABLET
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
+            // Apple
             const appleName = row[0]?.toString().trim();
-            if (appleName) {
-              const p1 = parsePrice(row[1]);
-              const p2 = parsePrice(row[2]);
-              if (p1 > 0) currentMap.set(`APPLE_${appleName}_v1`, p1);
-              if (p2 > 0) currentMap.set(`APPLE_${appleName}_v2`, p2);
-            }
+            const applePrice = parsePrice(row[2]);
+            if (appleName && applePrice > 0) currentMap.set(`APPLE_${appleName}`, applePrice);
+
+            // Android
             const androidName = row[5]?.toString().trim();
-            if (androidName) {
-              const p1 = parsePrice(row[6]);
-              const p2 = parsePrice(row[7]);
-              if (p1 > 0) currentMap.set(`ANDROID_${androidName}_v1`, p1);
-              if (p2 > 0) currentMap.set(`ANDROID_${androidName}_v2`, p2);
-            }
+            const androidPrice = parsePrice(row[7]);
+            if (androidName && androidPrice > 0) currentMap.set(`ANDROID_${androidName}`, androidPrice);
+
+            // Kampanya
             const kampanyaName = row[10]?.toString().trim();
             const kampanyaPrice = parsePrice(row[11]);
             if (kampanyaName && kampanyaPrice > 0) {
@@ -90,7 +88,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // VODAFONE KORUMASI
+        // 2. İKİNCİ EL (Vodafone kanalında değilse yükle)
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && detectedChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
@@ -99,7 +97,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // YNA AKSESUAR VERİLERİ
+        // 3. YNA AKSESUAR
         if (allData.YNA && Array.isArray(allData.YNA)) {
           allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
@@ -112,13 +110,11 @@ export default function GlobalMarket() {
           });
         }
 
-        // VERİ KARŞILAŞTIRMA
+        // GÜVENLİ KARŞILAŞTIRMA MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
-            let cleanName = key
-              .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '')
-              .replace(/_v[12]$/, '');
+            let cleanName = key.replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '');
 
             if (oldPrice === undefined) {
               if (!newlyAdded.includes(cleanName)) {
@@ -182,16 +178,14 @@ export default function GlobalMarket() {
     return () => clearInterval(interval);
   }, []);
 
-  // Kapat butonuna basınca her şeyi sıfırlayan fonksiyon
   const clearNotifications = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Sekmenin açılma tetikleyicisini engelle
+    e.stopPropagation();
     setToasts([]);
     setIsOpen(false);
   };
 
   return (
     <>
-      {/* 🚀 CSS ANIMASYONLARI (YANIP SÖNME VE BORSA ŞERİDİ) */}
       <style>{`
         @keyframes ticker { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
         .animate-ticker { display: inline-block; white-space: nowrap; animation: ticker 30s linear infinite; }
@@ -231,11 +225,10 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* 🚀 YENİ TASARIM: GİZLENEBİLİR VE YANIP SÖNEN SAĞ KENAR SEKMESİ */}
+      {/* SAĞ KENAR BUTONU VE İÇERİK PANELİ */}
       {toasts.length > 0 && (
         <div className="fixed right-0 top-1/3 z-[9999] flex items-start select-none print:hidden pointer-events-auto">
           
-          {/* İÇERİK PANELİ (AÇILINCA GÖRÜNÜR) */}
           {isOpen && (
             <div className="bg-slate-900/98 backdrop-blur-md border border-slate-700 w-80 rounded-l-2xl shadow-2xl overflow-hidden mr-[-1px] transition-all duration-300 animate-in slide-in-from-right-8">
               <div className="bg-gradient-to-r from-orange-500 to-rose-600 p-3 flex justify-between items-center">
@@ -243,7 +236,6 @@ export default function GlobalMarket() {
                 <button 
                   onClick={clearNotifications}
                   className="bg-black/20 hover:bg-black/50 text-white rounded-md p-1 transition-colors cursor-pointer"
-                  title="Bildirimleri Tamamen Kapat"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -265,7 +257,7 @@ export default function GlobalMarket() {
             </div>
           )}
 
-          {/* SIK DEĞİŞEN - YANIP SÖNEN DİKEY BUTON (DOKUNUNCA AÇILIR) */}
+          {/* SIK DEĞİŞEN - YANIP SÖNEN DİKEY BUTON */}
           <div 
             onClick={() => setIsOpen(!isOpen)}
             className={`writing-mode-vertical px-3 py-6 rounded-l-xl text-white font-black tracking-widest text-xs uppercase cursor-pointer transition-all border-l border-t border-b border-orange-400/30 flex items-center gap-2 ${isOpen ? 'bg-slate-800' : 'animate-borsa-flash'}`}
