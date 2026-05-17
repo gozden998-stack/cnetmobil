@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// 1. Bileşenleri İçeri Aktarıyoruz
+// 1. C-BOT Bileşenini İçeri Aktarıyoruz 
+// (Dosya yolunuz "components" klasörü içindeyse bu şekilde kalabilir, farklıysa yolu düzenleyin)
 import CBot from "./components/CBot";
-import GlobalMarket from "./GlobalMarket"; // Eğer GlobalMarket dosyasını components klasörüne koyduysanız burayı "./components/GlobalMarket" yapın.
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -18,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CnetMobil Buyback",
-  description: "Cnetmobil Geri Alım Platformu",
+  description: "Cnetmobil Geri Alım Platformu", // Burayı da markanıza uygun güncelleyebilirsiniz
 };
 
 export default function RootLayout({
@@ -28,15 +27,10 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="tr"
+      lang="tr" // Türkçe için "tr" olarak güncelledik
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* Kayan Borsa Ticker'ı üstte yer kaplayacağı için body'e "pt-8" sınıfı eklendi */}
-      <body className="min-h-full flex flex-col pt-8">
-        
-        {/* 3. CANLI PİYASA VE BİLDİRİM MOTORU BURADA ÇALIŞIYOR */}
-        <GlobalMarket />
-
+      <body className="min-h-full flex flex-col">
         {children}
         
         {/* 2. C-BOT'u Sisteme Ekliyoruz */}
