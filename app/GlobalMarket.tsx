@@ -45,11 +45,10 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number }[] = [];
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 🚀 TÜM SÜTUNLARI EKSİKSİZ TARAYAN YENİ MOTOR
         // 1. CEP TABLET (APPLE, ANDROID, KAMPANYA)
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
-          allData.CepTablet.forEach(row => {
-            // Apple Tarama (İki fiyat sütununu da denetle: row[1] ve row[2])
+          // TypeScript Hatası burada (row: any) yapılarak çözüldü
+          allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
             if (appleName) {
               const p1 = parsePrice(row[1]);
@@ -57,7 +56,6 @@ export default function GlobalMarket() {
               if (p1 > 0) currentMap.set(`APPLE_${appleName}_v1`, p1);
               if (p2 > 0) currentMap.set(`APPLE_${appleName}_v2`, p2);
             }
-            // Android Tarama (İki fiyat sütununu da denetle: row[6] and row[7])
             const androidName = row[5]?.toString().trim();
             if (androidName) {
               const p1 = parsePrice(row[6]);
@@ -65,7 +63,6 @@ export default function GlobalMarket() {
               if (p1 > 0) currentMap.set(`ANDROID_${androidName}_v1`, p1);
               if (p2 > 0) currentMap.set(`ANDROID_${androidName}_v2`, p2);
             }
-            // Kampanya Sıfır Tarama
             const kampanyaName = row[10]?.toString().trim();
             const kampanyaPrice = parsePrice(row[11]);
             if (kampanyaName && kampanyaPrice > 0) {
@@ -76,7 +73,7 @@ export default function GlobalMarket() {
 
         // 2. İKİNCİ EL LİSTESİ
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl)) {
-          allData.IkinciEl.forEach(row => {
+          allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
             if (name && price > 0) currentMap.set(`IKINCI_${name}`, price);
@@ -85,7 +82,7 @@ export default function GlobalMarket() {
 
         // 3. YNA AKSESUAR LİSTESİ
         if (allData.YNA && Array.isArray(allData.YNA)) {
-          allData.YNA.forEach(row => {
+          allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
             const p1 = parsePrice(row[1]);
             if (n1 && p1 > 0) currentMap.set(`YNA1_${n1}`, p1);
@@ -96,15 +93,10 @@ export default function GlobalMarket() {
           });
         }
 
-        // Veri tabanında ürün yüklüyse kıyaslamaya başla
         if (prevPricesMap.current && !isFirstLoad.current) {
-          
-          // DEĞİŞEN FİYATLARI BUL
           prevPricesMap.current.forEach((oldPrice, key) => {
             const currentPrice = currentMap.get(key);
             if (currentPrice !== undefined && oldPrice !== currentPrice) {
-              
-              // Temiz model adını ayıkla
               let cleanName = key
                 .replace('APPLE_', '').replace('ANDROID_', '').replace('KAMPANYA_', '')
                 .replace('IKINCI_', '').replace('YNA1_', '').replace('YNA2_', '')
@@ -122,7 +114,6 @@ export default function GlobalMarket() {
             }
           });
 
-          // YENİ EKLENENLERİ BUL
           currentMap.forEach((currentPrice, key) => {
             if (!prevPricesMap.current!.has(key)) {
               let cleanName = key
@@ -141,7 +132,6 @@ export default function GlobalMarket() {
             }
           });
 
-          // BİLDİRİMLERİ TETİKLE (Spam Koruması: Aynı anda 10'dan fazla değilse)
           if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
@@ -177,7 +167,6 @@ export default function GlobalMarket() {
           }
         }
 
-        // 🚀 KİLİT DÜZELTMESİ: Liste boş değilse ilk yükleme kilidini her halükarda kaldır
         prevPricesMap.current = currentMap;
         if (currentMap.size > 0) {
           isFirstLoad.current = false;
@@ -187,7 +176,7 @@ export default function GlobalMarket() {
     };
 
     fetchMarketData(); 
-    const interval = setInterval(fetchMarketData, 30000); // Hızlı test için 30 saniyeye düşürüldü
+    const interval = setInterval(fetchMarketData, 30000); 
 
     return () => clearInterval(interval);
   }, []);
