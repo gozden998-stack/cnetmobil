@@ -1,34 +1,37 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef } from "react";
 
 interface NotificationItem {
   id: string;
   category: string;
   name: string;
-  type: 'up' | 'down' | 'new';
-  time: string; // Bildirimin düştüğü tam dakika (Örn: 11:32)
+  type: "up" | "down" | "new";
+  time: string; // Fiyatın sunucuya ulaştığı tam o anın kilitli dakikası (Örn: 11:32)
 }
 
 export default function GlobalMarket() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); // Açık/Kapalı Kontrolü
-  
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
 
   const playDing = () => {
     try {
-      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+      const audio = new Audio(
+        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+      );
       audio.play().catch(() => {});
     } catch (e) {}
   };
 
   const parsePrice = (val: any) => {
-    if (val === null || val === undefined || val === '') return 0;
-    if (typeof val === 'number') return Math.floor(val);
+    if (val === null || val === undefined || val === "") return 0;
+    if (typeof val === "number") return Math.floor(val);
     let strVal = String(val).trim();
-    if (strVal.includes(',')) strVal = strVal.split(',')[0];
-    const match = strVal.replace(/\D/g, '');
+    if (strVal.includes(",")) strVal = strVal.split(",")[0];
+    const match = strVal.replace(/\D/g, "");
     return match ? parseInt(match, 10) : 0;
   };
 
@@ -36,25 +39,32 @@ export default function GlobalMarket() {
     const fetchMarketData = async () => {
       try {
         const timestamp = Date.now();
-        const res = await fetch(`/api/sheets?_bust=${timestamp}`, { 
-          cache: 'no-store', 
-          headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' } 
+        const res = await fetch(`/api/sheets?_bust=${timestamp}`, {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store",
+            Pragma: "no-cache",
+          },
         });
-        
+
         if (!res.ok) return;
         const responseData = await res.json();
         if (!responseData || !responseData.payload) return;
 
-        const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
+        const decodedString = decodeURIComponent(
+          escape(window.atob(responseData.payload))
+        );
         const allData = JSON.parse(decodedString);
-
         const currentMap = new Map<string, number>();
         let newItemsDetected: NotificationItem[] = [];
-        
-        // ⏱️ Fiyatın değiştiği tam o anın kurumsal dakika damgası
-        const currentTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
-        // 1. CEP TABLET VERİLERİNİ TOPLA
+        // ⏱️ Verinin geldiği tam o anın kurumsal saat damgası
+        const freezeTime = new Date().toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        // 1. CEP TABLET
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -64,6 +74,7 @@ export default function GlobalMarket() {
               if (p1 > 0) currentMap.set(`APPLE_${appleName}_v1`, p1);
               if (p2 > 0) currentMap.set(`APPLE_${appleName}_v2`, p2);
             }
+
             const androidName = row[5]?.toString().trim();
             if (androidName) {
               const p1 = parsePrice(row[6]);
@@ -71,6 +82,7 @@ export default function GlobalMarket() {
               if (p1 > 0) currentMap.set(`ANDROID_${androidName}_v1`, p1);
               if (p2 > 0) currentMap.set(`ANDROID_${androidName}_v2`, p2);
             }
+
             const kampanyaName = row[10]?.toString().trim();
             const kampanyaPrice = parsePrice(row[11]);
             if (kampanyaName && kampanyaPrice > 0) {
@@ -79,16 +91,18 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİNİ TOPLA
+        // 2. İKİNCİ EL
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl)) {
           allData.IkinciEl.forEach((row: any) => {
-            const name = `${row[0] || ''} ${row[1] || ''}`.trim();
+            const name = `${row[0] || ""} ${row[1] || ""}`.trim();
             const price = parsePrice(row[2]);
-            if (name && price > 0) currentMap.set(`IKINCI_${name}`, price);
+            if (name && price > 0) {
+              currentMap.set(`IKINCI_${name}`, price);
+            }
           });
         }
 
-        // 3. YNA AKSESUAR VERİLERİNİ TOPLA
+        // 3. YNA AKSESUAR
         if (allData.YNA && Array.isArray(allData.YNA)) {
           allData.YNA.forEach((row: any) => {
             const n1 = row[0]?.toString().trim();
@@ -101,14 +115,14 @@ export default function GlobalMarket() {
           });
         }
 
-        // ZAMANSAL VE MODEL BAZLI ALARM MOTORU
+        // MODEL BAZLI TAM GÖRSELDEKİ VERİ ANALİZ MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
-            
+
             let cleanName = key
-              .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '')
-              .replace(/_v[12]$/, '');
+              .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, "")
+              .replace(/_v[12]$/, "");
 
             let categoryLabel = "Cihaz";
             if (key.startsWith("APPLE_")) categoryLabel = "Apple";
@@ -122,8 +136,8 @@ export default function GlobalMarket() {
                 id: `${key}-${Date.now()}`,
                 category: categoryLabel,
                 name: cleanName,
-                type: 'new',
-                time: currentTime
+                type: "new",
+                time: freezeTime,
               });
             } else if (oldPrice !== price) {
               const diff = price - oldPrice;
@@ -132,16 +146,16 @@ export default function GlobalMarket() {
                   id: `${key}-${Date.now()}`,
                   category: categoryLabel,
                   name: cleanName,
-                  type: 'up',
-                  time: currentTime
+                  type: "up",
+                  time: freezeTime,
                 });
               } else if (diff < 0) {
                 newItemsDetected.push({
                   id: `${key}-${Date.now()}`,
                   category: categoryLabel,
                   name: cleanName,
-                  type: 'down',
-                  time: currentTime
+                  type: "down",
+                  time: freezeTime,
                 });
               }
             }
@@ -149,8 +163,10 @@ export default function GlobalMarket() {
 
           if (newItemsDetected.length > 0 && newItemsDetected.length <= 10) {
             playDing();
-            setNotifications(prev => {
-              const filtered = prev.filter(p => !newItemsDetected.some(n => n.name === p.name));
+            setNotifications((prev) => {
+              const filtered = prev.filter(
+                (p) => !newItemsDetected.some((n) => n.name === p.name)
+              );
               return [...newItemsDetected, ...filtered].slice(0, 15);
             });
           }
@@ -160,13 +176,11 @@ export default function GlobalMarket() {
         if (currentMap.size > 0) {
           isFirstLoad.current = false;
         }
-
       } catch (error) {}
     };
 
-    fetchMarketData(); 
-    const interval = setInterval(fetchMarketData, 30000); 
-
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -176,7 +190,7 @@ export default function GlobalMarket() {
     setIsOpen(false);
   };
 
-  // Görseldeki yuvarlak köşeli kurumsal SVG logoları
+  // Görseldeki şık logolu, kare, koyu ikon kutuları (Birebir Tasarım)
   const renderCategoryIcon = (category: string) => {
     const iconStyle = "w-[18px] h-[18px] text-white/90";
     if (category === "Apple") {
@@ -194,7 +208,7 @@ export default function GlobalMarket() {
       );
     }
     if (category === "2.El") {
-      return <span className="text-[9px] font-black tracking-tighter text-amber-500">2.EL</span>;
+      return <span className="text-[9px] font-black tracking-tighter text-[#f59e0b]">2.EL</span>;
     }
     if (category === "Aksesuar") {
       return (
@@ -203,6 +217,7 @@ export default function GlobalMarket() {
         </svg>
       );
     }
+    // Kampanya Ürünü
     return (
       <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
         <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
@@ -215,7 +230,6 @@ export default function GlobalMarket() {
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .writing-mode-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
-        
         @keyframes dynamic-pulse {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.03); opacity: 0.95; }
@@ -223,18 +237,17 @@ export default function GlobalMarket() {
         .animate-handle-pulse { animation: dynamic-pulse 2s infinite ease-in-out; }
       `}</style>
 
-      {/* 🚀 GÖRSELDEKİ BİREBİR SAĞ PANEL MİMARİSİ */}
       {notifications.length > 0 && (
         <div className="fixed right-0 top-1/4 z-[9999] print:hidden flex items-center select-none font-sans">
           
-          {/* A. TAM İSTEDİĞİNİZ KOYU GECE LACİVERTI PANEL (bg-[#0b1224]) */}
-          <div className={`bg-[#0b1224] border border-[#16223f] w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.65)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
+          {/* A. GÖRSELDEKİ BİREBİR KOYU DASHBOARD PANELİ (bg-[#0b1224]) */}
+          <div className={`bg-[#0b1224] border border-[#16223f] w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
             isOpen 
               ? 'opacity-100 translate-x-0 pointer-events-auto' 
               : 'opacity-0 translate-x-full pointer-events-none'
           }`}>
             
-            {/* Üst Kısım: Başlık, Mavi Zil ve Bildirim Sayacı */}
+            {/* Üst Kısım: Başlık, Mavi Bildirim Simgesi ve Kapatma Çarpısı */}
             <div className="p-5 flex justify-between items-center border-b border-[#16223f] bg-[#0b1224]">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-400">
@@ -263,14 +276,13 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* Orta Kısım: Fiyat Rakamları Olmayan, Sadece İsim ve Gerçek Zaman Damgalı Satırlar */}
+            {/* Orta Kısım: Sadece Model ve Durum Bildiren Kusursuz Satırlar (Fiyat Rakamları Yok) */}
             <div className="p-4 max-h-[380px] overflow-y-auto no-scrollbar flex flex-col gap-2.5 bg-[#070c1a]">
               {notifications.map((item) => (
                 <div 
                   key={item.id} 
                   className="flex items-center justify-between p-3.5 bg-[#0f1932]/90 border border-[#1d2d54]/60 rounded-xl hover:border-blue-500/30 transition-all duration-200 shadow-sm"
                 >
-                  {/* Sol Taraf: İkon Yuvası ve Durum Başlığı */}
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 bg-[#172445] rounded-xl flex items-center justify-center border border-[#253766] shrink-0">
                       {renderCategoryIcon(item.category)}
@@ -293,17 +305,21 @@ export default function GlobalMarket() {
                             YENİ
                           </span>
                         )}
-                        <span className="text-[12px] font-bold text-white/90 truncate">{item.category}</span>
+                        <span className="text-[12px] font-bold text-white/90 truncate">
+                          <strong className="font-extrabold">{item.category}</strong>
+                        </span>
                       </div>
                       
-                      {/* Gerçek Model İsim Mesajları */}
+                      {/* Tam Görseldeki Gibi Temiz Metin Şablonu */}
                       <p className="text-[11px] text-slate-400 font-semibold truncate max-w-[240px]">
-                        {item.type === 'new' ? `Yeni Ürün Eklendi: ${item.name}` : `${item.category} Fiyatı ${item.type === 'up' ? 'Yükseldi' : 'Düştü'}: ${item.name}`}
+                        {item.type === 'new' 
+                          ? `Yeni Ürün Eklendi: ${item.name}` 
+                          : `${item.category} Fiyatı ${item.type === 'up' ? 'Yükseldi' : 'Düştü'}: ${item.name}`}
                       </p>
                     </div>
                   </div>
 
-                  {/* Sağ Taraf: Kilitli Zaman Damgası ve Durum Sinyal Küresi */}
+                  {/* Sağ Taraf: Mühürlü Zaman Damgası ve Durum Noktası */}
                   <div className="flex flex-col items-end gap-2 shrink-0 pl-1">
                     <span className="text-[10px] text-slate-500 font-black tracking-tight">{item.time}</span>
                     <span className={`w-2 h-2 rounded-full shadow-sm ${
@@ -315,7 +331,7 @@ export default function GlobalMarket() {
               ))}
             </div>
             
-            {/* Alt Kısım: Dalga Efektli Canlı İndikatörü ve Çöp Kutulu Temizle Butonu */}
+            {/* Alt Kısım: Dalga Sinyalli Canlılık Modu ve Çöp Kutulu Temizle Butonu */}
             <div className="p-4 px-5 flex justify-between items-center border-t border-[#16223f] bg-[#0b1224]">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
@@ -337,7 +353,7 @@ export default function GlobalMarket() {
             </div>
           </div>
 
-          {/* B. GÖRSELDEKİ JELATİN GİBİ GEÇİŞLİ LÜKS MAVİ DİKEY BAR BUTTON */}
+          {/* B. GÖRSELDEKİ O GRADIENTLİ MAVİ DİKEY SEKME BUTONU (Birebir Klon) */}
           <div 
             onClick={() => setIsOpen(true)} 
             className={`fixed right-0 top-1/4 bg-gradient-to-b from-[#1e62d0] to-[#0a3a9c] hover:from-[#256ee6] hover:to-[#0c44b5] text-white px-3.5 py-7 rounded-l-2xl shadow-[0_15px_40px_rgba(10,58,156,0.45)] flex flex-col items-center gap-4.5 cursor-pointer select-none border border-blue-500/30 border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
