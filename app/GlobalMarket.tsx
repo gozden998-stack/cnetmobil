@@ -1,13 +1,22 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function GlobalMarket() {
+  const pathname = usePathname();
+  const pathLower = pathname?.toLowerCase() || "";
+
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); // Panel açıklık kontrolü
+  const [isOpen, setIsOpen] = useState<boolean>(false); // Panel açılış-kapanış kontrolü
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
+
+  // URL Bazlı İlk Hızlı Zumay Koruması
+  if (pathLower.includes('zumay')) {
+    return null;
+  }
 
   const playDing = () => {
     try {
@@ -28,7 +37,7 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // MENÜ TUZAĞINI AYIRT EDEN AKILLI ŞUBE TESPİT MOTORU
+        // 🚀 MENÜ TUZAĞINI AYIRT EDEN AKILLI ŞUBE TESPİT MOTORU
         let detectedChannel = "cmr_merkez";
         
         if (typeof document !== 'undefined') {
@@ -57,7 +66,7 @@ export default function GlobalMarket() {
           else if (vodafoneConfirmed) detectedChannel = "vodafone";
         }
 
-        // ZUMAY KORUMASI
+        // 🛑 ZUMAY KANALI KİLİTLEME KURALI
         if (detectedChannel === "zumay") {
           setTickerItems([]);
           setToasts([]);
@@ -83,7 +92,7 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number, categoryLabel: string }[] = []; 
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 1. CEP TABLET VERİLERİNİ TOPLA (ÇİFT SÜTUN MOTORU)
+        // 1. CEP TABLET VERİLERİNİ TOPLA (Tıkır Tıkır Çalışan Çift Sütun Motoru)
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -108,7 +117,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // 2. İKİNCİ EL VERİLERİNİ TOPLA (VODAFONE DEĞİLSE)
+        // 2. İKİNCİ EL VERİLERİNİ TOPLA (Vodafone kanalında DEĞİLSE yükler)
         if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && detectedChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
@@ -130,7 +139,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // VERİ KARŞILAŞTIRMA MOTORU
+        // --- GÜVENLİ VE HATASIZ KARŞILAŞTIRMA MOTORU ---
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
@@ -140,6 +149,7 @@ export default function GlobalMarket() {
               .replace(/_v[12]$/, '');
 
             if (oldPrice === undefined) {
+              // Yeni Ürün Girişi
               if (!newlyAdded.includes(cleanName)) {
                 newlyAdded.push(cleanName);
                 newTickers.push({
@@ -149,10 +159,12 @@ export default function GlobalMarket() {
                 });
               }
             } else if (oldPrice !== price) {
+              // Fiyat Değişimi Algılandı
               const diff = price - oldPrice;
               if (diff !== 0 && !priceChanged.some(p => p.name === cleanName)) {
                 
-                let categoryLabel = "Cihaz Tablosunda";
+                // Tam istediğiniz gibi: Tablo ismini cümlenin en başına ekleyen dinamik etiketleyici
+                let categoryLabel = "Cihaz";
                 if (key.startsWith("APPLE_")) categoryLabel = "Apple";
                 else if (key.startsWith("ANDROID_")) categoryLabel = "Android";
                 else if (key.startsWith("KAMPANYA_")) categoryLabel = "Kampanya";
@@ -169,6 +181,7 @@ export default function GlobalMarket() {
             }
           });
 
+          // Maksimum 10 ürün güvenlik barajı
           if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
@@ -177,7 +190,8 @@ export default function GlobalMarket() {
               generatedToasts.push({
                 id: Date.now(),
                 title: `🔥 ${priceChanged.length} Üründe Fiyat Değişti`,
-                items: priceChanged.map(p => `${p.categoryLabel} Fiyat Tablosunda Fiyat Değişti: ${p.name} -> ${p.price.toLocaleString('tr-TR')} TL`),
+                // Tam istediğiniz çıktı formatı ayarlandı
+                items: priceChanged.map(p => `• ${p.categoryLabel} Fiyat Tablosunda Fiyat Değişti: ${p.name} -> ${p.price.toLocaleString('tr-TR')} TL`),
                 type: 'price' as const
               });
             }
@@ -185,7 +199,7 @@ export default function GlobalMarket() {
               generatedToasts.push({
                 id: Date.now() + 1,
                 title: `🆕 ${newlyAdded.length} Yeni Cihaz Eklendi`,
-                items: newlyAdded.map(n => `Yeni Ürün Eklendi: ${n}`),
+                items: newlyAdded.map(n => `• Yeni Ürün Eklendi: ${n}`),
                 type: 'new' as const
               });
             }
@@ -207,7 +221,7 @@ export default function GlobalMarket() {
     const interval = setInterval(fetchMarketData, 30000); 
 
     return () => clearInterval(interval);
-  }, []);
+  }, [pathname]);
 
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -257,54 +271,57 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* 🚀 VIDEODAKI GİBİ: SAĞ KENAR KART POPUP ALANI */}
+      {/* 🚀 SAĞ KENAR: YAĞ GİBİ SÜZÜLEREK GİRİP ÇIKAN PREMIUM PANEL ALANI */}
       {toasts.length > 0 && (
         <div className="fixed right-0 top-1/3 z-[9999] flex items-center select-none print:hidden pointer-events-auto">
           
-          {/* VİDEODAKİ MİNİMAL BEYAZ KART PANELİ */}
-          {isOpen && (
-            <div className="bg-white border border-slate-100 w-96 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.15)] overflow-hidden mr-3 transition-all duration-200 animate-in fade-in zoom-in-95 slide-in-from-right-4 pointer-events-auto">
-              
-              {/* Üst Kısım: Başlık ve Çarpı İşareti */}
-              <div className="p-5 flex justify-between items-center border-b border-slate-50">
-                <h3 className="text-slate-900 font-bold text-[15px] tracking-tight">Panel deneyimin nasıldı?</h3>
-                <button 
-                  onClick={() => setIsOpen(false)} // Sadece paneli kapatır, veriyi silmez
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Orta Kısım: Değişen Tablo İçerikleri */}
-              <div className="p-5 max-h-72 overflow-y-auto no-scrollbar flex flex-col gap-3 bg-white">
-                {toasts.map((toast) => (
-                  <div key={toast.id} className="flex flex-col gap-2">
-                    {toast.items.map((item, i) => (
-                      <p key={i} className="text-slate-700 text-xs font-semibold bg-slate-50 border border-slate-100 rounded-xl p-3.5 leading-relaxed shadow-sm">
-                        {item}
-                      </p>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Alt Kısım: Videodaki Gri "Sonraki" Butonu Stilinde TEMİZLE Butonu */}
-              <div className="p-4 px-5 border-t border-slate-50 flex justify-end bg-white">
-                <button 
-                  onClick={clearNotifications} // Tümünü temizler ve kapatır
-                  className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm border border-slate-100/50"
-                >
-                  Temizle
-                </button>
-              </div>
-              
+          {/* ÇİFT YÖNLÜ SÜZÜLEN - PREMIUM BEYAZ KART PANELİ */}
+          <div className={`bg-white border border-slate-100 w-96 rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.15)] overflow-hidden mr-3 transition-all duration-300 transform ${
+            isOpen 
+              ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto' 
+              : 'opacity-0 translate-x-12 scale-95 pointer-events-none absolute right-12'
+          }`}>
+            
+            {/* Üst Kısım: Başlık ve Çarpı İşareti */}
+            <div className="p-5 flex justify-between items-center border-b border-slate-50">
+              <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                title="Paneli Gizle"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-          )}
+            
+            {/* Orta Kısım: Değişen Tablo İçerikleri */}
+            <div className="p-5 max-h-72 overflow-y-auto no-scrollbar flex flex-col gap-3 bg-white">
+              {toasts.map((toast) => (
+                <div key={toast.id} className="flex flex-col gap-2">
+                  {toast.items.map((item, i) => (
+                    <p key={i} className="text-slate-700 text-xs font-semibold bg-slate-50 border border-slate-100 rounded-xl p-3.5 leading-relaxed shadow-sm">
+                      {item}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+            
+            {/* Alt Kısım: Videodaki Soft Gri Buton Stilinde "Temizle" Tuşu */}
+            <div className="p-4 px-5 border-t border-slate-50 flex justify-end bg-white">
+              <button 
+                onClick={clearNotifications} 
+                className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm border border-slate-100/50"
+              >
+                Temizle
+              </button>
+            </div>
+            
+          </div>
 
-          {/* DİKEY BİLDİRİM ÇUBUĞU (VİDEODAKİ MAVİ GERİBİLDİRİM BUTONUNA BENZER) */}
+          {/* DİKEY BİLDİRİM FLAŞÖR ÇUBUĞU */}
           <div 
             onClick={() => setIsOpen(!isOpen)}
             className={`writing-mode-vertical px-3.5 py-7 rounded-l-2xl text-white font-black tracking-widest text-[10px] uppercase cursor-pointer transition-all border-l border-t border-b flex items-center gap-2.5 shadow-xl ${isOpen ? 'bg-blue-600 border-blue-500' : 'animate-borsa-flash border-orange-400/20'}`}
