@@ -16,9 +16,12 @@ export default function GlobalMarket() {
   };
 
   const parsePrice = (val: any) => {
-    if (!val) return 0;
-    const match = String(val).replace(/\D/g, '');
-    return match ? parseInt(match) : 0;
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return Math.floor(val);
+    let strVal = String(val).trim();
+    if (strVal.includes(',')) strVal = strVal.split(',')[0];
+    const match = strVal.replace(/\D/g, '');
+    return match ? parseInt(match, 10) : 0;
   };
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function GlobalMarket() {
           data.forEach(row => {
             const name = row[nameIdx]?.toString().trim();
             const price = parsePrice(row[priceIdx]);
+            
             if (!name || price === 0) return;
 
             const key = `${prefix}_${name}`;
@@ -57,7 +61,6 @@ export default function GlobalMarket() {
               
               if (oldPrice === undefined) {
                 newlyAdded.push(name);
-                // YENİ: Artık sadece Eklendi yazmıyor, doğrudan güncel fiyatını yazıyor
                 newTickers.push({ 
                   id: Date.now() + Math.random(), 
                   text: `🆕 ${name} ${price.toLocaleString('tr-TR')} TL`, 
@@ -67,7 +70,6 @@ export default function GlobalMarket() {
                 const diff = price - oldPrice;
                 if (diff !== 0) {
                   priceChanged.push({ name, diff });
-                  // YENİ: Artık farkı değil, doğrudan yeni güncel fiyatı yazıyor
                   newTickers.push({ 
                     id: Date.now() + Math.random(), 
                     text: `${diff > 0 ? '↑' : '↓'} ${name} ${price.toLocaleString('tr-TR')} TL`, 
@@ -93,37 +95,42 @@ export default function GlobalMarket() {
         if (currentMap.size < 10) return; 
 
         if (!isFirstLoad.current && (newlyAdded.length > 0 || priceChanged.length > 0)) {
-          playDing();
-          
-          let generatedToasts = [];
-          if (priceChanged.length > 0) {
-            generatedToasts.push({
-              id: Date.now(),
-              title: `🔥 ${priceChanged.length} Üründe Fiyat Değişti`,
-              items: priceChanged.map(p => `• ${p.name}`),
-              type: 'price' as const
-            });
-          }
-          if (newlyAdded.length > 0) {
-            generatedToasts.push({
-              id: Date.now() + 1,
-              title: `🆕 ${newlyAdded.length} Yeni Cihaz Eklendi`,
-              items: newlyAdded.map(n => `• ${n}`),
-              type: 'new' as const
-            });
-          }
+          if (priceChanged.length > 10) {
+            console.warn("Toplu Excel formül güncellemesi engellendi.");
+          } else {
+            playDing();
+            
+            let generatedToasts = [];
+            if (priceChanged.length > 0) {
+              generatedToasts.push({
+                id: Date.now(),
+                title: `🔥 ${priceChanged.length} Üründe Fiyat Değişti`,
+                items: priceChanged.map(p => `• ${p.name}`),
+                type: 'price' as const
+              });
+            }
+            if (newlyAdded.length > 0) {
+              generatedToasts.push({
+                id: Date.now() + 1,
+                title: `🆕 ${newlyAdded.length} Yeni Cihaz Eklendi`,
+                items: newlyAdded.map(n => `• ${n}`),
+                type: 'new' as const
+              });
+            }
 
-          setToasts(prev => {
-            const updatedToasts = [...generatedToasts, ...prev].slice(0, 3);
-            updatedToasts.forEach(toast => {
-              setTimeout(() => {
-                setToasts(current => current.filter(t => t.id !== toast.id));
-              }, 12000);
+            setToasts(prev => {
+              const updatedToasts = [...generatedToasts, ...prev].slice(0, 3);
+              updatedToasts.forEach(toast => {
+                setTimeout(() => {
+                  setToasts(current => current.filter(t => t.id !== toast.id));
+                }, 12000);
+              });
+              return updatedToasts;
             });
-            return updatedToasts;
-          });
-          
-          setTickerItems(prev => [...newTickers, ...prev].slice(0, 20));
+            
+            // Yeni gelenleri her zaman en başa ekle (Sonsuz döngüyü tazele)
+            setTickerItems(prev => [...newTickers, ...prev].slice(0, 20));
+          }
         }
 
         prevPricesMap.current = currentMap;
@@ -142,6 +149,11 @@ export default function GlobalMarket() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
+  // Kayan yazıyı manuel temizleme fonksiyonu
+  const clearTicker = () => {
+    setTickerItems([]);
+  };
+
   return (
     <>
       <style>{`
@@ -158,24 +170,40 @@ export default function GlobalMarket() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
+      {/* TİCKER ALANI */}
       {tickerItems.length > 0 && (
-        <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] overflow-hidden flex items-center border-b border-slate-800 shadow-lg print:hidden">
+        <div className="fixed top-0 left-0 w-full h-8 bg-slate-950 text-white z-[9999] flex items-center border-b border-slate-800 shadow-lg print:hidden">
+          {/* Sol Başlık */}
           <div className="bg-blue-600 h-full px-4 flex items-center font-black text-[10px] tracking-widest uppercase z-10 shadow-xl shrink-0">
             CANLI PİYASA
           </div>
-          <div className="animate-ticker flex-1 cursor-default">
-            {tickerItems.map((item, idx) => (
-              <span key={item.id} className="mx-6 font-bold text-xs tracking-wide">
-                <span className={item.type === 'up' ? 'text-emerald-400' : item.type === 'down' ? 'text-rose-400' : 'text-amber-400'}>
-                  {item.text}
+          
+          {/* Kayan Yazı */}
+          <div className="overflow-hidden flex-1 flex items-center h-full">
+            <div className="animate-ticker cursor-default">
+              {tickerItems.map((item, idx) => (
+                <span key={item.id} className="mx-6 font-bold text-xs tracking-wide">
+                  <span className={item.type === 'up' ? 'text-emerald-400' : item.type === 'down' ? 'text-rose-400' : 'text-amber-400'}>
+                    {item.text}
+                  </span>
+                  {idx !== tickerItems.length - 1 && <span className="mx-6 text-slate-600">|</span>}
                 </span>
-                {idx !== tickerItems.length - 1 && <span className="mx-6 text-slate-600">|</span>}
-              </span>
-            ))}
+              ))}
+            </div>
           </div>
+
+          {/* 🚀 YENİ: TEMİZLE BUTONU */}
+          <button 
+            onClick={clearTicker} 
+            className="bg-slate-800 hover:bg-rose-600 transition-colors h-full px-4 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer"
+            title="Geçmiş bildirimleri temizle"
+          >
+            TEMİZLE ✖
+          </button>
         </div>
       )}
 
+      {/* TOAST (BİLDİRİM KUTULARI) */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col-reverse gap-4 pointer-events-none print:hidden">
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-right-8 fade-in duration-500 bg-slate-900/95 backdrop-blur-md border border-slate-700 w-80 rounded-2xl shadow-2xl overflow-hidden group">
@@ -192,9 +220,6 @@ export default function GlobalMarket() {
                   <p key={i} className="text-slate-300 text-xs font-bold mb-1 last:mb-0 truncate">{item}</p>
                 ))}
               </div>
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-3 text-right">
-                Piyasa güncellendi
-              </p>
             </div>
           </div>
         ))}
