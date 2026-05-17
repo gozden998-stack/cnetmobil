@@ -1,24 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 
-interface PriceItem {
-  category: string;
-  name: string;
-  price: number;
-  diff: number;
-}
-
 interface ToastGroup {
   id: number;
   title: string;
-  items: PriceItem[];
-  type: 'price' | 'new';
+  items: string[]; // Sadece kurumsal ve net metinleri barındırır
 }
 
 export default function GlobalMarket() {
-  const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<ToastGroup[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); // 🚀 Tıklama tabanlı açılış kontrolü
+  const [isOpen, setIsOpen] = useState<boolean>(false); // Açık/Kapalı Kontrolü
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
@@ -56,9 +47,6 @@ export default function GlobalMarket() {
         const allData = JSON.parse(decodedString);
 
         const currentMap = new Map<string, number>();
-        let newlyAdded: string[] = [];
-        let priceChanged: { name: string, diff: number, price: number, categoryLabel: string }[] = []; 
-        let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
         // 1. CEP TABLET VERİLERİNİ TOPLA
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
@@ -107,8 +95,10 @@ export default function GlobalMarket() {
           });
         }
 
-        // VERİ KARŞILAŞTIRMA MOTORU
+        // 🚀 MODEL BAZLI ÖZEL ANALİZ MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
+          let notificationItems: string[] = [];
+
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
             
@@ -116,70 +106,40 @@ export default function GlobalMarket() {
               .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, '')
               .replace(/_v[12]$/, '');
 
+            let categoryLabel = "Cihaz";
+            if (key.startsWith("APPLE_")) categoryLabel = "Apple";
+            else if (key.startsWith("ANDROID_")) categoryLabel = "Android";
+            else if (key.startsWith("KAMPANYA_")) categoryLabel = "Kampanya";
+            else if (key.startsWith("IKINCI_")) categoryLabel = "2.El";
+            else if (key.startsWith("YNA")) categoryLabel = "Aksesuar";
+
             if (oldPrice === undefined) {
-              if (!newlyAdded.includes(cleanName)) {
-                newlyAdded.push(cleanName);
-                newTickers.push({
-                  id: Date.now() + Math.random(),
-                  text: `🆕 ${cleanName} ${price.toLocaleString('tr-TR')} TL`,
-                  type: 'new'
-                });
+              // YENİ MODEL EKLENDİ KONTROLÜ
+              const msg = `Yeni Ürün Eklendi: ${cleanName}`;
+              if (!notificationItems.includes(msg)) {
+                notificationItems.push(msg);
               }
             } else if (oldPrice !== price) {
+              // YÜKSELDİ VEYA DÜŞTÜ KONTROLÜ (FİYAT RAKAMLARI GİZLENDİ)
               const diff = price - oldPrice;
-              if (diff !== 0 && !priceChanged.some(p => p.name === cleanName)) {
-                
-                let categoryLabel = "Cihaz";
-                if (key.startsWith("APPLE_")) categoryLabel = "Apple";
-                else if (key.startsWith("ANDROID_")) categoryLabel = "Android";
-                else if (key.startsWith("KAMPANYA_")) categoryLabel = "Kampanya";
-                else if (key.startsWith("IKINCI_")) categoryLabel = "2.El";
-                else if (key.startsWith("YNA")) categoryLabel = "Aksesuar";
-
-                priceChanged.push({ name: cleanName, diff, price, categoryLabel });
-                newTickers.push({
-                  id: Date.now() + Math.random(),
-                  text: `${diff > 0 ? '↑' : '↓'} ${cleanName} ${price.toLocaleString('tr-TR')} TL`,
-                  type: diff > 0 ? 'up' : 'down'
-                });
+              if (diff > 0) {
+                const msg = `${categoryLabel} Fiyatı Yükseldi: ${cleanName}`;
+                if (!notificationItems.includes(msg)) notificationItems.push(msg);
+              } else if (diff < 0) {
+                const msg = `${categoryLabel} Fiyatı Düştü: ${cleanName}`;
+                if (!notificationItems.includes(msg)) notificationItems.push(msg);
               }
             }
           });
 
-          if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
+          if (notificationItems.length > 0 && notificationItems.length <= 10) {
             playDing();
             
-            let generatedToasts: ToastGroup[] = [];
-            if (priceChanged.length > 0) {
-              generatedToasts.push({
-                id: Date.now(),
-                title: `Fiyatı Değişen Ürünler`,
-                type: 'price',
-                items: priceChanged.map(p => ({
-                  category: p.categoryLabel,
-                  name: p.name,
-                  price: p.price,
-                  diff: p.diff
-                }))
-              });
-            }
-            
-            if (newlyAdded.length > 0) {
-              generatedToasts.push({
-                id: Date.now() + 1,
-                title: `Yeni Eklenen Ürünler`,
-                type: 'new',
-                items: newlyAdded.map(n => ({
-                  category: "Yeni",
-                  name: n,
-                  price: 0,
-                  diff: 0
-                }))
-              });
-            }
-
-            setToasts(prev => [...generatedToasts, ...prev].slice(0, 5));
-            setTickerItems(prev => [...newTickers, ...prev].slice(0, 20));
+            setToasts(prev => [{
+              id: Date.now(),
+              title: `Fiyat & Ürün Güncellemesi`,
+              items: notificationItems
+            }, ...prev].slice(0, 5));
           }
         }
 
@@ -208,59 +168,32 @@ export default function GlobalMarket() {
   return (
     <>
       <style>{`
-        @keyframes ticker { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
-        .animate-ticker { display: inline-block; white-space: nowrap; animation: ticker 30s linear infinite; }
-        .animate-ticker:hover { animation-play-state: paused; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .writing-mode-vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
       `}</style>
 
-      {/* ÜST BORSA ŞERİDİ */}
-      {tickerItems.length > 0 && (
-        <div className="fixed top-0 left-0 w-full h-8 bg-slate-900 text-white z-[9999] flex items-center border-b border-slate-800 shadow-md print:hidden">
-          <div className="bg-blue-600 h-full px-4 flex items-center font-bold text-[10px] tracking-wider uppercase z-10 shrink-0">
-            CANLI AKIŞ
-          </div>
-          <div className="overflow-hidden flex-1 flex items-center h-full">
-            <div className="animate-ticker cursor-default">
-              {tickerItems.map((item, idx) => (
-                <span key={item.id} className="mx-6 font-semibold text-xs tracking-wide">
-                  <span className={item.type === 'up' ? 'text-emerald-400' : item.type === 'down' ? 'text-rose-400' : 'text-amber-400'}>
-                    {item.text}
-                  </span>
-                  {idx !== tickerItems.length - 1 && <span className="mx-6 text-slate-700">|</span>}
-                </span>
-              ))}
-            </div>
-          </div>
-          <button onClick={() => setTickerItems([])} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors h-full px-3.5 flex items-center font-bold text-[10px] z-10 shrink-0 border-l border-slate-700 cursor-pointer">
-            ✖
-          </button>
-        </div>
-      )}
-
-      {/* TIKLAMA TABANLI PANEL ALANI */}
+      {/* SIRALI VE AKICI ANİMASYON ALANI */}
       {toasts.length > 0 && (
-        <div className="fixed right-0 top-1/4 z-[9999] flex items-center print:hidden pointer-events-auto">
+        <div className="fixed right-0 top-1/4 z-[9999] print:hidden">
           
-          {/* 🚀 VİDEODAKİ GİBİ SÜZÜLEN BLUR GLASS PANEL KARTI (SABİT KONUMLANDIRILDI) */}
-          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] overflow-hidden transition-all duration-500 transform ease-[cubic-bezier(0.16,1,0.3,1)] absolute right-14 ${
+          {/* A. VİDEODAKİ GİBİ SÜZÜLEN PREMIUM POPUP PANEL KARTI */}
+          <div className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 w-[420px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.15)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
             isOpen 
-              ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto' 
-              : 'opacity-0 translate-x-6 scale-95 pointer-events-none'
+              ? 'opacity-100 translate-x-0 pointer-events-auto' 
+              : 'opacity-0 translate-x-full pointer-events-none'
           }`}>
             
-            {/* ✖ ÜST KISIM: BAŞLIK VE KAPATMA ÇARPI İŞARETİ */}
-            <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100 bg-white/40">
+            {/* Üst Kısım: Başlık ve Kapatma Çarpısı */}
+            <div className="p-4.5 px-5 flex justify-between items-center border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Son Fiyat Değişiklikleri</h3>
+                <h3 className="text-slate-900 font-bold text-[14px] tracking-tight">Bildirimler</h3>
                 <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {totalChangesCount} Ürün
+                  {totalChangesCount} Bildirim
                 </span>
               </div>
               <button 
-                onClick={() => setIsOpen(false)} // Çarpıya basınca sadece paneli yumuşakça kapatır
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100/80 p-1.5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200"
+                onClick={() => setIsOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-xl transition-all cursor-pointer"
                 title="Kapat"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,71 +202,57 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* ORTA KISIM: LİSTELEME SATIRLARI */}
-            <div className="p-4 px-5 max-h-[340px] overflow-y-auto no-scrollbar flex flex-col gap-4 bg-slate-50/30 border-b border-slate-100">
+            {/* Orta Kısım: Sadece Model İsmi ve Yön Belirten Zarif Satırlar */}
+            <div className="p-4 px-5 max-h-[320px] overflow-y-auto no-scrollbar flex flex-col gap-2.5 bg-slate-50/40">
               {toasts.map((toast) => (
                 <div key={toast.id} className="flex flex-col gap-2">
-                  {toast.items.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3.5 bg-white/90 backdrop-blur-md border border-slate-100 rounded-xl shadow-sm hover:border-slate-300/80 hover:shadow-md transition-all duration-200">
-                      
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
-                          item.category === 'Apple' ? 'bg-slate-900 text-white' :
-                          item.category === 'Android' ? 'bg-emerald-600 text-white' :
-                          item.category === '2.El' ? 'bg-amber-500 text-white' :
-                          item.category === 'Aksesuar' ? 'bg-indigo-600 text-white' :
-                          'bg-blue-600 text-white'
-                        }`}>
-                          {item.category}
-                        </span>
-                        <p className="text-slate-700 text-xs font-bold truncate max-w-[210px]">{item.name}</p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-xs font-extrabold ${item.diff > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {item.diff > 0 ? '↑' : '↓'}
-                        </span>
-                        <span className="text-slate-900 font-black text-xs tracking-tight">
-                          {item.price > 0 ? `${item.price.toLocaleString('tr-TR')} TL` : 'Yeni Ürün'}
-                        </span>
-                      </div>
-
+                  {toast.items.map((message, i) => (
+                    <div key={i} className="p-3.5 bg-white border border-slate-100 rounded-xl shadow-sm text-slate-800 text-xs font-bold leading-relaxed flex items-center justify-between">
+                      <span>{message}</span>
+                      {/* Mikro Tasarım Detayı: Yönü gösteren minik simgeler */}
+                      {message.includes("Yükseldi") && <span className="text-emerald-500 font-black text-sm shrink-0 ml-2">↑</span>}
+                      {message.includes("Düştü") && <span className="text-rose-500 font-black text-sm shrink-0 ml-2">↓</span>}
+                      {message.includes("Eklendi") && <span className="text-blue-500 font-black text-xs shrink-0 ml-2">🆕</span>}
                     </div>
                   ))}
                 </div>
               ))}
             </div>
             
-            {/* 🔘 ALT KISIM: VİDEODAKİ GİBİ GRİ "TEMİZLE" BUTONU */}
-            <div className="p-3.5 px-5 flex justify-end bg-white/40">
+            {/* Alt Kısım: Soft Gri "Temizle" Tuşu */}
+            <div className="p-3.5 px-5 flex justify-end border-t border-slate-100 bg-white">
               <button 
-                onClick={clearNotifications} // Hafızayı siler ve paneli kapatır
-                className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer border border-slate-200/30 active:scale-95 shadow-sm"
+                onClick={clearNotifications} 
+                className="bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer shadow-sm active:scale-95"
               >
                 Hepsini Temizle
               </button>
             </div>
-            
           </div>
 
-          {/* 🚀 SABİT DİKEY BUTON (TIKLAMA ÖZELLİKLİ & GLOW PULSE EFEKTLİ) */}
+          {/* B. MAVİ DİKEY SEKME (Panel açılınca süzülerek sağa saklanır, basınca geri gelir) */}
           <div 
-            onClick={() => setIsOpen(!isOpen)} // Tıklayınca aç kapa yapar
-            className={`writing-mode-vertical px-3.5 py-8 bg-white/95 backdrop-blur-xl text-slate-800 font-bold tracking-widest text-[10px] uppercase cursor-pointer transition-all duration-300 border-l border-t border-b border-slate-200 shadow-2xl flex items-center gap-3 rounded-l-2xl border-r-0 pointer-events-auto group animate-in fade-in slide-in-from-right-4 ${
-              !isOpen ? 'animate-[pulse_2s_infinite]' : 'bg-slate-50'
+            onClick={() => setIsOpen(true)} 
+            className={`fixed right-0 top-1/4 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-7 rounded-l-xl shadow-2xl flex items-center gap-2.5 cursor-pointer select-none border border-blue-500 border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+              isOpen 
+                ? 'translate-x-full opacity-0 pointer-events-none' 
+                : 'translate-x-0 opacity-100 pointer-events-auto'
             }`}
           >
             {/* Canlı Yayın Nabız Noktası */}
             {totalChangesCount > 0 && (
-              <div className="relative flex h-2 w-2 mb-1.5 transform rotate-90">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <div className="relative flex h-2 w-2 mb-1 transform rotate-90">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-300 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
               </div>
             )}
-            FİYAT DEĞİŞTİ
-            <span className={`text-[8px] transition-transform duration-300 text-slate-400 group-hover:text-slate-800 ${isOpen ? 'rotate-180' : ''}`}>
-              ◀
-            </span>
+            <div 
+              className="writing-mode-vertical font-black tracking-widest text-[10px]" 
+              style={{ transform: 'rotate(180deg)' }}
+            >
+              FİYAT DEĞİŞTİ
+            </div>
+            <span className="text-[8px] opacity-70">◀</span>
           </div>
 
         </div>
