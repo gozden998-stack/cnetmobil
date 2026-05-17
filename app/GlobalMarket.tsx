@@ -1,20 +1,17 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
 
 export default function GlobalMarket() {
-  const pathname = usePathname();
-  const pathLower = pathname?.toLowerCase() || "";
-
   const [tickerItems, setTickerItems] = useState<{ id: number, text: string, type: 'up' | 'down' | 'new' }[]>([]);
   const [toasts, setToasts] = useState<{ id: number, title: string, items: string[], type: 'price' | 'new' }[]>([]);
   const [isOpen, setIsOpen] = useState<boolean>(false); // Panel açılış-kapanış kontrolü
+  const [activeChannel, setActiveChannel] = useState<string>("cmr_merkez"); // Dinamik kanal durumu
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
 
-  // URL Bazlı İlk Hızlı Zumay Koruması
-  if (pathLower.includes('zumay')) {
+  // 🛑 DİNAMİK ZUMAY KORUMASI: Eğer aktif kanal Zumay ise component render olmaz, RAM yemez
+  if (activeChannel === "zumay") {
     return null;
   }
 
@@ -37,41 +34,40 @@ export default function GlobalMarket() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        // 🚀 MENÜ TUZAĞINI AYIRT EDEN AKILLI ŞUBE TESPİT MOTORU
-        let detectedChannel = "cmr_merkez";
+        // 🚀 ULTRA AKILLI GÖRÜNÜRLÜK TARAYICISI
+        let currentChannel = "cmr_merkez";
         
         if (typeof document !== 'undefined') {
           const allElements = Array.from(document.querySelectorAll('*'));
-          let zumayConfirmed = false;
-          let vodafoneConfirmed = false;
-
+          
           for (const el of allElements) {
             const htmlEl = el as HTMLElement;
             const txt = htmlEl.textContent?.replace(/\s+/g, ' ').trim() || "";
 
-            if (txt === "ZUMAY KANALI" || txt === "VODAFONE KANALI") {
-              const parentTxt = htmlEl.parentElement?.textContent || "";
-              const grandparentTxt = htmlEl.parentElement?.parentElement?.textContent || "";
-              
-              const isInsideDropdownList = parentTxt.includes("CMR MERKEZ") || grandparentTxt.includes("CMR MERKEZ");
+            // Sadece ekranda AKTİF ve GÖRÜNÜR olan elemanları kontrol et (Menü içindeki gizlileri eler)
+            const isVisible = htmlEl.offsetWidth > 0 && htmlEl.offsetHeight > 0;
 
-              if (!isInsideDropdownList) {
-                if (txt === "ZUMAY KANALI") zumayConfirmed = true;
-                if (txt === "VODAFONE KANALI") vodafoneConfirmed = true;
+            if (isVisible) {
+              if (txt === "ZUMAY KANALI") {
+                currentChannel = "zumay";
+                break;
+              } else if (txt === "VODAFONE KANALI" || txt === "VODOFONE KANALI") {
+                currentChannel = "vodafone";
+                break;
               }
             }
           }
-
-          if (zumayConfirmed) detectedChannel = "zumay";
-          else if (vodafoneConfirmed) detectedChannel = "vodafone";
         }
 
-        // 🛑 ZUMAY KANALI KİLİTLEME KURALI
-        if (detectedChannel === "zumay") {
+        // State'i güncelle ki yukarıdaki ana kilit (return null) tetiklenebilsin
+        setActiveChannel(currentChannel);
+
+        // 🛑 ZUMAY EMİR KORUMASI: Fetch çalışmaz, motor başlamışsa durur
+        if (currentChannel === "zumay") {
           setTickerItems([]);
           setToasts([]);
           setIsOpen(false);
-          return; 
+          return;
         }
 
         const timestamp = Date.now();
@@ -92,7 +88,7 @@ export default function GlobalMarket() {
         let priceChanged: { name: string, diff: number, price: number, categoryLabel: string }[] = []; 
         let newTickers: { id: number, text: string, type: 'up' | 'down' | 'new' }[] = [];
 
-        // 1. CEP TABLET VERİLERİNİ TOPLA (Tıkır Tıkır Çalışan Çift Sütun Motoru)
+        // 1. CEP TABLET VERİLERİNİ TOPLA (Çift Sütun Motoru)
         if (allData.CepTablet && Array.isArray(allData.CepTablet)) {
           allData.CepTablet.forEach((row: any) => {
             const appleName = row[0]?.toString().trim();
@@ -118,7 +114,7 @@ export default function GlobalMarket() {
         }
 
         // 2. İKİNCİ EL VERİLERİNİ TOPLA (Vodafone kanalında DEĞİLSE yükler)
-        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && detectedChannel !== "vodafone") {
+        if (allData.IkinciEl && Array.isArray(allData.IkinciEl) && currentChannel !== "vodafone") {
           allData.IkinciEl.forEach((row: any) => {
             const name = `${row[0] || ''} ${row[1] || ''}`.trim();
             const price = parsePrice(row[2]);
@@ -149,7 +145,6 @@ export default function GlobalMarket() {
               .replace(/_v[12]$/, '');
 
             if (oldPrice === undefined) {
-              // Yeni Ürün Girişi
               if (!newlyAdded.includes(cleanName)) {
                 newlyAdded.push(cleanName);
                 newTickers.push({
@@ -159,11 +154,9 @@ export default function GlobalMarket() {
                 });
               }
             } else if (oldPrice !== price) {
-              // Fiyat Değişimi Algılandı
               const diff = price - oldPrice;
               if (diff !== 0 && !priceChanged.some(p => p.name === cleanName)) {
                 
-                // Tam istediğiniz gibi: Tablo ismini cümlenin en başına ekleyen dinamik etiketleyici
                 let categoryLabel = "Cihaz";
                 if (key.startsWith("APPLE_")) categoryLabel = "Apple";
                 else if (key.startsWith("ANDROID_")) categoryLabel = "Android";
@@ -181,7 +174,6 @@ export default function GlobalMarket() {
             }
           });
 
-          // Maksimum 10 ürün güvenlik barajı
           if ((newlyAdded.length > 0 || priceChanged.length > 0) && priceChanged.length <= 10) {
             playDing();
             
@@ -190,7 +182,6 @@ export default function GlobalMarket() {
               generatedToasts.push({
                 id: Date.now(),
                 title: `🔥 ${priceChanged.length} Üründe Fiyat Değişti`,
-                // Tam istediğiniz çıktı formatı ayarlandı
                 items: priceChanged.map(p => `• ${p.categoryLabel} Fiyat Tablosunda Fiyat Değişti: ${p.name} -> ${p.price.toLocaleString('tr-TR')} TL`),
                 type: 'price' as const
               });
@@ -221,7 +212,7 @@ export default function GlobalMarket() {
     const interval = setInterval(fetchMarketData, 30000); 
 
     return () => clearInterval(interval);
-  }, [pathname]);
+  }, []);
 
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -271,7 +262,7 @@ export default function GlobalMarket() {
         </div>
       )}
 
-      {/* 🚀 SAĞ KENAR: YAĞ GİBİ SÜZÜLEREK GİRİP ÇIKAN PREMIUM PANEL ALANI */}
+      {/* SAĞ KENAR: YAĞ GİBİ SÜZÜLEREK GİRİP ÇIKAN PREMIUM PANEL ALANI */}
       {toasts.length > 0 && (
         <div className="fixed right-0 top-1/3 z-[9999] flex items-center select-none print:hidden pointer-events-auto">
           
