@@ -28,6 +28,7 @@ export default function GlobalMarket() {
 
   const parsePrice = (val: any) => {
     if (val === null || val === undefined || val === "") return 0;
+
     if (typeof val === "number") return Math.floor(val);
 
     let strVal = String(val).trim();
@@ -145,10 +146,7 @@ export default function GlobalMarket() {
             const oldPrice = prevPricesMap.current!.get(key);
 
             let cleanName = key
-              .replace(
-                /^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/,
-                ""
-              )
+              .replace(/^(APPLE_|ANDROID_|KAMPANYA_|IKINCI_|YNA1_|YNA2_)/, "")
               .replace(/_v[12]$/, "");
 
             let categoryLabel = "Cihaz";
@@ -221,6 +219,7 @@ export default function GlobalMarket() {
 
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
+
     setNotifications([]);
     setIsOpen(false);
   };
@@ -278,14 +277,6 @@ export default function GlobalMarket() {
   return (
     <>
       <style>{`
-        * {
-          -webkit-font-smoothing: antialiased;
-        }
-
-        body {
-          background: #020817;
-        }
-
         .no-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -296,50 +287,98 @@ export default function GlobalMarket() {
         }
 
         @keyframes dynamic-pulse {
-          0%, 100% {
+          0%,100% {
             transform: scale(1);
             opacity: 1;
           }
 
           50% {
             transform: scale(1.03);
-            opacity: 0.95;
+            opacity: 0.96;
           }
         }
 
         .animate-handle-pulse {
-          animation: dynamic-pulse 2s infinite ease-in-out;
+          animation: dynamic-pulse 2.2s infinite ease-in-out;
         }
       `}</style>
 
       {notifications.length > 0 && (
-        <div className="fixed right-0 top-1/4 z-[9999] print:hidden flex items-center select-none font-sans">
-          
+        <div className="fixed right-0 top-0 z-[9999] print:hidden select-none font-sans">
           {/* PANEL */}
           <div
-            className={`fixed right-4 top-1/4 w-[430px] rounded-2xl overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
-            bg-[linear-gradient(180deg,#081223_0%,#060d1c_100%)]
-            border border-[#1a2d4d]
-            shadow-[0_0_0_1px_rgba(59,130,246,0.05),0_25px_80px_rgba(0,0,0,0.65)]
-            relative
-            before:absolute before:inset-0 before:rounded-2xl before:border before:border-blue-400/[0.04] before:pointer-events-none
-            ${
-              isOpen
-                ? "opacity-100 translate-x-0 pointer-events-auto"
-                : "opacity-0 translate-x-full pointer-events-none"
-            }`}
-          >
-            {/* MAVİ GLOW */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute -top-20 right-0 w-[320px] h-[320px] bg-blue-500/10 blur-3xl rounded-full" />
-            </div>
+            className={`
+              fixed
+              right-4
+              top-1/2
+              -translate-y-1/2
 
+              bg-[#071120]/95
+              backdrop-blur-2xl
+
+              border
+              border-[#16345c]
+
+              w-[540px]
+              rounded-[30px]
+
+              shadow-[0_0_70px_rgba(0,119,255,0.18)]
+
+              overflow-hidden
+
+              transition-all
+              duration-500
+
+              ${
+                isOpen
+                  ? "opacity-100 translate-x-0 pointer-events-auto"
+                  : "opacity-0 translate-x-full pointer-events-none"
+              }
+            `}
+          >
             {/* HEADER */}
-            <div className="relative z-10 p-5 flex justify-between items-center border-b border-white/[0.04] bg-transparent">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-400">
+            <div className="relative px-6 py-5 border-b border-[#132848] bg-[#07162b]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-[52px] h-[52px] rounded-full bg-[#091d3a] border border-[#174b8a] flex items-center justify-center shadow-[0_0_25px_rgba(0,119,255,0.18)]">
+                    <svg
+                      className="w-6 h-6 text-[#4da3ff]"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.3"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 17h5l-1.405-1.405C18.214 15.214 18 14.702 18 14.172V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.172c0 .53-.214 1.042-.595 1.423L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                      />
+                    </svg>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-white text-[31px] font-black tracking-tight">
+                        Bildirimler
+                      </h3>
+
+                      <div className="bg-[#0c2f63] text-[#58a6ff] border border-[#1e4f93] text-[13px] font-black px-4 py-1 rounded-full">
+                        {notifications.length} Bildirim
+                      </div>
+                    </div>
+
+                    <p className="text-[#8ea9cf] text-[14px] mt-1">
+                      Son fiyat ve ürün güncellemeleri
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="text-[#7ca7dd] hover:text-white transition-all p-2"
+                >
                   <svg
-                    className="w-5 h-5"
+                    className="w-7 h-7"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2.5"
@@ -348,135 +387,101 @@ export default function GlobalMarket() {
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a3 3 0 11-5.714 0"
+                      d="M6 18L18 6M6 6l12 12"
                     />
                   </svg>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-white font-bold text-[15px] tracking-tight">
-                      Bildirimler
-                    </h3>
-
-                    <span className="bg-[#13284f] text-[#3b82f6] text-[11px] font-black px-2.5 py-0.5 rounded-full border border-blue-500/10">
-                      {notifications.length} Bildirim
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400/80 font-medium mt-0.5">
-                    Son fiyat ve ürün güncellemeleri
-                  </p>
-                </div>
+                </button>
               </div>
-
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-white hover:bg-[#1a2647] p-2 rounded-xl transition-all cursor-pointer"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
             </div>
 
             {/* CONTENT */}
-            <div className="relative z-10 p-4 max-h-[380px] overflow-y-auto no-scrollbar flex flex-col gap-2.5 bg-transparent">
+            <div className="bg-[#040d1b] px-5 py-5 max-h-[620px] overflow-y-auto no-scrollbar flex flex-col gap-4">
               {notifications.map((item) => (
                 <div
                   key={item.id}
                   className="
-                  flex items-center justify-between
-                  p-3.5
-                  rounded-xl
-                  transition-all duration-200
-                  bg-[linear-gradient(180deg,#0d1830_0%,#0a1428_100%)]
-                  border border-white/[0.04]
-                  shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]
-                  hover:border-[#2d4f85]
-                  hover:bg-[#101d38]
-                "
+                    group
+                    relative
+                    bg-[#08172c]
+                    border
+                    border-[#14345d]
+                    rounded-[22px]
+                    px-5
+                    py-4
+
+                    hover:border-[#2677e8]
+                    hover:shadow-[0_0_25px_rgba(0,119,255,0.15)]
+
+                    transition-all
+                    duration-300
+
+                    flex
+                    items-center
+                    justify-between
+                  "
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-4 min-w-0">
                     {/* ICON */}
-                    <div
-                      className="
-                      w-9 h-9
-                      rounded-xl
-                      flex items-center justify-center
-                      border border-[#253766]
-                      shrink-0
-                      bg-[linear-gradient(180deg,#162847_0%,#101d36_100%)]
-                      shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]
-                    "
-                    >
+                    <div className="w-[56px] h-[56px] rounded-[18px] bg-[#0c1e37] border border-[#1b467e] flex items-center justify-center shrink-0 shadow-inner">
                       {renderCategoryIcon(item.category)}
                     </div>
 
                     {/* TEXT */}
                     <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-2">
                         {item.type === "up" && (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 bg-[#064e3b] text-[#10b981] rounded uppercase tracking-wider">
+                          <span className="bg-[#0b5d42] text-[#5cffba] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#1c8d69]">
                             YÜKSELDİ
                           </span>
                         )}
 
                         {item.type === "down" && (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 bg-[#7f1d1d] text-[#ef4444] rounded uppercase tracking-wider">
+                          <span className="bg-[#63212b] text-[#ff7d90] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#9d3242]">
                             DÜŞTÜ
                           </span>
                         )}
 
                         {item.type === "new" && (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 bg-[#1e3a8a] text-[#3b82f6] rounded uppercase tracking-wider">
+                          <span className="bg-[#163c84] text-[#6db0ff] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#2e61c2]">
                             YENİ
                           </span>
                         )}
 
-                        <span className="text-[12px] font-bold text-white/90 truncate">
-                          <strong className="font-extrabold">
-                            {item.category}
-                          </strong>
+                        <span className="text-white text-[15px] font-black">
+                          {item.category}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-slate-400 font-semibold truncate max-w-[240px]">
+                      <p className="text-[#d6e2f5] text-[24px] font-semibold truncate max-w-[340px]">
                         {item.type === "new"
                           ? `Yeni Ürün Eklendi: ${item.name}`
                           : `${item.category} Fiyatı ${
-                              item.type === "up"
-                                ? "Yükseldi"
-                                : "Düştü"
+                              item.type === "up" ? "Yükseldi" : "Düştü"
                             }: ${item.name}`}
                       </p>
                     </div>
                   </div>
 
                   {/* RIGHT */}
-                  <div className="flex flex-col items-end gap-2 shrink-0 pl-1">
-                    <span className="text-[10px] text-[#7d8fb3] font-black tracking-tight">
+                  <div className="flex flex-col items-end gap-3 ml-4 shrink-0">
+                    <span className="text-[#88a8d5] text-[13px] font-bold">
                       {item.time}
                     </span>
 
                     <span
-                      className={`w-2 h-2 rounded-full shadow-sm ${
-                        item.type === "up"
-                          ? "bg-[#10b981]"
-                          : item.type === "down"
-                          ? "bg-[#ef4444]"
-                          : "bg-[#3b82f6]"
-                      }`}
+                      className={`
+                        w-3
+                        h-3
+                        rounded-full
+
+                        ${
+                          item.type === "up"
+                            ? "bg-[#00e39a] shadow-[0_0_15px_rgba(0,227,154,0.95)]"
+                            : item.type === "down"
+                            ? "bg-[#ff5066] shadow-[0_0_15px_rgba(255,80,102,0.95)]"
+                            : "bg-[#3b82ff] shadow-[0_0_15px_rgba(59,130,255,0.95)]"
+                        }
+                      `}
                     />
                   </div>
                 </div>
@@ -484,38 +489,47 @@ export default function GlobalMarket() {
             </div>
 
             {/* FOOTER */}
-            <div className="relative z-10 p-4 px-5 flex justify-between items-center border-t border-white/[0.04] bg-transparent">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
+            <div className="bg-[#07162b] border-t border-[#16345c] px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-[#8ba9d4] text-sm font-semibold">
+                <div className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
 
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
+                </div>
 
-                <span className="text-[11px] text-slate-400 font-bold">
-                  Canlı güncellenir
-                </span>
+                Canlı güncellenir
               </div>
 
               <button
                 onClick={clearNotifications}
                 className="
-                bg-[#08192f]
-                hover:bg-[#0e2342]
-                text-slate-300 hover:text-white
-                border border-[#1d2d54]
-                font-bold text-xs
-                px-4 py-2.5
-                rounded-xl
-                transition-all duration-200
-                cursor-pointer
-                shadow-[0_0_0_1px_rgba(59,130,246,0.08)]
-                active:scale-95
-                flex items-center gap-1.5
-              "
+                  flex
+                  items-center
+                  gap-2
+
+                  bg-[#081d3d]
+                  hover:bg-[#0d2d5d]
+
+                  border
+                  border-[#1d4b8b]
+
+                  text-[#7cb5ff]
+                  hover:text-white
+
+                  px-5
+                  py-3
+
+                  rounded-2xl
+
+                  font-bold
+                  text-sm
+
+                  transition-all
+                  duration-300
+                "
               >
                 <svg
-                  className="w-3.5 h-3.5"
+                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2.5"
@@ -533,21 +547,45 @@ export default function GlobalMarket() {
             </div>
           </div>
 
-          {/* SEKME */}
+          {/* MAVİ SEKME */}
           <div
             onClick={() => setIsOpen(true)}
             className={`
-              fixed right-0 top-1/4
-              w-[62px] py-8
-              rounded-l-2xl
-              border border-blue-500/30 border-r-0
-              flex flex-col items-center gap-4.5
-              cursor-pointer select-none
-              transition-all duration-500
-              bg-[linear-gradient(180deg,#1b63d8_0%,#114db4_50%,#0a3b96_100%)]
-              shadow-[0_0_35px_rgba(37,99,235,0.45)]
-              hover:from-[#256ee6]
-              hover:to-[#0c44b5]
+              fixed
+              right-0
+              top-1/2
+              -translate-y-1/2
+              z-[10000]
+
+              w-[74px]
+              h-[470px]
+
+              rounded-l-[28px]
+
+              border
+              border-[#4da3ff55]
+              border-r-0
+
+              bg-gradient-to-b
+              from-[#1f8cff]
+              via-[#0057d8]
+              to-[#003a97]
+
+              shadow-[0_0_45px_rgba(0,119,255,0.55)]
+
+              flex
+              flex-col
+              items-center
+              justify-between
+
+              py-6
+
+              cursor-pointer
+              select-none
+
+              transition-all
+              duration-500
+
               ${
                 isOpen
                   ? "translate-x-full opacity-0 pointer-events-none"
@@ -555,22 +593,50 @@ export default function GlobalMarket() {
               }
             `}
           >
-            {/* BADGE */}
-            <div className="relative flex h-5 w-5 rounded-full bg-[#ef4444] text-white text-[10px] font-black items-center justify-center border border-white/20 shadow-md transform rotate-90">
-              {notifications.length}
+            {/* ÜST */}
+            <div className="relative mt-1">
+              <div className="w-11 h-11 rounded-full bg-[#0d47c7] border border-[#6fb6ff55] flex items-center justify-center shadow-[0_0_20px_rgba(0,119,255,0.45)]">
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 17h5l-1.405-1.405C18.214 15.214 18 14.702 18 14.172V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.172c0 .53-.214 1.042-.595 1.423L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+              </div>
+
+              <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#ff4b5c] text-white text-[10px] font-black flex items-center justify-center border border-white/20">
+                {notifications.length}
+              </div>
             </div>
 
             {/* TEXT */}
             <div
-              className="writing-mode-vertical font-black tracking-[0.38em] text-[11px] text-white/95 text-center leading-none"
+              className="
+                writing-mode-vertical
+                text-white
+                font-black
+                tracking-[0.45em]
+                text-[16px]
+                leading-none
+                uppercase
+                drop-shadow-[0_0_10px_rgba(255,255,255,0.35)]
+              "
               style={{ transform: "rotate(180deg)" }}
             >
-              FİYAT DEĞİŞTİ
+              LİSTE GÜNCELLENDİ
             </div>
 
-            <span className="text-[8px] text-white/70 font-black leading-none">
-              ◀
-            </span>
+            {/* ALT */}
+            <div className="mb-2 text-white text-[34px] font-thin opacity-90">
+              ‹
+            </div>
           </div>
         </div>
       )}
