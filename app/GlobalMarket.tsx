@@ -1,16 +1,17 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 
-interface PriceItem {
+interface NotificationItem {
+  id: string;
   category: string;
   name: string;
   type: 'up' | 'down' | 'new';
-  time: string; // 🚀 Her bildirim geldiği anın dakikasını kendi içinde kilitler
+  time: string; // Bildirimin düştüğü tam dakika (Örn: 11:32)
 }
 
 export default function GlobalMarket() {
-  const [notifications, setNotifications] = useState<PriceItem[]>([]);
-  const [isOpen, setIsOpen] = useState<boolean>(false); 
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [isOpen, setIsOpen] = useState<boolean>(false); // Açık/Kapalı Kontrolü
   
   const prevPricesMap = useRef<Map<string, number> | null>(null);
   const isFirstLoad = useRef<boolean>(true);
@@ -48,9 +49,9 @@ export default function GlobalMarket() {
         const allData = JSON.parse(decodedString);
 
         const currentMap = new Map<string, number>();
-        let newItemsDetected: PriceItem[] = [];
+        let newItemsDetected: NotificationItem[] = [];
         
-        // 🚀 Verinin ekrana ulaştığı TAM ANIN saat ve dakikasını yakala
+        // ⏱️ Fiyatın değiştiği tam o anın kurumsal dakika damgası
         const currentTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
         // 1. CEP TABLET VERİLERİNİ TOPLA
@@ -100,7 +101,7 @@ export default function GlobalMarket() {
           });
         }
 
-        // ANLIK DOĞRULAMA VE ZAMAN DAMGALI KAYIT MOTORU
+        // ZAMANSAL VE MODEL BAZLI ALARM MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
@@ -118,26 +119,29 @@ export default function GlobalMarket() {
 
             if (oldPrice === undefined) {
               newItemsDetected.push({
+                id: `${key}-${Date.now()}`,
                 category: categoryLabel,
                 name: cleanName,
                 type: 'new',
-                time: currentTime // Olayın gerçekleştiği tam dakika mühürleniyor
+                time: currentTime
               });
             } else if (oldPrice !== price) {
               const diff = price - oldPrice;
               if (diff > 0) {
                 newItemsDetected.push({
+                  id: `${key}-${Date.now()}`,
                   category: categoryLabel,
                   name: cleanName,
                   type: 'up',
-                  time: currentTime // Olayın gerçekleştiği tam dakika mühürleniyor
+                  time: currentTime
                 });
               } else if (diff < 0) {
                 newItemsDetected.push({
+                  id: `${key}-${Date.now()}`,
                   category: categoryLabel,
                   name: cleanName,
                   type: 'down',
-                  time: currentTime // Olayın gerçekleştiği tam dakika mühürleniyor
+                  time: currentTime
                 });
               }
             }
@@ -145,11 +149,8 @@ export default function GlobalMarket() {
 
           if (newItemsDetected.length > 0 && newItemsDetected.length <= 10) {
             playDing();
-            
             setNotifications(prev => {
-              // Mükerrer kayıtları temizle
               const filtered = prev.filter(p => !newItemsDetected.some(n => n.name === p.name));
-              // 🚀 YENİ gelenler EN ÜSTE ekleniyor, ESKİ gelenler zaman damgalarıyla aşağıda kalıyor
               return [...newItemsDetected, ...filtered].slice(0, 15);
             });
           }
@@ -175,34 +176,35 @@ export default function GlobalMarket() {
     setIsOpen(false);
   };
 
+  // Görseldeki yuvarlak köşeli kurumsal SVG logoları
   const renderCategoryIcon = (category: string) => {
-    const baseStyle = "w-5 h-5 text-white/90";
+    const iconStyle = "w-[18px] h-[18px] text-white/90";
     if (category === "Apple") {
       return (
-        <svg className={baseStyle} viewBox="0 0 24 24" fill="currentColor">
+        <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
           <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-.96.04-2.13.64-2.82 1.45-.6.7-1.13 1.84-1.01 2.95 1.07.08 2.18-.53 2.84-1.34z"/>
         </svg>
       );
     }
     if (category === "Android") {
       return (
-        <svg className={baseStyle} viewBox="0 0 24 24" fill="currentColor">
+        <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
           <path d="M7 11h2v2H7zm8 0h2v2h-2zm-4-4h2v2h-2zm0 8h2v2h-2zm-6-2.3c0-2 .6-3.8 1.7-5.3l-1.3-1.3 1.4-1.4 1.6 1.6C10 3.1 11.5 2.5 13 2.5s3 .6 4.3 1.8l1.6-1.6 1.4 1.4-1.3 1.3c1.1 1.5 1.7 3.3 1.7 5.3H5zm8-6.2c-4.1 0-7.5 3.4-7.5 7.5h15c0-4.1-3.4-7.5-7.5-7.5z"/>
         </svg>
       );
     }
     if (category === "2.El") {
-      return <span className="text-[10px] font-black text-amber-500 tracking-tighter">2.EL</span>;
+      return <span className="text-[9px] font-black tracking-tighter text-amber-500">2.EL</span>;
     }
     if (category === "Aksesuar") {
       return (
-        <svg className={baseStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M3 14c0-4.97 4.03-9 9-9s9 4.03 9 9M6 14h3v5H6zm9 0h3v5h-3z" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg className={iconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 14c0-4.97 4.03-9 9-9s9 4.03 9 9M6 14h3v5H6zm9 0h3v5h-3z"/>
         </svg>
       );
     }
     return (
-      <svg className={baseStyle} viewBox="0 0 24 24" fill="currentColor">
+      <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
         <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
       </svg>
     );
@@ -216,23 +218,23 @@ export default function GlobalMarket() {
         
         @keyframes dynamic-pulse {
           0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.04); opacity: 0.93; }
+          50% { transform: scale(1.03); opacity: 0.95; }
         }
         .animate-handle-pulse { animation: dynamic-pulse 2s infinite ease-in-out; }
       `}</style>
 
-      {/* ANİMASYONLU PANEL SİSTEMİ */}
+      {/* 🚀 GÖRSELDEKİ BİREBİR SAĞ PANEL MİMARİSİ */}
       {notifications.length > 0 && (
         <div className="fixed right-0 top-1/4 z-[9999] print:hidden flex items-center select-none font-sans">
           
-          {/* A. TAM İSTEDİĞİNİZ KOYU MOD PANEL KARTI */}
-          <div className={`bg-[#0b1224] border border-[#16223f] w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
+          {/* A. TAM İSTEDİĞİNİZ KOYU GECE LACİVERTI PANEL (bg-[#0b1224]) */}
+          <div className={`bg-[#0b1224] border border-[#16223f] w-[430px] rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.65)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] fixed right-4 top-1/4 ${
             isOpen 
               ? 'opacity-100 translate-x-0 pointer-events-auto' 
               : 'opacity-0 translate-x-full pointer-events-none'
           }`}>
             
-            {/* Üst Kısım: Başlık ve Sayaç */}
+            {/* Üst Kısım: Başlık, Mavi Zil ve Bildirim Sayacı */}
             <div className="p-5 flex justify-between items-center border-b border-[#16223f] bg-[#0b1224]">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-400">
@@ -243,7 +245,7 @@ export default function GlobalMarket() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-white font-bold text-[15px] tracking-tight">Bildirimler</h3>
-                    <span className="bg-[#13284f] text-[#3b82f6] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-blue-500/10">
+                    <span className="bg-[#13284f] text-[#3b82f6] text-[11px] font-black px-2.5 py-0.5 rounded-full border border-blue-500/10">
                       {notifications.length} Bildirim
                     </span>
                   </div>
@@ -261,13 +263,14 @@ export default function GlobalMarket() {
               </button>
             </div>
             
-            {/* Orta Kısım: Satırlar ve Zaman Damgaları */}
+            {/* Orta Kısım: Fiyat Rakamları Olmayan, Sadece İsim ve Gerçek Zaman Damgalı Satırlar */}
             <div className="p-4 max-h-[380px] overflow-y-auto no-scrollbar flex flex-col gap-2.5 bg-[#070c1a]">
-              {notifications.map((item, idx) => (
+              {notifications.map((item) => (
                 <div 
-                  key={idx} 
+                  key={item.id} 
                   className="flex items-center justify-between p-3.5 bg-[#0f1932]/90 border border-[#1d2d54]/60 rounded-xl hover:border-blue-500/30 transition-all duration-200 shadow-sm"
                 >
+                  {/* Sol Taraf: İkon Yuvası ve Durum Başlığı */}
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 bg-[#172445] rounded-xl flex items-center justify-center border border-[#253766] shrink-0">
                       {renderCategoryIcon(item.category)}
@@ -290,18 +293,19 @@ export default function GlobalMarket() {
                             YENİ
                           </span>
                         )}
-                        <span className="text-[12px] font-bold text-white/90 truncate max-w-[190px]">{item.category}</span>
+                        <span className="text-[12px] font-bold text-white/90 truncate">{item.category}</span>
                       </div>
                       
-                      <p className="text-[11px] text-slate-400 font-semibold truncate max-w-[250px]">
-                        {item.type === 'new' ? `Yeni Ürün Eklendi: ${item.name}` : `Fiyatı ${item.type === 'up' ? 'Yükseldi' : 'Düştü'}: ${item.name}`}
+                      {/* Gerçek Model İsim Mesajları */}
+                      <p className="text-[11px] text-slate-400 font-semibold truncate max-w-[240px]">
+                        {item.type === 'new' ? `Yeni Ürün Eklendi: ${item.name}` : `${item.category} Fiyatı ${item.type === 'up' ? 'Yükseldi' : 'Düştü'}: ${item.name}`}
                       </p>
                     </div>
                   </div>
 
-                  {/* ⏱️ SAAT BURADA: Her satır kendi geliş saatini milimetrik korur */}
+                  {/* Sağ Taraf: Kilitli Zaman Damgası ve Durum Sinyal Küresi */}
                   <div className="flex flex-col items-end gap-2 shrink-0 pl-1">
-                    <span className="text-[10px] text-slate-500 font-bold">{item.time}</span>
+                    <span className="text-[10px] text-slate-500 font-black tracking-tight">{item.time}</span>
                     <span className={`w-2 h-2 rounded-full shadow-sm ${
                       item.type === 'up' ? 'bg-[#10b981]' : item.type === 'down' ? 'bg-[#ef4444]' : 'bg-[#3b82f6]'
                     }`} />
@@ -311,7 +315,7 @@ export default function GlobalMarket() {
               ))}
             </div>
             
-            {/* Alt Kısım: Dalga Efektli Canlı Durumu ve Temizle Butonu */}
+            {/* Alt Kısım: Dalga Efektli Canlı İndikatörü ve Çöp Kutulu Temizle Butonu */}
             <div className="p-4 px-5 flex justify-between items-center border-t border-[#16223f] bg-[#0b1224]">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
@@ -333,16 +337,16 @@ export default function GlobalMarket() {
             </div>
           </div>
 
-          {/* B. GÖRSELDEKİ GEÇİŞLİ MAVİ DİKEY SEKME BUTONU */}
+          {/* B. GÖRSELDEKİ JELATİN GİBİ GEÇİŞLİ LÜKS MAVİ DİKEY BAR BUTTON */}
           <div 
             onClick={() => setIsOpen(true)} 
-            className={`fixed right-0 top-1/4 bg-gradient-to-b from-[#1e62d0] to-[#0a3a9c] hover:from-[#256ee6] hover:to-[#0c44b5] text-white px-3.5 py-7 rounded-l-2xl shadow-[0_15px_40px_rgba(10,58,156,0.5)] flex flex-col items-center gap-4.5 cursor-pointer select-none border border-blue-500/30 border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+            className={`fixed right-0 top-1/4 bg-gradient-to-b from-[#1e62d0] to-[#0a3a9c] hover:from-[#256ee6] hover:to-[#0c44b5] text-white px-3.5 py-7 rounded-l-2xl shadow-[0_15px_40px_rgba(10,58,156,0.45)] flex flex-col items-center gap-4.5 cursor-pointer select-none border border-blue-500/30 border-r-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
               isOpen 
                 ? 'translate-x-full opacity-0 pointer-events-none' 
                 : 'translate-x-0 opacity-100 pointer-events-auto animate-handle-pulse'
             }`}
           >
-            {/* Kırmızı Bildirim Sayı Balonu */}
+            {/* Üst Kırmızı Bildirim Sayaç Balonu */}
             <div className="relative flex h-5 w-5 rounded-full bg-[#ef4444] text-white text-[10px] font-black items-center justify-center border border-white/20 shadow-md transform rotate-90">
               {notifications.length}
             </div>
