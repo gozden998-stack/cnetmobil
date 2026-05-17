@@ -28,7 +28,6 @@ export default function GlobalMarket() {
 
   const parsePrice = (val: any) => {
     if (val === null || val === undefined || val === "") return 0;
-
     if (typeof val === "number") return Math.floor(val);
 
     let strVal = String(val).trim();
@@ -127,20 +126,16 @@ export default function GlobalMarket() {
             const n1 = row[0]?.toString().trim();
             const p1 = parsePrice(row[1]);
 
-            if (n1 && p1 > 0) {
-              currentMap.set(`YNA1_${n1}`, p1);
-            }
+            if (n1 && p1 > 0) currentMap.set(`YNA1_${n1}`, p1);
 
             const n2 = row[3]?.toString().trim();
             const p2 = parsePrice(row[4]);
 
-            if (n2 && p2 > 0) {
-              currentMap.set(`YNA2_${n2}`, p2);
-            }
+            if (n2 && p2 > 0) currentMap.set(`YNA2_${n2}`, p2);
           });
         }
 
-        // ANALİZ
+        // ANALİZ MOTORU
         if (prevPricesMap.current && !isFirstLoad.current) {
           currentMap.forEach((price, key) => {
             const oldPrice = prevPricesMap.current!.get(key);
@@ -154,7 +149,7 @@ export default function GlobalMarket() {
             if (key.startsWith("APPLE_")) categoryLabel = "Apple";
             else if (key.startsWith("ANDROID_")) categoryLabel = "Android";
             else if (key.startsWith("KAMPANYA_"))
-              categoryLabel = "Kampanya Ürünü";
+              categoryLabel = "Kampanya";
             else if (key.startsWith("IKINCI_")) categoryLabel = "2.El";
             else if (key.startsWith("YNA")) categoryLabel = "Aksesuar";
 
@@ -177,7 +172,7 @@ export default function GlobalMarket() {
                   type: "up",
                   time: freezeTime,
                 });
-              } else if (diff < 0) {
+              } else {
                 newItemsDetected.push({
                   id: `${key}-${Date.now()}`,
                   category: categoryLabel,
@@ -219,7 +214,6 @@ export default function GlobalMarket() {
 
   const clearNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
-
     setNotifications([]);
     setIsOpen(false);
   };
@@ -230,7 +224,7 @@ export default function GlobalMarket() {
     if (category === "Apple") {
       return (
         <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-.96.04-2.13.64-2.82 1.45-.6.7-1.13 1.84-1.01 2.95 1.07.08 2.18-.53 2.84-1.34z" />
+          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83" />
         </svg>
       );
     }
@@ -238,7 +232,7 @@ export default function GlobalMarket() {
     if (category === "Android") {
       return (
         <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 11h2v2H7zm8 0h2v2h-2zm-4-4h2v2h-2zm0 8h2v2h-2zm-6-2.3c0-2 .6-3.8 1.7-5.3l-1.3-1.3 1.4-1.4 1.6 1.6C10 3.1 11.5 2.5 13 2.5s3 .6 4.3 1.8l1.6-1.6 1.4 1.4-1.3 1.3c1.1 1.5 1.7 3.3 1.7 5.3H5zm8-6.2c-4.1 0-7.5 3.4-7.5 7.5h15c0-4.1-3.4-7.5-7.5-7.5z" />
+          <path d="M7 11h2v2H7zm8 0h2v2h-2z" />
         </svg>
       );
     }
@@ -251,25 +245,9 @@ export default function GlobalMarket() {
       );
     }
 
-    if (category === "Aksesuar") {
-      return (
-        <svg
-          className={iconStyle}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M3 14c0-4.97 4.03-9 9-9s9 4.03 9 9M6 14h3v5H6zm9 0h3v5h-3z" />
-        </svg>
-      );
-    }
-
     return (
       <svg className={iconStyle} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
+        <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4" />
       </svg>
     );
   };
@@ -287,47 +265,38 @@ export default function GlobalMarket() {
         }
 
         @keyframes dynamic-pulse {
-          0%,100% {
+          0%, 100% {
             transform: scale(1);
             opacity: 1;
           }
 
           50% {
             transform: scale(1.03);
-            opacity: 0.96;
+            opacity: 0.95;
           }
         }
 
         .animate-handle-pulse {
-          animation: dynamic-pulse 2.2s infinite ease-in-out;
+          animation: dynamic-pulse 2s infinite ease-in-out;
         }
       `}</style>
 
       {notifications.length > 0 && (
-        <div className="fixed right-0 top-0 z-[9999] print:hidden select-none font-sans">
+        <div className="fixed right-0 top-[18%] z-[9999] print:hidden flex items-center select-none font-sans">
+
           {/* PANEL */}
           <div
             className={`
-              fixed
-              right-4
-              top-1/2
-              -translate-y-1/2
-
-              bg-[#071120]/95
-              backdrop-blur-2xl
-
-              border
-              border-[#16345c]
-
-              w-[540px]
-              rounded-[30px]
-
-              shadow-[0_0_70px_rgba(0,119,255,0.18)]
-
+              bg-[#0b1224]
+              border border-[#16223f]
+              w-[520px]
+              rounded-3xl
+              shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)]
               overflow-hidden
-
               transition-all
               duration-500
+              ease-[cubic-bezier(0.16,1,0.3,1)]
+              fixed right-4 top-[18%]
 
               ${
                 isOpen
@@ -336,249 +305,204 @@ export default function GlobalMarket() {
               }
             `}
           >
+
             {/* HEADER */}
-            <div className="relative px-6 py-5 border-b border-[#132848] bg-[#07162b]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-[52px] h-[52px] rounded-full bg-[#091d3a] border border-[#174b8a] flex items-center justify-center shadow-[0_0_25px_rgba(0,119,255,0.18)]">
-                    <svg
-                      className="w-6 h-6 text-[#4da3ff]"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.3"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M15 17h5l-1.405-1.405C18.214 15.214 18 14.702 18 14.172V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.172c0 .53-.214 1.042-.595 1.423L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                      />
-                    </svg>
-                  </div>
+            <div className="p-5 flex justify-between items-center border-b border-[#16223f] bg-[#0b1224]">
 
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-white text-[31px] font-black tracking-tight">
-                        Bildirimler
-                      </h3>
+              <div className="flex items-center gap-3">
 
-                      <div className="bg-[#0c2f63] text-[#58a6ff] border border-[#1e4f93] text-[13px] font-black px-4 py-1 rounded-full">
-                        {notifications.length} Bildirim
-                      </div>
-                    </div>
-
-                    <p className="text-[#8ea9cf] text-[14px] mt-1">
-                      Son fiyat ve ürün güncellemeleri
-                    </p>
-                  </div>
+                <div className="p-2.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-blue-400">
+                  🔔
                 </div>
 
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-[#7ca7dd] hover:text-white transition-all p-2"
-                >
-                  <svg
-                    className="w-7 h-7"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
+                <div>
+
+                  <div className="flex items-center gap-2">
+
+                    <h3 className="text-white font-bold text-[16px] tracking-tight">
+                      Bildirimler
+                    </h3>
+
+                    <span className="bg-[#13284f] text-[#3b82f6] text-[11px] font-black px-2.5 py-0.5 rounded-full border border-blue-500/10">
+                      {notifications.length} Bildirim
+                    </span>
+
+                  </div>
+
+                  <p className="text-[11px] text-slate-400/80 font-medium mt-0.5">
+                    Son liste güncellemeleri
+                  </p>
+
+                </div>
+
               </div>
+
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-white hover:bg-[#1a2647] p-2 rounded-xl transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+
             </div>
 
             {/* CONTENT */}
-            <div className="bg-[#040d1b] px-5 py-5 max-h-[620px] overflow-y-auto no-scrollbar flex flex-col gap-4">
+            <div className="p-4 max-h-[420px] overflow-y-auto no-scrollbar flex flex-col gap-3 bg-[#070c1a]">
+
               {notifications.map((item) => (
                 <div
                   key={item.id}
                   className="
-                    group
-                    relative
-                    bg-[#08172c]
-                    border
-                    border-[#14345d]
-                    rounded-[22px]
-                    px-5
-                    py-4
-
-                    hover:border-[#2677e8]
-                    hover:shadow-[0_0_25px_rgba(0,119,255,0.15)]
-
-                    transition-all
-                    duration-300
-
                     flex
                     items-center
                     justify-between
+                    p-4
+                    bg-[#0f1932]/90
+                    border border-[#1d2d54]/60
+                    rounded-2xl
+                    hover:border-blue-500/30
+                    transition-all
+                    duration-200
                   "
                 >
-                  <div className="flex items-center gap-4 min-w-0">
-                    {/* ICON */}
-                    <div className="w-[56px] h-[56px] rounded-[18px] bg-[#0c1e37] border border-[#1b467e] flex items-center justify-center shrink-0 shadow-inner">
+
+                  <div className="flex items-center gap-3 min-w-0">
+
+                    <div className="w-11 h-11 bg-[#172445] rounded-2xl flex items-center justify-center border border-[#253766] shrink-0">
                       {renderCategoryIcon(item.category)}
                     </div>
 
-                    {/* TEXT */}
                     <div className="flex flex-col gap-1 min-w-0">
+
                       <div className="flex items-center gap-2">
+
                         {item.type === "up" && (
-                          <span className="bg-[#0b5d42] text-[#5cffba] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#1c8d69]">
+                          <span className="text-[9px] font-black px-2 py-1 bg-[#064e3b] text-[#10b981] rounded-md uppercase tracking-wider">
                             YÜKSELDİ
                           </span>
                         )}
 
                         {item.type === "down" && (
-                          <span className="bg-[#63212b] text-[#ff7d90] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#9d3242]">
+                          <span className="text-[9px] font-black px-2 py-1 bg-[#7f1d1d] text-[#ef4444] rounded-md uppercase tracking-wider">
                             DÜŞTÜ
                           </span>
                         )}
 
                         {item.type === "new" && (
-                          <span className="bg-[#163c84] text-[#6db0ff] text-[10px] px-2 py-[3px] rounded-md font-black tracking-wide border border-[#2e61c2]">
+                          <span className="text-[9px] font-black px-2 py-1 bg-[#1e3a8a] text-[#3b82f6] rounded-md uppercase tracking-wider">
                             YENİ
                           </span>
                         )}
 
-                        <span className="text-white text-[15px] font-black">
-                          {item.category}
-                        </span>
                       </div>
 
-                      <p className="text-[#d6e2f5] text-[24px] font-semibold truncate max-w-[340px]">
+                      <p className="text-[13px] text-white font-bold truncate">
                         {item.type === "new"
                           ? `Yeni Ürün Eklendi: ${item.name}`
-                          : `${item.category} Fiyatı ${
-                              item.type === "up" ? "Yükseldi" : "Düştü"
-                            }: ${item.name}`}
+                          : `${item.name} liste güncellendi`}
                       </p>
+
                     </div>
+
                   </div>
 
-                  {/* RIGHT */}
-                  <div className="flex flex-col items-end gap-3 ml-4 shrink-0">
-                    <span className="text-[#88a8d5] text-[13px] font-bold">
+                  <div className="flex flex-col items-end gap-2 shrink-0 pl-2">
+
+                    <span className="text-[11px] text-slate-500 font-black">
                       {item.time}
                     </span>
 
                     <span
                       className={`
-                        w-3
-                        h-3
+                        w-2.5
+                        h-2.5
                         rounded-full
 
                         ${
                           item.type === "up"
-                            ? "bg-[#00e39a] shadow-[0_0_15px_rgba(0,227,154,0.95)]"
+                            ? "bg-[#10b981]"
                             : item.type === "down"
-                            ? "bg-[#ff5066] shadow-[0_0_15px_rgba(255,80,102,0.95)]"
-                            : "bg-[#3b82ff] shadow-[0_0_15px_rgba(59,130,255,0.95)]"
+                            ? "bg-[#ef4444]"
+                            : "bg-[#3b82f6]"
                         }
                       `}
                     />
+
                   </div>
+
                 </div>
               ))}
+
             </div>
 
             {/* FOOTER */}
-            <div className="bg-[#07162b] border-t border-[#16345c] px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[#8ba9d4] text-sm font-semibold">
-                <div className="relative flex h-3 w-3">
+            <div className="p-4 px-5 flex justify-between items-center border-t border-[#16223f] bg-[#0b1224]">
+
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
 
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
-                </div>
-
-                Canlı güncellenir
+                <span className="text-[11px] text-slate-400 font-bold">
+                  Canlı güncellenir
+                </span>
               </div>
 
               <button
                 onClick={clearNotifications}
                 className="
-                  flex
-                  items-center
-                  gap-2
-
-                  bg-[#081d3d]
-                  hover:bg-[#0d2d5d]
-
-                  border
-                  border-[#1d4b8b]
-
-                  text-[#7cb5ff]
+                  bg-transparent
+                  hover:bg-[#16223f]
+                  text-slate-300
                   hover:text-white
-
-                  px-5
-                  py-3
-
-                  rounded-2xl
-
+                  border border-[#1d2d54]
                   font-bold
-                  text-sm
-
+                  text-xs
+                  px-4
+                  py-2.5
+                  rounded-xl
                   transition-all
-                  duration-300
+                  duration-200
+                  cursor-pointer
                 "
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-
                 Hepsini Temizle
               </button>
+
             </div>
+
           </div>
 
-          {/* MAVİ SEKME */}
+          {/* DİKEY SEKME */}
           <div
             onClick={() => setIsOpen(true)}
             className={`
               fixed
               right-0
-              top-1/2
-              -translate-y-1/2
-              z-[10000]
+              top-[18%]
 
-              w-[74px]
-              h-[470px]
+              w-[72px]
+              py-9
 
-              rounded-l-[28px]
+              rounded-l-[30px]
 
-              border
-              border-[#4da3ff55]
-              border-r-0
+              border border-blue-400/30 border-r-0
 
               bg-gradient-to-b
-              from-[#1f8cff]
-              via-[#0057d8]
-              to-[#003a97]
+              from-[#2f80ff]
+              via-[#1456d9]
+              to-[#0a2f87]
 
-              shadow-[0_0_45px_rgba(0,119,255,0.55)]
+              shadow-[0_0_55px_rgba(37,99,235,0.55)]
 
               flex
               flex-col
               items-center
-              justify-between
+              justify-start
 
-              py-6
+              pt-5
+              gap-5
 
               cursor-pointer
               select-none
@@ -588,32 +512,26 @@ export default function GlobalMarket() {
 
               ${
                 isOpen
-                  ? "translate-x-full opacity-0 pointer-events-none"
-                  : "translate-x-0 opacity-100 pointer-events-auto animate-handle-pulse"
+                  ? "translate-x-[35px] opacity-40"
+                  : "translate-x-0 opacity-100 animate-handle-pulse"
               }
             `}
           >
-            {/* ÜST */}
-            <div className="relative mt-1">
-              <div className="w-11 h-11 rounded-full bg-[#0d47c7] border border-[#6fb6ff55] flex items-center justify-center shadow-[0_0_20px_rgba(0,119,255,0.45)]">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 17h5l-1.405-1.405C18.214 15.214 18 14.702 18 14.172V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.172c0 .53-.214 1.042-.595 1.423L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                  />
-                </svg>
-              </div>
 
-              <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#ff4b5c] text-white text-[10px] font-black flex items-center justify-center border border-white/20">
+            {/* BADGE */}
+            <div className="relative flex items-center justify-center">
+
+              <span className="absolute inline-flex h-6 w-6 rounded-full bg-red-400 opacity-50 animate-ping"></span>
+
+              <div className="relative h-6 w-6 rounded-full bg-[#ef4444] border border-white/20 shadow-lg flex items-center justify-center text-[11px] font-black text-white">
                 {notifications.length}
               </div>
+
+            </div>
+
+            {/* ICON */}
+            <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center backdrop-blur-xl">
+              🔔
             </div>
 
             {/* TEXT */}
@@ -621,23 +539,25 @@ export default function GlobalMarket() {
               className="
                 writing-mode-vertical
                 text-white
-                font-black
-                tracking-[0.45em]
-                text-[16px]
-                leading-none
+                text-[11px]
+                font-extrabold
+                tracking-[0.42em]
                 uppercase
-                drop-shadow-[0_0_10px_rgba(255,255,255,0.35)]
+                leading-none
+                mt-1
               "
               style={{ transform: "rotate(180deg)" }}
             >
               LİSTE GÜNCELLENDİ
             </div>
 
-            {/* ALT */}
-            <div className="mb-2 text-white text-[34px] font-thin opacity-90">
+            {/* ARROW */}
+            <div className="text-white/80 text-[12px] font-black">
               ‹
             </div>
+
           </div>
+
         </div>
       )}
     </>
