@@ -177,13 +177,13 @@ export default function CnetmobilCmrFinalUltimate() {
       const matchedBranch = data.branch;
 
       if (loginMode === 'yonetici') {
-         setIsMasterAccess(true);
-         setIsAdmin(true);
-         setSelectedBranch('CMR MERKEZ'); 
-         setIsLoggedIn(true);
-         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-         setLoginLoading(false);
-         return;
+          setIsMasterAccess(true);
+          setIsAdmin(true);
+          setSelectedBranch('CMR MERKEZ'); 
+          setIsLoggedIn(true);
+          localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+          setLoginLoading(false);
+          return;
       }
 
       if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
@@ -363,7 +363,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       
-      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
       
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
@@ -399,11 +398,9 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
- // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
     loadData();
     
-    // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
       loadData(); 
     }, 300000);
@@ -416,7 +413,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -605,20 +602,17 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
-    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
-    // 2. Ekranı anında kırmızı yap ve üstünü çiz
     setImeiData(prev => {
         const newData = [...prev];
         const rowIndex = newData.findIndex(r => r[1] === imei);
@@ -628,7 +622,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return newData;
     });
 
-    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -688,15 +681,15 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'yna_list', label: 'YNA List', visible: !isZumay },
         { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
         { 
-  id: 'kampanya_sifir', 
-  label: (
-    <div className="flex flex-col items-center justify-center -space-y-0.5">
-      <span className="font-black tracking-widest">KAMPANYALI</span>
-      <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
-    </div>
-  ), 
-  visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
-},
+          id: 'kampanya_sifir', 
+          label: (
+            <div className="flex flex-col items-center justify-center -space-y-0.5">
+              <span className="font-black tracking-widest">KAMPANYALI</span>
+              <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
+            </div>
+          ), 
+          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
+        },
         { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
@@ -749,7 +742,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-                    if (datePart && datePart.includes('.')) {
+          if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
@@ -787,56 +780,179 @@ export default function CnetmobilCmrFinalUltimate() {
   });
 
   if (authLoading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
-      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-white italic uppercase tracking-[0.3em]">OTURUM KONTROL EDİLİYOR...</div>
+    <div className="h-screen flex flex-col items-center justify-center bg-[#0B0F19] space-y-4">
+      <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Güvenli Oturum Kontrolü</div>
     </div>
   );
 
   if (loading && isLoggedIn) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
-      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">SİSTEM YÜKLENİYOR...</div>
+    <div className="h-screen flex flex-col items-center justify-center bg-[#0B0F19] space-y-4">
+      <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Merkezi Altyapı Bağlanıyor</div>
     </div>
   );
 
+  /* AUTH PANEL LAYER */
   if (!isLoggedIn) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
-        <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
-           <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
-           </div>
-           <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
-           
-           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
-               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
-               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
-           </div>
-           
-           <input 
-              type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
-              value={entryPass}
-              onChange={(e) => setEntryPass(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loginLoading}
-              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
-           />
-           <button 
-             onClick={handleLogin} 
-             disabled={loginLoading}
-             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
-           >
-             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
-           </button>
+      <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col lg:flex-row font-sans antialiased selection:bg-blue-500/30 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(37,99,235,0.04),transparent_50%)] pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_80%_80%,rgba(79,70,229,0.03),transparent_50%)] pointer-events-none" />
+
+        <div className="w-full lg:w-[40%] flex flex-col justify-between p-8 sm:p-12 lg:p-16 z-10 border-b lg:border-b-0 lg:border-r border-white/[0.06] backdrop-blur-xl bg-[#0B0F19]/60">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md shadow-blue-600/10">
+              <span className="font-extrabold text-white text-sm tracking-tighter">C</span>
+            </div>
+            <span className="text-lg font-bold tracking-tight text-white uppercase">
+              CNET<span className="text-blue-500 font-light">MOBIL</span>
+            </span>
+          </div>
+
+          <div className="w-full max-w-sm mx-auto my-auto py-10 lg:py-0">
+            <div className="mb-8">
+              <h1 className="text-xl font-bold tracking-tight text-white mb-2">B2B Ortaklık Portalı</h1>
+              <p className="text-xs text-slate-400 leading-relaxed">Şube ve yönetim paneli operasyonlarını yetkilendirmek için lütfen parolanızı doğrulayın.</p>
+            </div>
+
+            <div className="bg-[#151D30] p-1 rounded-xl border border-white/[0.04] flex gap-1 mb-6">
+              <button
+                onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
+                disabled={loginLoading}
+                className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all duration-150 uppercase tracking-wider ${
+                  loginMode === 'personel'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 disabled:opacity-50'
+                }`}
+              >
+                Mağaza / Personel
+              </button>
+              <button
+                onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
+                disabled={loginLoading}
+                className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all duration-150 uppercase tracking-wider ${
+                  loginMode === 'yonetici'
+                    ? 'bg-[#1E2942] text-white border border-white/[0.05]'
+                    : 'text-slate-400 hover:text-slate-200 disabled:opacity-50'
+                }`}
+              >
+                Yönetici Girişi
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">
+                  {loginMode === 'personel' ? 'Sistem Erişim Şifresi' : 'Master Yönetici Şifresi'}
+                </label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={entryPass}
+                  onChange={(e) => setEntryPass(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  disabled={loginLoading}
+                  className="w-full bg-[#111827]/80 border border-white/[0.08] rounded-xl px-4 py-3 text-white tracking-widest placeholder:tracking-normal focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all text-center text-lg disabled:opacity-50"
+                />
+              </div>
+
+              <button
+                onClick={handleLogin}
+                disabled={loginLoading}
+                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 text-xs tracking-widest uppercase"
+              >
+                {loginLoading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Doğrulanıyor...
+                  </>
+                ) : (
+                  'Sistemi Başlat'
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="text-[9px] font-medium text-slate-500 tracking-wider uppercase">
+            © 2026 CNETMOBIL CLOUD INFRASTRUCTURE.
+          </div>
         </div>
+
+        <div className="w-full lg:w-[60%] flex flex-col justify-center p-8 sm:p-12 lg:p-20 bg-[#070A13] relative border-t lg:border-t-0 border-white/[0.04]">
+          <div className="max-w-2xl mx-auto w-full space-y-12">
+            
+            <div className="space-y-4">
+              <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-md border border-blue-500/20">
+                Merkezi Dağıtık Ağ
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight leading-tight">
+                Tüm şubeler, anlık stok ve fiyat havuzu <br />
+                <span className="text-blue-500 font-light">tek bir merkezi panelde birleşti.</span>
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              
+              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+                </div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Anlık Cihaz Değerleme</h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-light">Gelişmiş buyback algoritmalarıyla şubelerinizde hatasız, kayıpsız ve hızlı takas-alım süreçleri işletin.</p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg>
+                </div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Merkezi Liste Senkronizasyonu</h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-light">Cep, Tablet, Sıfır Kampanya, YNA ve Dış Kanal verilerini tüm şube personellerine eşzamanlı dağıtın.</p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+                </div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Teknik Servis Altyapısı</h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-light">Yedek parça takipleri, anlık onarım maliyet matrisleri ve kurumsal dijital ekspertiz çıktı sistemini yönetin.</p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>
+                </div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Raporlama ve Mağaza Verisi</h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-light">Mağaza hakediş durumlarını, personel izin çizelgelerini ve şube performans metriklerini üst merkezden izleyin.</p>
+              </div>
+
+            </div>
+
+            <div className="pt-6 border-t border-white/[0.04] grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-2xl font-bold text-white tracking-tight">8+</div>
+                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Aktif Şube / Kanal</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white tracking-tight">100%</div>
+                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Canlı Senkron Veri</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white tracking-tight text-blue-500">Secure</div>
+                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Google Sheets API</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     );
   }
 
+  /* WORKSPACE LAYER */
   return (
-    <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
+    <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F4F6F9] text-slate-900">
       <style>{`
         #print-area { display: none !important; }
         @media print {
@@ -845,106 +961,104 @@ export default function CnetmobilCmrFinalUltimate() {
           #print-area * { visibility: visible !important; }
         }
         .btn-click { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
-        .btn-click:active { transform: scale(0.96); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .btn-click:active { transform: scale(0.97); }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* TOPBAR */}
-      <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
-        <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
+      <header className={`sticky top-0 z-[100] w-full shadow-md print:hidden flex flex-col ${isZumay ? 'bg-[#191111]' : 'bg-[#1E2022]'}`}>
+        <div className="flex items-center justify-between px-6 py-3 border-b border-white/[0.08]">
           <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">
-              {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-medium">mobil</span></>}
+            <h1 className="text-xl font-black tracking-tight text-white uppercase">
+              {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-light">mobil</span></>}
             </h1>
           </div>
 
-          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
+          <div className="flex items-center gap-4 shrink-0">
             {!isZumay && step < 99 && (
-              <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+              <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-4 py-2 rounded uppercase shadow-sm transition-colors tracking-wider flex items-center gap-2">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                 Taksit Hesapla
               </button>
             )}
 
-            <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
-                {isMasterAccess ? 'C' : 'NI'}
+            <div className="flex items-center gap-3 pl-4 border-l border-white/[0.08]">
+              <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                {isMasterAccess ? 'M' : 'B'}
               </div>
               <div className="hidden md:flex flex-col text-white">
                 {isMasterAccess ? (
-                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-300 transition-colors">
+                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-400 transition-colors">
                     {branches.map(b => <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>)}
                   </select>
                 ) : (
-                  <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
+                  <span className="text-xs font-bold leading-none truncate max-w-[150px]">{selectedBranch}</span>
                 )}
-                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'CnetMobil' : 'Bayi Personeli'}</span>
+                <span className="text-[9px] text-white/40 tracking-wider mt-1 uppercase">{isMasterAccess ? 'CnetMobil Executive' : 'Bayi Ağı'}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pl-2">
+            <div className="flex items-center gap-1.5 pl-2">
               {isAdmin && step < 99 && (
-                <button onClick={() => setStep(99)} title="Yönetici Paneli" className="text-white/50 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <button onClick={() => setStep(99)} title="Yönetici Portalı" className="text-white/40 hover:text-white p-2 transition-colors rounded hover:bg-white/5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </button>
               )}
-              <button onClick={handleLogout} title="Çıkış Yap" className="text-white/50 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              <button onClick={handleLogout} title="Güvenli Çıkış" className="text-white/40 hover:text-red-400 p-2 transition-colors rounded hover:bg-white/5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center overflow-x-auto no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
+        <div className="flex items-center overflow-x-auto no-scrollbar px-6 text-[10px] font-bold text-white/60 h-10 tracking-wider uppercase">
           {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
             const isActive = appMode === item.id;
             const isLast = idx === arr.length - 1;
             return (
-              <div key={item.id} className={`flex items-center h-full ${!isLast ? 'border-r border-white/10' : ''}`}>
+              <div key={item.id} className={`flex items-center h-full ${!isLast ? 'border-r border-white/5' : ''}`}>
                 <button
                   onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                  className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
+                  className={`relative h-full px-5 whitespace-nowrap hover:text-white transition-all duration-150 flex items-center ${isActive ? 'text-white bg-white/5' : ''}`}
                 >
                   {item.label}
-                  {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
+                  {isActive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></div>}
                 </button>
               </div>
             );
           })}
           {step === 99 && (
-              <div className="flex items-center h-full">
-                 <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
-                    Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
-                 </span>
+              <div className="flex items-center h-full px-5 text-amber-500 font-extrabold tracking-widest border-l border-white/5 bg-white/5">
+                 Yönetim Masası
               </div>
           )}
         </div>
       </header>
 
-      {/* ANA İÇERİK ALANI */}
+      {/* CORE FRAME CONTAINER */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
-        <main className="max-w-[1600px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
+        <main className="max-w-[1500px] mx-auto w-full p-4 sm:p-6 lg:p-8 print:hidden">
  
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
-                 <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
-                    <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-xl shadow-red-500/20 text-white text-5xl font-black italic">Z</div>
-                    <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-800 uppercase text-center">
-                       ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
+                 <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-6 animate-in fade-in duration-300 px-4">
+                    <div className="w-16 h-16 bg-red-600 rounded-xl flex items-center justify-center text-white text-3xl font-black">Z</div>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-800 uppercase text-center">
+                       ZUMAY <span className="text-red-600 font-light">BAYİ PORTALI</span>
                     </h2>
-                    <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
-                       Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
+                    <p className="text-slate-400 font-medium text-xs text-center max-w-sm">
+                       Cihaz alım ve dağıtık kanal satın alma işlemlerinizi üst konsol üzerinden gerçekleştirebilirsiniz.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-red-500">
-                          CİHAZ ALIMI YAP
+                    <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full sm:w-auto">
+                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold uppercase tracking-wider text-xs transition-all btn-click">
+                          Cihaz Alımı Başlat
                        </button>
-                       <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200/50 transition-all active:scale-95 text-xs sm:text-sm">
-                          DIŞ KANAL LİSTESİ
+                       <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-6 py-3 rounded-lg font-bold uppercase tracking-wider text-xs transition-all btn-click">
+                          Dış Kanal Listesi
                        </button>
                     </div>
                  </div>
@@ -952,29 +1066,29 @@ export default function CnetmobilCmrFinalUltimate() {
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} />
               )
           ) : appMode === 'imei_list' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">DEPO LİSTESİ</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">DEPO STOK LİSTESİ</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">Vodafone Kanalı IMEI Atamaları</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="IMEI veya Cihaz Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
-                  <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-[2] text-center border-l border-orange-400 pl-2">İMEİ BİLGİSİ</div>
-                    <div className="flex-[1] text-right border-l border-orange-400 pl-2">DURUM</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold tracking-wider uppercase border-b border-slate-200">
+                      <th className="p-3">Cihaz Tanımı</th>
+                      <th className="p-3 text-center">IMEI Referans</th>
+                      <th className="p-3 text-right">Eylem / Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs font-medium text-slate-700">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
-                        
-                        // SİHİRLİ KISIM: Süreli Hafıza Kontrolü
                         const imeiNo = row[1];
                         let localDurum = null;
                         
@@ -983,19 +1097,12 @@ export default function CnetmobilCmrFinalUltimate() {
                             if (kayitStr) {
                                 try {
                                     const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
-                                    
-                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
-                                    if (new Date().getTime() - kayit.timestamp < onDakika) {
+                                    if (new Date().getTime() - kayit.timestamp < 600000) {
                                         localDurum = kayit.durum;
                                     } else {
-                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
                                         localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                     }
-                                } catch (e) {
-                                    // Eski sürümden kalan metinleri temizlemek için
-                                    localStorage.removeItem('kullanilan_imei_' + imeiNo);
-                                }
+                                } catch (e) { localStorage.removeItem('kullanilan_imei_' + imeiNo); }
                             }
                         }
                         
@@ -1003,223 +1110,200 @@ export default function CnetmobilCmrFinalUltimate() {
                         const isUsed = guncelDurum && guncelDurum.toString().toUpperCase().includes('KULLANILDI');
                         
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isUsed ? 'bg-red-50' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white hover:bg-slate-100')}`}>
-                          
-                          <div className={`flex-[3] flex items-center ${isUsed ? 'text-red-700 line-through opacity-70' : 'text-slate-700 group-hover:text-slate-900'} transition-colors pr-4`}>
-                              {row[0] || '-'}
-                          </div>
-                          
-                          <div className={`flex-[2] text-center font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isUsed ? 'text-red-500 line-through opacity-70' : 'text-green-600'}`}>
-                              {row[1] || '-'}
-                          </div>
-
-                          <div className="flex-[1] flex justify-end border-l border-slate-200 pl-4">
+                        <tr key={i} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors ${isUsed ? 'bg-red-50/40' : ''}`}>
+                          <td className={`p-3 font-semibold ${isUsed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{row[0] || '-'}</td>
+                          <td className={`p-3 text-center font-mono font-bold text-sm ${isUsed ? 'text-slate-400 line-through' : 'text-blue-600'}`}>{row[1] || '-'}</td>
+                          <td className="p-3 text-right">
                               {isUsed ? (
-                                  <div className="flex flex-col items-end">
-                                      <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">{guncelDurum}</span>
-                                  </div>
+                                  <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold tracking-wider uppercase">{guncelDurum}</span>
                               ) : (
-                                  <button onClick={() => handleImeiKullan(row[1])} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm">
-                                      KULLAN
+                                  <button onClick={() => handleImeiKullan(row[1])} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-bold tracking-wider uppercase transition-all btn-click">
+                                      Kullan
                                   </button>
                               )}
-                          </div>
-
-                        </div>
+                          </td>
+                        </tr>
                     )})}
-                  </div>
-                </div>
+                  </tbody>
+                </table>
               </div>
             </div>
           ) :
 
           appMode === 'kampanya_sifir' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-red-600">KAMPANYALI SIFIR LİSTE</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">KAMPANYALI SIFIR LİSTE</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">Anlık Güncellenen Kampanyalı Ürün Dağıtımı</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Ürün Tanımı Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
 
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
-                  <div className="bg-red-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="flex-[3]">ÜRÜN ADI</div>
-                    <div className="flex-1 text-right border-l border-red-500 pl-2">FİYATI (TL)</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[500px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold tracking-wider uppercase border-b border-slate-200">
+                      <th className="p-3">Ürün Açıklaması</th>
+                      <th className="p-3 text-right">Merkez Dağıtım Fiyatı</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs font-medium text-slate-700">
                     {cepTabletData.slice(1).filter(r => r[10] && r[10].trim() !== '' && r[10].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
                         const cellName = (row[10] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM');
+                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                              {row[10]}
-                          </div>
-                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
-                        </div>
+                        <tr key={i} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors ${isHighlighted ? 'bg-amber-50/50' : ''}`}>
+                          <td className={`p-3 font-semibold ${isHighlighted ? 'text-amber-800' : 'text-slate-800'}`}>{row[10]}</td>
+                          <td className={`p-3 text-right font-bold text-sm ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</td>
+                        </tr>
                     )})}
-                  </div>
-                </div>
+                  </tbody>
+                </table>
               </div>
             </div>
           ) :
 
           appMode === 'ikinci_el' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-500">2.EL FİYAT LİSTESİ</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">2. EL FİYAT LİSTESİ</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">Şubeler Arası Havuz Fiyat Matrisi</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Model Varyantı Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
-              <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[650px]">
-                  <div className="bg-orange-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-1 text-center border-l border-orange-500 pl-2">ÖZELLİK/DURUM</div>
-                    <div className="flex-1 text-center border-l border-orange-500 pl-2">FİYATI (TL)</div>
-                    <div className="flex-[2] text-right border-l border-orange-500 pr-2">AÇIKLAMA</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[0] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                              {row[0]}
-                          </div>
-                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900 border-l border-slate-200`}>{row[1] || '-'}</div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? 'text-amber-600' : 'text-green-600'}`}>{row[2] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[3] || '-'}</div>
-                        </div>
-                    )})}
-                  </div>
-                </div>
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[650px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold tracking-wider uppercase border-b border-slate-200">
+                      <th className="p-3">Cihaz / Model</th>
+                      <th className="p-3 text-center">Kondisyon</th>
+                      <th className="p-3 text-center">Konsol Fiyatı</th>
+                      <th className="p-3 text-right">Dahili Notlar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs font-medium text-slate-700">
+                    {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-800">{row[0]}</td>
+                        <td className="p-3 text-center text-slate-500 font-medium">{row[1] || '-'}</td>
+                        <td className="p-3 text-center font-bold text-slate-900 text-sm">{row[2] || '-'}</td>
+                        <td className="p-3 text-right text-slate-400 text-[11px] max-w-[200px] truncate">{row[3] || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) :
 
           appMode === 'dis_kanal' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">DIŞ KANAL SATIN ALMA LİSTESİ</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">B2B Dış Tedarik Satın Alım Baremleri</p>
                   </div>
-                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Tedarik Ürünü Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
-                  <div className={`${isZumay ? 'bg-red-600' : 'bg-teal-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
-                    <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    <div className={`flex-1 text-center border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pl-2`}>FİYATI (TL)</div>
-                    <div className={`flex-[2] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-2`}>DURUM / BİLGİ</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[0] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-50' : 'bg-teal-50') : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? (isZumay ? 'text-red-700' : 'text-teal-700') : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-500' : 'bg-teal-500'}`}></span>}
-                              {row[0]}
-                          </div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[2] || '-'}</div>
-                        </div>
-                    )})}
-                  </div>
-                </div>
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold tracking-wider uppercase border-b border-slate-200">
+                      <th className="p-3">Grup / Model Varyantı</th>
+                      <th className="p-3 text-center">B2B Alım Baremi</th>
+                      <th className="p-3 text-right">Tedarik Statüsü</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs font-medium text-slate-700">
+                    {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-800">{row[0]}</td>
+                        <td className="p-3 text-center font-bold text-sm text-slate-900">{row[1] || '-'}</td>
+                        <td className="p-3 text-right text-slate-400 font-light text-[11px]">{row[2] || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) :
 
           appMode === 'cep_tablet' && step < 99 ? (
-            <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">MERKEZİ MATRİS FİYATLARI</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">Cep Telefonu, Tablet ve Akıllı Saat Güncel Listesi</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Model Hızlı Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-blue-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-blue-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[0] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[0]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[3] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-1">Apple Cihaz Segmentasyonu</h3>
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold uppercase border-b border-slate-200 tracking-wider">
+                          <th className="p-2.5">Model</th>
+                          <th className="p-2.5 text-center">Kampanya</th>
+                          <th className="p-2.5 text-center">Satış</th>
+                          <th className="p-2.5 text-right">Resmi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-xs font-medium text-slate-700">
+                        {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                          <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                            <td className="p-2.5 font-semibold text-slate-800">{row[0]}</td>
+                            <td className="p-2.5 text-center font-bold text-red-600">{row[1] || '-'}</td>
+                            <td className="p-2.5 text-center text-slate-900">{row[2] || '-'}</td>
+                            <td className="p-2.5 text-right text-slate-400 font-mono text-[11px]">{row[3] || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-green-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-green-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[5] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[5]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[8] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
+
+                <div>
+                  <h3 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-1">Android & Çoklu Marka Segmentasyonu</h3>
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold uppercase border-b border-slate-200 tracking-wider">
+                          <th className="p-2.5">Model</th>
+                          <th className="p-2.5 text-center">Kampanya</th>
+                          <th className="p-2.5 text-center">Satış</th>
+                          <th className="p-2.5 text-right">Resmi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-xs font-medium text-slate-700">
+                        {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                          <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                            <td className="p-2.5 font-semibold text-slate-800">{row[5]}</td>
+                            <td className="p-2.5 text-center font-bold text-red-600">{row[6] || '-'}</td>
+                            <td className="p-2.5 text-center text-slate-900">{row[7] || '-'}</td>
+                            <td className="p-2.5 text-right text-slate-400 font-mono text-[11px]">{row[8] || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -1227,79 +1311,72 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : 
           
           appMode === 'yna_list' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-slate-900 shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-100 pb-4 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-800">YENİ NESİL AKSESUAR (YNA LIST)</h2>
+                    <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase">Premium Kulaklık, Watch ve Ekosistem Ürün Baremleri</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center w-full md:w-72 focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input type="text" placeholder="Aksesuar Varyantı Ara..." className="bg-transparent border-none outline-none text-xs text-slate-800 w-full" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[350px]">
-                    <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">ÜRÜN ADI</div>
-                      <div className="flex-1 text-right border-l border-purple-500/50 pr-2">FİYATI (TL)</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[0] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA');
-                          return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                                {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                {row[0]}
-                            </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-2 ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[1] || '-'}</div>
-                          </div>
-                      )})}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold uppercase border-b border-slate-200 tracking-wider">
+                        <th className="p-2.5">Aksesuar / Modül</th>
+                        <th className="p-2.5 text-right">Fiyat</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs font-medium text-slate-700">
+                      {ynaData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => (
+                        <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                          <td className="p-2.5 font-semibold text-slate-800">{row[0]}</td>
+                          <td className="p-2.5 text-right font-bold text-slate-900">{row[1] || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[350px]">
-                    <div className="bg-purple-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">ÜRÜN ADI</div>
-                      <div className="flex-1 text-right border-l border-purple-500/50 pr-2">FİYATI (TL)</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-[9px] font-bold uppercase border-b border-slate-200 tracking-wider">
+                        <th className="p-2.5">Aksesuar / Modül</th>
+                        <th className="p-2.5 text-right">Fiyat</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs font-medium text-slate-700">
                       {ynaData.slice(1).filter(r => r[3] && r[3].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[3] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA');
                           return (
-                          <div key={i} className={`flex px-4 py-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-purple-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                            <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-purple-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                                {isHighlighted && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                {row[3]}
-                            </div>
-                            <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-2 ${isHighlighted ? 'text-purple-600' : 'text-slate-900'}`}>{row[4] || '-'}</div>
-                          </div>
+                          <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                            <td className="p-2.5 font-semibold text-slate-800">{row[3]}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900">{row[4] || '-'}</td>
+                          </tr>
                       )})}
-                    </div>
-                  </div>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           ) :
           
-          /* YÖNETİCİ GÖRÜNÜMÜ */
+          /* ADMINISTRATIVE MASKS LAYER */
           step === 99 ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="animate-in fade-in duration-300">
               {isAdmin && (
-                <div className="mb-6 bg-white border border-slate-200 p-4 rounded-[28px] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-                   <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto no-scrollbar">
-                      <select value={adminSelectedBranch} onChange={(e) => setAdminSelectedBranch(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
+                <div className="mb-4 bg-white border border-slate-200 p-3 rounded-xl shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+                   <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+                      <select value={adminSelectedBranch} onChange={(e) => setAdminSelectedBranch(e.target.value)} className="bg-slate-50 text-slate-700 text-[10px] font-bold tracking-wider p-2 rounded border border-slate-200 outline-none uppercase">
                         <option value="TÜM ŞUBELER">TÜM ŞUBELER</option>
                         {branches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
                       </select>
-                      <select value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)} className="bg-slate-50 text-slate-800 text-[10px] uppercase font-black tracking-widest p-3 rounded-xl outline-none border border-slate-200 min-w-[150px]">
+                      <select value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)} className="bg-slate-50 text-slate-700 text-[10px] font-bold tracking-wider p-2 rounded border border-slate-200 outline-none uppercase">
                          <option value="TÜM ZAMANLAR">TÜM ZAMANLAR</option>
                          <option value="BUGÜN">BUGÜN</option>
                          <option value="DÜN">DÜN</option>
@@ -1308,17 +1385,16 @@ export default function CnetmobilCmrFinalUltimate() {
                       </select>
 
                       {dateFilterType === 'ÖZEL' && (
-                        <div className="flex items-center gap-2">
-                           <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-slate-50 text-slate-800 text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500" />
-                           <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-slate-50 text-slate-800 text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500" />
+                        <div className="flex items-center gap-1">
+                           <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-slate-50 text-slate-700 text-xs p-2 rounded border border-slate-200 outline-none" />
+                           <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-slate-50 text-slate-700 text-xs p-2 rounded border border-slate-200 outline-none" />
                         </div>
                       )}
                    </div>
 
-                   <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-                      <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border border-red-100 whitespace-nowrap flex items-center justify-center gap-2 btn-click">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        PANELİ KAPAT
+                   <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                      <button onClick={() => {setStep(1); setIsAdmin(false); if(isMasterAccess) handleLogout();}} className="bg-slate-900 text-white hover:bg-black px-4 py-2 rounded text-[10px] font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 btn-click">
+                        Kapat
                       </button>
                    </div>
                 </div>
@@ -1340,219 +1416,183 @@ export default function CnetmobilCmrFinalUltimate() {
               />
             </div>
           ) : step === 1 ? (
-            <div className="space-y-12 text-slate-900 max-w-[1200px] mx-auto">
-              <div className="text-center space-y-4 mb-16 animate-in fade-in slide-in-from-top-4 duration-700 mt-10">
-                  <h2 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase">
-                    {appMode === 'alim' ? (
-                      <span className="text-slate-900">CIHAZ <span className={isZumay ? 'text-red-600' : 'text-[#0052D4]'}>ALIM</span> SISTEMI</span>
-                    ) : (
-                      <span className="text-orange-950">TEKNIK <span className="text-orange-600">SERVIS</span> MERKEZI</span>
-                    )}
+            <div className="space-y-8 text-slate-900 max-w-[1100px] mx-auto">
+              <div className="text-center space-y-1.5 mt-8">
+                  <h2 className="text-2xl font-bold tracking-tight uppercase text-slate-800">
+                    {appMode === 'alim' ? 'KONSOL CİHAZ SATIN ALMA' : 'TEKNİK SERVİS MODÜLÜ'}
                   </h2>
-                  <p className="font-bold uppercase tracking-[0.2em] text-xs text-slate-400">Lütfen işlem yapılacak markayı seçin</p>
+                  <p className="font-semibold text-[10px] tracking-widest text-slate-400 uppercase">İşlem yapılacak üretici segmentini seçin</p>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in zoom-in duration-700 delay-200">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {displayBrands.map(brand => {
                   const brandInfo = brandDb.find(b => b.name === brand);
                   const finalLogo = brandInfo?.logo || brandAssets[brand]?.logo || "";
 
                   return (
                     <div key={brand} 
-                         onClick={() => {
-                           setSelectedBrand(brand); 
-                           setStep(2); 
-                           resetSelection();
-                         }} 
-                         className={`bg-white p-8 rounded-[40px] shadow-sm border flex flex-col items-center justify-center text-center h-64 group transition-all hover:-translate-y-2 hover:shadow-xl cursor-pointer btn-click ${appMode === 'servis' ? 'border-orange-100/50 hover:shadow-orange-200/50' : 'border-slate-100 hover:border-slate-200'}`}>
-                      <div className="h-24 w-full flex items-center justify-center mb-6 transition-all duration-500 transform group-hover:scale-110">
-                        <img src={finalLogo} className="max-h-full max-w-[120px] object-contain" alt={brand} />
+                         onClick={() => { setSelectedBrand(brand); setStep(2); resetSelection(); }} 
+                         className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center h-48 group transition-all duration-200 hover:shadow-md hover:border-slate-300 cursor-pointer btn-click">
+                      <div className="h-16 w-full flex items-center justify-center mb-4 transition-all transform group-hover:scale-105">
+                        <img src={finalLogo} className="max-h-full max-w-[100px] object-contain" alt={brand} />
                       </div>
-                      <h2 className={`font-black text-xl mb-1 uppercase italic tracking-tighter ${appMode === 'servis' ? 'text-orange-950' : 'text-slate-800'}`}>{brand}</h2>
-                      <p className={`text-[9px] font-black uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-400' : 'text-slate-400'}`}>
-                          {appMode === 'servis' ? 'SERVİS İŞLEMLERİ' : `${brand} CİHAZINI SAT`}
+                      <h2 className="font-bold text-sm uppercase tracking-wider text-slate-700">{brand}</h2>
+                      <p className="text-[8px] font-bold tracking-widest text-slate-400 uppercase mt-1">
+                          {appMode === 'servis' ? 'Onarım Kataloğu' : 'Satın Alım'}
                       </p>
-                      
-                      <div className={`w-10 h-1 transition-all rounded-full mt-4 ${appMode === 'servis' ? 'bg-orange-100 group-hover:w-16 group-hover:bg-orange-500' : (isZumay ? 'bg-slate-100 group-hover:w-16 group-hover:bg-red-600' : 'bg-slate-100 group-hover:w-16 group-hover:bg-[#0052D4]')}`}></div>
                     </div>
                   );
                 })}
               </div>
             </div>
           ) : step === 2 ? (
-            <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900 max-w-[1400px] mx-auto">
-              <div className="flex items-center justify-between mb-8 mt-4">
-                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4 hover:bg-slate-50')}`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
-                    Geri Dön
+            <div className="animate-in fade-in duration-200 text-slate-900 max-w-[1300px] mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                  <button onClick={() => {setStep(1); resetSelection();}} className="bg-white border border-slate-200 shadow-sm px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all btn-click flex items-center gap-1.5">
+                    Geri
                   </button>
                   <div className="text-right">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-600' : (isZumay ? 'text-red-600' : 'text-[#0052D4]')}`}>{selectedBrand}</span>
-                    <h2 className="text-2xl font-black italic uppercase tracking-tighter">Model Seçimi</h2>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-blue-600">{selectedBrand}</span>
+                    <h2 className="text-lg font-bold tracking-tight text-slate-800">Model Matrisi</h2>
                   </div>
               </div>
 
-              <div className="flex justify-center mb-10">
-                <div className="relative w-full max-w-xl">
+              <div className="flex justify-center mb-6">
+                <div className="relative w-full max-w-md">
                   <input
                     type="text"
-                    placeholder="Modellerde ara..."
+                    placeholder="Model kırılımını filtrele..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full p-5 pl-14 bg-white rounded-full text-sm font-black border outline-none focus:ring-4 shadow-sm transition-all placeholder-opacity-50 ${appMode === 'servis' ? 'border-orange-200 focus:border-orange-500 focus:ring-orange-50 text-orange-950 placeholder-orange-300' : (isZumay ? 'border-slate-200 focus:border-red-500 focus:ring-red-50 text-slate-700 placeholder-slate-400' : 'border-slate-200 focus:border-[#0052D4] focus:ring-blue-50 text-slate-700 placeholder-slate-400')}`}
+                    className="w-full p-3 pl-10 bg-white rounded-lg text-xs font-semibold border border-slate-200 outline-none focus:border-blue-500 transition-all text-slate-800"
                   />
-                  <svg className={`w-6 h-6 absolute left-5 top-1/2 -translate-y-1/2 ${appMode === 'servis' ? 'text-orange-300' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
                   .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(name => (
-                    <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className={`bg-white p-6 rounded-[32px] shadow-sm cursor-pointer border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px] ${appMode === 'servis' ? 'hover:shadow-xl hover:shadow-orange-100 hover:border-orange-400/50' : (isZumay ? 'hover:shadow-xl hover:border-red-500/50' : 'hover:shadow-xl hover:border-[#0052D4]/50')}`}>
-                      <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
-                          <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-xl" />
+                    <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className="bg-white p-4 rounded-xl shadow-sm cursor-pointer border border-slate-200 transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[160px] hover:border-slate-400 hover:shadow-md">
+                      <div className="h-20 flex items-center justify-center mb-3 transform transition-transform group-hover:scale-105">
+                          <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain" />
                       </div>
-                      
-                      <div className="w-full">
-                        <p className={`font-black text-[12px] uppercase tracking-tighter leading-tight ${appMode === 'servis' ? 'text-orange-950' : 'text-slate-800'}`}>{name}</p>
-                        <p className={`text-[9px] font-bold mt-2 uppercase tracking-widest ${appMode === 'servis' ? 'text-orange-400' : 'text-slate-400'}`}>
-                            {appMode === 'servis' ? 'SERVİS SEÇENEKLERİ' : 'TELEFONUNU SAT'}
-                        </p>
+                      <div className="w-full border-t border-slate-100 pt-2">
+                        <p className="font-bold text-xs uppercase text-slate-700 truncate">{name}</p>
                       </div>
                     </div>
                   ))}
               </div>
-              
             </div>
           ) : (
-            <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-700 text-slate-900 max-w-[1400px] mx-auto mt-4">
+            <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in duration-200 text-slate-900 max-w-[1300px] mx-auto">
               
-              <div className="flex-1 space-y-6">
-                <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 w-max ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+              <div className="flex-1 space-y-4">
+                <button onClick={() => {setStep(2); resetSelection();}} className="bg-white border border-slate-200 shadow-sm px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all btn-click flex items-center gap-1.5 w-max">
                   Modellere Dön
                 </button>
 
                 {appMode === 'servis' ? (
-                  <div className="bg-white p-10 rounded-[48px] shadow-sm border border-orange-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
-                        <svg className="w-40 h-40 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </div>
-                    
-                    <div className="flex flex-col md:flex-row items-center gap-8 mb-10">
-                        <div className="w-40 h-40 shrink-0 bg-orange-50 rounded-3xl p-4 flex items-center justify-center border border-orange-100">
-                          <img src={db.find(i => i.name === selectedModelName)?.img} className="max-h-full object-contain drop-shadow-xl" alt="Device" />
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                    <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
+                        <div className="w-24 h-24 shrink-0 bg-slate-50 rounded-xl p-2 flex items-center justify-center border border-slate-100">
+                          <img src={db.find(i => i.name === selectedModelName)?.img} className="max-h-full object-contain" alt="Device" />
                         </div>
-                        <div>
-                          <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{selectedBrand}</span>
-                          <h2 className="text-4xl font-black italic mt-3 uppercase tracking-tighter text-orange-950">{selectedModelName}</h2>
-                          <p className="text-orange-500/80 font-bold uppercase tracking-widest text-[10px] mt-2">Teknik Servis Onarım Fiyatları</p>
+                        <div className="text-center sm:text-left">
+                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">{selectedBrand}</span>
+                          <h2 className="text-xl font-bold mt-1 text-slate-800 uppercase">{selectedModelName}</h2>
+                          <p className="text-slate-400 font-semibold tracking-wider text-[9px] mt-0.5 uppercase">Teknik Onarım Matris Kalibrasyonu</p>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        
-                        <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col justify-between">
                           <div>
-                              <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">📱</div>
-                              <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Ekran Değişimi</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Ekran Grubu Onarımı</p>
                           </div>
-                          
-                          <div className="flex flex-col gap-2 mt-4 text-left bg-white/60 p-4 rounded-2xl border border-orange-200/50 shadow-sm">
-                              <div className="flex justify-between items-center border-b border-orange-100 pb-1">
-                                <span className="text-[10px] font-black text-orange-900 uppercase">Orjinal:</span> 
-                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran ? `${Number(servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran).toLocaleString()} TL` : '-'}</span>
+                          <div className="flex flex-col gap-1.5 text-left bg-white p-3 rounded-lg border border-slate-100 text-[11px]">
+                              <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                <span className="font-semibold text-slate-500">Orijinal:</span> 
+                                <span className="font-bold text-slate-800">{servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran ? `${Number(servisFiyatlari[selectedModelName]?.ekranOrj || servisFiyatlari[selectedModelName]?.ekran).toLocaleString()} ₺` : '-'}</span>
                               </div>
-                              <div className="flex justify-between items-center border-b border-orange-100 pb-1">
-                                <span className="text-[10px] font-black text-orange-900 uppercase">OLED:</span> 
-                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranOled ? `${Number(servisFiyatlari[selectedModelName]?.ekranOled).toLocaleString()} TL` : '-'}</span>
+                              <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                <span className="font-semibold text-slate-500">OLED:</span> 
+                                <span className="font-bold text-slate-800">{servisFiyatlari[selectedModelName]?.ekranOled ? `${Number(servisFiyatlari[selectedModelName]?.ekranOled).toLocaleString()} ₺` : '-'}</span>
                               </div>
                               {selectedBrand?.toLowerCase() === 'apple' && (
                               <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-orange-900 uppercase">Çipli:</span> 
-                                <span className="font-black text-sm italic text-orange-950">{servisFiyatlari[selectedModelName]?.ekranCipli ? `${Number(servisFiyatlari[selectedModelName]?.ekranCipli).toLocaleString()} TL` : '-'}</span>
+                                <span className="font-semibold text-slate-500">Entegreli:</span> 
+                                <span className="font-bold text-slate-800">{servisFiyatlari[selectedModelName]?.ekranCipli ? `${Number(servisFiyatlari[selectedModelName]?.ekranCipli).toLocaleString()} ₺` : '-'}</span>
                               </div>
                               )}
                           </div>
                         </div>
 
-                        <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
-                          <div>
-                              <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🔋</div>
-                              <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Batarya Değişimi</p>
-                          </div>
-                          <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
-                              {servisFiyatlari[selectedModelName]?.batarya ? `${Number(servisFiyatlari[selectedModelName]?.batarya).toLocaleString()} TL` : 'Fiyat Yok'}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col justify-between min-h-[110px]">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Batarya Grubu</p>
+                          <div className="text-base font-bold tracking-tight text-slate-800 mt-2">
+                              {servisFiyatlari[selectedModelName]?.batarya ? `${Number(servisFiyatlari[selectedModelName]?.batarya).toLocaleString()} ₺` : 'Barem Yok'}
                           </div>
                         </div>
 
-                        <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
-                          <div>
-                              <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">💠</div>
-                              <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Arka Cam</p>
-                          </div>
-                          <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
-                              {servisFiyatlari[selectedModelName]?.arkaCam ? `${Number(servisFiyatlari[selectedModelName]?.arkaCam).toLocaleString()} TL` : 'Fiyat Yok'}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col justify-between">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Arka Cam Katmanı</p>
+                          <div className="text-base font-bold tracking-tight text-slate-800 mt-2">
+                              {servisFiyatlari[selectedModelName]?.arkaCam ? `${Number(servisFiyatlari[selectedModelName]?.arkaCam).toLocaleString()} ₺` : 'Barem Yok'}
                           </div>
                         </div>
 
-                        <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
-                          <div>
-                              <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">🛠</div>
-                              <p className="text-[11px] font-black text-orange-800/60 uppercase tracking-widest mb-2">Kasa Değişimi</p>
-                          </div>
-                          <div className="text-2xl font-black italic tracking-tighter text-orange-900 mt-4">
-                              {servisFiyatlari[selectedModelName]?.kasa ? `${Number(servisFiyatlari[selectedModelName]?.kasa).toLocaleString()} TL` : 'Fiyat Yok'}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col justify-between">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kasa Gövde Değişimi</p>
+                          <div className="text-base font-bold tracking-tight text-slate-800 mt-2">
+                              {servisFiyatlari[selectedModelName]?.kasa ? `${Number(servisFiyatlari[selectedModelName]?.kasa).toLocaleString()} ₺` : 'Barem Yok'}
                           </div>
                         </div>
-
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 relative overflow-hidden group">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 border-b border-slate-100 pb-3">
                         <div>
-                          <h3 className="text-lg font-black italic tracking-tighter text-slate-900 uppercase">EKSPERTİZ & GÜVENLİK</h3>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Lütfen tüm bilgileri eksiksiz doldurun</p>
+                          <h3 className="text-sm font-bold tracking-wider text-slate-800 uppercase">EKSPERTİZ MÜŞTERİ REFERANS KARTI</h3>
                         </div>
                         {customer.imei.length === 15 && (
-                          <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className={`text-white px-5 py-2.5 rounded-xl text-[10px] font-black animate-pulse transition-all flex items-center gap-2 shadow-md ${isZumay ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0052D4] hover:bg-blue-700'}`}>
-                            BTK IMEI SORGULA
+                          <button type="button" onClick={() => window.open(`https://www.turkiye.gov.tr/imei-sorgulama`, '_blank')} className="bg-slate-800 hover:bg-black text-white px-4 py-2 rounded-lg text-[9px] font-bold tracking-wider transition-all shadow-sm uppercase">
+                            BTK Referans Sorgu
                           </button>
                         )}
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">Müşteri Adı Soyadı</label>
-                            <input placeholder="Ad Soyad" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider ml-1">Müşteri Beyan Ad Soyad</label>
+                            <input placeholder="İsim Giriniz" className={`w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-bold uppercase transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-blue-500'}`} value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">İletişim Numarası</label>
-                            <input placeholder="05XX XXX XX XX" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider ml-1">İletişim Mobil Hattı</label>
+                            <input placeholder="05XX XXX XX XX" className={`w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-bold transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-blue-500'}`} value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">IMEI Numarası (15 Hane)</label>
-                            <input placeholder="IMEI Giriniz" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider ml-1">Donanım IMEI Ataması (15 Hane)</label>
+                            <input placeholder="IMEI Giriniz" className={`w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none font-bold transition-all ${isZumay ? 'focus:border-red-500' : 'focus:border-blue-500'}`} value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
                           </div>
                         </div>
 
-                        <div className="bg-red-50/50 p-6 rounded-[24px] border border-red-100/50 space-y-4 flex flex-col justify-center shadow-inner">
-                          <p className="text-[11px] font-black text-red-700 uppercase italic tracking-widest flex items-center gap-2 mb-2">
-                            <span className="w-2 h-2 bg-red-600 rounded-full animate-ping"></span>
-                            Personel Onay Listesi
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 flex flex-col justify-center">
+                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                            Güvenlik Adımları Protokolü
                           </p>
                           {[
-                            "Hesaplardan çıkış yapıldı",
-                            "Bul (Find My) kapatıldı",
-                            "Kayıt durumu kontrol edildi",
-                            "Şifreler tamamen silindi"
+                            "Bul (Find My) servisleri kapatıldı",
+                            "Kurumsal ve bireysel hesaplardan çıkış yapıldı",
+                            "Sistem fabrika ayarlarına döndürüldü",
+                            "Kayıtlı ağ ve operatör kilitleri doğrulandı"
                           ].map((item, idx) => (
-                            <label key={idx} className="flex items-center gap-3 cursor-pointer group select-none">
-                              <input type="checkbox" className="w-5 h-5 accent-red-600 rounded-lg cursor-pointer" />
-                              <span className="text-[12px] font-black text-slate-600 group-hover:text-red-700 transition-colors uppercase italic">{item}</span>
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer select-none">
+                              <input type="checkbox" className="w-4 h-4 accent-slate-800 rounded cursor-pointer" />
+                              <span className="text-xs font-semibold text-slate-600 uppercase tracking-tight text-[11px]">{item}</span>
                             </label>
                           ))}
                         </div>
@@ -1560,48 +1600,42 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
 
                     <div className="space-y-4">
-                      <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
-                        <p className="text-[11px] font-black mb-4 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <span className={`w-4 h-[3px] ${isZumay ? 'bg-red-600' : 'bg-[#0052D4]'}`}></span>
-                          Hafıza Kapasitesi
-                        </p>
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                        <p className="text-[9px] font-bold mb-3 text-slate-400 uppercase tracking-wider">Hafıza Katmanı Varyantı</p>
                         <div className="flex flex-wrap gap-2">
                           {db.filter(i => i.name === selectedModelName).map(c => (
-                            <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-8 py-4 rounded-xl font-black text-[12px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? (isZumay ? 'bg-red-600 text-white shadow-xl shadow-red-200 ring-4 ring-red-50' : 'bg-[#0052D4] text-white shadow-xl shadow-blue-200 ring-4 ring-blue-50') : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>{c.cap}</button>
+                            <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all border ${selectedCapacity?.cap === c.cap ? (isZumay ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-blue-600 text-white border-blue-600 shadow-sm') : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{c.cap}</button>
                           ))}
                         </div>
                       </div>
 
                       {selectedModelName === "iPhone 13" && (
-                        <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
-                          <p className="text-[11px] font-black mb-4 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <span className={`w-4 h-[3px] ${isZumay ? 'bg-red-600' : 'bg-[#0052D4]'}`}></span>
-                            Renk Seçimi (Beyaz +%5)
-                          </p>
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                          <p className="text-[9px] font-bold mb-3 text-slate-400 uppercase tracking-wider">Renk Kırılımı (Beyaz Katmanı +%5)</p>
                           <div className="flex flex-wrap gap-2">
                             {['Diğer', 'Beyaz'].map(color => (
-                              <button key={color} onClick={() => setSelectedColor(color)} className={`px-8 py-4 rounded-xl font-black text-[12px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>{color}</button>
+                              <button key={color} onClick={() => setSelectedColor(color)} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all border ${selectedColor === color ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{color}</button>
                             ))}
                           </div>
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {[
-                          { label: "Cihaz Açılıyor mu?", field: "power", opts: ['Evet', 'Hayır'] },
-                          { label: "Ekran Durumu", field: "screen", opts: selectedBrand?.toLowerCase() === 'apple' ? ['Sağlam', 'Çizikler var', 'Kırık', 'Bilinmeyen Parça'] : ['Sağlam', 'Çizikler var', 'Kırık'] },
-                          { label: "Kozmetik Durum", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
-                          { label: "Face ID / Touch ID", field: "faceId", opts: ['Evet', 'Hayır'] },
-                          { label: "Batarya Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
-                          { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
-                          { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] },
-                          { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] }
+                          { label: "Gövde Güç Durumu", field: "power", opts: ['Evet', 'Hayır'] },
+                          { label: "Panel / Ekran Kondisyonu", field: "screen", opts: selectedBrand?.toLowerCase() === 'apple' ? ['Sağlam', 'Çizikler var', 'Kırık', 'Bilinmeyen Parça'] : ['Sağlam', 'Çizikler var', 'Kırık'] },
+                          { label: "Kasa / Kozmetik Aşınma", field: "cosmetic", opts: ['Mükemmel', 'İyi', 'Kötü'] },
+                          { label: "Biyometrik Sensör (Face ID / Touch ID)", field: "faceId", opts: ['Evet', 'Hayır'] },
+                          { label: "Batarya Barem Sağlığı", field: "battery", opts: ['95-100', '85-95', '0-85', 'Bilinmeyen Parça'] },
+                          { label: "Ses Akustik (Ahize / Buzzer)", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
+                          { label: "Şebeke Kayıt Modülü", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] },
+                          { label: "Distribütör Garanti Durumu", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] }
                         ].map(q => (
-                          <div key={q.field} className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-100">
-                            <p className="text-[10px] font-black mb-3 text-slate-400 uppercase tracking-widest">{q.label}</p>
-                            <div className="flex flex-wrap gap-2">
+                          <div key={q.field} className="bg-white p-4 rounded-xl border border-slate-200">
+                            <p className="text-[9px] font-bold mb-2.5 text-slate-400 uppercase tracking-wider">{q.label}</p>
+                            <div className="flex flex-wrap gap-1.5">
                               {q.opts.map((opt) => (
-                                <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-2.5 px-4 rounded-xl text-[11px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-100 hover:border-slate-300 hover:text-slate-700'}`}>{opt}</button>
+                                <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-1.5 px-3 rounded text-xs font-bold border transition-all ${status[q.field] === opt ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>{opt}</button>
                               ))}
                             </div>
                           </div>
@@ -1612,54 +1646,48 @@ export default function CnetmobilCmrFinalUltimate() {
                 )}
               </div>
               
-              {/* SAĞ KISIM (FİYATLAR) */}
-              <div className="lg:w-[350px] space-y-6 sticky top-32 h-fit">
+              {/* ASYNC VALUE PRICING SYSTEM (RIGHT PANEL) */}
+              <div className="lg:w-[320px] space-y-4 sticky top-28 h-fit">
                 
                 {appMode === 'servis' ? (
-                  <div className="bg-white border border-orange-200 p-8 rounded-[32px] space-y-4 shadow-xl">
-                      <div className="w-16 h-16 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>
-                      </div>
-                      <h3 className="text-xl font-black italic text-orange-950 uppercase text-center mb-4">Müşteriye İlet</h3>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center mb-6">Fiyat teklifini direkt WhatsApp üzerinden müşteriye gönderebilirsiniz.</p>
-                      
-                      <button onClick={handleServisWhatsApp} className="w-full py-4 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all btn-click flex items-center justify-center gap-2 shadow-lg bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/20">
-                          WHATSAPP'TAN GÖNDER
+                  <div className="bg-white border border-slate-200 p-6 rounded-2xl space-y-4 shadow-sm text-center">
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Müşteri Teklif Entegrasyonu</h3>
+                      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider leading-relaxed">Hesaplanan onarım matris verilerini direkt olarak şube mobil hattı üzerinden aboneye iletin.</p>
+                      <button onClick={handleServisWhatsApp} className="w-full py-3 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all bg-[#25D366] text-white hover:bg-[#1CBA54] btn-click shadow-sm">
+                          WhatsApp ile İlet
                       </button>
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col items-center">
-                       <img src={db.find(i => i.name === selectedModelName)?.img} className="h-32 object-contain drop-shadow-xl mb-4" />
-                       <h3 className="font-black italic text-center text-slate-800 text-lg uppercase leading-tight">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col items-center">
+                       <img src={db.find(i => i.name === selectedModelName)?.img} className="h-24 object-contain mb-2" />
+                       <h3 className="font-bold text-sm text-center text-slate-700 uppercase leading-tight">
                          {selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" && selectedColor !== 'Diğer' ? `(${selectedColor})` : ''}
                        </h3>
                     </div>
 
                     {isYd ? (
-                      <div className="bg-red-50 p-8 rounded-[32px] shadow-md border-2 border-red-500 text-center animate-pulse">
-                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
-                        <p className="text-xl font-black uppercase italic leading-none tracking-tighter text-red-700">YURT DIŞI CIHAZ</p>
-                        <p className="text-[9px] mt-3 uppercase tracking-[0.2em] font-black opacity-80 text-red-600">BU CIHAZ ICIN YONETICI ONAYI GEREKLIDIR</p>
+                      <div className="bg-red-50 p-6 rounded-2xl border border-red-200 text-center">
+                        <p className="text-xs font-bold uppercase tracking-wider text-red-700">Yurt Dışı Donanım Kısıtı</p>
+                        <p className="text-[9px] mt-1.5 uppercase tracking-wider font-semibold text-red-500">Mevzuat gereği bu cihaz için yönetici onayı alınmalıdır.</p>
                       </div>
                     ) : (
-                      <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                      <div className="space-y-4">
                         
-                        <div className="bg-white p-8 rounded-[32px] shadow-xl border border-slate-100 text-center transition-all hover:-translate-y-1">
-                          <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-widest italic">Nakit Alış Teklifi</p>
-                          <div className="text-4xl font-black italic tracking-tighter text-slate-900">
-                            {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} TL` : '---'}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 text-center">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Net Nakit Alım Baremi</p>
+                          <div className="text-2xl font-bold text-slate-800 font-mono tracking-tight">
+                            {selectedCapacity && allSelected ? `${finalCashPrice.toLocaleString()} ₺` : '---'}
                           </div>
                           
                           {selectedCapacity && allSelected && !purchaseType && (
-                            <div className="mt-4">
+                            <div className="mt-2.5">
                               {!isCustomOfferActive ? (
-                                <button onClick={() => setIsCustomOfferActive(true)} className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-colors border ${isZumay ? 'text-red-600 hover:text-red-800 hover:bg-red-50 border-red-200' : 'text-[#0052D4] hover:text-blue-800 hover:bg-blue-50 border-blue-200'}`}>
-                                  Teklifi Revize Et
+                                <button onClick={() => setIsCustomOfferActive(true)} className="text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50">
+                                  Barem Revize
                                 </button>
                               ) : (
-                                <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-center gap-1.5 animate-in fade-in duration-150">
                                     <input 
                                       type="number" 
                                       value={customOffer} 
@@ -1668,40 +1696,36 @@ export default function CnetmobilCmrFinalUltimate() {
                                         if (valStr === '') { setCustomOffer(''); return; }
                                         const val = parseInt(valStr) || 0;
                                         if (val > prices.cash) {
-                                          alert(`Sistem teklifinden (${prices.cash} TL) yüksek bir fiyat giremezsiniz!`);
+                                          alert(`Algoritma üst bareminden (${prices.cash} ₺) yüksek giriş yapılamaz!`);
                                           setCustomOffer(prices.cash.toString());
-                                        } else {
-                                          setCustomOffer(valStr);
-                                        }
+                                        } else { setCustomOffer(valStr); }
                                       }} 
-                                      placeholder="Yeni Tutar" 
-                                      className={`w-28 p-3 bg-slate-50 border rounded-xl text-sm font-black text-center outline-none ${isZumay ? 'focus:border-red-500 border-slate-200' : 'focus:border-[#0052D4] border-slate-200'}`}
+                                      placeholder="Tutar" 
+                                      className="w-24 p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-bold text-center outline-none"
                                     />
-                                    <button onClick={() => {setIsCustomOfferActive(false); setCustomOffer('');}} className="bg-red-50 text-red-600 p-3 rounded-xl hover:bg-red-100 transition-colors" title="İptal">
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    <button onClick={() => {setIsCustomOfferActive(false); setCustomOffer('');}} className="bg-red-50 text-red-600 p-1.5 rounded hover:bg-red-100 transition-colors">
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
-                                  </div>
                                 </div>
                               )}
                             </div>
                           )}
                         </div>
                         
-                        <div className={`${isZumay ? 'bg-red-600' : 'bg-[#0052D4]'} p-8 rounded-[32px] shadow-2xl text-center text-white relative overflow-hidden hover:-translate-y-1 transition-all`}>
-                          <p className={`text-[11px] font-black uppercase mb-4 tracking-widest italic ${isZumay ? 'text-red-200' : 'text-blue-200'}`}>Takas Desteği İle</p>
-                          <div className="text-4xl font-black italic tracking-tighter">
-                            {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} TL` : '---'}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 text-center border-l-4 border-l-blue-600">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Destekli Takas Baremi</p>
+                          <div className="text-2xl font-bold text-blue-600 font-mono tracking-tight">
+                            {selectedCapacity && allSelected ? `${finalTradePrice.toLocaleString()} ₺` : '---'}
                           </div>
                           
                           {selectedCapacity && allSelected && !purchaseType && (
-                            <div className="mt-4 relative z-10">
+                            <div className="mt-2.5">
                               {!isCustomTradeOfferActive ? (
-                                <button onClick={() => setIsCustomTradeOfferActive(true)} className={`text-[10px] font-black text-white uppercase tracking-widest px-4 py-2 rounded-xl transition-colors border shadow-inner ${isZumay ? 'hover:text-red-100 bg-red-700 border-red-500' : 'hover:text-blue-100 bg-blue-700 border-blue-500'}`}>
-                                  Teklifi Revize Et
+                                <button onClick={() => setIsCustomTradeOfferActive(true)} className="text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50">
+                                  Takas Revize
                                 </button>
                               ) : (
-                                <div className="flex flex-col items-center gap-2 animate-in fade-in duration-300">
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-center gap-1.5 animate-in fade-in duration-150">
                                     <input 
                                       type="number" 
                                       value={customTradeOffer} 
@@ -1710,19 +1734,16 @@ export default function CnetmobilCmrFinalUltimate() {
                                         if (valStr === '') { setCustomTradeOffer(''); return; }
                                         const val = parseInt(valStr) || 0;
                                         if (val > calculatedTradePrice) {
-                                          alert(`Sistem teklifinden (${calculatedTradePrice} TL) yüksek bir fiyat giremezsiniz!`);
+                                          alert(`Takas havuz üst limitinden (${calculatedTradePrice} ₺) yüksek giriş yapılamaz!`);
                                           setCustomTradeOffer(calculatedTradePrice.toString());
-                                        } else {
-                                          setCustomTradeOffer(valStr);
-                                        }
+                                        } else { setCustomTradeOffer(valStr); }
                                       }} 
-                                      placeholder="Yeni Tutar" 
-                                      className={`w-28 p-3 border rounded-xl text-sm font-black text-center outline-none focus:border-white text-white ${isZumay ? 'bg-red-700 border-red-500 placeholder-red-300' : 'bg-blue-700 border-blue-500 placeholder-blue-300'}`}
+                                      placeholder="Takas" 
+                                      className="w-24 p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-bold text-center outline-none"
                                     />
-                                    <button onClick={() => {setIsCustomTradeOfferActive(false); setCustomTradeOffer('');}} className="bg-slate-900 text-white p-3 rounded-xl hover:bg-black transition-colors" title="İptal">
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    <button onClick={() => {setIsCustomTradeOfferActive(false); setCustomTradeOffer('');}} className="bg-red-50 text-red-600 p-1.5 rounded hover:bg-red-100 transition-colors">
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
-                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1731,48 +1752,45 @@ export default function CnetmobilCmrFinalUltimate() {
                       </div>
                     )}
 
-                    <div className="bg-slate-900 p-8 rounded-[32px] space-y-4 shadow-2xl">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                    <div className="bg-[#1E2022] p-5 rounded-2xl space-y-3 shadow-md">
+                      <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mb-1">Operasyonel Kayıt Onayı</p>
                       
-                      <div className="flex gap-3">
+                      <div className="flex gap-2">
                           <button 
                               disabled={!canProceed || purchaseType !== null} 
                               onClick={() => { setPurchaseType('NAKİT'); handleFinalProcess('NAKİT ALINDI'); }} 
-                              className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all 
-                              ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                              ${purchaseType === 'NAKİT' ? 'bg-[#2ecc71] text-white shadow-lg shadow-green-900/50 cursor-default' : ''} 
-                              ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-[#2ecc71] hover:text-white' : ''}`}>
-                              NAKİT
+                              className={`flex-1 py-2.5 rounded font-bold uppercase text-[10px] tracking-wider transition-all 
+                              ${!canProceed || (purchaseType && purchaseType !== 'NAKİT') ? 'opacity-20 cursor-not-allowed bg-slate-800 text-slate-500' : ''} 
+                              ${purchaseType === 'NAKİT' ? 'bg-emerald-600 text-white cursor-default' : 'bg-slate-800 text-slate-300 hover:bg-emerald-600 hover:text-white btn-click'}`}>
+                              Nakit Onay
                           </button>
                           <button 
                               disabled={!canProceed || purchaseType !== null} 
                               onClick={() => { setPurchaseType('TAKAS'); handleFinalProcess('TAKAS ALINDI'); }} 
-                              className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all 
-                              ${!canProceed || (purchaseType && purchaseType !== 'TAKAS') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                              ${purchaseType === 'TAKAS' ? 'bg-[#0052D4] text-white shadow-lg shadow-blue-900/50 cursor-default' : ''} 
-                              ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-slate-300 hover:bg-[#0052D4] hover:text-white' : ''}`}>
-                              TAKAS
+                              className={`flex-1 py-2.5 rounded font-bold uppercase text-[10px] tracking-wider transition-all 
+                              ${!canProceed || (purchaseType && purchaseType !== 'TAKAS') ? 'opacity-20 cursor-not-allowed bg-slate-800 text-slate-500' : ''} 
+                              ${purchaseType === 'TAKAS' ? 'bg-blue-600 text-white cursor-default' : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white btn-click'}`}>
+                              Takas Onay
                           </button>
                       </div>
                       
                       <button 
                           disabled={!canProceed || purchaseType !== null} 
                           onClick={() => { setPurchaseType('ALINMADI'); handleFinalProcess('ALINMADI'); }} 
-                          className={`w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all 
-                          ${!canProceed || (purchaseType && purchaseType !== 'ALINMADI') ? 'opacity-30 cursor-not-allowed bg-slate-800 text-slate-600' : ''} 
-                          ${purchaseType === 'ALINMADI' ? 'bg-red-500 text-white shadow-lg shadow-red-900/50 cursor-default' : ''} 
-                          ${canProceed && !purchaseType ? 'btn-click bg-slate-800 text-red-400 hover:bg-red-500 hover:text-white' : ''}`}>
-                          ALINMADI
+                          className={`w-full py-2 rounded font-bold uppercase text-[10px] tracking-wider transition-all 
+                          ${!canProceed || (purchaseType && purchaseType !== 'ALINMADI') ? 'opacity-20 cursor-not-allowed bg-slate-800 text-slate-500' : ''} 
+                          ${purchaseType === 'ALINMADI' ? 'bg-rose-600 text-white cursor-default' : 'bg-slate-800 text-rose-400 hover:bg-rose-600 hover:text-white btn-click'}`}>
+                          Müşteri İptal / Alınmadı
                       </button>
 
-                      <div className={`pt-6 mt-6 border-t border-slate-800 space-y-3 transition-all duration-500 ${showDocs ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-2'}`}>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">2. BELGE VE BİLDİRİM</p>
-                          <div className="flex gap-3">
-                            <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all btn-click shadow-lg ${showDocs ? 'bg-white text-slate-950 hover:bg-slate-200' : 'bg-slate-800 text-slate-600'}`}>
-                              YAZDIR
+                      <div className={`pt-4 mt-3 border-t border-white/5 space-y-2 transition-all duration-300 ${showDocs ? 'opacity-100' : 'opacity-10 pointer-events-none'}`}>
+                          <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center">Entegrasyon Çıktıları</p>
+                          <div className="flex gap-2">
+                            <button disabled={!showDocs} onClick={() => handleFinalProcess('print')} className="flex-1 py-2.5 rounded font-bold uppercase text-[10px] bg-white text-slate-900 hover:bg-slate-200 btn-click shadow-sm">
+                              Yazdır
                             </button>
-                            <button disabled={!showDocs} onClick={() => handleFinalProcess('whatsapp')} className={`flex-1 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all btn-click shadow-lg ${showDocs ? 'bg-[#25D366] text-white hover:bg-[#128C7E] shadow-green-900/40' : 'bg-slate-800 text-slate-600'}`}>
-                              WHATSAPP
+                            <button disabled={!showDocs} onClick={() => handleFinalProcess('whatsapp')} className="flex-1 py-2.5 rounded font-bold uppercase text-[10px] bg-[#25D366] text-white hover:bg-[#1CBA54] btn-click shadow-sm">
+                              WhatsApp
                             </button>
                           </div>
                       </div>
@@ -1786,70 +1804,55 @@ export default function CnetmobilCmrFinalUltimate() {
         </main>
       </div>
 
-      <footer className="mt-auto w-full border-t border-slate-200 py-6 text-center print:hidden bg-transparent">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
+      <footer className="mt-auto w-full border-t border-slate-200 py-4 text-center print:hidden bg-white/40">
+         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{isZumay ? 'ZUMAY BANK NODE INTEGRATION v6.0.0' : 'CNETMOBIL • HARDWARE CORE ENGINE v6.0.0'}</p>
       </footer>
 
-      {/* TOAST BİLDİRİMLERİ */}
-      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
+      {/* TOAST SYSTEM CONTAINER */}
+      <div className="fixed top-20 right-4 z-[200] flex flex-col gap-2 pointer-events-none print:hidden">
         {toastMessages.map((toast) => (
-          <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
-              {toast.type === 'new' ? (
-                <span className="text-lg">📦</span>
-              ) : (
-                <span className="text-lg">💵</span>
-              )}
-            </div>
+          <div key={toast.id} className={`animate-in slide-in-from-right-4 duration-200 rounded-lg shadow-md p-3 border flex items-center gap-2.5 backdrop-blur-md text-white ${toast.type === 'new' ? 'bg-emerald-600/95 border-emerald-500' : 'bg-blue-600/95 border-blue-500'}`}>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{toast.type === 'new' ? 'SİSTEM BİLDİRİMİ' : 'FİYAT GÜNCELLEMESİ'}</p>
-              <p className="font-bold text-sm leading-tight mt-0.5 max-w-[250px]">{toast.text}</p>
+              <p className="text-[8px] font-bold uppercase tracking-wider opacity-75">{toast.type === 'new' ? 'Altyapı Akışı' : 'Barem Güncelleme'}</p>
+              <p className="font-semibold text-xs mt-0.5 max-w-[220px]">{toast.text}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* TAKSİT MODALI */}
+      {/* RE-ENGINEERED TAILORED INSTALLMENT MATRIX MODAL */}
       {isInstallmentModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="bg-emerald-50 text-emerald-600 w-12 h-12 rounded-2xl flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Taksit Hesaplama</h2>
-                </div>
-              </div>
-              <button onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} className="bg-slate-100 p-3 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-3xl relative animate-in zoom-in-95 duration-150 border border-slate-200 flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3 shrink-0">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Mevzuat Taksit Matris Dağılımı</h2>
+              <button onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} className="bg-slate-100 p-2 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
-            <div className="mb-6 shrink-0 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Müşteri Adı Soyadı</label>
-                  <input type="text" placeholder="Ad Soyad" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300 uppercase" />
+            <div className="mb-4 shrink-0 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-500 transition-all">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider ml-1">Müşteri Tanımı</label>
+                  <input type="text" placeholder="Ad Soyad" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="w-full mt-1 bg-transparent text-xs font-bold outline-none text-slate-800 uppercase" />
                 </div>
-                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Telefon Numarası</label>
-                  <input type="text" placeholder="Telefon" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300" />
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 focus-within:border-blue-500 transition-all">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider ml-1">Mobil İletişim Numarası</label>
+                  <input type="text" placeholder="Telefon" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="w-full mt-1 bg-transparent text-xs font-bold outline-none text-slate-800" />
                 </div>
               </div>
-
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                  <span className="text-slate-400 font-black text-xl">₺</span>
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <span className="text-slate-400 font-bold text-base">₺</span>
                 </div>
-                <input type="number" placeholder="İşlem Tutarını Giriniz..." value={installmentAmount} onChange={(e) => setInstallmentAmount(e.target.value)} className="w-full py-6 pl-12 pr-6 bg-slate-50 rounded-3xl text-2xl font-black border border-slate-200 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 transition-all text-slate-800" />
+                <input type="number" placeholder="Matris İşlem Tutarını Giriniz..." value={installmentAmount} onChange={(e) => setInstallmentAmount(e.target.value)} className="w-full py-3.5 pl-9 pr-4 bg-slate-50 rounded-xl text-lg font-bold border border-slate-200 outline-none focus:bg-white focus:border-blue-500 transition-all text-slate-800" />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-2">
               {installmentAmount && Number(installmentAmount) > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[
                     { month: 2, rate: 7.83 }, { month: 3, rate: 10.05 }, { month: 4, rate: 12.36 }, { month: 5, rate: 14.76 },
                     { month: 6, rate: 17.55 }, { month: 7, rate: 20.19 }, { month: 8, rate: 22.96 }, { month: 9, rate: 25.85 },
@@ -1860,25 +1863,25 @@ export default function CnetmobilCmrFinalUltimate() {
                     const monthly = total / inst.month;
                     
                     return (
-                      <div key={inst.month} className="flex justify-between items-center bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-lg transition-all group cursor-default">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-slate-900 group-hover:bg-emerald-600 transition-colors text-white w-14 h-14 flex flex-col items-center justify-center rounded-[20px] shadow-md shrink-0">
-                            <span className="font-black text-xl leading-none">{inst.month}</span>
-                            <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-80">Taksit</span>
+                      <div key={inst.month} className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm group">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-slate-900 group-hover:bg-blue-600 transition-colors text-white w-10 h-10 flex flex-col items-center justify-center rounded font-mono shrink-0">
+                            <span className="font-bold text-base leading-none">{inst.month}</span>
+                            <span className="text-[7px] font-bold uppercase mt-0.5 opacity-60">Ayk</span>
                           </div>
                           <div>
-                            <div className="text-xl font-black italic text-slate-900 tracking-tighter">
-                              {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
+                            <div className="text-base font-bold text-slate-800 font-mono tracking-tight">
+                              {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 border-l border-slate-100 pl-4">
+                        <div className="flex items-center gap-3 border-l border-slate-100 pl-3">
                           <div className="text-right hidden sm:block">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Toplam</div>
-                            <div className="text-base font-black text-slate-700">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL</div>
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Toplam</div>
+                            <div className="text-xs font-bold text-slate-600 font-mono">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺</div>
                           </div>
-                          <button onClick={() => handleSendInstallmentToWhatsApp(inst.month, total)} className="bg-[#25D366] hover:bg-[#128C7E] text-white w-12 h-12 rounded-[18px] flex items-center justify-center transition-all shadow-md shadow-green-200 btn-click shrink-0" title="WhatsApp'a Gönder">
-                            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                          <button onClick={() => handleSendInstallmentToWhatsApp(inst.month, total)} className="bg-[#25D366] hover:bg-[#1CBA54] text-white w-8 h-8 rounded flex items-center justify-center transition-all btn-click shrink-0">
+                            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
                           </button>
                         </div>
                       </div>
@@ -1886,9 +1889,8 @@ export default function CnetmobilCmrFinalUltimate() {
                   })}
                 </div>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-40 py-10 text-slate-900">
-                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
+                <div className="py-8 text-center text-slate-400 font-semibold uppercase tracking-wider text-xs">
+                  Hesaplama için yukarıya geçerli bir barem tutarı giriniz
                 </div>
               )}
             </div>
@@ -1896,26 +1898,21 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       )}
 
-      {/* EKSPERTİZ DETAY MODALI */}
+      {/* ADMINISTRATIVE DIAGNOSTIC LOOKUP MODAL */}
       {ekspertizModalData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
-          <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-200 flex flex-col animate-in fade-in zoom-in duration-300">
-             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-6 shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black italic text-slate-900 uppercase tracking-tighter">Personel Seçimleri</h3>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase truncate max-w-sm">{ekspertizModalData.customer} - {ekspertizModalData.device}</p>
-                  </div>
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 print:hidden">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xl border border-slate-200 flex flex-col animate-in zoom-in-95 duration-150">
+             <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3 shrink-0">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Kayıtlı Ekspertiz Parametreleri</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold tracking-wider mt-0.5 uppercase truncate max-w-md">{ekspertizModalData.customer} - {ekspertizModalData.device}</p>
                 </div>
-                <button onClick={() => setEkspertizModalData(null)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-xl transition-colors btn-click">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <button onClick={() => setEkspertizModalData(null)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-2 rounded transition-colors btn-click">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
              </div>
              
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar pr-2 max-h-[60vh]">
+             <div className="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pr-1 max-h-[50vh]">
                 {ekspertizModalData.data.split(' | ').map((detail, idx) => {
                     if(!detail.includes(':')) return null;
                     const [key, val] = detail.split(':');
@@ -1923,12 +1920,12 @@ export default function CnetmobilCmrFinalUltimate() {
                     let valColor = "text-slate-700";
                     if (['Mükemmel', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
                     else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-600";
-                    else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-600";
+                    else if (['İyi', 'Çizikler var', 'Cızırtı var'].includes(val)) valColor = "text-amber-600";
 
                     return (
-                        <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-1.5 hover:border-slate-400 transition-colors">
-                            <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{key}</span>
-                            <span className={`text-sm font-black uppercase tracking-tight ${valColor}`}>{val}</span>
+                        <div key={idx} className="bg-slate-50 border border-slate-200 p-3 rounded-lg flex flex-col gap-1">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{key}</span>
+                            <span className={`text-xs font-bold uppercase tracking-tight ${valColor}`}>{val}</span>
                         </div>
                     )
                 })}
@@ -1937,7 +1934,7 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       )}
 
-      {/* YAZDIRMA EKRANI */}
+      {/* HARD COPY PRINT LAYER */}
       {appMode === 'alim' && (
         <div id="print-area">
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
