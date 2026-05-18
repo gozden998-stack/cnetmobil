@@ -177,13 +177,13 @@ export default function CnetmobilCmrFinalUltimate() {
       const matchedBranch = data.branch;
 
       if (loginMode === 'yonetici') {
-          setIsMasterAccess(true);
-          setIsAdmin(true);
-          setSelectedBranch('CMR MERKEZ'); 
-          setIsLoggedIn(true);
-          localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-          setLoginLoading(false);
-          return;
+         setIsMasterAccess(true);
+         setIsAdmin(true);
+         setSelectedBranch('CMR MERKEZ'); 
+         setIsLoggedIn(true);
+         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
+         setLoginLoading(false);
+         return;
       }
 
       if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
@@ -363,6 +363,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       
+      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
       
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
@@ -398,9 +399,11 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+ // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
     loadData();
     
+    // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
       loadData(); 
     }, 300000);
@@ -413,7 +416,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -602,17 +605,20 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
+  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
+    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
+    // 2. Ekranı anında kırmızı yap ve üstünü çiz
     setImeiData(prev => {
         const newData = [...prev];
         const rowIndex = newData.findIndex(r => r[1] === imei);
@@ -622,6 +628,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return newData;
     });
 
+    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -681,15 +688,15 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'yna_list', label: 'YNA List', visible: !isZumay },
         { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
         { 
-          id: 'kampanya_sifir', 
-          label: (
-            <div className="flex flex-col items-center justify-center -space-y-0.5">
-              <span className="font-black tracking-widest">KAMPANYALI</span>
-              <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
-            </div>
-          ), 
-          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
-        },
+  id: 'kampanya_sifir', 
+  label: (
+    <div className="flex flex-col items-center justify-center -space-y-0.5">
+      <span className="font-black tracking-widest">KAMPANYALI</span>
+      <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
+    </div>
+  ), 
+  visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
+},
         { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
@@ -742,7 +749,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-          if (datePart && datePart.includes('.')) {
+                    if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
@@ -780,194 +787,54 @@ export default function CnetmobilCmrFinalUltimate() {
   });
 
   if (authLoading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#0B0F19] space-y-4">
-      <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Güvenli Oturum Kontrolü</div>
+    <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="font-black text-white italic uppercase tracking-[0.3em]">OTURUM KONTROL EDİLİYOR...</div>
     </div>
   );
 
   if (loading && isLoggedIn) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#0B0F19] space-y-4">
-      <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Merkezi Altyapı Bağlanıyor</div>
+    <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">SİSTEM YÜKLENİYOR...</div>
     </div>
   );
 
-  /* BRAND NEW ULTRALUX HIGH-END ENTERPRISE LOGIN INTERFACE */
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col lg:flex-row font-sans antialiased selection:bg-blue-500/30 relative overflow-hidden">
-        
-        {/* Subtle, High-end Corporate Radial Mesh (Not cheap-looking mesh) */}
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(37,99,235,0.04),transparent_50%)] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_80%_80%,rgba(79,70,229,0.03),transparent_50%)] pointer-events-none" />
-
-        {/* LEFT COMPONENT: Ultra Clean Secure Authentication Vault */}
-        <div className="w-full lg:w-[40%] flex flex-col justify-between p-8 sm:p-12 lg:p-16 z-10 border-b lg:border-b-0 lg:border-r border-white/[0.06] backdrop-blur-xl bg-[#0B0F19]/60">
-          
-          {/* Corporate Header Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md shadow-blue-600/10">
-              <span className="font-extrabold text-white text-sm tracking-tighter">C</span>
-            </div>
-            <span className="text-lg font-bold tracking-tight text-white uppercase">
-              CNET<span className="text-blue-500 font-light">MOBIL</span>
-            </span>
-          </div>
-
-          {/* Centralized Form Block */}
-          <div className="w-full max-w-sm mx-auto my-auto py-10 lg:py-0">
-            <div className="mb-8">
-              <h1 className="text-xl font-bold tracking-tight text-white mb-2">B2B Ortaklık Portalı</h1>
-              <p className="text-xs text-slate-400 leading-relaxed">Şube ve yönetim paneli operasyonlarını yetkilendirmek için lütfen parolanızı doğrulayın.</p>
-            </div>
-
-            {/* Micro-engineered Segment Control Tabs */}
-            <div className="bg-[#151D30] p-1 rounded-xl border border-white/[0.04] flex gap-1 mb-6">
-              <button
-                onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
-                disabled={loginLoading}
-                className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all duration-150 uppercase tracking-wider ${
-                  loginMode === 'personel'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 disabled:opacity-50'
-                }`}
-              >
-                Mağaza / Personel
-              </button>
-              <button
-                onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
-                disabled={loginLoading}
-                className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all duration-150 uppercase tracking-wider ${
-                  loginMode === 'yonetici'
-                    ? 'bg-[#1E2942] text-white border border-white/[0.05]'
-                    : 'text-slate-400 hover:text-slate-200 disabled:opacity-50'
-                }`}
-              >
-                Yönetici Girişi
-              </button>
-            </div>
-
-            {/* Industrial Grade Input Form */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">
-                  {loginMode === 'personel' ? 'Sistem Erişim Şifresi' : 'Master Yönetici Şifresi'}
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={entryPass}
-                  onChange={(e) => setEntryPass(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  disabled={loginLoading}
-                  className="w-full bg-[#111827]/80 border border-white/[0.08] rounded-xl px-4 py-3 text-white tracking-widest placeholder:tracking-normal focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all text-center text-lg disabled:opacity-50"
-                />
-              </div>
-
-              <button
-                onClick={handleLogin}
-                disabled={loginLoading}
-                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 text-xs tracking-widest uppercase"
-              >
-                {loginLoading ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Doğrulanıyor...
-                  </>
-                ) : (
-                  'Sistemi Başlat'
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Infrastructure Footer Signature */}
-          <div className="text-[9px] font-medium text-slate-500 tracking-wider uppercase">
-            © 2026 CNETMOBIL CLOUD INFRASTRUCTURE.
-          </div>
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
+        <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
+           <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
+           </div>
+           <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
+           
+           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
+               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
+               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
+           </div>
+           
+           <input 
+              type="password" 
+              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
+              value={entryPass}
+              onChange={(e) => setEntryPass(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              disabled={loginLoading}
+              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
+           />
+           <button 
+             onClick={handleLogin} 
+             disabled={loginLoading}
+             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
+           >
+             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
+           </button>
         </div>
-
-        {/* RIGHT COMPONENT: Premium Enterprise Feature & Analytics Showcase */}
-        <div className="w-full lg:w-[60%] flex flex-col justify-center p-8 sm:p-12 lg:p-20 bg-[#070A13] relative border-t lg:border-t-0 border-white/[0.04]">
-          <div className="max-w-2xl mx-auto w-full space-y-12">
-            
-            {/* Top Badge and Corporate Punchline */}
-            <div className="space-y-4">
-              <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-md border border-blue-500/20">
-                Merkezi Dağıtık Ağ
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight leading-tight">
-                Tüm şubeler, anlık stok ve fiyat havuzu <br />
-                <span className="text-blue-500 font-light">tek bir merkezi panelde birleşti.</span>
-              </h2>
-            </div>
-
-            {/* Enterprise Grid Cards with Pure SVG Icons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              
-              {/* Card 1 */}
-              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
-                </div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Anlık Cihaz Değerleme</h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-light">Gelişmiş buyback algoritmalarıyla şubelerinizde hatasız, kayıpsız ve hızlı takas-alım süreçleri işletin.</p>
-              </div>
-
-              {/* Card 2 */}
-              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg>
-                </div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Merkezi Liste Senkronizasyonu</h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-light">Cep, Tablet, Sıfır Kampanya, YNA ve Dış Kanal fiyatları.</p>
-              </div>
-
-              {/* Card 3 */}
-              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
-                </div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Teknik Servis Altyapısı</h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-light">Onarım maliyet yönetin.</p>
-              </div>
-
-              {/* Card 4 */}
-              <div className="p-5 rounded-xl bg-[#0F1524] border border-white/[0.03] hover:border-white/[0.08] transition-all duration-300">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>
-                </div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Raporlama ve Mağaza Verisi</h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-light">şube performans metriklerini üst merkezden izleyin.</p>
-              </div>
-
-            </div>
-
-            {/* Clean Statistical Grid Matrix */}
-            <div className="pt-6 border-t border-white/[0.04] grid grid-cols-3 gap-4">
-              <div>
-                <div className="text-2xl font-bold text-white tracking-tight">8+</div>
-                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Aktif Şube / Kanal</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-white tracking-tight">100%</div>
-                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Canlı Senkron Veri</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-white tracking-tight text-blue-500">Secure</div>
-                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Google API</div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
       </div>
     );
   }
 
-  /* MAIN APPLICATION VIEW */
   return (
     <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
       <style>{`
@@ -1107,6 +974,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         
+                        // SİHİRLİ KISIM: Süreli Hafıza Kontrolü
                         const imeiNo = row[1];
                         let localDurum = null;
                         
@@ -1115,14 +983,17 @@ export default function CnetmobilCmrFinalUltimate() {
                             if (kayitStr) {
                                 try {
                                     const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000;
+                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
                                     
+                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
                                     if (new Date().getTime() - kayit.timestamp < onDakika) {
                                         localDurum = kayit.durum;
                                     } else {
+                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
                                         localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                     }
                                 } catch (e) {
+                                    // Eski sürümden kalan metinleri temizlemek için
                                     localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                 }
                             }
@@ -1191,7 +1062,7 @@ export default function CnetmobilCmrFinalUltimate() {
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
                               {row[10]}
                           </div>
-                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600 ' : 'text-slate-900'}`}>{row[11] || '-'}</div>
+                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
                         </div>
                     )})}
                   </div>
@@ -1510,7 +1381,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : step === 2 ? (
             <div className="animate-in slide-in-from-right-8 duration-500 text-slate-900 max-w-[1400px] mx-auto">
               <div className="flex items-center justify-between mb-8 mt-4">
-                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 `}>
+                  <button onClick={() => {setStep(1); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 ${appMode === 'servis' ? 'border-orange-200 text-orange-600 hover:text-orange-800 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4 hover:bg-slate-50')}`}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                     Geri Dön
                   </button>
@@ -1557,9 +1428,9 @@ export default function CnetmobilCmrFinalUltimate() {
             <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-700 text-slate-900 max-w-[1400px] mx-auto mt-4">
               
               <div className="flex-1 space-y-6">
-                <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 w-max `}>
+                <button onClick={() => {setStep(2); resetSelection();}} className={`bg-white shadow-sm border px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all btn-click flex items-center gap-2 w-max ${appMode === 'servis' ? 'border-orange-200 text-orange-500 hover:text-orange-700 hover:bg-orange-50' : (isZumay ? 'border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50' : 'border-slate-200 text-slate-500 hover:text-[#0052D4] hover:bg-slate-50')}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
-                  Modallere Dön
+                  Modellere Dön
                 </button>
 
                 {appMode === 'servis' ? (
