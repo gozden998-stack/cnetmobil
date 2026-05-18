@@ -786,50 +786,101 @@ export default function CnetmobilCmrFinalUltimate() {
       }
   });
 
-  if (authLoading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-900 space-y-4">
-      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-white italic uppercase tracking-[0.3em]">OTURUM KONTROL EDİLİYOR...</div>
-    </div>
-  );
-
-  if (loading && isLoggedIn) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white space-y-4">
-      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <div className="font-black text-slate-900 italic uppercase tracking-[0.3em]">SİSTEM YÜKLENİYOR...</div>
-    </div>
-  );
-
-  if (!isLoggedIn) {
+    if (!isLoggedIn) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
-        <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
-           <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
-           </div>
-           <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
-           
-           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
-               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
-               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
-           </div>
-           
-           <input 
-              type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
-              value={entryPass}
-              onChange={(e) => setEntryPass(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loginLoading}
-              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
-           />
-           <button 
-             onClick={handleLogin} 
-             disabled={loginLoading}
-             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
-           >
-             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
-           </button>
+      <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+        
+        {/* Üst Koyu Alan */}
+        <div className="bg-[#2b2b36] w-full pt-10 pb-32 px-4 text-center">
+          <h1 className="text-2xl md:text-3xl font-black italic text-white mb-2 tracking-tighter uppercase">
+            <span className="text-orange-500">Cnet</span>mobil Partner
+          </h1>
+          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em]">Kurumsal Cihaz Alım ve Yönetim Portalı</p>
+        </div>
+
+        {/* Form ve İçerik Alanı */}
+        <div className="max-w-3xl w-full mx-auto px-4 -mt-20 animate-in fade-in zoom-in duration-500">
+          
+          {/* Giriş Kutusu */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
+            
+            {/* Sekmeler (Personel / Yönetici) */}
+            <div className="flex border-b border-gray-100 mb-6">
+              <button 
+                onClick={() => {setLoginMode('personel'); setEntryPass('');}}
+                className={`flex-1 pb-4 text-center font-black uppercase tracking-widest text-[10px] transition-all ${loginMode === 'personel' ? 'text-orange-600 border-b-[3px] border-orange-500' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Mağaza / Personel
+              </button>
+              <button 
+                onClick={() => {setLoginMode('yonetici'); setEntryPass('');}}
+                className={`flex-1 pb-4 text-center font-black uppercase tracking-widest text-[10px] transition-all ${loginMode === 'yonetici' ? 'text-orange-600 border-b-[3px] border-orange-500' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Yönetici Girişi
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest text-center">
+                  {loginMode === 'personel' ? 'Mağaza Şifresini Giriniz' : 'Yönetici Şifresini Giriniz'}
+                </label>
+                <input 
+                  type="password" 
+                  value={entryPass}
+                  onChange={(e) => setEntryPass(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  disabled={loginLoading}
+                  placeholder="••••••••" 
+                  className="w-full border border-gray-200 rounded-xl p-4 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-black text-slate-800 bg-slate-50 focus:bg-white" 
+                />
+              </div>
+              
+              <button 
+                onClick={handleLogin} 
+                disabled={loginLoading || !entryPass}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black tracking-widest uppercase text-xs py-4 rounded-xl transition-all shadow-lg shadow-orange-500/30 disabled:opacity-50 btn-click"
+              >
+                {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
+              </button>
+            </div>
+          </div>
+
+          {/* 4'lü Hızlı Menü (Sizin Modülleriniz) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { icon: "📱", title: "Cihaz Değerleme" },
+              { icon: "🔧", title: "Teknik Servis" },
+              { icon: "📊", title: "Fiyat Listeleri" },
+              { icon: "📦", title: "Dış Kanal Alım" }
+            ].map((item, index) => (
+              <div 
+                key={index} 
+                onClick={() => alert("İşlem yapmak için lütfen önce şifrenizle sisteme giriş yapın.")} 
+                className="bg-white p-6 rounded-2xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer transition-all border border-gray-100 hover:border-orange-300 hover:shadow-md group btn-click"
+              >
+                <span className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-300 grayscale group-hover:grayscale-0">{item.icon}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-orange-600 transition-colors">{item.title}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* İstatistikler */}
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-lg p-6 flex flex-wrap justify-between text-white mb-8 border border-orange-400">
+            <div className="text-center w-1/3 border-r border-orange-400/50">
+              <div className="text-2xl font-black">8+</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Aktif Şube</div>
+            </div>
+            <div className="text-center w-1/3 border-r border-orange-400/50">
+              <div className="text-2xl font-black">5 Dk</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Hızlı Senkron</div>
+            </div>
+            <div className="text-center w-1/3">
+              <div className="text-2xl font-black">%100</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Güvenli Veri</div>
+            </div>
+          </div>
+
         </div>
       </div>
     );
