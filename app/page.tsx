@@ -786,44 +786,43 @@ export default function CnetmobilCmrFinalUltimate() {
       }
   });
 
-    if (!isLoggedIn) {
+      if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
         
         {/* Üst Koyu Alan */}
-        <div className="bg-[#2b2b36] w-full pt-10 pb-32 px-4 text-center">
-          <h1 className="text-2xl md:text-3xl font-black italic text-white mb-2 tracking-tighter uppercase">
-            <span className="text-orange-500">Cnet</span>mobil Partner
+        <div className="bg-[#363a45] w-full pt-10 pb-32 px-4 text-center">
+          <h1 className="text-2xl md:text-3xl font-black text-white mb-2 tracking-tight">
+            İşinizi <span className="text-[#ff6a00]">Cnetmobil</span> ile Güçlendirin
           </h1>
-          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em]">Kurumsal Cihaz Alım ve Yönetim Portalı</p>
         </div>
 
         {/* Form ve İçerik Alanı */}
-        <div className="max-w-3xl w-full mx-auto px-4 -mt-20 animate-in fade-in zoom-in duration-500">
+        <div className="max-w-3xl w-full mx-auto px-4 -mt-20 flex-grow">
           
           {/* Giriş Kutusu */}
-          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
+          <div className="bg-white rounded-xl shadow-md p-5 mb-4 border border-gray-100 max-w-2xl mx-auto">
             
             {/* Sekmeler (Personel / Yönetici) */}
-            <div className="flex border-b border-gray-100 mb-6">
+            <div className="flex border-b border-gray-100 mb-5 bg-[#fcf9f7] rounded-t-lg">
               <button 
                 onClick={() => {setLoginMode('personel'); setEntryPass('');}}
-                className={`flex-1 pb-4 text-center font-black uppercase tracking-widest text-[10px] transition-all ${loginMode === 'personel' ? 'text-orange-600 border-b-[3px] border-orange-500' : 'text-gray-400 hover:text-gray-600'}`}
+                className={`flex-1 py-3 text-center font-bold text-[11px] md:text-xs transition-all ${loginMode === 'personel' ? 'text-[#ff6a00] border-b-2 border-[#ff6a00]' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                Mağaza / Personel
+                Giriş Yap
               </button>
               <button 
                 onClick={() => {setLoginMode('yonetici'); setEntryPass('');}}
-                className={`flex-1 pb-4 text-center font-black uppercase tracking-widest text-[10px] transition-all ${loginMode === 'yonetici' ? 'text-orange-600 border-b-[3px] border-orange-500' : 'text-gray-400 hover:text-gray-600'}`}
+                className={`flex-1 py-3 text-center font-bold text-[11px] md:text-xs transition-all ${loginMode === 'yonetici' ? 'text-[#ff6a00] border-b-2 border-[#ff6a00]' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Yönetici Girişi
               </button>
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest text-center">
-                  {loginMode === 'personel' ? 'Mağaza Şifresini Giriniz' : 'Yönetici Şifresini Giriniz'}
+                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">
+                  {loginMode === 'personel' ? 'Mağaza Şifresi' : 'Yönetici Şifresi'}
                 </label>
                 <input 
                   type="password" 
@@ -832,52 +831,71 @@ export default function CnetmobilCmrFinalUltimate() {
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   disabled={loginLoading}
                   placeholder="••••••••" 
-                  className="w-full border border-gray-200 rounded-xl p-4 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all font-black text-slate-800 bg-slate-50 focus:bg-white" 
+                  className="w-full border border-gray-300 rounded-lg p-3 md:p-3.5 text-lg tracking-[0.3em] focus:outline-none focus:border-[#ff6a00] transition-all font-bold text-slate-800" 
                 />
               </div>
               
               <button 
                 onClick={handleLogin} 
                 disabled={loginLoading || !entryPass}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black tracking-widest uppercase text-xs py-4 rounded-xl transition-all shadow-lg shadow-orange-500/30 disabled:opacity-50 btn-click"
+                className="w-full bg-[#ff6a00] hover:bg-[#e65c00] text-white font-semibold text-xs py-3.5 rounded-lg transition-all shadow-sm disabled:opacity-50 btn-click"
               >
-                {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
+                {loginLoading ? 'KONTROL EDİLİYOR...' : 'Giriş Yap'}
               </button>
             </div>
           </div>
 
-          {/* 4'lü Hızlı Menü (Sizin Modülleriniz) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {/* İnce İkonlu 4'lü Kutu Yapısı (Tam İstediğiniz Gibi) */}
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 mb-4 max-w-2xl mx-auto">
             {[
-              { icon: "📱", title: "Cihaz Değerleme" },
-              { icon: "🔧", title: "Teknik Servis" },
-              { icon: "📊", title: "Fiyat Listeleri" },
-              { icon: "📦", title: "Dış Kanal Alım" }
+              { 
+                icon: <svg className="w-5 h-5 mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>, 
+                line1: "Cihaz", 
+                line2: "Değerlendirme" 
+              },
+              { 
+                icon: <svg className="w-5 h-5 mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, 
+                line1: "Teknik", 
+                line2: "Servis" 
+              },
+              { 
+                icon: <svg className="w-5 h-5 mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>, 
+                line1: "Fiyat", 
+                line2: "Listeleri" 
+              },
+              { 
+                icon: <svg className="w-5 h-5 mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" /></svg>, 
+                line1: "Dış Kanal", 
+                line2: "Alım" 
+              }
             ].map((item, index) => (
               <div 
                 key={index} 
                 onClick={() => alert("İşlem yapmak için lütfen önce şifrenizle sisteme giriş yapın.")} 
-                className="bg-white p-6 rounded-2xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer transition-all border border-gray-100 hover:border-orange-300 hover:shadow-md group btn-click"
+                className="bg-white py-4 md:py-6 px-2 rounded-xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer transition-all border border-gray-100 hover:border-[#ff6a00] hover:shadow-md group btn-click"
               >
-                <span className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-300 grayscale group-hover:grayscale-0">{item.icon}</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-orange-600 transition-colors">{item.title}</span>
+                {item.icon}
+                <span className="text-[11px] md:text-xs font-medium text-gray-800 leading-tight">{item.line1}</span>
+                <span className="text-[11px] md:text-xs font-medium text-gray-800 leading-tight">{item.line2}</span>
               </div>
             ))}
           </div>
 
-          {/* İstatistikler */}
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-lg p-6 flex flex-wrap justify-between text-white mb-8 border border-orange-400">
-            <div className="text-center w-1/3 border-r border-orange-400/50">
-              <div className="text-2xl font-black">8+</div>
-              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Aktif Şube</div>
-            </div>
-            <div className="text-center w-1/3 border-r border-orange-400/50">
-              <div className="text-2xl font-black">5 Dk</div>
-              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Hızlı Senkron</div>
-            </div>
-            <div className="text-center w-1/3">
-              <div className="text-2xl font-black">%100</div>
-              <div className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-90">Güvenli Veri</div>
+          {/* Orijinal İstatistik Yapısı (Turuncu zemin, beyaz kutular) */}
+          <div className="bg-[#ff6a00] rounded-xl p-3 md:p-4 mb-8 max-w-2xl mx-auto">
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
+              <div className="bg-white rounded-lg py-3 md:py-4 text-center shadow-sm">
+                <div className="text-[#ff6a00] font-black text-sm md:text-lg">8+</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-0.5 font-medium">Aktif Şube</div>
+              </div>
+              <div className="bg-white rounded-lg py-3 md:py-4 text-center shadow-sm">
+                <div className="text-[#ff6a00] font-black text-sm md:text-lg">5 Dk</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-0.5 font-medium">Hızlı Senkron</div>
+              </div>
+              <div className="bg-white rounded-lg py-3 md:py-4 text-center shadow-sm">
+                <div className="text-[#ff6a00] font-black text-sm md:text-lg">%100</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-0.5 font-medium">Güvenli Veri</div>
+              </div>
             </div>
           </div>
 
@@ -885,6 +903,7 @@ export default function CnetmobilCmrFinalUltimate() {
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
