@@ -1,16 +1,20 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation'; // Yönlendirme eklendi
 
 export default function PartnerDashboard() {
-  // Form durum (state) yönetimi - TypeScript ile tiplendirilmiştir
+  const router = useRouter();
+  
+  // Form durum (state) yönetimi
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // İleride API/Google Sheets giriş doğrulama kodları buraya yazılacak
-    console.log("Giriş denemesi:", { email, password });
+    // Şimdilik şifre kontrolü yapmadan DİREKT değerleme ekranına atıyoruz
+    alert("Giriş başarılı! Değerleme ekranına yönlendiriliyorsunuz...");
+    router.push('/partner/degerleme'); 
   };
 
   return (
@@ -78,7 +82,7 @@ export default function PartnerDashboard() {
             { icon: "📱", title: "Cihaz Değerleme" },
             { icon: "📊", title: "Raporlama ve Analiz" }
           ].map((item, index) => (
-            <div key={index} className="bg-white p-6 rounded-xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all border border-gray-100">
+            <div key={index} onClick={() => router.push('/partner/degerleme')} className="bg-white p-6 rounded-xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all border border-gray-100">
               <span className="text-3xl mb-3">{item.icon}</span>
               <span className="text-sm font-medium text-gray-700">{item.title}</span>
             </div>
@@ -105,4 +109,3 @@ export default function PartnerDashboard() {
     </div>
   );
 }
-
