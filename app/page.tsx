@@ -800,40 +800,179 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
-  if (!isLoggedIn) {
+    if (!isLoggedIn) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans p-6">
-        <div className="w-full max-w-sm bg-slate-800 p-10 rounded-[48px] shadow-2xl border border-slate-700 text-center animate-in fade-in zoom-in duration-500">
-           <div className="bg-slate-700 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2" /></svg>
-           </div>
-           <h1 className="text-2xl font-black italic uppercase mb-8">BAYİ <span className="text-blue-500">GİRİŞİ</span></h1>
-           
-           <div className="flex bg-slate-700 rounded-2xl p-1 mb-8">
-               <button onClick={() => {setLoginMode('personel'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'personel' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Mağaza / Personel</button>
-               <button onClick={() => {setLoginMode('yonetici'); setEntryPass('');}} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'yonetici' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>Yönetici Girişi</button>
-           </div>
-           
-           <input 
-              type="password" 
-              placeholder={loginMode === 'personel' ? "Mağaza Şifresi" : "Yönetici Şifresi"} 
-              value={entryPass}
-              onChange={(e) => setEntryPass(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loginLoading}
-              className="w-full p-6 bg-slate-700 rounded-2xl mb-6 text-center font-black text-2xl outline-none border border-slate-600 focus:border-blue-500 transition-all text-white disabled:opacity-50" 
-           />
-           <button 
-             onClick={handleLogin} 
-             disabled={loginLoading}
-             className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50 tracking-widest"
-           >
-             {loginLoading ? 'KONTROL EDİLİYOR...' : 'SİSTEMİ AÇ'}
-           </button>
-        </div>
+      <div className="min-h-screen bg-[#efefef] overflow-x-hidden">
+        
+        {/* HEADER */}
+        <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
+          <div className="text-[22px] font-bold tracking-tight">
+            <span className="text-[#ff8a00]">cnet</span>
+            <span className="text-white">mobil</span>
+            <span className="text-[#ff8a00] ml-1">▣</span>
+          </div>
+
+          <div className="text-white text-[18px]">☎</div>
+        </header>
+
+        {/* HERO (Orijinal Koddaki Sünmeyen Renk Geçişi) */}
+        <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-3 pb-8">
+          
+          {/* TITLE */}
+          <div className="text-center pt-7 pb-5">
+            <h1 className="text-[20px] md:text-[34px] font-bold text-white">
+              İşinizi{" "}
+              <span className="text-white font-extrabold">Cnetmobil</span>{" "}
+              ile{" "}
+              <span className="text-[#ff8a00]">Güçlendirin</span>
+            </h1>
+          </div>
+
+          {/* LOGIN CARD */}
+          <div className="bg-white rounded-[18px] shadow-xl border border-gray-200 max-w-[900px] mx-auto overflow-hidden">
+            
+            {/* MAĞAZA / YÖNETİCİ SEÇİM SEKMLERİ */}
+            <div className="flex bg-[#f8f3ef] border-b p-1">
+              <button 
+                type="button"
+                onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
+                className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'personel' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Mağaza Girişi
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
+                className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'yonetici' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Yönetici Girişi
+              </button>
+            </div>
+
+            <div className="p-4 md:p-6">
+
+              {/* SİZİN ŞİFRE GİRİŞ ALANINIZ (Şablonun birebir orijinal h-[46px] ve border-gray-400 ölçüleriyle) */}
+              <div className="mb-5">
+                <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5">
+                  {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={entryPass}
+                    onChange={(e) => setEntryPass(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    disabled={loginLoading}
+                    placeholder="••••••"
+                    className="w-full h-[46px] border border-gray-400 rounded-[6px] px-3 outline-none text-lg tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all"
+                  />
+
+                  <div className="absolute right-4 top-[12px] text-gray-400 select-none">
+                    👁
+                  </div>
+                </div>
+              </div>
+
+              {/* SİZİN GİRİŞ BUTONUNUZ */}
+              <button 
+                onClick={handleLogin}
+                disabled={loginLoading || !entryPass}
+                className="w-full h-[44px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-[6px] uppercase tracking-wide text-xs disabled:opacity-50"
+              >
+                {loginLoading ? 'Kontrol Ediliyor...' : 'Sistemi Aç'}
+              </button>
+
+              {/* FORGOT */}
+              <div className="text-right text-red-500 text-[14px] mt-3 font-medium cursor-pointer hover:underline">
+                Şifremi unuttum
+              </div>
+
+              {/* STORE BUTTONS */}
+              <div className="space-y-3 mt-5">
+                <button className="w-full h-[44px] border border-gray-400 rounded-[6px] font-semibold hover:bg-gray-50 transition">
+                  App Store
+                </button>
+
+                <button className="w-full h-[44px] border border-gray-400 rounded-[6px] font-semibold hover:bg-gray-50 transition">
+                  Google Play
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* FEATURE CARDS (Sizin Gerçek Başlıklarınız) */}
+          <div className="grid grid-cols-2 gap-4 max-w-[900px] mx-auto mt-5">
+            {[
+              "Cihaz Değerlendirme",
+              "Teknik Servis Merkezi",
+              "Güncel Fiyat Listeleri",
+              "Dış Kanal Satın Alma",
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="bg-white rounded-[16px] min-h-[120px] flex items-center justify-center text-center p-4 shadow-md border border-gray-100"
+              >
+                <div className="font-semibold text-[15px] text-gray-800 leading-6">
+                  {item}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* STATS (Sizin Şube İstatistikleriniz) */}
+          <div className="grid grid-cols-3 gap-3 max-w-[900px] mx-auto mt-5">
+            <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
+              <div className="text-[#ff7a00] text-[34px] font-bold">8+</div>
+              <div className="text-[13px] font-medium text-gray-500">Aktif Şube</div>
+            </div>
+
+            <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
+              <div className="text-[#ff7a00] text-[34px] font-bold">5 Dk</div>
+              <div className="text-[13px] font-medium text-gray-500">Veri Senkronu</div>
+            </div>
+
+            <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
+              <div className="text-[#ff7a00] text-[34px] font-bold">%100</div>
+              <div className="text-[13px] font-medium text-gray-500">Güvenli Veri</div>
+            </div>
+          </div>
+        </section>
+
+        {/* FOOTER (Sadece Instagram Linkli Sade Alan) */}
+        <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4">
+          <div className="text-[28px] font-bold mb-8 text-gray-800">
+            Bizi Takip Edin
+          </div>
+
+          <div className="flex justify-center mb-8">
+            <a 
+              href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
+            >
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className="w-12 h-12 text-[#e1306c] group-hover:scale-110 transition-transform"
+              >
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+              </svg>
+            </a>
+          </div>
+        </footer>
+
       </div>
     );
   }
+
 
   return (
     <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
