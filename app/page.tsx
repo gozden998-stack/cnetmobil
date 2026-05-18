@@ -786,121 +786,121 @@ export default function CnetmobilCmrFinalUltimate() {
       }
   });
 
-   if (!isLoggedIn) {
+     if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#f4f5f7] flex flex-col font-sans">
+      <div className="min-h-screen flex flex-col font-sans bg-[#363a45]">
         
-        {/* Üst Koyu Alan */}
-        <div className="bg-[#363a45] w-full pt-12 pb-32 px-4 text-center">
-          <h1 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tighter uppercase">
-            <span className="text-[#ff6a00]">Cnetmobil</span> Partner
+        {/* ÜST KOYU HEADER */}
+        <div className="w-full pt-8 pb-6 px-4 text-center z-10">
+          <h1 className="text-2xl md:text-3xl font-medium text-white tracking-wide">
+            İşinizi <span className="text-[#f96b07] font-bold">Cnetmobil</span> ile Dijitalleştirin
           </h1>
-          <p className="text-gray-400 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em]">Kurumsal Yönetim Portalı</p>
         </div>
 
-        {/* Form ve İçerik Alanı */}
-        <div className="max-w-4xl w-full mx-auto px-4 -mt-20 flex-grow animate-in fade-in duration-500">
+        {/* ALT TURUNCU ARKA PLAN */}
+        <div className="flex-grow bg-[#f96b07] w-full px-4 py-8 md:py-10 animate-in fade-in duration-500">
           
-          {/* Giriş Kutusu (Beyaz) */}
-          <div className="bg-white rounded-xl shadow-md p-5 mb-8 border border-gray-100 max-w-3xl mx-auto">
+          <div className="max-w-3xl mx-auto space-y-6">
             
-            <div className="flex border-b border-gray-100 mb-5 bg-[#fdfdfd] rounded-t-lg">
-              <button 
-                onClick={() => {setLoginMode('personel'); setEntryPass('');}}
-                className={`flex-1 py-4 text-center font-bold text-xs transition-all ${loginMode === 'personel' ? 'text-[#ff6a00] border-b-[3px] border-[#ff6a00] bg-[#fffaf5]' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Mağaza / Personel
-              </button>
-              <button 
-                onClick={() => {setLoginMode('yonetici'); setEntryPass('');}}
-                className={`flex-1 py-4 text-center font-bold text-xs transition-all ${loginMode === 'yonetici' ? 'text-[#ff6a00] border-b-[3px] border-[#ff6a00] bg-[#fffaf5]' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Yönetici Girişi
-              </button>
-            </div>
-
-            <div className="space-y-5 px-2 pb-2">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-2 ml-1">
-                  {loginMode === 'personel' ? 'Mağaza Şifresi' : 'Yönetici Şifresi'}
-                </label>
-                <input 
-                  type="password" 
-                  value={entryPass}
-                  onChange={(e) => setEntryPass(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  disabled={loginLoading}
-                  placeholder="••••••••" 
-                  className="w-full border border-gray-300 rounded-lg p-4 text-xl tracking-[0.3em] focus:outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00] transition-all font-bold text-slate-800" 
-                />
+            {/* GİRİŞ FORMU */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="flex">
+                <button 
+                  onClick={() => {setLoginMode('personel'); setEntryPass('');}}
+                  className={`flex-1 py-4 text-center font-bold text-xs transition-colors ${loginMode === 'personel' ? 'bg-[#fff5f0] text-[#f96b07] border-b-2 border-[#f96b07]' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  Giriş Yap
+                </button>
+                <button 
+                  onClick={() => {setLoginMode('yonetici'); setEntryPass('');}}
+                  className={`flex-1 py-4 text-center font-bold text-xs transition-colors ${loginMode === 'yonetici' ? 'bg-[#fff5f0] text-[#f96b07] border-b-2 border-[#f96b07]' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  Kayıt Ol / Yönetici
+                </button>
               </div>
               
-              <button 
-                onClick={handleLogin} 
-                disabled={loginLoading || !entryPass}
-                className="w-full bg-[#ff6a00] hover:bg-[#e65c00] text-white font-bold text-sm py-4 rounded-lg transition-all shadow-sm disabled:opacity-50 btn-click tracking-wide"
-              >
-                {loginLoading ? 'KONTROL EDİLİYOR...' : 'Giriş Yap'}
-              </button>
+              <div className="p-6 md:p-8 space-y-5">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-2">E-mail veya Şifre</label>
+                  <input 
+                    type="password" 
+                    value={entryPass}
+                    onChange={(e) => setEntryPass(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    disabled={loginLoading}
+                    placeholder="••••••••" 
+                    className="w-full border border-gray-300 rounded-lg p-3.5 focus:outline-none focus:border-[#f96b07] focus:ring-1 focus:ring-[#f96b07] font-bold text-slate-800 tracking-[0.3em] transition-all" 
+                  />
+                  <div className="text-right mt-2">
+                    <button className="text-[10px] text-red-500 font-bold hover:underline">Şifremi unuttum</button>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={handleLogin} 
+                  disabled={loginLoading || !entryPass}
+                  className="w-full bg-[#f96b07] hover:bg-[#e05f04] text-white font-bold text-sm py-3.5 rounded-lg transition-all shadow-sm disabled:opacity-50 btn-click"
+                >
+                  {loginLoading ? 'Bekleyiniz...' : 'Giriş Yap'}
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* TURUNCU ANA BLOK (Menüler ve İstatistikler Burada) */}
-          <div className="bg-[#ff6a00] rounded-2xl p-4 md:p-6 mb-12 max-w-3xl mx-auto shadow-xl shadow-orange-500/20">
-            
-            {/* 4'lü Beyaz Menü Kutuları (RENKLİ VE İÇİ BOŞ İKONLAR) */}
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
+            {/* BİREBİR AYNI 4'LÜ MENÜ YAPISI */}
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 pt-2">
               {[
                 { 
-                  icon: <svg className="w-7 h-7 mb-3 text-blue-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>, 
+                  icon: <svg className="w-[22px] h-[22px] mb-2.5 text-[#333]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2-2v14a2 2 0 002 2z" /></svg>, 
                   line1: "Cihaz", line2: "Değerlendirme" 
                 },
                 { 
-                  icon: <svg className="w-7 h-7 mb-3 text-red-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, 
+                  icon: <svg className="w-[22px] h-[22px] mb-2.5 text-[#333]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, 
                   line1: "Teknik", line2: "Servis" 
                 },
                 { 
-                  icon: <svg className="w-7 h-7 mb-3 text-green-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>, 
+                  icon: <svg className="w-[22px] h-[22px] mb-2.5 text-[#333]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>, 
                   line1: "Fiyat", line2: "Listeleri" 
                 },
                 { 
-                  icon: <svg className="w-7 h-7 mb-3 text-purple-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" /></svg>, 
+                  icon: <svg className="w-[22px] h-[22px] mb-2.5 text-[#333]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" /></svg>, 
                   line1: "Dış Kanal", line2: "Alım" 
                 }
               ].map((item, index) => (
                 <div 
                   key={index} 
                   onClick={() => alert("İşlem yapmak için lütfen önce şifrenizle sisteme giriş yapın.")} 
-                  className="bg-white py-6 md:py-8 px-2 rounded-xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 group btn-click"
+                  className="bg-white py-6 md:py-7 px-2 rounded-xl shadow-sm text-center flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors btn-click"
                 >
                   {item.icon}
-                  <span className="text-xs md:text-sm font-medium text-gray-800 leading-tight">{item.line1}</span>
-                  <span className="text-xs md:text-sm font-medium text-gray-800 leading-tight">{item.line2}</span>
+                  <span className="text-[11px] md:text-xs font-medium text-gray-800 leading-snug">{item.line1}</span>
+                  <span className="text-[11px] md:text-xs font-medium text-gray-800 leading-snug">{item.line2}</span>
                 </div>
               ))}
             </div>
 
-            {/* 3'lü İstatistik Kutuları */}
-            <div className="grid grid-cols-3 gap-3 md:gap-4">
+            {/* BİREBİR AYNI 3'LÜ İSTATİSTİK YAPISI */}
+            <div className="grid grid-cols-3 gap-3 md:gap-4 pt-1">
               <div className="bg-white rounded-xl py-4 md:py-5 text-center shadow-sm">
-                <div className="text-[#ff6a00] font-black text-lg md:text-xl">8+</div>
-                <div className="text-gray-600 text-[10px] md:text-xs mt-1 font-medium">Aktif Şube</div>
+                <div className="text-[#f96b07] font-bold text-base md:text-lg">8+</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-1 font-medium">Aktif Şube</div>
               </div>
               <div className="bg-white rounded-xl py-4 md:py-5 text-center shadow-sm">
-                <div className="text-[#ff6a00] font-black text-lg md:text-xl">5 Dk</div>
-                <div className="text-gray-600 text-[10px] md:text-xs mt-1 font-medium">Hızlı Senkron</div>
+                <div className="text-[#f96b07] font-bold text-base md:text-lg">5 Dk</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-1 font-medium">Hızlı Senkron</div>
               </div>
               <div className="bg-white rounded-xl py-4 md:py-5 text-center shadow-sm">
-                <div className="text-[#ff6a00] font-black text-lg md:text-xl">%100</div>
-                <div className="text-gray-600 text-[10px] md:text-xs mt-1 font-medium">Güvenli Veri</div>
+                <div className="text-[#f96b07] font-bold text-base md:text-lg">%100</div>
+                <div className="text-gray-600 text-[10px] md:text-[11px] mt-1 font-medium">Güvenli Veri</div>
               </div>
             </div>
 
           </div>
         </div>
+        
       </div>
     );
   }
+
    
 
   return (
