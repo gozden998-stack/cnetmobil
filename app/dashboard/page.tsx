@@ -1,262 +1,323 @@
 'use client';
 
 import React, { useState } from 'react';
-// Material Tailwind bileşenlerini çağırıyoruz
-import {
-  Card,
-  CardHeader,
-  CardBody,
-  Typography,
-  Button,
-  Input,
-  Select,
-  Option,
-  Dialog,
-  DialogHeader,
-  DialogBody,
-  DialogFooter,
-} from "@material-tailwind/react";
 
-// Türk Perakende Sektörüne Uygun Veri Tipleri
-interface Cihaz {
-  id: number;
-  sku: string; // IMEI numarası
+// Cihaz Durum Tipleri
+interface Secimler {
   marka: string;
   model: string;
   hafiza: string;
   renk: string;
-  kondisyon: string;
-  sube_adi: string;
-  alis_fiyati: number;
-  satis_fiyati: number;
-  durum: 'satis_bekliyor' | 'satildi';
+  kozmetik: string;
+  calisma: string;
+  imei: string;
 }
 
-export default function CnetmobilMaterialDashboard() {
-  const [activeTab, setActiveTab] = useState('envanter');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [aramaKelimesi, setAramaKelimesi] = useState('');
-
-  // Ikas Sitenizden Otomatik Gelecek Olan Telefon Modelleri
-  const [ikasModelleri] = useState([
-    { id: "ikas_1", marka: "Apple", model: "iPhone 14 Pro Max", hafiza: "256GB" },
-    { id: "ikas_2", marka: "Apple", model: "iPhone 13", hafiza: "128GB" },
-    { id: "ikas_3", marka: "Samsung", model: "Galaxy S23 Ultra", hafiza: "512GB" }
-  ]);
-
-  // Şubelerinizdeki Canlı Stok Listesi
-  const [cihazlar, setCihazlar] = useState<Cihaz[]>([
-    { id: 1, sku: '358921104857211', marka: 'Apple', model: 'iPhone 14 Pro Max', hafiza: '256GB', renk: 'Derin Mor', kondisyon: 'Yenilenmiş A+', sube_adi: 'Kadıköy Şube', alis_fiyati: 32000, satis_fiyati: 48500, durum: 'satis_bekliyor' },
-    { id: 2, sku: '357412209481125', marka: 'Apple', model: 'iPhone 13', hafiza: '128GB', renk: 'Yıldız Işığı', kondisyon: 'A Kalite', sube_adi: 'Beşiktaş Şube', alis_fiyati: 21000, satis_fiyati: 29900, durum: 'satis_bekliyor' }
-  ]);
-
-  const [formData, setFormData] = useState({
-    sku: '', marka: '', model: '', hafiza: '', renk: '', kondisyon: 'Yenilenmiş A+', sube_adi: 'Merkez Depo', alis_fiyati: '', satis_fiyati: '', ikas_id: ''
+export default function GarantiliStilDashboard() {
+  // Videodaki Adım Mantığı (1: Marka, 2: Model, 3: Detaylar, 4: Sonuç)
+  const [adim, setAdim] = useState<number>(1);
+  
+  const [secim, setSecim] = useState<Secimler>({
+    marka: '', model: '', hafiza: '', renk: '', kozmetik: '', calisma: '', imei: ''
   });
 
-  // Ikas'tan model seçildiğinde diğer alanları otomatik dolduran akıllı sistem
-  const handleModelSecim = (value: string | undefined) => {
-    const secilen = ikasModelleri.find(m => m.id === value);
-    if (secilen) {
-      setFormData(prev => ({ ...prev, ikas_id: value || '', marka: secilen.marka, model: secilen.model, hafiza: secilen.hafiza }));
-    }
+  // Örnek Hesaplanan Fiyat (Videodaki robot mantığı)
+  const [hesaplananFiyat, setHesaplananFiyat] = useState<number>(0);
+
+  // Markalar
+  const markalar = ['Apple', 'Samsung', 'Xiaomi', 'Tecno'];
+
+  // Modellere göre hafıza ve renk havuzu (Ikas simülasyonu)
+  const modeller: Record<string, string[]> = {
+    Apple: ['iPhone 13', 'iPhone 14 Pro Max', 'iPhone 15 Pro'],
+    Samsung: ['Galaxy S23 Ultra', 'Galaxy S24', 'Galaxy A54'],
+    Xiaomi: ['Redmi Note 12', 'Xiaomi 13 Pro'],
+    Tecno: ['Camon 20', 'Spark 10']
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const yeniCihaz: Cihaz = {
-      id: Date.now(),
-      sku: formData.sku,
-      marka: formData.marka,
-      model: formData.model,
-      hafiza: formData.hafiza,
-      renk: formData.renk,
-      kondisyon: formData.kondisyon,
-      sube_adi: formData.sube_adi,
-      alis_fiyati: parseFloat(formData.alis_fiyati) || 0,
-      satis_fiyati: parseFloat(formData.satis_fiyati) || 0,
-      durum: 'satis_bekliyor'
-    };
+  const hafizalar = ['64GB', '128GB', '256GB', '512GB'];
+  const renkler = ['Uzay Grisi', 'Gümüş', 'Gece Yarısı', 'Derin Mor'];
 
-    setCihazlar([yengiCihaz, ...cihazlar]);
-    setIsModalOpen(false);
-    setFormData({ sku: '', marka: '', model: '', hafiza: '', renk: '', kondisyon: 'Yenilenmiş A+', sube_adi: 'Merkez Depo', alis_fiyati: '', satis_fiyati: '', ikas_id: '' });
+  // Videodaki tık tık seçim yapıldığında fiyatı uçuran akıllı fonksiyon
+  const fiyatHesapla = (yeniSecim: Secimler) => {
+    let bazFiyat = 30000;
+    if (yeniSecim.model.includes('14 Pro Max')) bazFiyat = 45000;
+    if (yeniSecim.model.includes('15 Pro')) bazFiyat = 55000;
+    if (yeniSecim.model.includes('S23 Ultra')) bazFiyat = 38000;
+
+    // Kozmetik ve çalışma durumuna göre fiyat kırma adımları
+    if (yeniSecim.kozmetik === 'Çizikli / Yıpranmış') bazFiyat -= 4000;
+    if (yeniSecim.calisma === 'Kamera veya FaceID Arızalı') bazFiyat -= 6000;
+    
+    setHesaplananFiyat(bazFiyat);
   };
 
-  const filtrelenmişCihazlar = cihazlar.filter(c => 
-    c.model.toLowerCase().includes(aramaKelimesi.toLowerCase()) || c.sku.includes(aramaKelimesi)
-  );
+  const sifirla = () => {
+    setSecim({ marka: '', model: '', hafiza: '', renk: '', kozmetik: '', calisma: '', imei: '' });
+    setHesaplananFiyat(0);
+    setAdim(1);
+  };
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] text-[#334155] font-sans text-xs">
+    <div className="flex h-screen bg-[#f3f4f6] text-[#374151] font-sans text-xs antialiased">
       
-      {/* ================= 1. TÜRKÇE SOL SIDEBAR MENÜ ================= */}
-      <aside className="w-64 bg-[#0f172a] p-4 flex flex-col justify-between border-r border-[#1e293b]">
+      {/* SOL SABİT MENÜ */}
+      <aside className="w-60 bg-[#111827] text-[#9ca3af] p-4 flex flex-col justify-between border-r border-[#1f2937]">
         <div>
-          <div className="flex items-center gap-3 px-2 py-4 border-b border-[#1e293b] mb-6">
-            <div className="w-8 h-8 bg-sky-500 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shadow-sky-500/20">C</div>
-            <div>
-              <span className="font-bold text-sm text-white block">Cnetmobil</span>
-              <span className="text-[10px] text-sky-400 font-bold block">Partner Entegrasyon</span>
-            </div>
+          <div className="flex items-center gap-2.5 px-2 py-4 border-b border-[#1f2937] mb-6">
+            <div className="w-7 h-7 bg-[#22c55e] rounded-lg flex items-center justify-center text-white font-black">C</div>
+            <span className="font-bold text-sm text-white tracking-tight">Cnetmobil Partner</span>
           </div>
-
           <nav className="space-y-1">
-            <button onClick={() => setActiveTab('anasayfa')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-2.5 font-bold transition-all ${activeTab === 'anasayfa' ? 'bg-[#1e293b] text-sky-400' : 'text-[#94a3b8] hover:bg-[#1e293b] hover:text-white'}`}>📊 Anasayfa Özet</button>
-            <button onClick={() => setActiveTab('envanter')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-2.5 font-bold transition-all ${activeTab === 'envanter' ? 'bg-[#1e293b] text-sky-400' : 'text-[#94a3b8] hover:bg-[#1e293b] hover:text-white'}`}>📦 Fırsat Cihazları</button>
-            <button onClick={() => setActiveTab('siparisler')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-2.5 font-bold transition-all ${activeTab === 'siparisler' ? 'bg-[#1e293b] text-sky-400' : 'text-[#94a3b8] hover:bg-[#1e293b] hover:text-white'}`}>🛒 Sipariş Yönetimi</button>
-            <button onClick={() => setActiveTab('finansallar')} className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-2.5 font-bold transition-all ${activeTab === 'finansallar' ? 'bg-[#1e293b] text-sky-400' : 'text-[#94a3b8] hover:bg-[#1e293b] hover:text-white'}`}>💰 Finansallar</button>
+            <button className="w-full text-left px-3 py-2.5 rounded-xl bg-[#1f2937] text-white font-bold">📱 Cihaz Alım / Satış</button>
+            <button className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1f2937] opacity-50 cursor-not-allowed">📦 Envanter Havuzu</button>
+            <button className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1f2937] opacity-50 cursor-not-allowed">🛒 Siparişler</button>
+            <button className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1f2937] opacity-50 cursor-not-allowed">💰 Finansallar</button>
           </nav>
         </div>
-        <div className="text-[10px] text-[#475569] text-center border-t border-[#1e293b] pt-4 font-mono">partner.cnetmobil.com.tr</div>
+        <div className="text-[10px] text-[#4b5563] text-center font-mono">partner.cnetmobil.com.tr</div>
       </aside>
 
-      {/* ================= 2. SAĞ İÇERİK ALANI ================= */}
+      {/* SAĞ İÇERİK ALANI (VİDEODAKİ SİHİRBAZ EKRANI) */}
       <main className="flex-1 flex flex-col overflow-hidden">
         
         {/* Üst Bar */}
-        <header className="h-16 bg-white border-b border-[#e2e8f0] flex items-center justify-between px-8 shadow-sm">
-          <Typography variant="small" className="font-bold text-[#0f172a]">Cnetmobil Merkez Otomasyon Havuzu</Typography>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            <span className="text-[#64748b] font-bold text-[10px] bg-[#f1f5f9] px-2.5 py-1 rounded-md border border-[#e2e8f0]">Ikas Türkiye Bağlantısı: Canlı</span>
-          </div>
+        <header className="h-14 bg-white border-b border-[#e5e7eb] flex items-center justify-between px-6 shadow-sm">
+          <span className="font-bold text-[#111827]">Garantili Tarzı Akıllı Cihaz Değerleme Otomasyonu</span>
+          <span className="bg-[#f3f4f6] text-[#1f2937] px-3 py-1 rounded-md font-bold text-[10px]">Şube Yetkisi: Merkez</span>
         </header>
 
-        {/* Dinamik Alan */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Adım İlerleme Çubuğu */}
+        <div className="bg-white border-b border-[#e5e7eb] px-12 py-3 flex items-center justify-between text-[#9ca3af] font-bold">
+          <div className={`${adim >= 1 ? 'text-[#22c55e]' : ''}`}>1. Marka Seçimi</div>
+          <div>➔</div>
+          <div className={`${adim >= 2 ? 'text-[#22c55e]' : ''}`}>2. Model & Kapasite</div>
+          <div>➔</div>
+          <div className={`${adim >= 3 ? 'text-[#22c55e]' : ''}`}>3. Ekspertiz / Durum</div>
+          <div>➔</div>
+          <div className={`${adim >= 4 ? 'text-[#22c55e]' : ''}`}>4. Fiyat ve İlan</div>
+        </div>
+
+        {/* Dinamik Adım İçerikleri */}
+        <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full">
           
-          {/* TÜRK LİRASI BAZLI PREMIUM İSTATİSTİK KARTLARI */}
-          <div className="grid grid-cols-4 gap-4">
-            <Card className="border border-[#e2e8f0] shadow-sm">
-              <CardBody className="p-4">
-                <Typography className="text-[#64748b] font-bold text-[10px] uppercase tracking-wider">Bugünkü Ikas Siparişi</Typography>
-                <Typography className="text-xl font-black text-[#0f172a] mt-1">12 Adet</Typography>
-              </CardBody>
-            </Card>
-            <Card className="border border-[#e2e8f0] shadow-sm">
-              <CardBody className="p-4">
-                <Typography className="text-[#64748b] font-bold text-[10px] uppercase tracking-wider">Havuzdaki Toplam IMEI</Typography>
-                <Typography className="text-xl font-black text-[#0f172a] mt-1">{cihazlar.length} Cihaz</Typography>
-              </CardBody>
-            </Card>
-            <Card className="border border-[#e2e8f0] shadow-sm">
-              <CardBody className="p-4">
-                <Typography className="text-[#64748b] font-bold text-[10px] uppercase tracking-wider">Anlık Toplam Ciro</Typography>
-                <Typography className="text-xl font-black text-emerald-600 mt-1">94.800 TL</Typography>
-              </CardBody>
-            </Card>
-            <Card className="border border-[#e2e8f0] shadow-sm">
-              <CardBody className="p-4">
-                <Typography className="text-[#64748b] font-bold text-[10px] uppercase tracking-wider">Bekleyen Parça Talebi</Typography>
-                <Typography className="text-xl font-black text-amber-600 mt-1">3 Adet</Typography>
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* FIRSAT CİHAZLARI / ENVANTER SEKMESİ */}
-          {activeTab === 'envanter' && (
+          {/* ADIM 1: MARKA SEÇİMİ (Büyük Butonlar) */}
+          {adim === 1 && (
             <div className="space-y-4">
-              
-              {/* TÜRKÇE FİLTRE VE YEŞİL AKSİYON BUTON BARBARI */}
-              <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 shadow-sm flex items-center justify-between gap-4">
-                <div className="w-80">
-                  <Input 
-                    type="text" 
-                    label="IMEI veya Model adına göre canlı süzün..." 
-                    className="text-xs"
-                    value={aramaKelimesi}
-                    onChange={(e) => setAramaKelimesi(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button 
-                    color="green" 
-                    size="sm" 
-                    className="font-black tracking-wide rounded-lg normal-case"
-                    onClick={() => setIsModalOpen(true)}
+              <h2 className="text-sm font-bold text-[#111827]">Lütfen Cihazın Markasını Seçin:</h2>
+              <div className="grid grid-cols-4 gap-4">
+                {markalar.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setSecim({ ...secim, marka: m });
+                      setAdim(2);
+                    }}
+                    className="p-6 bg-white border border-[#e5e7eb] rounded-2xl shadow-sm hover:border-[#22c55e] hover:bg-[#f0fdf4] text-center font-bold text-sm text-[#111827] transition-all"
                   >
-                    + Cihaz Ekle
-                  </Button>
-                  <Button variant="outlined" color="blue-gray" size="sm" className="font-bold rounded-lg normal-case bg-white">Toplu Telefon Ekle</Button>
-                  <Button variant="outlined" color="blue-gray" size="sm" className="font-bold rounded-lg normal-case bg-white">Aksiyonlar</Button>
+                    {m === 'Apple' ? '🍎' : m === 'Samsung' ? '📱' : '⚙️'} <div className="mt-2">{m}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ADIM 2: MODEL VE HAFIZA SEÇİMİ */}
+          {adim === 2 && (
+            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h2 className="text-sm font-bold text-[#111827]">Cihaz Model ve Donanım Seçimi ({secim.marka})</h2>
+                <button onClick={() => setAdim(1)} className="text-[#6b7280] hover:underline font-bold">← Geri Dön</button>
+              </div>
+
+              {/* Model Seçimi */}
+              <div className="space-y-2">
+                <span className="block font-bold text-[#4b5563]">Cihazın Modeli:</span>
+                <div className="flex flex-wrap gap-2">
+                  {modeller[secim.marka]?.map((mod) => (
+                    <button
+                      key={mod}
+                      onClick={() => setSecim({ ...secim, model: mod })}
+                      className={`px-4 py-2.5 rounded-xl font-bold border transition-all ${secim.model === mod ? 'bg-[#22c55e] text-white border-[#22c55e]' : 'bg-[#f9fafb] border-[#e5e7eb] hover:bg-[#f3f4f6]'}`}
+                    >
+                      {mod}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* MATERIAL PREMIUM STOK TABLOSU */}
-              <Card className="h-full w-full border border-[#e2e8f0] shadow-sm overflow-hidden">
-                <table className="w-full min-w-max table-auto text-left">
-                  <thead>
-                    <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Cihaz / Model Tanımı</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">IMEI Numarası (SKU)</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Kondisyon</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Bulunduğu Lokasyon</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Maliyet (Alış)</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Sitedeki Satış Fiyatı</th>
-                      <th className="p-4 text-[10px] font-bold uppercase text-[#64748b]">Ikas Durumu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f1f5f9] text-[#334155] font-medium">
-                    {filtrelenmişCihazlar.map((cihaz) => (
-                      <tr key={cihaz.id} className="hover:bg-[#f8fafc]/90 transition-all">
-                        <td className="p-4 font-bold text-[#0f172a] text-sm">{cihaz.marka} {cihaz.model} <span className="text-[#94a3b8] font-normal text-xs ml-1">({cihaz.hafiza} / {cihaz.renk})</span></td>
-                        <td className="p-4 font-mono text-[#64748b]">{cihaz.sku}</td>
-                        <td className="p-4"><span className="bg-[#f0fdf4] text-[#166534] font-extrabold px-2 py-0.5 rounded border border-[#bbf7d0] text-[10px]">{cihaz.kondisyon}</span></td>
-                        <td className="p-4 font-semibold text-[#475569]">{cihaz.sube_adi}</td>
-                        <td className="p-4 font-mono text-[#94a3b8]">{cihaz.alis_fiyati.toLocaleString('tr-TR')} TL</td>
-                        <td className="p-4 font-black text-[#0f172a] text-sm">{cihaz.satis_fiyati.toLocaleString('tr-TR')} TL</td>
-                        <td className="p-4"><span className="bg-[#e0f2fe] text-[#0369a1] font-bold px-2.5 py-0.5 rounded-full text-[10px] border border-[#bae6fd]">● Ikas Sitesinde Canlıda</span></td>
-                      </tr>
+              {/* Hafıza Seçimi */}
+              {secim.model && (
+                <div className="space-y-2 pt-2 border-t">
+                  <span className="block font-bold text-[#4b5563]">Hafıza Kapasitesi:</span>
+                  <div className="flex gap-2">
+                    {hafizalar.map((h) => (
+                      <button
+                        key={h}
+                        onClick={() => setSecim({ ...secim, hafiza: h })}
+                        className={`px-4 py-2.5 rounded-xl font-bold border transition-all ${secim.hafiza === h ? 'bg-[#22c55e] text-white border-[#22c55e]' : 'bg-[#f9fafb] border-[#e5e7eb] hover:bg-[#f3f4f6]'}`}
+                      >
+                        {h}
+                      </button>
                     ))}
-                  </tbody>
-                </table>
-              </Card>
+                  </div>
+                </div>
+              )}
+
+              {/* Renk Seçimi */}
+              {secim.hafiza && (
+                <div className="space-y-2 pt-2 border-t">
+                  <span className="block font-bold text-[#4b5563]">Cihazın Rengi:</span>
+                  <div className="flex gap-2">
+                    {renkler.map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setSecim({ ...secim, renk: r })}
+                        className={`px-4 py-2.5 rounded-xl font-bold border transition-all ${secim.renk === r ? 'bg-[#22c55e] text-white border-[#22c55e]' : 'bg-[#f9fafb] border-[#e5e7eb] hover:bg-[#f3f4f6]'}`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {secim.renk && (
+                <div className="pt-4 flex justify-end">
+                  <button
+                    onClick={() => setAdim(3)}
+                    className="bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold px-6 py-2.5 rounded-xl shadow-sm transition-all"
+                  >
+                    Ekspertiz Adımına Geç ➔
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ADIM 3: EKSPERTİZ / DURUM SEÇİMİ (VİDEODAKİ KRİTİK ADIM) */}
+          {adim === 3 && (
+            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h2 className="text-sm font-bold text-[#111827]">Cihaz Kondisyon Soruları ({secim.model})</h2>
+                <button onClick={() => setAdim(2)} className="text-[#6b7280] hover:underline font-bold">← Geri Dön</button>
+              </div>
+
+              {/* Soru 1: Kozmetik */}
+              <div className="space-y-2">
+                <span className="block font-bold text-[#4b5563]">1. Cihazın Kozmetik / Kasa Durumu Nedir?</span>
+                <div className="grid grid-cols-2 gap-3">
+                  {['Sıfır Gibi / Temiz', 'Çizikli / Yıpranmış'].map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        const s = { ...secim, kozmetik: k };
+                        setSecim(s);
+                        fiyatHesapla(s);
+                      }}
+                      className={`p-3 rounded-xl font-bold border text-left transition-all ${secim.kozmetik === k ? 'bg-[#f0fdf4] border-[#22c55e] text-[#166534]' : 'bg-[#f9fafb] border-[#e5e7eb]'}`}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Soru 2: Çalışma Durumu */}
+              {secim.kozmetik && (
+                <div className="space-y-2 pt-4 border-t">
+                  <span className="block font-bold text-[#4b5563]">2. Cihazda Herhangi Bir Donanım Arızası Var mı?</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Her Şey Sağlam / Çalışıyor', 'Kamera veya FaceID Arızalı'].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          const s = { ...secim, calisma: c };
+                          setSecim(s);
+                          fiyatHesapla(s);
+                        }}
+                        className={`p-3 rounded-xl font-bold border text-left transition-all ${secim.calisma === c ? 'bg-[#f0fdf4] border-[#22c55e] text-[#166534]' : 'bg-[#f9fafb] border-[#e5e7eb]'}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* IMEI Barkod Girişi */}
+              {secim.calisma && (
+                <div className="space-y-2 pt-4 border-t">
+                  <label className="block font-bold text-[#4b5563]">3. Cihazın 15 Haneli IMEI Numarasını Okutun (SKU):</label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    placeholder="Barkod okuyucu ile okutun veya yazın"
+                    className="w-full bg-[#f9fafb] border border-[#cbd5e1] rounded-xl p-3 outline-none font-mono text-sm focus:border-[#22c55e]"
+                    value={secim.imei}
+                    onChange={(e) => setSecim({ ...secim, imei: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {secim.imei.length === 15 && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => setAdim(4)}
+                    className="bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold px-6 py-3 rounded-xl shadow-md transition-all"
+                  >
+                    Fiyatı Gör ve Canlıya Al ➔
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ADIM 4: ROBOTUN HESAPLADIĞI FİYAT VE IKAS ONAYI */}
+          {adim === 4 && (
+            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-8 shadow-sm text-center space-y-6">
+              <div className="w-16 h-16 bg-[#hn-f0fdf4] text-[#22c55e] rounded-full flex items-center justify-center text-2xl mx-auto font-bold">✓</div>
+              
+              <div>
+                <h2 className="text-base font-black text-[#111827]">Otomatik Cihaz Değerlemesi Tamamlandı</h2>
+                <p className="text-[#6b7280] mt-1">Sistem, girdiğiniz verilere göre cihazın online satış değerini çıkarttı.</p>
+              </div>
+
+              {/* ÖZET KART */}
+              <div className="bg-[#f8fafc] border border-[#e5e7eb] rounded-xl p-4 text-left max-w-sm mx-auto space-y-2 font-medium">
+                <div> Marka / Model: <span className="font-bold text-[#111827]">{secim.marka} {secim.model}</span></div>
+                <div> Kapasite / Renk: <span className="font-bold text-[#111827]">{secim.hafiza} / {secim.renk}</span></div>
+                <div> IMEI (SKU Code): <span className="font-mono font-bold text-[#111827]">{secim.imei}</span></div>
+                <div className="pt-2 border-t border-dashed text-sm flex justify-between items-center">
+                  <span>Önerilen Satış Fiyatı:</span>
+                  <span className="font-black text-[#22c55e] text-base">{hesaplananFiyat.toLocaleString('tr-TR')} TL</span>
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-4">
+                <button
+                  onClick={sifirla}
+                  className="bg-white border border-[#cbd5e1] hover:bg-[#f9fafb] text-[#374151] font-bold px-5 py-2.5 rounded-xl"
+                >
+                  Yeni Cihaz Al ↻
+                </button>
+                <button
+                  onClick={() => {
+                    alert(`IMEI-${secim.imei} koduyla cihaz Ikas sitenize başarıyla fırlatıldı!`);
+                    sifirla();
+                  }}
+                  className="bg-[#22c55e] hover:bg-[#16a34a] text-white font-black px-6 py-2.5 rounded-xl shadow-md shadow-green-500/20"
+                >
+                  Onayla ve Ikas Sitede Yayınla
+                </button>
+              </div>
             </div>
           )}
 
         </div>
       </main>
-
-      {/* ================= 3. MATERIAL POP-UP FORUM PANELİ ================= */}
-      <Dialog open={isModalOpen} handler={() => setIsModalOpen(false)} size="xs" className="rounded-2xl">
-        <DialogHeader className="text-sm font-bold border-b text-[#0f172a]">Ikas Sitenize Tek Tıkla Cihaz Gönderin</DialogHeader>
-        <DialogBody className="space-y-4">
-          
-          <div>
-            <label className="block text-[11px] font-bold text-[#475569] mb-1">1. Sitedeki Telefon Modelini Seçin</label>
-            <select className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-lg p-2.5 outline-none font-bold text-[#334155]" onChange={(e) => handleModelSecim(e.target.value)}>
-              <option value="">-- Listeden Seçiniz --</option>
-              {ikasModelleri.map(m => (
-                <option key={m.id} value={m.id}>{m.marka} {m.model} ({m.hafiza})</option>
-              ))}
-            </select>
-          </div>
-
-          <Input type="text" label="2. Cihazın 15 Haneli IMEI Numarasını Yazın" maxLength={15} className="font-mono text-sm" value={formData.sku} onChange={(e) => setFormData({...formData, sku: e.target.value})} />
-          <Input type="text" label="Cihazın Rengi" value={formData.renk} onChange={(e) => setFormData({...formData, renk: e.target.value})} />
-          
-          <div className="grid grid-cols-2 gap-3">
-            <Input type="number" label="Maliyet (Alış Fiyatı)" value={formData.alis_fiyati} onChange={(e) => setFormData({...formData, alis_fiyati: e.target.value})} />
-            <Input type="number" label="Ikas Satış Fiyatı" className="font-bold text-emerald-600" value={formData.satis_fiyati} onChange={(e) => setFormData({...formData, satis_fiyati: e.target.value})} />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-[#475569] mb-1">Cihazın Fiziksel Olarak Bulunduğu Şube</label>
-            <select className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-lg p-2.5 outline-none font-semibold" value={formData.sube_adi} onChange={(e) => setFormData({...formData, sube_adi: e.target.value})}>
-              <option value="Kadıköy Şube">Kadıköy Şube</option>
-              <option value="Beşiktaş Şube">Beşiktaş Şube</option>
-              <option value="Merkez Depo">Merkez Depo</option>
-            </select>
-          </div>
-
-        </DialogBody>
-        <DialogFooter className="gap-2 border-t">
-          <Button variant="text" color="red" size="sm" onClick={() => setIsModalOpen(false)} className="normal-case font-bold">İptal</Button>
-          <Button color="green" size="sm" onClick={handleFormSubmit} className="normal-case font-black">Sitede Canlıya Al</Button>
-        </DialogFooter>
-      </Dialog>
 
     </div>
   );
