@@ -800,222 +800,206 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
-   if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
-        <div>
-          {/* HEADER */}
-          <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
-            <div className="text-[22px] font-bold tracking-tight">
-              <span className="text-[#ff8a00]">cnet</span>
-              <span className="text-white">mobil</span>
-              <span className="text-[#ff8a00] ml-1">▣</span>
-            </div>
+ if (!isLoggedIn) {
+  return (
+    <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
+      <div>
+        {/* HEADER */}
+        <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
+          <div className="text-[22px] font-bold tracking-tight">
+            {/* Orijinal, temiz ve BEYAZ Cnetmobil yazısı */}
+            <span className="text-white">cnet</span>
+            <span className="text-white">mobil</span>
+            <span className="text-[#ff8a00] ml-1">▣</span>
+          </div>
+          <div className="text-white text-[18px]">☎</div>
+        </header>
 
-            <div className="text-white text-[18px]">☎</div>
-          </header>
+        {/* HERO ALANI */}
+        <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
+          
+          {/* MOBİL BAŞLIK */}
+          <div className="text-center pt-7 pb-5 lg:hidden">
+            <h1 className="text-[20px] font-bold text-white">
+              İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
+            </h1>
+          </div>
 
-          {/* HERO ALANI (Renk geçişli ana arka plan) */}
-          <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
+          {/* PC DÜZENİ (items-center ile kutuların sünmesi engellendi) */}
+          <div className="max-w-[1140px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center pt-2 lg:pt-16">
             
-            {/* MOBİL BAŞLIK (Sadece telefonda en tepede görünür, PC'de gizlenir) */}
-            <div className="text-center pt-7 pb-5 lg:hidden">
-              <h1 className="text-[20px] font-bold text-white">
-                İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
-              </h1>
+            {/* [SOL SÜTUN] - GİRİŞ KARTINIZ */}
+            <div className="lg:col-span-5 w-full">
+              <div className="bg-white rounded-[20px] shadow-2xl border border-gray-200 overflow-hidden">
+                <div className="flex bg-[#f8f3ef] border-b p-1">
+                  <button 
+                    type="button"
+                    onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
+                    className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'personel' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Mağaza Girişi
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
+                    className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'yonetici' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Yönetici Girişi
+                  </button>
+                </div>
+
+                <div className="p-5 md:p-7">
+                  <div className="mb-6">
+                    <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5">
+                      {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={entryPass}
+                        onChange={(e) => setEntryPass(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        disabled={loginLoading}
+                        placeholder="•••••"
+                        className="w-full h-[50px] border border-gray-300 rounded-[8px] px-4 outline-none text-xl tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all shadow-inner"
+                      />
+                      <div className="absolute right-4 top-[14px] text-gray-400 select-none">👁</div>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handleLogin}
+                    disabled={loginLoading || !entryPass}
+                    className="w-full h-[50px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-[8px] uppercase tracking-wide text-[15px] disabled:opacity-50 shadow-md"
+                  >
+                    {loginLoading ? 'Kontrol Ediliyor...' : 'Sistemi Aç'}
+                  </button>
+                </div>
+
+                {/* APP STORE BUTONLARI */}
+                <div className="p-5 md:p-7 pt-0 border-t border-gray-100 bg-gray-50/50">
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <button className="w-full h-[46px] border border-gray-300 bg-white rounded-[8px] font-semibold hover:bg-gray-50 transition text-sm shadow-sm">
+                      App Store
+                    </button>
+                    <button className="w-full h-[46px] border border-gray-300 bg-white rounded-[8px] font-semibold hover:bg-gray-50 transition text-sm shadow-sm">
+                      Google Play
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* GERÇEK PC DÜZENİ: Sol ve Sağ sütun olarak ekranı böler (max-w Garantili ile birebir) */}
-            <div className="max-w-[1140px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center pt-2 lg:pt-16">
+            {/* [SAĞ SÜTUN] - TAM GETMOBIL ÖLÇÜLERİ (Büyük, Ferah, Ayrık Kutular) */}
+            <div className="lg:col-span-7 w-full flex flex-col justify-center">
               
-              {/* [SOL SÜTUN] - GİRİŞ KARTINIZ (PC'de sol tarafa tam oturur) */}
-              <div className="lg:col-span-5 w-full">
-                <div className="bg-white rounded-[18px] shadow-xl border border-gray-200 overflow-hidden">
-                  
-                  {/* MAĞAZA / YÖNETİCİ SEKMLERİ */}
-                  <div className="flex bg-[#f8f3ef] border-b p-1">
-                    <button 
-                      type="button"
-                      onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
-                      className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'personel' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Mağaza Girişi
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
-                      className={`flex-1 py-3 text-[14px] font-bold rounded-lg transition-all ${loginMode === 'yonetici' ? 'bg-white text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Yönetici Girişi
-                    </button>
-                  </div>
+              <div className="hidden lg:block mb-8 text-left pl-2">
+                <h1 className="text-[40px] font-bold text-white leading-[1.1]">
+                  İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
+                  <span className="text-[#ff8a00]">Güçlendirin</span>
+                </h1>
+              </div>
 
-                  <div className="p-4 md:p-6">
-                    {/* ŞİFRE GİRİŞ ALANI */}
-                    <div className="mb-5">
-                      <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5">
-                        {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
-                      </label>
-
-                      <div className="relative">
-                        <input
-                          type="password"
-                          value={entryPass}
-                          onChange={(e) => setEntryPass(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                          disabled={loginLoading}
-                          placeholder="•••••"
-                          className="w-full h-[46px] border border-gray-400 rounded-[6px] px-3 outline-none text-lg tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all"
-                        />
-                        <div className="absolute right-4 top-[12px] text-gray-400 select-none">👁</div>
-                      </div>
-                    </div>
-
-                    {/* SİSTEMİ AÇ BUTONU */}
-                    <button 
-                      onClick={handleLogin}
-                      disabled={loginLoading || !entryPass}
-                      className="w-full h-[44px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-[6px] uppercase tracking-wide text-xs disabled:opacity-50"
-                    >
-                      {loginLoading ? 'Kontrol Ediliyor...' : 'Sistemi Aç'}
-                    </button>
-
-                    {/* STORE BUTTONS */}
-                    <div className="space-y-3 mt-5">
-                      <button className="w-full h-[44px] border border-gray-400 rounded-[6px] font-semibold hover:bg-gray-50 transition">
-                        App Store
-                      </button>
-                      <button className="w-full h-[44px] border border-gray-400 rounded-[6px] font-semibold hover:bg-gray-50 transition">
-                        Google Play
-                      </button>
+              {/* BİREBİR GETMOBIL KUTULARI (4 Ayrı Kutu, Merkezi İkon ve Yazı, Geniş Boşluk) */}
+              <div className="grid grid-cols-2 gap-4 lg:gap-5">
+                {[
+                  {
+                    title: "Cihaz Değerlendirme",
+                    icon: (
+                      <svg className="w-10 h-10 text-blue-500 mb-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                        <path d="M9 10l2 2 4-4"></path>
+                      </svg>
+                    )
+                  },
+                  {
+                    title: "Teknik Servis Merkezi",
+                    icon: (
+                      <svg className="w-10 h-10 text-orange-500 mb-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                      </svg>
+                    )
+                  },
+                  {
+                    title: "Güncel Fiyat Listeleri",
+                    icon: (
+                      <svg className="w-10 h-10 text-emerald-500 mb-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                      </svg>
+                    )
+                  },
+                  {
+                    title: "Dış Kanal Satın Alma",
+                    icon: (
+                      <svg className="w-10 h-10 text-purple-500 mb-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                      </svg>
+                    )
+                  }
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-[20px] shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center p-6 lg:p-8 min-h-[160px] lg:min-h-[175px] hover:shadow-2xl transition-all duration-300"
+                  >
+                    {item.icon}
+                    <div className="font-bold text-[17px] lg:text-[19px] text-gray-800 leading-tight">
+                      {item.title}
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {/* İSTATİSTİKLERİNİZ */}
+              <div className="grid grid-cols-3 gap-4 lg:gap-5 mt-5">
+                <div className="bg-white rounded-[20px] shadow-lg text-center p-4 lg:p-5 border border-gray-100">
+                  <div className="text-[#ff7a00] text-[30px] lg:text-[36px] font-extrabold leading-none mb-1">8+</div>
+                  <div className="text-[13px] lg:text-[14px] font-bold text-gray-500">Aktif Şube</div>
+                </div>
+
+                <div className="bg-white rounded-[20px] shadow-lg text-center p-4 lg:p-5 border border-gray-100">
+                  <div className="text-[#ff7a00] text-[30px] lg:text-[36px] font-extrabold leading-none mb-1">5 Dk</div>
+                  <div className="text-[13px] lg:text-[14px] font-bold text-gray-500">Veri Senkronu</div>
+                </div>
+
+                <div className="bg-white rounded-[20px] shadow-lg text-center p-4 lg:p-5 border border-gray-100">
+                  <div className="text-[#ff7a00] text-[30px] lg:text-[36px] font-extrabold leading-none mb-1">%100</div>
+                  <div className="text-[13px] lg:text-[14px] font-bold text-gray-500">Güvenli Veri</div>
                 </div>
               </div>
 
-              {/* [SAĞ SÜTUN] - BAŞLIK, RENKLİ MODÜLLER VE İSTATİSTİKLER (PC'de sağ tarafa oturur) */}
-              <div className="lg:col-span-7 w-full flex flex-col justify-center">
-                
-                {/* PC BAŞLIK (Mobilde gizlenir, PC'de sola hizalı orijinal düzen) */}
-                <div className="hidden lg:block mb-8 text-left">
-                  <h1 className="text-[36px] font-bold text-white leading-tight">
-                    İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
-                    <span className="text-[#ff8a00]">Güçlendirin</span>
-                  </h1>
-                </div>
-
-                {/* MODÜL KARTLARI (İstediğin profesyonel renkli SVG ikonlu düzen) */}
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    {
-                      title: "Cihaz Değerlendirme",
-                      icon: (
-                        <svg className="w-8 h-8 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                          <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                          <path d="M9 10l2 2 4-4"></path>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Teknik Servis Merkezi",
-                      icon: (
-                        <svg className="w-8 h-8 text-orange-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Güncel Fiyat Listeleri",
-                      icon: (
-                        <svg className="w-8 h-8 text-emerald-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                          <polyline points="14 2 14 8 20 8"></polyline>
-                          <line x1="16" y1="13" x2="8" y2="13"></line>
-                          <line x1="16" y1="17" x2="8" y2="17"></line>
-                          <line x1="10" y1="9" x2="8" y2="9"></line>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Dış Kanal Satın Alma",
-                      icon: (
-                        <svg className="w-8 h-8 text-purple-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                        </svg>
-                      )
-                    }
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="bg-white rounded-[16px] min-h-[120px] flex flex-col items-center justify-center text-center p-4 shadow-md border border-gray-100/70 hover:shadow-lg transition-shadow"
-                    >
-                      {item.icon}
-                      <div className="font-semibold text-[15px] text-gray-800 leading-tight">
-                        {item.title}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* İSTATİSTİKLERİNİZ */}
-                <div className="grid grid-cols-3 gap-3 mt-5">
-                  <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
-                    <div className="text-[#ff7a00] text-[28px] md:text-[34px] font-bold">8+</div>
-                    <div className="text-[12px] md:text-[13px] font-medium text-gray-500">Aktif Şube</div>
-                  </div>
-
-                  <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
-                    <div className="text-[#ff7a00] text-[28px] md:text-[34px] font-bold">5 Dk</div>
-                    <div className="text-[12px] md:text-[13px] font-medium text-gray-500">Veri Senkronu</div>
-                  </div>
-
-                  <div className="bg-white rounded-[16px] text-center p-4 shadow-md">
-                    <div className="text-[#ff7a00] text-[28px] md:text-[34px] font-bold">%100</div>
-                    <div className="text-[12px] md:text-[13px] font-medium text-gray-500">Güvenli Veri</div>
-                  </div>
-                </div>
-
-              </div>
             </div>
-          </section>
-        </div>
-
-        {/* FOOTER (Sadece Instagram Linkli Tertemiz Sade Alan) */}
-        <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
-          <div className="text-[26px] font-bold mb-6 text-gray-800">
-            Bizi Takip Edin
           </div>
-
-          <div className="flex justify-center">
-            <a 
-              href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
-            >
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform"
-              >
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-              </svg>
-            </a>
-          </div>
-        </footer>
-
+        </section>
       </div>
-    );
-  }
+
+      {/* FOOTER */}
+      <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
+        <div className="text-[26px] font-bold mb-6 text-gray-800">
+          Bizi Takip Edin
+        </div>
+        <div className="flex justify-center">
+          <a 
+            href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+            </svg>
+          </a>
+        </div>
+      </footer>
+    </div>
+  );
+}
      
 
   return (
