@@ -804,12 +804,12 @@ if (!isLoggedIn) {
   return (
     <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
       <div>
-       {/* HEADER */}
+        {/* HEADER */}
         <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
           <div className="flex items-center h-[40px]">
-             {/* TypeScript hatası vermemesi için import ettiğimiz cnetLogo'yu src'ye bağlıyoruz */}
+             {/* Şef, public klasöründeki cnet.png'yi çekiyoruz ve TypeScript'i as string ile susturuyoruz */}
              <img 
-               src={cnetLogo.src || cnetLogo} 
+               src={"/cnet.png" as string} 
                alt="Cnetmobil Logo" 
                className="h-[32px] w-auto object-contain brightness-0 invert" 
              />
@@ -826,13 +826,13 @@ if (!isLoggedIn) {
             </h1>
           </div>
 
-          {/* ANA KONTEYNER (Geniş ekranları destekleyecek şekilde Flex yapısı kullanıldı) */}
+          {/* ANA KONTEYNER (Senin milimetrik ölçülerin için Flex altyapısı) */}
           <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
             
-            {/* [SOL SÜTUN] - ANA LOGIN KUTUSU (Senin ölçülerin: 845x465) */}
+            {/* [SOL SÜTUN] - ANA LOGIN KUTUSU (Ölçüler: 845x465) */}
             <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
               
-              {/* TAB ALANI (Senin ölçülerin: h-12 container, 390x36 butonlar) */}
+              {/* TAB ALANI (Ölçüler: h-12 container, 390x36 butonlar) */}
               <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
                 <button 
                   type="button"
@@ -850,7 +850,7 @@ if (!isLoggedIn) {
                 </button>
               </div>
 
-              {/* SOL FORM İÇ PADDING (Senin ölçün: p-7) */}
+              {/* SOL FORM İÇ PADDING (Ölçü: p-7) */}
               <div className="p-7 flex flex-col flex-1">
                 
                 <div className="mb-6 flex-1">
@@ -859,7 +859,7 @@ if (!isLoggedIn) {
                   </label>
 
                   <div className="relative">
-                    {/* INPUTLAR (Senin ölçün: 790x42) */}
+                    {/* INPUTLAR (Ölçü: 790x42) */}
                     <input
                       type="password"
                       value={entryPass}
@@ -874,7 +874,7 @@ if (!isLoggedIn) {
                 </div>
 
                 <div className="mt-auto">
-                  {/* GİRİŞ BUTONU (Senin ölçün: 790x38) */}
+                  {/* GİRİŞ BUTONU (Ölçü: 790x38) */}
                   <button 
                     onClick={handleLogin}
                     disabled={loginLoading || !entryPass}
@@ -883,23 +883,23 @@ if (!isLoggedIn) {
                     {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
                   </button>
 
-                  {/* APP STORE BUTONLARI (Senin ölçün: 135x40) */}
+                  {/* APP STORE BUTONLARI (Ölçü: 135x40) */}
                   <div className="flex gap-4">
                     <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                      <span className="text-lg">🍏</span> App Store
+                      🍏 App Store
                     </button>
                     <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                      <span className="text-lg">▶</span> Google Play
+                      ▶ Google Play
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* [SAĞ SÜTUN] - SAĞ BLOK GENEL (Senin ölçün: Genişlik ~850px) */}
+            {/* [SAĞ SÜTUN] - SAĞ BLOK GENEL (Genişlik ~850px) */}
             <div className="w-full xl:w-[850px] flex flex-col justify-center">
               
-              {/* BAŞLIK BOYUTU (Senin ölçün: text-5xl font-bold leading-tight) */}
+              {/* BAŞLIK BOYUTU (Ölçü: text-5xl font-bold) */}
               <div className="hidden xl:block mb-10 text-left">
                 <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
                   İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
@@ -907,7 +907,7 @@ if (!isLoggedIn) {
                 </h1>
               </div>
 
-              {/* SAĞ TARAFTAKİ BÜYÜK KARTLAR (Senin ölçün: 405x74, flex items-center, yatay tasarım) */}
+              {/* SAĞ TARAFTAKİ BÜYÜK KARTLAR (Ölçü: 405x74, Yatay Dikdörtgen Düzen) */}
               <div className="flex flex-wrap gap-4">
                 {[
                   {
@@ -961,7 +961,7 @@ if (!isLoggedIn) {
                 ))}
               </div>
 
-              {/* ALT İSTATİSTİK KARTLARI (Senin ölçün: 265x92, flex-col, justify-center) */}
+              {/* ALT İSTATİSTİK KARTLARI (Ölçü: 265x92, 3'lü Blok) */}
               <div className="flex flex-wrap gap-4 mt-6">
                 <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
                   <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
@@ -1006,8 +1006,7 @@ if (!isLoggedIn) {
       </footer>
     </div>
   );
-}  
-     
+}
 
   return (
     <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
