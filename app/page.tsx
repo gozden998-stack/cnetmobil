@@ -804,12 +804,15 @@ if (!isLoggedIn) {
   return (
     <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
       <div>
-        {/* HEADER */}
+       {/* HEADER */}
         <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
           <div className="flex items-center h-[40px]">
-             {/* Kendi Bembeyaz Cnetmobil Logon */}
-             <span className="text-[22px] font-bold tracking-tight text-white">cnetmobil</span>
-             <span className="text-[#ff8a00] ml-1 text-[22px]">▣</span>
+             {/* TypeScript hatası vermemesi için import ettiğimiz cnetLogo'yu src'ye bağlıyoruz */}
+             <img 
+               src={cnetLogo.src || cnetLogo} 
+               alt="Cnetmobil Logo" 
+               className="h-[32px] w-auto object-contain brightness-0 invert" 
+             />
           </div>
           <div className="text-white text-[18px]">☎</div>
         </header>
