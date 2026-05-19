@@ -19,9 +19,8 @@ export default function GlobalMarket() {
 
   const playDing = () => {
     try {
-      const audio = new Audio(
-        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
-      );
+      // public klasörüne yüklediğin sesin adını buraya yazıyorsun
+      const audio = new Audio("/bildirim.mp3");
       audio.play().catch(() => {});
     } catch (e) {}
   };
