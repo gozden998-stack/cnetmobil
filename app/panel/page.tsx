@@ -1,30 +1,24 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bell, ShoppingCart, Smartphone, Wrench, Users, ArrowRightLeft } from 'lucide-react';
 
-// TypeScript Tipleri (Veri güvenliği için)
+// TypeScript Tipleri
 type Branch = 'Merkez Şube' | 'Şube 2' | 'Şube 3' | 'Şube 4' | 'Şube 5' | 'Şube 6' | 'Şube 7' | 'Şube 8';
 
 export default function CnetmobilDashboard() {
-  // Şube state'i artık sadece 'Branch' tipindeki verileri kabul eder
   const [activeBranch, setActiveBranch] = useState<Branch>('Merkez Şube');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Supabase veri çekme işlemleri (TS tipleriyle birlikte) buraya eklenecek
       console.log('Veriler güncelleniyor...', new Date().toLocaleTimeString());
     };
 
     fetchDashboardData();
-    
-    // Performans optimizasyonu: 300 saniye (5 dakika) aralıklarla otomatik yenileme
     const intervalId = setInterval(fetchDashboardData, 300000); 
 
     return () => clearInterval(intervalId);
   }, []);
 
-  // Fiyat veya stok güncellemelerinde devreye girecek 3 tekrarlı bildirim sistemi
   const playAlertSound = () => {
     let playCount = 0;
     const alertSound = new Audio('/sounds/notification-alert.mp3');
@@ -45,7 +39,6 @@ export default function CnetmobilDashboard() {
       {/* Sol Menü (Sidebar) */}
       <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
         <div className="p-6 border-b border-slate-800 flex justify-center">
-          {/* Özel Şeffaf PNG Logo Alanı */}
           <img 
             src="/cnetmobil-logo-transparent.png" 
             alt="Cnetmobil" 
@@ -55,19 +48,19 @@ export default function CnetmobilDashboard() {
         
         <nav className="flex-1 p-4 space-y-2">
           <button className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-900/20 transition-all font-medium">
-            <ShoppingCart size={20} /> Hızlı Satış (POS)
+            <span>🛒</span> Hızlı Satış (POS)
           </button>
           <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-xl transition-all">
-            <ArrowRightLeft size={20} /> Cihaz Alım (Buyback)
+            <span>🔄</span> Cihaz Alım (Buyback)
           </button>
           <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-xl transition-all">
-            <Wrench size={20} /> Teknik Servis
+            <span>🔧</span> Teknik Servis
           </button>
           <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-xl transition-all">
-            <Smartphone size={20} /> Stok & Transfer
+            <span>📱</span> Stok & Transfer
           </button>
           <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-xl transition-all">
-            <Users size={20} /> Cari & Personel
+            <span>👥</span> Cari & Personel
           </button>
         </nav>
       </aside>
@@ -75,7 +68,6 @@ export default function CnetmobilDashboard() {
       {/* Ana İçerik Alanı */}
       <main className="flex-1 flex flex-col">
         
-        {/* Üst Bilgi Çubuğu (Header) */}
         <header className="h-20 px-8 flex items-center justify-between border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-semibold text-slate-100">Hızlı Satış Noktası</h1>
@@ -85,7 +77,6 @@ export default function CnetmobilDashboard() {
           </div>
           
           <div className="flex items-center gap-6">
-            {/* Şube Seçici (TS ile güvenli hale getirildi) */}
             <select 
               value={activeBranch}
               onChange={(e) => setActiveBranch(e.target.value as Branch)}
@@ -106,7 +97,7 @@ export default function CnetmobilDashboard() {
               className="relative p-2 text-slate-400 hover:text-slate-100 transition-colors"
               title="Test Bildirimi"
             >
-              <Bell size={24} />
+              <span className="text-xl">🔔</span>
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-slate-900 rounded-full"></span>
             </button>
             
@@ -114,11 +105,9 @@ export default function CnetmobilDashboard() {
           </div>
         </header>
 
-        {/* Dinamik Sayfa İçeriği */}
         <div className="p-8 flex-1 overflow-y-auto">
           <div className="grid grid-cols-12 gap-6 h-full">
             
-            {/* Sol: Ürün Arama ve Liste */}
             <div className="col-span-8 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-sm">
               <h2 className="text-lg font-medium mb-4">Ürün veya Barkod Okutun</h2>
               <div className="w-full h-12 bg-slate-800 rounded-xl border border-slate-700 mb-6 flex items-center px-4">
@@ -129,7 +118,6 @@ export default function CnetmobilDashboard() {
               </div>
             </div>
 
-            {/* Sağ: Sepet ve Ödeme Özeti */}
             <div className="col-span-4 bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col shadow-sm">
               <h2 className="text-lg font-medium mb-4 border-b border-slate-800 pb-4">Satış Özeti</h2>
               <div className="flex-1">
@@ -152,4 +140,3 @@ export default function CnetmobilDashboard() {
     </div>
   );
 }
-
