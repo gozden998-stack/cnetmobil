@@ -31,8 +31,7 @@ export default function RootLayout({
       lang="tr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* Kayan Borsa Ticker'ı üstte yer kaplayacağı için body'e "pt-8" sınıfı eklendi */}
-      <body className="min-h-full flex flex-col pt-8">
+      <body className="min-h-full flex flex-col">
         
         {/* 3. CANLI PİYASA VE BİLDİRİM MOTORU BURADA ÇALIŞIYOR */}
         <GlobalMarket />
