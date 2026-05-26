@@ -1,8 +1,10 @@
 // app/api/test-ikas/route.js
 import { NextResponse } from 'next/server';
-import { getIkasToken } from '@/lib/ikas';
+// @/lib yerine klasör ağacında 3 adım geriye gidip lib'i buluyoruz:
+import { getIkasToken } from '../../../lib/ikas'; 
 
 export async function GET() {
+// ... kodun devamı aynı kalacak
   try {
     const token = await getIkasToken();
     return NextResponse.json({ 
