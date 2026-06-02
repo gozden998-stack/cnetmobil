@@ -788,9 +788,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
             {seciliSubeHedefleri.length > 0 ? (
 
-                <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                 <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-x-auto border border-slate-200 dark:border-slate-700 shadow-sm">
 
-                    <table className="min-w-full">
+                    <table className="min-w-max w-full">
 
                         <thead className="sticky top-0 z-20">
 
