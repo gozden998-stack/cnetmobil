@@ -757,21 +757,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     {/* YENİ: HEDEFLER MODALI */}
 {activeModal === 'hedefler' && (
     <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-7xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-<div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-    <div className="flex justify-between items-center">
-        <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
-            <span className="text-3xl">🎯</span> {selectedBranch} Personel Hedefleri
-        </h3>
-        <button onClick={() => setActiveModal(null)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
-    </div>
-    {/* Dönem Bilgisi */}
-    <div className="mt-2 text-sky-500 font-black text-xs uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-3 py-1 rounded-lg inline-block">
-        {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
-    </div>
-</div>
 
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+            <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                <span className="text-3xl">🎯</span>
+                {selectedBranch} Personel Hedefleri
+            </h3>
+
+            <button
+                onClick={() => setActiveModal(null)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
+            >
                 <svg
                     className="w-6 h-6"
                     fill="none"
