@@ -2,9 +2,13 @@ import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
-    // YENİ: 'hedefler' modalı state'e eklendi
-    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | null>(null);
+    // YENİ: 'hedefler' ve 'cbot' modalı state'e eklendi
+    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'cbot' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
+    
+    // YENİ: C-Bot State'leri
+    const [botResponse, setBotResponse] = useState<string>("🤖 Merhaba! Ben C-Bot. Sana nasıl yardımcı olabilirim? (Örn: 'Gökhan Özden 2.el satışım nasıl?')");
+    const [chatInput, setChatInput] = useState<string>("");
 
     const isCmr = selectedBranch.includes('CMR');
 
@@ -410,6 +414,73 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         );
     };
 
+    // =========================================================================
+    // 🤖 YENİ: C-BOT AKILLI KOÇLUK MOTORU
+    // =========================================================================
+    const askCbot = (input: string) => {
+        if (!aktifPersoneller || aktifPersoneller.length === 0) {
+            setBotResponse("🤖 Şu an personel verilerini okuyamıyorum. Verilerin yüklendiğinden emin ol.");
+            return;
+        }
+
+        const inputLower = input.toLowerCase();
+        
+        // İsmi dinamik olarak bul
+        const p = aktifPersoneller.find((x: any) => 
+            x.isim.toLowerCase().includes(inputLower.split(" ")[0]) || 
+            inputLower.includes(x.isim.toLowerCase())
+        );
+        
+        if (!p) {
+            const personelListesi = aktifPersoneller.map((x:any) => x.isim).slice(0, 5).join(", ") + "...";
+            setBotResponse(`🤖 Merhaba, ben C-Bot. Sistemde bu ismi bulamadım. \n\nSistemdeki bazı isimler: ${personelListesi}\n\nLütfen ismi (Örn: 'Gökhan Özden 2.el') tekrar yazar mısın?`);
+            return;
+        }
+
+        // Kategoriyi (Baremi) bul, bulamazsa ilk baremi (genelde ana hedef) kullan
+        const barem = dinamikBaremler.find((b: any) => inputLower.includes(b.name.toLowerCase())) || dinamikBaremler[0];
+        
+        if (!barem) {
+            setBotResponse(`🎯 ${p.isim}, seni buldum! Ancak hangi kategoriyi sorduğunu anlayamadım.`);
+            return;
+        }
+
+        const hedef = p.hedefler[barem.name] || 0;
+        const satilan = p.gerceklesen[barem.name] || 0;
+        const yuzde = hedef > 0 ? Math.round((satilan / hedef) * 100) : (satilan > 0 ? 100 : 0);
+
+        // Standart Yapay Zeka Şablonu
+        const aiTemplate = (status: string, advice: string) => {
+            return `🤖 C-BOT ANALİZİ\n` +
+                   `---------------------------------------------------------\n` +
+                   `PERSONEL: ${p.isim}\n` +
+                   `KATEGORİ: ${barem.name}\n` +
+                   `DURUM: %${yuzde} gerçekleşme (${satilan}/${hedef})\n\n` +
+                   `KOÇ YORUMU:\n${status}\n\n` +
+                   `STRATEJİ:\n${advice}`;
+        };
+
+        let response;
+        if (yuzde >= 90) {
+            response = aiTemplate(
+                "Mükemmel bir performans sergiliyorsun. Hedefin zirvesindesin.",
+                "Bu disiplini koru. Ekip içindeki diğer arkadaşlarına senin yöntemlerini anlatarak şube başarımızı artıralım."
+            );
+        } else if (yuzde >= 50) {
+            response = aiTemplate(
+                "İyi gidiyoruz ancak daha fazlası mümkün. Hedefin yarısını geçtik.",
+                "Öğleden sonraki müşteri trafiğini iyi değerlendir. Ürün sunumunda çapraz satış tekliflerini artırırsak hedefi kolayca tuttururuz."
+            );
+        } else {
+            response = aiTemplate(
+                "Hedefin gerisindeyiz, vites artırma zamanı.",
+                "Stratejiyi değiştiriyoruz. Bugün sadece 'kanca' ürünlere odaklan, portföyündeki müşterileri arayarak doğrudan satışa dönüştür. Sana güveniyorum."
+            );
+        }
+
+        setBotResponse(response);
+    };
+
     return (
         <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
             
@@ -732,7 +803,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-        {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+            {/* 🤖 YENİ: C-BOT BUTONU */}
+            {hedeflerAktifMi && (
+                <div 
+                    className="fixed bottom-28 right-8 z-40 group cursor-pointer" 
+                    onClick={() => setActiveModal('cbot')}
+                >
+                    <div className="absolute inset-0 bg-sky-500 rounded-full animate-ping opacity-20"></div>
+                    <button className="relative w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center shadow-2xl border-2 border-sky-500 hover:scale-105 transition-all">
+                        <span className="text-2xl group-hover:animate-bounce">🤖</span>
+                    </button>
+                </div>
+            )}
+
+            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
             {hedeflerAktifMi && (
                 <div 
                     className="fixed bottom-50 right-8 z-40 group cursor-pointer" 
@@ -754,128 +838,97 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
-                    {/* YENİ: HEDEFLER MODALI */}
-{activeModal === 'hedefler' && (
-    <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-7xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                    {/* 🤖 YENİ: C-BOT MODALI */}
+                    {activeModal === 'cbot' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 p-6 border border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-black flex items-center gap-2 text-sky-500 dark:text-sky-400">
+                                    🤖 C-Bot Asistanım
+                                </h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            
+                            <input 
+                                type="text" 
+                                placeholder="Örn: Gökhan Özden 2.el satışım nasıl?" 
+                                className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 mb-4 outline-none text-sm text-slate-800 dark:text-slate-200 focus:border-sky-500 transition-colors"
+                                onChange={(e) => setChatInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && askCbot(chatInput)}
+                            />
+                            
+                            <button 
+                                onClick={() => askCbot(chatInput)}
+                                className="w-full py-3.5 bg-sky-500 text-white font-black uppercase tracking-widest rounded-xl mb-4 hover:bg-sky-600 transition-colors shadow-md shadow-sky-500/20 active:scale-95"
+                            >
+                                Sorgula
+                            </button>
+                            
+                            <div className="p-5 bg-sky-50 dark:bg-sky-900/10 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 min-h-[140px] border border-sky-100 dark:border-sky-800/50 whitespace-pre-wrap leading-relaxed shadow-inner">
+                                {botResponse}
+                            </div>
+                        </div>
+                    )}
 
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-            <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
-                <span className="text-3xl">🎯</span>
-                {selectedBranch} Personel Hedefleri
-            </h3>
-
-            <button
-                onClick={() => setActiveModal(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
-            >
-                <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M6 18L18 6M6 6l12 12"
-                    />
-                </svg>
-            </button>
-        </div>
-        {/* DÖNEM BİLGİSİ */}
-                                <div className="text-sky-500 font-black text-xs uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-3 py-1 rounded-lg inline-block">
-                                    {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
+                    {/* HEDEFLER MODALI */}
+                    {activeModal === 'hedefler' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-7xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                                <div>
+                                    <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                                        <span className="text-3xl">🎯</span>
+                                        {selectedBranch} Personel Hedefleri
+                                    </h3>
+                                    {/* DÖNEM BİLGİSİ */}
+                                    <div className="mt-2 text-sky-500 font-black text-xs uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-3 py-1 rounded-lg inline-block">
+                                        {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
+                                    </div>
                                 </div>
-        <div className="flex-1 overflow-auto bg-slate-100/50 dark:bg-slate-900 p-6">
-
-            {seciliSubeHedefleri.length > 0 ? (
-
-                 <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-x-auto border border-slate-200 dark:border-slate-700 shadow-sm">
-
-                    <table className="min-w-max w-full">
-
-                        <thead className="sticky top-0 z-20">
-
-                            <tr className="bg-yellow-300 text-slate-900">
-
-                                {hedeflerBasliklar.map((baslik: any, idx: number) => (
-
-                                    <th
-                                        key={idx}
-                                        className="px-4 py-3 border border-yellow-400 text-xs font-black uppercase whitespace-nowrap text-center"
-                                    >
-                                        {baslik}
-                                    </th>
-
-                                ))}
-
-                            </tr>
-
-                        </thead>
-
-                        <tbody>
-
-                            {seciliSubeHedefleri.map((row: any, rowIndex: number) => (
-
-                                <tr
-                                    key={rowIndex}
-                                    className="hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
+                                <button
+                                    onClick={() => setActiveModal(null)}
+                                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
                                 >
-
-                                    {hedeflerBasliklar.map((_: any, cellIndex: number) => (
-
-                                        <td
-                                            key={cellIndex}
-                                            className={`
-                                                px-4 py-3
-                                                border
-                                                border-slate-200
-                                                dark:border-slate-700
-                                                text-sm
-                                                whitespace-nowrap
-                                                text-center
-                                                ${cellIndex === 1
-                                                    ? 'font-black text-sky-600 dark:text-sky-400'
-                                                    : 'text-slate-700 dark:text-slate-200'
-                                                }
-                                            `}
-                                        >
-                                            {row[cellIndex] || 0}
-                                        </td>
-
-                                    ))}
-
-                                </tr>
-
-                            ))}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            ) : (
-
-                <div className="flex flex-col items-center justify-center py-16 opacity-60">
-                    <span className="text-6xl mb-4">📭</span>
-
-                    <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">
-                        Hedef Verisi Bulunamadı
-                    </h4>
-
-                    <p className="font-bold uppercase tracking-widest text-xs text-slate-500">
-                        Bu şubeye ait personel hedefi bulunamadı.
-                    </p>
-                </div>
-
-            )}
-
-        </div>
-
-    </div>
-)}
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-auto bg-slate-100/50 dark:bg-slate-900 p-6">
+                                {seciliSubeHedefleri.length > 0 ? (
+                                    <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-x-auto border border-slate-200 dark:border-slate-700 shadow-sm">
+                                        <table className="min-w-max w-full">
+                                            <thead className="sticky top-0 z-20">
+                                                <tr className="bg-yellow-300 text-slate-900">
+                                                    {hedeflerBasliklar.map((baslik: any, idx: number) => (
+                                                        <th key={idx} className="px-4 py-3 border border-yellow-400 text-xs font-black uppercase whitespace-nowrap text-center">
+                                                            {baslik}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {seciliSubeHedefleri.map((row: any, rowIndex: number) => (
+                                                    <tr key={rowIndex} className="hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors">
+                                                        {hedeflerBasliklar.map((_: any, cellIndex: number) => (
+                                                            <td key={cellIndex} className={`px-4 py-3 border border-slate-200 dark:border-slate-700 text-sm whitespace-nowrap text-center ${cellIndex === 1 ? 'font-black text-sky-600 dark:text-sky-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                                {row[cellIndex] || 0}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 opacity-60">
+                                        <span className="text-6xl mb-4">📭</span>
+                                        <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">Hedef Verisi Bulunamadı</h4>
+                                        <p className="font-bold uppercase tracking-widest text-xs text-slate-500">Bu şubeye ait personel hedefi bulunamadı.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
