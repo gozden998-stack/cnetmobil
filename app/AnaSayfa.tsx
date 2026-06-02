@@ -735,7 +735,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
             {hedeflerAktifMi && (
                 <div 
-                    className="fixed bottom-40 right-8 z-40 group cursor-pointer" 
+                    className="fixed bottom-50 right-8 z-40 group cursor-pointer" 
                     onClick={() => setActiveModal('hedefler')}
                 >
                     {/* Göz almaması için "animate-ping" yerine daha hafif bir "animate-pulse" kullanıldı ve opaklık düşürüldü */}
