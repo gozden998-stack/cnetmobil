@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 
-export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [] }: any) {
+export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
-    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | null>(null);
+    // YENİ: 'hedefler' modalı state'e eklendi
+    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
+
+    // YENİ: Vodofone ve Zumay kanallarında butonu gizleme mantığı
+    const branchLower = selectedBranch.toLowerCase();
+    const hedeflerAktifMi = !branchLower.includes('vodofone') && !branchLower.includes('vodafone') && !branchLower.includes('zumay');
 
     // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU (150.000 DÜZELTMESİ) ---
     const parseNum = (val: any) => {
@@ -330,6 +335,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .slice(0, 3); 
     }
 
+    // YENİ: Sadece bu şubeye ait Hedefler Datasını ayıklama
+    const seciliSubeHedefleri = (hedeflerData || []).filter((row: any) => 
+        Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
+    );
+    const hedeflerBasliklar = hedeflerData[0] || [];
+
     // --- PROGRESS BAR BİLEŞENİ (SADECE ANLIK PUAN GÖSTERİMİ) ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data || data.hedef === 0) return null;
@@ -352,7 +363,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* YENİ: Mağaza Barem İçi Sadece "Anlık Puan" Gösterimi (Sol Üst) */}
                 {data.hedefPuan > 0 && (
                      <div className="absolute top-0 left-0 bg-sky-500/20 border-b border-r border-sky-500/30 text-sky-400 text-[10px] font-black px-3 py-1.5 rounded-br-xl tracking-widest shadow-sm flex items-center gap-1.5">
                         <span className="text-[12px] animate-pulse">⚡</span>
@@ -440,7 +450,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                                         CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
                                     </h3>
-                                    {/* 1. YENİ: ÜST BOŞLUĞA GÜNCELLEME TARİHİ EKLENDİ */}
                                     {lastUpdatedDate && (
                                         <div className="mt-2 inline-flex items-center gap-1.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800 text-sky-600 dark:text-sky-400 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-sm">
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -448,7 +457,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         </div>
                                     )}
                                 </div>
-                                {/* 2. YEŞİL BUTON: SADECE ŞU ANKİ PUAN (ANLIK PUAN) YAZIYOR */}
                                 <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-5 py-2.5 rounded-xl font-black text-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-b-4 border-green-700 active:border-b-0 active:translate-y-1">
                                     {magazaAnlikPuan.toFixed(1)} Puan <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </button>
@@ -724,9 +732,75 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
+            {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+            {hedeflerAktifMi && (
+                <div 
+                    className="fixed bottom-8 right-8 z-40 group cursor-pointer" 
+                    onClick={() => setActiveModal('hedefler')}
+                >
+                    <div className="absolute inset-0 bg-fuchsia-500 rounded-full animate-ping opacity-60"></div>
+                    <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-500 rounded-full flex flex-col items-center justify-center text-white font-black shadow-[0_0_25px_rgba(168,85,247,0.6)] border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                        <span className="text-2xl mb-0.5">🎯</span>
+                        <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+                    </button>
+                </div>
+            )}
+
+            {/* MODALLAR */}
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
+                    
+                    {/* YENİ: HEDEFLER MODALI */}
+                    {activeModal === 'hedefler' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[80vh]">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                                    <span className="text-3xl">🎯</span> {selectedBranch} Personel Hedefleri
+                                </h3>
+                                <button onClick={() => setActiveModal(null)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            
+                            <div className="p-6 overflow-y-auto custom-scrollbar bg-slate-100/50 dark:bg-slate-900">
+                                {seciliSubeHedefleri.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {seciliSubeHedefleri.map((row: any, i: number) => (
+                                            <div key={i} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center gap-3 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700">
+                                                    <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 flex items-center justify-center font-black text-lg">
+                                                        👤
+                                                    </div>
+                                                    <h4 className="text-lg font-extrabold text-slate-800 dark:text-white">
+                                                        {row[1]} {/* Personel Adı */}
+                                                    </h4>
+                                                </div>
+                                                <div className="space-y-2.5">
+                                                    {hedeflerBasliklar.map((baslik: any, idx: number) => {
+                                                        if (idx < 2) return null; // Mağaza (0) ve Personel (1) sütunlarını atla
+                                                        return (
+                                                            <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/80 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-wide">{baslik}</span>
+                                                                <span className="text-sm font-black text-fuchsia-600 dark:text-fuchsia-400">{row[idx] || 0}</span>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 opacity-60">
+                                        <span className="text-6xl mb-4 animate-bounce">📭</span>
+                                        <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">Hedef Verisi Bulunamadı</h4>
+                                        <p className="font-bold uppercase tracking-widest text-xs text-slate-500">Bu şubeye ait personel hedefi Google Sheets'te mevcut değil.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
