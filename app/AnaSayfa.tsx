@@ -732,15 +732,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-         {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+        {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
             {hedeflerAktifMi && (
                 <div 
-                    // YENİ: bottom-8 yerine bottom-36 yapılarak C-Bot butonunun üzerine taşındı
                     className="fixed bottom-36 right-8 z-40 group cursor-pointer" 
                     onClick={() => setActiveModal('hedefler')}
                 >
-                    <div className="absolute inset-0 bg-fuchsia-500 rounded-full animate-ping opacity-60"></div>
-                    <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-500 rounded-full flex flex-col items-center justify-center text-white font-black shadow-[0_0_25px_rgba(168,85,247,0.6)] border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                    {/* Göz almaması için "animate-ping" yerine daha hafif bir "animate-pulse" kullanıldı ve opaklık düşürüldü */}
+                    <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
+                    
+                    {/* Mavi tonları (blue-600 ve sky-400) kullanıldı, gölge yumuşatıldı */}
+                    <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
                         <span className="text-2xl mb-0.5">🎯</span>
                         <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
                     </button>
