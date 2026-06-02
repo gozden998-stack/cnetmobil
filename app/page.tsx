@@ -37,7 +37,7 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
   const [personelData, setPersonelData] = useState<any[][]>([]);
-
+  const [hedeflerData, setHedeflerData] = useState<any[][]>([]);
   const servisFiyatlariRef = useRef<any>({});
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
   const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
@@ -368,7 +368,7 @@ export default function CnetmobilCmrFinalUltimate() {
       
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
-
+      if (allData.Hedefler) setHedeflerData(allData.Hedefler);
       if (allData.Servis) {
         const loadedServis: any = {};
         allData.Servis.forEach((row: any) => {
