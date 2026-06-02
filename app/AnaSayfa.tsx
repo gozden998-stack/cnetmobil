@@ -787,7 +787,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <div className="text-sky-500 font-black text-xs uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-3 py-1 rounded-lg inline-block">
                                     {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
                                 </div>
-                            </div>
         <div className="flex-1 overflow-auto bg-slate-100/50 dark:bg-slate-900 p-6">
 
             {seciliSubeHedefleri.length > 0 ? (
