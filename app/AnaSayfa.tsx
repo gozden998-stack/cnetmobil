@@ -732,7 +732,29 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-        {/* YENİ: HEDEFLER MODALI */}
+        {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+            {hedeflerAktifMi && (
+                <div 
+                    className="fixed bottom-50 right-8 z-40 group cursor-pointer" 
+                    onClick={() => setActiveModal('hedefler')}
+                >
+                    {/* Göz almaması için "animate-ping" yerine daha hafif bir "animate-pulse" kullanıldı ve opaklık düşürüldü */}
+                    <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
+                    
+                    {/* Mavi tonları (blue-600 ve sky-400) kullanıldı, gölge yumuşatıldı */}
+                    <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                        <span className="text-2xl mb-0.5">🎯</span>
+                        <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+                    </button>
+                </div>
+            )}
+
+            {/* MODALLAR */}
+            {activeModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
+                    
+                    {/* YENİ: HEDEFLER MODALI */}
 {activeModal === 'hedefler' && (
     <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-7xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
 
@@ -765,11 +787,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         <div className="flex-1 overflow-auto bg-slate-100/50 dark:bg-slate-900 p-6">
 
             {seciliSubeHedefleri.length > 0 ? (
-                // DÜZELTME: overflow-hidden yerine overflow-x-auto kullanıldı
-                <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-x-auto border border-slate-200 dark:border-slate-700 shadow-sm">
 
-                    {/* DÜZELTME: min-w-full yerine min-w-max kullanıldı */}
-                    <table className="min-w-max w-full">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+
+                    <table className="min-w-full">
 
                         <thead className="sticky top-0 z-20">
 
@@ -853,7 +874,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     </div>
 )}
 
-                    
                     {activeModal === 'tahmin' && (
                         <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center p-5 border-b border-slate-100">
