@@ -732,10 +732,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+         {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
             {hedeflerAktifMi && (
                 <div 
-                    className="fixed bottom-8 right-8 z-40 group cursor-pointer" 
+                    // YENİ: bottom-8 yerine bottom-36 yapılarak C-Bot butonunun üzerine taşındı
+                    className="fixed bottom-36 right-8 z-40 group cursor-pointer" 
                     onClick={() => setActiveModal('hedefler')}
                 >
                     <div className="absolute inset-0 bg-fuchsia-500 rounded-full animate-ping opacity-60"></div>
