@@ -22,7 +22,7 @@ export async function GET() {
     
     // UFAK DOKUNUŞ: C sütunundaki "KULLANILDI" yazılarını da çekebilmek için B1000 olan yer C1000 yapıldı.
     { id: 'Depo', range: 'DEPO!A1:C1000' },
-    { id: 'Hedefler', range: 'Hedefler!A1:L100' }, 
+    { id: 'Hedefler', range: 'Hedefler!A3:L100' }, 
     // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU ---
     { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
     { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
