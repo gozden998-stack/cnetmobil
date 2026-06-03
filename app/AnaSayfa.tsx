@@ -117,7 +117,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     };
     
     // =========================================================================
-    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA (YAPAY ZEKA EŞLEŞTİRME - KORUNDU)
+    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA
     // =========================================================================
     let dinamikMagazaMetrikleri: any[] = [];
     let magazaAnlikPuan = 0;
@@ -340,7 +340,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     );
     const hedeflerBasliklar = hedeflerData[0] || [];
 
-    // --- PROGRESS BAR BİLEŞENİ (SADECE ANLIK PUAN GÖSTERİMİ) ---
+    // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data || data.hedef === 0) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
@@ -731,7 +731,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* YENİ: YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
+            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
             {hedeflerAktifMi && (
                 <div 
                     className="fixed bottom-50 right-8 z-40 group cursor-pointer" 
@@ -751,43 +751,40 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
-                    {/* YENİ: HEDEFLER MODALI */}
+                    {/* YENİ: KAYDIRMASIZ (NO-SCROLL) HEDEFLER MODALI */}
                     {activeModal === 'hedefler' && (
-                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[95vw] max-w-7xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
 
-                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                                <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
-                                    <span className="text-3xl">🎯</span>
+                            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                                <h3 className="text-lg md:text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                                    <span className="text-2xl">🎯</span>
                                     {selectedBranch} Personel Hedefleri
+                                    <span className="text-sky-500 text-[10px] uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-2 py-1 rounded-md ml-2 border border-sky-100 dark:border-sky-800">
+                                        {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
+                                    </span>
                                 </h3>
 
                                 <button
                                     onClick={() => setActiveModal(null)}
-                                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
                                 >
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                 </button>
                             </div>
-                            
-                            {/* DÖNEM BİLGİSİ */}
-                            <div className="px-6 pt-4">
-                                <div className="text-sky-500 font-black text-xs uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-3 py-1 rounded-lg inline-block">
-                                    {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
-                                </div>
-                            </div>
                                                             
-                            <div className="flex-1 overflow-hidden p-3 sm:p-6 flex flex-col">
+                            <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
                                 {seciliSubeHedefleri.length > 0 ? (
-                                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm w-full overflow-x-auto custom-scrollbar flex-1">
-                                        <table className="w-full min-w-max">
-                                            <thead className="sticky top-0 z-20">
-                                                <tr className="bg-yellow-300 text-slate-900">
+                                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-center">
+                                            <thead className="sticky top-0 z-20 bg-yellow-300 text-slate-900">
+                                                <tr>
                                                     {hedeflerBasliklar.map((baslik: any, idx: number) => (
                                                         <th
                                                             key={idx}
-                                                            className="px-4 py-3 border border-yellow-400 text-xs font-black uppercase text-center whitespace-nowrap"
+                                                            className="px-1 py-2 border border-yellow-400 text-[9px] sm:text-[10px] font-black uppercase break-words leading-tight align-middle"
+                                                            style={{ minWidth: idx === 1 ? '90px' : 'auto' }}
                                                         >
                                                             {baslik}
                                                         </th>
@@ -803,10 +800,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                         {hedeflerBasliklar.map((_: any, cellIndex: number) => (
                                                             <td
                                                                 key={cellIndex}
-                                                                className={`px-4 py-3 border border-slate-200 dark:border-slate-700 text-sm text-center whitespace-nowrap ${
+                                                                className={`px-1 py-2 border border-slate-200 dark:border-slate-700 text-[10px] sm:text-xs align-middle leading-tight break-words ${
                                                                     cellIndex === 1
                                                                         ? 'font-black text-sky-600 dark:text-sky-400'
-                                                                        : 'text-slate-700 dark:text-slate-200'
+                                                                        : 'text-slate-700 dark:text-slate-200 font-medium'
                                                                 }`}
                                                             >
                                                                 {row[cellIndex] || 0}
