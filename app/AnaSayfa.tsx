@@ -8,9 +8,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const isCmr = selectedBranch.includes('CMR');
 
-    // Vodofone ve Zumay kanallarında butonu gizleme mantığı
+   // Kanal kısıtlama mantığı
     const branchLower = selectedBranch.toLowerCase();
-    const hedeflerAktifMi = !branchLower.includes('vodofone') && !branchLower.includes('vodafone') && !branchLower.includes('zumay');
+    const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
+    
+    const hedeflerAktifMi = !isBlocked;
+    const izinlerAktifMi = !isBlocked;
 
     // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU (150.000 DÜZELTMESİ) ---
     const parseNum = (val: any) => {
