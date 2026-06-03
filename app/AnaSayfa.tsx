@@ -736,20 +736,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-           {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (HEDEFLER VE İZİNLER) */}
-            <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
-                
-                {/* YENİ: İzinler Butonu */}
-                <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
-                    <div className="absolute inset-0 bg-purple-400 rounded-full animate-pulse opacity-30"></div>
-                    <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-purple-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
-                        <span className="text-2xl mb-0.5">🏖️</span>
-                        <span className="text-[9px] uppercase tracking-widest">İzinler</span>
-                    </button>
-                </div>
+         {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (VODAFONE/ZUMAY FİLTRELİ) */}
+            {hedeflerAktifMi && (
+                <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
+                    
+                    {/* İzinler Butonu */}
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
+                        <div className="absolute inset-0 bg-purple-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-purple-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🏖️</span>
+                            <span className="text-[9px] uppercase tracking-widest">İzinler</span>
+                        </button>
+                    </div>
 
-                {/* Hedefler Butonu */}
-                {hedeflerAktifMi && (
+                    {/* Hedefler Butonu */}
                     <div className="group cursor-pointer relative" onClick={() => setActiveModal('hedefler')}>
                         <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
                         <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
@@ -757,8 +757,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
                         </button>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* MODALLAR */}
             {activeModal && (
