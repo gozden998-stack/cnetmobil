@@ -2,18 +2,33 @@ import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
-    // YENİ: 'izinler' modalı state'e eklendi
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
 
-   // Kanal kısıtlama mantığı
+    // --- KANAL KISITLAMA MANTIĞI ---
     const branchLower = selectedBranch.toLowerCase();
     const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
     
     const hedeflerAktifMi = !isBlocked;
     const izinlerAktifMi = !isBlocked;
+
+    // --- YENİ: İZİNLER DATA AYIKLAMA (A29 HÜCRESİ = 28. İNDEKS) ---
+    // Eğer Sheet verisi tam yüklenmediyse kodun patlamaması için güvenlik kontrolü ekledim
+    let izinlerBasliklar: any[] = [];
+    let tumIzinler: any[] = [];
+
+    if (izinlerData && izinlerData.length > 28) {
+        izinlerBasliklar = izinlerData[28] || [];
+        tumIzinler = izinlerData.slice(29) || [];
+    }
+
+    // Sadece bu şubeye ait Hedefler Datasını ayıklama
+    const seciliSubeHedefleri = (hedeflerData || []).filter((row: any) => 
+        Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
+    );
+    const hedeflerBasliklar = hedeflerData[0] || [];
 
     // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU (150.000 DÜZELTMESİ) ---
     const parseNum = (val: any) => {
@@ -337,21 +352,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin))
             .slice(0, 3); 
     }
-
-    // Sadece bu şubeye ait Hedefler Datasını ayıklama
-    const seciliSubeHedefleri = (hedeflerData || []).filter((row: any) => 
-        Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
-    );
-    const hedeflerBasliklar = hedeflerData[0] || [];
-
-   // Tablonun başlangıcını bul
-const izinTabloBaslangicIdx = izinlerData.findIndex((row: any) => 
-    Array.isArray(row) && row.some((cell: any) => String(cell || "").includes("PERSONEL HAFTALIK İZİN ÇİZELGESİ"))
-);
-
-// Başlık satırı 28. indeks (A29), veri satırları 29. indeksten (A30) itibaren başlar
-const izinlerBasliklar = izinlerData[28] || [];
-const tumIzinler = izinlerData.slice(29) || [];
 
     // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
@@ -744,26 +744,28 @@ const tumIzinler = izinlerData.slice(29) || [];
                 </div>
             )}
 
-         {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (VODAFONE/ZUMAY FİLTRELİ) */}
-           {hedeflerAktifMi && (
-    <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
-        {/* İzinler Butonu */}
-        <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
-            <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg">
-                <span className="text-2xl mb-0.5">🏖️</span>
-                <span className="text-[9px] uppercase tracking-widest">İzinler</span>
-            </button>
-        </div>
+            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (FİLTRELİ) */}
+            <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
+                {izinlerAktifMi && (
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
+                        <div className="absolute inset-0 bg-purple-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-purple-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🏖️</span>
+                            <span className="text-[9px] uppercase tracking-widest">İzinler</span>
+                        </button>
+                    </div>
+                )}
 
-        {/* Hedefler Butonu */}
-        <div className="group cursor-pointer relative" onClick={() => setActiveModal('hedefler')}>
-            <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg">
-                <span className="text-2xl mb-0.5">🎯</span>
-                <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
-            </button>
-        </div>
-    </div>
-)}
+                {hedeflerAktifMi && (
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('hedefler')}>
+                        <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🎯</span>
+                            <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* MODALLAR */}
             {activeModal && (
@@ -971,7 +973,6 @@ const tumIzinler = izinlerData.slice(29) || [];
                                 <div>
                                     <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
                                     <div className="flex flex-wrap items-center gap-3 mt-4">
-                                        {/* SOL: ANLIK PUAN (ÖN PLANDA) */}
                                         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 flex items-center gap-3 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                                             <div className="text-emerald-500 text-2xl">⚡</div>
                                             <div className="flex flex-col">
@@ -979,7 +980,6 @@ const tumIzinler = izinlerData.slice(29) || [];
                                                 <span className="text-2xl font-black text-emerald-400 leading-none mt-1">{magazaAnlikPuan.toFixed(1)} Puan</span>
                                             </div>
                                         </div>
-                                        {/* SAĞ: AY SONU TAHMİN PUANI (İKİNCİL) */}
                                         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3 opacity-80">
                                             <div className="text-sky-500 text-2xl">🎯</div>
                                             <div className="flex flex-col">
