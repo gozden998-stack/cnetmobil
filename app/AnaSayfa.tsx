@@ -736,8 +736,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (HEDEFLER VE İZİNLER) */}
-            <div className="fixed bottom-12 right-8 z-40 flex flex-col gap-4 items-end">
+           {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (HEDEFLER VE İZİNLER) */}
+            <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
                 
                 {/* YENİ: İzinler Butonu */}
                 <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
