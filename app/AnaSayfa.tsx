@@ -14,23 +14,34 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const hedeflerAktifMi = !isBlocked;
     const izinlerAktifMi = !isBlocked;
 
-    // --- YENİ: İZİNLER DATA AYIKLAMA (A29 HÜCRESİ = 28. İNDEKS) ---
-    // Eğer Sheet verisi tam yüklenmediyse kodun patlamaması için güvenlik kontrolü ekledim
-    let izinlerBasliklar: any[] = [];
-    let tumIzinler: any[] = [];
+    // =========================================================================
+    // 🚀 TABLO KESİCİ: HEDEFLER VE İZİNLERİ KARIŞTIRMADAN AYIR
+    // =========================================================================
+    const veriKaynagi = izinlerData && izinlerData.length > 0 ? izinlerData : hedeflerData;
+    const izinIdx = veriKaynagi.findIndex((row: any) => 
+        Array.isArray(row) && row.join("").toUpperCase().includes("İZİN ÇİZELGESİ")
+    );
 
-    if (izinlerData && izinlerData.length > 28) {
-        izinlerBasliklar = izinlerData[28] || [];
-        tumIzinler = izinlerData.slice(29) || [];
-    }
-
-    // Sadece bu şubeye ait Hedefler Datasını ayıklama
-    const seciliSubeHedefleri = (hedeflerData || []).filter((row: any) => 
+    // 1. HEDEFLER TABLOSUNU AYIKLA (Üst Tablo)
+    const ustTabloData = izinIdx !== -1 ? hedeflerData.slice(0, izinIdx) : hedeflerData;
+    const seciliSubeHedefleri = ustTabloData.filter((row: any) => 
         Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
     );
-    const hedeflerBasliklar = hedeflerData[0] || [];
+    const hedeflerBasliklar = ustTabloData[0] || [];
 
-    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU (150.000 DÜZELTMESİ) ---
+    // 2. İZİNLER TABLOSUNU AYIKLA (Alt Tablo - Birebir E-Tablo Görünümü)
+    const altTabloData = izinIdx !== -1 ? veriKaynagi.slice(izinIdx) : [];
+    
+    // E-Tablo'daki başlık hiyerarşisi:
+    // altTabloData[1] -> TARİH satırı
+    // altTabloData[2] -> AD SOYAD satırı
+    const izinTarihBasliklari = altTabloData.length > 1 ? altTabloData[1] : [];
+    const izinGunBasliklari = altTabloData.length > 2 ? altTabloData[2] : [];
+    
+    // 3. satırdan itibaren personeller başlıyor (Tamamen boş satırları yoksay)
+    const tumIzinler = altTabloData.length > 3 ? altTabloData.slice(3).filter((row:any) => row.length > 1 && (row[0] || row[1])) : [];
+
+    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
         if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
@@ -48,14 +59,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return isNaN(parsed) ? 0 : parsed;
     };
 
-    // --- İSİM EŞLEŞTİRME MOTORUNU GÜÇLENDİR ---
-    const cleanKey = (s: string) => {
-        return String(s || "")
-            .replace(/[\s\.\-\+]/g, "") 
-            .toLocaleUpperCase('tr-TR'); 
-    };
+    const cleanKey = (s: string) => String(s || "").replace(/[\s\.\-\+]/g, "").toLocaleUpperCase('tr-TR'); 
 
-    // --- TARİH DEDEKTİFİ (E-TABLODAKİ GÜNCELLENEN TARİHİ ÇEKER) ---
+    // --- TARİH DEDEKTİFİ ---
     let lastUpdatedDate = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
     if (!lastUpdatedDate && personelData) {
         const tarihSatiri = (personelData as any[]).find((row: any) => 
@@ -67,7 +73,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         }
     }
 
-    // --- E-TABLODAKİ TARİHE GÖRE GÜN VE AY HESAPLAMALARI (GİDİŞAT İÇİN KRİTİK) ---
     const getTargetDay = () => {
         try {
             const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
@@ -119,31 +124,21 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
     }
 
-    // --- HASSAS PUAN HESAPLAMA MOTORU (PERSONEL İÇİN) ---
     const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
         if (!target || target === 0) return 0;
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
         const cleanedBaremName = cleanKey(baremName);
         const rule = dinamikPuanKurallari[cleanedBaremName];
-
         if (!rule) return 0;
-
         const perf = val / target;
         if (rule.kural70 && perf < 0.7) return 0;
-        
         let calculated = perf * rule.hedefPuan;
         return Math.min(rule.maxPuan, calculated);
     };
     
-    // =========================================================================
-    // 🚀 1. %100 DİNAMİK MAĞAZA (GİDİŞAT) VERİSİNİ AYIKLA
-    // =========================================================================
+    // --- MAĞAZA GİDİŞAT ---
     let dinamikMagazaMetrikleri: any[] = [];
-    let magazaAnlikPuan = 0;
-    let magazaTahminPuan = 0;
-    
-    let anaSatis = 0;
-    let anaHedef = 0;
+    let magazaAnlikPuan = 0, magazaTahminPuan = 0, anaSatis = 0, anaHedef = 0;
     let anaMetrikAdi = "VERİ YOK"; 
 
     const hIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "HEDEF");
@@ -158,14 +153,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         let hedefRow: any = null, gerceklesenRow: any = null;
         const brUpper = selectedBranch.toUpperCase().trim();
 
-        for (let i = hIdx + 1; i < gIdx; i++) {
-            if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper) { hedefRow = gidisatData[i]; break; }
-        }
-        for (let i = gIdx + 1; i < pIdx; i++) {
-            if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper || String(gidisatData[i]?.[1] || "").trim().toUpperCase() === brUpper) { 
-                gerceklesenRow = gidisatData[i]; break; 
-            }
-        }
+        for (let i = hIdx + 1; i < gIdx; i++) { if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper) { hedefRow = gidisatData[i]; break; } }
+        for (let i = gIdx + 1; i < pIdx; i++) { if (String(gidisatData[i]?.[0] || "").trim().toUpperCase() === brUpper || String(gidisatData[i]?.[1] || "").trim().toUpperCase() === brUpper) { gerceklesenRow = gidisatData[i]; break; } }
 
         const puanRow = gidisatData[pIdx + 1];
         const maxPuanRow = gidisatData[pIdx + 2];
@@ -175,24 +164,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const calcStorePts = (actual: number, target: number, hp: number, mp: number, isProj: boolean) => {
             if (!target || target === 0 || !hp) return 0;
             const val = isProj ? (actual / currentDay) * daysInMonth : actual;
-            const perf = val / target;
-            let calculated = perf * hp;
-            return Math.min(mp || hp, calculated);
+            return Math.min(mp || hp, (val / target) * hp);
         };
 
         hHeaders.forEach((hNameRaw: any, colIdx: number) => {
             const hName = String(hNameRaw || "").trim();
             if (colIdx > 0 && hName && !hName.toUpperCase().includes('TOPLAM') && !hName.toUpperCase().includes('PUAN')) {
                 const cKey = cleanKey(hName);
-
                 const gCol = gHeaders.findIndex((gh: any) => cleanKey(gh) === cKey);
                 const pCol = pHeaders.findIndex((ph: any) => cleanKey(ph) === cKey);
-
+                
                 const hVal = parseNum(hedefRow?.[colIdx]);
                 const sVal = gCol > -1 ? parseNum(gerceklesenRow?.[gCol]) : 0;
                 const hpVal = pCol > -1 ? parseNum(puanRow?.[pCol]) : 0;
                 const mpVal = pCol > -1 ? parseNum(maxPuanRow?.[pCol]) : hpVal; 
-
                 const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => hName.toUpperCase().includes(k));
                 
                 const anlikPts = calcStorePts(sVal, hVal, hpVal, mpVal, false);
@@ -201,23 +186,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 magazaAnlikPuan += anlikPts;
                 magazaTahminPuan += tahminPts;
 
-                dinamikMagazaMetrikleri.push({
-                    name: hName,
-                    color: colorPalette[colorIndex % colorPalette.length],
-                    data: {
-                        hedef: hVal,
-                        satilan: sVal,
-                        isCurrency: isCurr,
-                        hedefPuan: hpVal,
-                        maxPuan: mpVal,
-                        anlikPuan: anlikPts,
-                        tahminPuan: tahminPts
-                    }
-                });
-
-                if (colorIndex === 0) {
-                    anaSatis = sVal; anaHedef = hVal; anaMetrikAdi = hName;
-                }
+                dinamikMagazaMetrikleri.push({ name: hName, color: colorPalette[colorIndex % colorPalette.length], data: { hedef: hVal, satilan: sVal, isCurrency: isCurr, hedefPuan: hpVal, maxPuan: mpVal, anlikPuan: anlikPts, tahminPuan: tahminPts } });
+                if (colorIndex === 0) { anaSatis = sVal; anaHedef = hVal; anaMetrikAdi = hName; }
                 colorIndex++;
             }
         });
@@ -226,31 +196,21 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const anaBasarili = anaProjeksiyon >= anaHedef;
 
-    // --- 2. %100 DİNAMİK PERSONEL VERİSİ MOTORU ---
+    // --- PERSONEL VERİSİ ---
     let aktifPersoneller: any[] = [];
     let sirketSampiyonlari: any[] = [];
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
         const colorPalette = ["bg-sky-500", "bg-emerald-500", "bg-purple-500", "bg-indigo-500", "bg-orange-500", "bg-rose-500", "bg-amber-500", "bg-blue-500", "bg-fuchsia-500"];
-
-        const gerceklesenIndex = personelData.findIndex((row: any) => 
-            Array.isArray(row) && row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen'))
-        );
-
+        const gerceklesenIndex = personelData.findIndex((row: any) => Array.isArray(row) && row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen')));
+        
         const baslikSatiri = personelData[0] || [];
         baslikSatiri.forEach((cell: any, index: number) => {
             if (index >= 2) {
                 const baslikAdi = String(cell || "").trim();
                 if (baslikAdi && !baslikAdi.toLowerCase().includes('gerçekleşen') && !baslikAdi.toLowerCase().includes('isim')) {
-                    const isCurrency = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(keyword => baslikAdi.toUpperCase().includes(keyword));
-                    dinamikBaremler.push({
-                        indexOffset: index - 2,
-                        orijinalIndex: index,
-                        name: baslikAdi,
-                        isCurrency: isCurrency,
-                        color: colorPalette[dinamikBaremler.length % colorPalette.length]
-                    });
+                    dinamikBaremler.push({ indexOffset: index - 2, orijinalIndex: index, name: baslikAdi, isCurrency: ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => baslikAdi.toUpperCase().includes(k)), color: colorPalette[dinamikBaremler.length % colorPalette.length] });
                 }
             }
         });
@@ -264,23 +224,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (!Array.isArray(row)) return;
             const magaza = row[0]?.trim() || "";
             const isim = row[1]?.trim() || "";
-            
             if (magaza && isim) {
                 if (!personelDict[isim]) {
-                    personelDict[isim] = {
-                        isim: isim,
-                        magaza: magaza.toUpperCase(),
-                        hedefler: {},
-                        gerceklesen: {},
-                        anaHedef: 0,
-                        anaSatilan: 0
-                    };
+                    personelDict[isim] = { isim: isim, magaza: magaza.toUpperCase(), hedefler: {}, gerceklesen: {}, anaHedef: 0, anaSatilan: 0 };
                 }
-                
-                dinamikBaremler.forEach(barem => {
-                    const deger = parseNum(row[barem.orijinalIndex]);
-                    personelDict[isim].hedefler[barem.name] = (personelDict[isim].hedefler[barem.name] || 0) + deger;
-                    if (barem.indexOffset === 0) personelDict[isim].anaHedef += deger;
+                dinamikBaremler.forEach(b => {
+                    const d = parseNum(row[b.orijinalIndex]);
+                    personelDict[isim].hedefler[b.name] = (personelDict[isim].hedefler[b.name] || 0) + d;
+                    if (b.indexOffset === 0) personelDict[isim].anaHedef += d;
                 });
             }
         });
@@ -289,21 +240,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (!Array.isArray(row)) return;
             const isimA = row[0]?.trim() || "";
             const isimB = row[1]?.trim() || "";
-            
-            let matchedName = "";
-            let dataStartOffset = 0;
-
-            if (personelDict[isimA]) {
-                matchedName = isimA; dataStartOffset = 1; 
-            } else if (personelDict[isimB]) {
-                matchedName = isimB; dataStartOffset = 2; 
-            }
+            let matchedName = personelDict[isimA] ? isimA : (personelDict[isimB] ? isimB : "");
+            let offset = personelDict[isimA] ? 1 : 2;
 
             if (matchedName) {
-                dinamikBaremler.forEach(barem => {
-                    const deger = parseNum(row[dataStartOffset + barem.indexOffset]);
-                    personelDict[matchedName].gerceklesen[barem.name] = (personelDict[matchedName].gerceklesen[barem.name] || 0) + deger;
-                    if (barem.indexOffset === 0) personelDict[matchedName].anaSatilan += deger;
+                dinamikBaremler.forEach(b => {
+                    const d = parseNum(row[offset + b.indexOffset]);
+                    personelDict[matchedName].gerceklesen[b.name] = (personelDict[matchedName].gerceklesen[b.name] || 0) + d;
+                    if (b.indexOffset === 0) personelDict[matchedName].anaSatilan += d;
                 });
             }
         });
@@ -312,23 +256,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
             .map((p: any) => {
                 let pAnlik = 0, pTahmin = 0;
-                dinamikBaremler.forEach(barem => {
-                    const bn = barem.name;
-                    const hVal = p.hedefler[bn] || 0;
-                    const gVal = p.gerceklesen[bn] || 0;
-                    pAnlik += calculatePoint(gVal, hVal, bn, false);
-                    pTahmin += calculatePoint(gVal, hVal, bn, true);
+                dinamikBaremler.forEach(b => {
+                    pAnlik += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, false);
+                    pTahmin += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, true);
                 });
-
                 const projeksiyon = Math.round((p.anaSatilan / currentDay) * daysInMonth);
-                return {
-                    ...p,
-                    projeksiyon,
-                    toplamPuan: pAnlik.toFixed(1),
-                    puanTahmin: pTahmin.toFixed(1),
-                    basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0,
-                    isBasarili: projeksiyon >= p.anaHedef
-                };
+                return { ...p, projeksiyon, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1), basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0, isBasarili: projeksiyon >= p.anaHedef };
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
 
@@ -336,31 +269,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .filter((p: any) => p.magaza.includes('CMR')) 
             .map((p: any) => {
                 let pAnlik = 0, pTahmin = 0;
-                dinamikBaremler.forEach(barem => {
-                    const bn = barem.name;
-                    const hVal = p.hedefler[bn] || 0;
-                    const gVal = p.gerceklesen[bn] || 0;
-                    pAnlik += calculatePoint(gVal, hVal, bn, false);
-                    pTahmin += calculatePoint(gVal, hVal, bn, true);
+                dinamikBaremler.forEach(b => {
+                    pAnlik += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, false);
+                    pTahmin += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, true);
                 });
-                return {
-                    ...p,
-                    toplamPuan: pAnlik.toFixed(1),
-                    puanTahmin: pTahmin.toFixed(1),
-                };
+                return { ...p, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1) };
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin))
             .slice(0, 3); 
     }
 
-    // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
         if (!data || data.hedef === 0) return null;
         const kalan = Math.max(0, data.hedef - data.satilan);
         const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const isBasarili = projeksiyon >= data.hedef;
-        
         const isRisky = (data.hedef > 0 && !isBasarili) || isRiskliBarem;
 
         const formatVal = (v: number) => data.isCurrency 
@@ -374,23 +298,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         {isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
                     </div>
                 )}
-
                 {data.hedefPuan > 0 && (
                      <div className="absolute top-0 left-0 bg-sky-500/20 border-b border-r border-sky-500/30 text-sky-400 text-[10px] font-black px-3 py-1.5 rounded-br-xl tracking-widest shadow-sm flex items-center gap-1.5">
-                        <span className="text-[12px] animate-pulse">⚡</span>
-                        ANLIK PUAN: {data.anlikPuan?.toFixed(1)}
+                        <span className="text-[12px] animate-pulse">⚡</span> ANLIK PUAN: {data.anlikPuan?.toFixed(1)}
                     </div>
                 )}
-                
                 <div className="flex justify-between items-start mb-3 mt-4">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</h4>
                     {puan !== undefined && !data.hedefPuan && (
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isRiskliBarem ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>
-                            Puan: {puan}
-                        </span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isRiskliBarem ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>Puan: {puan}</span>
                     )}
                 </div>
-
                 <div className="flex justify-between items-end mb-2">
                     <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
                     <div className="text-right">
@@ -399,19 +317,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </p>
                     </div>
                 </div>
-
                 {isRiskliBarem && (
                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2 animate-pulse">
-                        <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">
-                            ⚠️ BARAJ ALTINDA (Puan Alınamıyor)
-                        </p>
+                        <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">⚠️ BARAJ ALTINDA</p>
                    </div>
                 )}
-
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
                     <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
                 </div>
-                
                 {data.hedef > 0 && (
                     <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
                         <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
@@ -424,8 +337,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     return (
         <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
-            
-            {/* Karşılama Ekranı */}
             <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col gap-3">
@@ -440,9 +351,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-1">
                             İyi Çalışmalar, <span className="font-light opacity-90">Hayırlı İşler</span>
                         </h2>
-                        <p className="text-sky-100 font-medium text-sm md:text-base opacity-90">
-                            Cnetmobil Terminal Sistemi V2.5
-                        </p>
+                        <p className="text-sky-100 font-medium text-sm md:text-base opacity-90">Cnetmobil Terminal Sistemi V2.5</p>
                     </div>
                 </div>
                 <button onClick={() => setAppMode('alim')} className="relative z-10 group bg-white text-sky-600 px-7 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:bg-slate-50 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1">
@@ -549,15 +458,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl animate-pulse delay-75"></div>
                                                 <div className="absolute top-2 left-1/4 text-[10px] animate-ping opacity-70">✨</div>
                                                 <div className="absolute bottom-2 right-1/3 text-[12px] animate-bounce opacity-50">🌟</div>
-                                                <div className="absolute top-4 right-1/4 text-[8px] animate-ping delay-150 opacity-60">✨</div>
                                             </>
                                         )}
 
                                         <div className="flex items-center gap-4 relative z-10">
                                             <div className="relative">
-                                                {index === 0 && (
-                                                    <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>
-                                                )}
+                                                {index === 0 && <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>}
                                                 <div className={`relative w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
                                                     index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
                                                     index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
@@ -570,9 +476,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <div>
                                                 <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-700 dark:text-amber-400 text-base' : 'text-slate-800 dark:text-white group-hover:text-sky-700'}`}>
                                                     {p.isim}
-                                                    <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>
-                                                        {trendUp ? '↗' : '↘'}
-                                                    </span>
+                                                    <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>{trendUp ? '↗' : '↘'}</span>
                                                 </h4>
                                                 <div className="flex gap-2 mt-1">
                                                     <span className={`text-[10px] font-black px-2 py-0.5 rounded shadow-sm ${index === 0 ? 'text-amber-800 bg-amber-200/50' : 'text-emerald-600 bg-emerald-50'}`}>Puan: {p.toplamPuan}</span>
@@ -621,7 +525,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-50 flex items-center justify-center shrink-0">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
                             </div>
                             <div>
@@ -772,7 +676,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
-                    {/* YENİ: İZİNLER MODALI (ŞUBE FİLTRESİ YOK, KAYDIRMASIZ MİKRO TASARIM) */}
+                    {/* YENİ: İZİNLER MODALI - E-TABLO BİREBİR GÖRÜNÜM */}
                     {activeModal === 'izinler' && (
                         <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="p-4 border-b border-purple-100 dark:border-purple-900/30 flex justify-between items-center bg-purple-50 dark:bg-slate-800/50">
@@ -797,40 +701,51 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
                                 {tumIzinler.length > 0 ? (
                                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
-                                        <table className="w-full text-center">
-                                            <thead className="sticky top-0 z-20 bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100">
-                                                <tr>
-                                                    {izinlerBasliklar.map((baslik: any, idx: number) => (
-                                                        <th
-                                                            key={idx}
-                                                            className="px-1 py-2 border border-purple-300 dark:border-purple-800/50 text-[9px] sm:text-[10px] font-black uppercase break-words leading-tight align-middle"
-                                                            style={{ minWidth: idx === 0 || idx === 1 ? '90px' : 'auto' }}
-                                                        >
-                                                            {baslik}
+                                        <table className="w-full text-center border-collapse">
+                                            <thead className="sticky top-0 z-20 shadow-sm">
+                                                {/* 1. BAŞLIK SATIRI (SARI - TARİHLER) */}
+                                                <tr className="bg-[#FFFF00] text-slate-900">
+                                                    {izinTarihBasliklari.map((cell: any, idx: number) => (
+                                                        <th key={`tarih-${idx}`} className="px-2 py-2 border border-yellow-400/60 text-[9px] sm:text-[10px] font-black uppercase">
+                                                            {idx === 0 && (!cell || cell === "") ? "ŞUBE" : cell}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                                {/* 2. BAŞLIK SATIRI (GRİ - GÜNLER) */}
+                                                <tr className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-b-2 border-slate-300 dark:border-slate-600">
+                                                    {izinGunBasliklari.map((cell: any, idx: number) => (
+                                                        <th key={`gun-${idx}`} className="px-2 py-2 border border-slate-200 dark:border-slate-700 text-[9px] sm:text-[10px] font-bold uppercase">
+                                                            {cell}
                                                         </th>
                                                     ))}
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {tumIzinler.map((row: any, rowIndex: number) => (
-                                                    <tr
-                                                        key={rowIndex}
-                                                        className="hover:bg-purple-50 dark:hover:bg-slate-700 transition-colors"
-                                                    >
-                                                        {izinlerBasliklar.map((_: any, cellIndex: number) => (
-                                                            <td
-                                                                key={cellIndex}
-                                                                className={`px-1 py-2 border border-slate-200 dark:border-slate-700 text-[10px] sm:text-xs align-middle leading-tight break-words ${
-                                                                    cellIndex === 1
-                                                                        ? 'font-black text-purple-600 dark:text-purple-400'
-                                                                        : 'text-slate-700 dark:text-slate-200 font-medium'
-                                                                }`}
-                                                            >
-                                                                {row[cellIndex] || "-"}
-                                                            </td>
-                                                        ))}
-                                                    </tr>
-                                                ))}
+                                                {tumIzinler.map((row: any, rowIndex: number) => {
+                                                    // Yeni şube başladığında (A sütunu doluysa) üstüne belirgin çizgi at
+                                                    const isNewBranch = row[0] && String(row[0]).trim() !== "";
+                                                    const maxColCount = Math.max(izinTarihBasliklari.length, izinGunBasliklari.length, 7);
+                                                    
+                                                    return (
+                                                        <tr key={rowIndex} className={`bg-white dark:bg-slate-900 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors ${isNewBranch ? 'border-t-2 border-slate-300 dark:border-slate-600' : ''}`}>
+                                                            {Array.from({ length: maxColCount }).map((_, cellIndex) => {
+                                                                const cellValue = row[cellIndex] || "";
+                                                                // "H.İZİN" veya "Y.İZİN" görünce hücreyi turuncu yap
+                                                                const isIzin = String(cellValue).toUpperCase().includes("İZİN");
+                                                                
+                                                                return (
+                                                                    <td key={cellIndex} className={`px-2 py-1.5 border border-slate-200 dark:border-slate-700/50 text-[10px] sm:text-xs align-middle leading-tight break-words ${
+                                                                        cellIndex === 0 ? 'font-black text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80' : 
+                                                                        cellIndex === 1 ? 'font-bold text-slate-700 dark:text-slate-300' : 
+                                                                        isIzin ? 'bg-[#F97316] text-white font-black shadow-inner' : 'text-slate-600 dark:text-slate-400 font-medium'
+                                                                    }`}>
+                                                                        {cellValue}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -852,7 +767,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     {/* HEDEFLER MODALI (KAYDIRMASIZ MİKRO TASARIM) */}
                     {activeModal === 'hedefler' && (
                         <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-
                             <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                                 <h3 className="text-lg md:text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
                                     <span className="text-2xl">🎯</span>
