@@ -41,6 +41,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // 3. satırdan itibaren personeller başlıyor (Tamamen boş satırları yoksay)
     const tumIzinler = altTabloData.length > 3 ? altTabloData.slice(3).filter((row:any) => row.length > 1 && (row[0] || row[1])) : [];
 
+    // --- YENİ: İZİNLER İÇİN DİNAMİK RENK PALETİ ---
+    const izinRenkleri = [
+        { bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-800 dark:text-sky-300', badge: 'bg-sky-500 text-white' },
+        { bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-300', badge: 'bg-emerald-500 text-white' },
+        { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-800 dark:text-purple-300', badge: 'bg-purple-500 text-white' },
+        { bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-800 dark:text-rose-300', badge: 'bg-rose-500 text-white' },
+        { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-300', badge: 'bg-amber-500 text-white' },
+        { bg: 'bg-indigo-100 dark:bg-indigo-900/40', text: 'text-indigo-800 dark:text-indigo-300', badge: 'bg-indigo-500 text-white' },
+        { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-800 dark:text-teal-300', badge: 'bg-teal-500 text-white' },
+        { bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-800 dark:text-fuchsia-300', badge: 'bg-fuchsia-500 text-white' },
+    ];
+    let aktifSubeRenkIndex = -1;
+
     // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
         if (val === null || val === undefined || val === "") return 0;
@@ -525,7 +538,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-50 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
                             </div>
                             <div>
@@ -676,7 +689,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
-                    {/* YENİ: İZİNLER MODALI - E-TABLO BİREBİR GÖRÜNÜM */}
+                    {/* YENİ: İZİNLER MODALI - ŞUBELERE GÖRE DİNAMİK RENKLENDİRME */}
                     {activeModal === 'izinler' && (
                         <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="p-4 border-b border-purple-100 dark:border-purple-900/30 flex justify-between items-center bg-purple-50 dark:bg-slate-800/50">
@@ -722,23 +735,48 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </thead>
                                             <tbody>
                                                 {tumIzinler.map((row: any, rowIndex: number) => {
-                                                    // Yeni şube başladığında (A sütunu doluysa) üstüne belirgin çizgi at
+                                                    // Yeni şube başladığında indexi bir artırıp sıradaki renge geçiyoruz
                                                     const isNewBranch = row[0] && String(row[0]).trim() !== "";
+                                                    if (isNewBranch) {
+                                                        aktifSubeRenkIndex++;
+                                                    }
+                                                    
+                                                    // Mevcut şubenin rengini bul (sırayla)
+                                                    const currentColors = izinRenkleri[Math.max(0, aktifSubeRenkIndex) % izinRenkleri.length];
                                                     const maxColCount = Math.max(izinTarihBasliklari.length, izinGunBasliklari.length, 7);
                                                     
                                                     return (
-                                                        <tr key={rowIndex} className={`bg-white dark:bg-slate-900 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors ${isNewBranch ? 'border-t-2 border-slate-300 dark:border-slate-600' : ''}`}>
+                                                        <tr key={rowIndex} className={`bg-white dark:bg-slate-900 transition-colors ${isNewBranch ? 'border-t-[3px] border-slate-300 dark:border-slate-600' : ''}`}>
                                                             {Array.from({ length: maxColCount }).map((_, cellIndex) => {
                                                                 const cellValue = row[cellIndex] || "";
-                                                                // "H.İZİN" veya "Y.İZİN" görünce hücreyi turuncu yap
                                                                 const isIzin = String(cellValue).toUpperCase().includes("İZİN");
                                                                 
+                                                                // Hücrelerin temel stilleri
+                                                                let cellClasses = "px-2 py-1.5 border border-slate-200 dark:border-slate-700/50 text-[10px] sm:text-xs align-middle leading-tight break-words ";
+                                                                
+                                                                // ŞUBE İSMİ HÜCRESİ MANTIKLARI
+                                                                if (cellIndex === 0) {
+                                                                    if (isNewBranch) {
+                                                                        cellClasses += `${currentColors.bg} ${currentColors.text} font-black shadow-inner`;
+                                                                    } else {
+                                                                        cellClasses += "font-black text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80";
+                                                                    }
+                                                                } 
+                                                                // PERSONEL İSMİ HÜCRESİ
+                                                                else if (cellIndex === 1) {
+                                                                    cellClasses += "font-bold text-slate-700 dark:text-slate-300";
+                                                                } 
+                                                                // İZİN YAZAN HÜCRELER (ŞUBE İLE AYNI RENK)
+                                                                else if (isIzin) {
+                                                                    cellClasses += `${currentColors.badge} font-black shadow-md transform hover:scale-105 transition-transform cursor-default`;
+                                                                } 
+                                                                // BOŞ GÜN HÜCRELERİ
+                                                                else {
+                                                                    cellClasses += "text-slate-600 dark:text-slate-400 font-medium";
+                                                                }
+
                                                                 return (
-                                                                    <td key={cellIndex} className={`px-2 py-1.5 border border-slate-200 dark:border-slate-700/50 text-[10px] sm:text-xs align-middle leading-tight break-words ${
-                                                                        cellIndex === 0 ? 'font-black text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80' : 
-                                                                        cellIndex === 1 ? 'font-bold text-slate-700 dark:text-slate-300' : 
-                                                                        isIzin ? 'bg-[#F97316] text-white font-black shadow-inner' : 'text-slate-600 dark:text-slate-400 font-medium'
-                                                                    }`}>
+                                                                    <td key={cellIndex} className={cellClasses}>
                                                                         {cellValue}
                                                                     </td>
                                                                 );
