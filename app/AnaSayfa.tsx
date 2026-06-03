@@ -349,9 +349,9 @@ const izinTabloBaslangicIdx = izinlerData.findIndex((row: any) =>
     Array.isArray(row) && row.some((cell: any) => String(cell || "").includes("PERSONEL HAFTALIK İZİN ÇİZELGESİ"))
 );
 
-// Başlıkları ve veriyi bu indekse göre ayıkla
-const izinlerBasliklar = izinTabloBaslangicIdx !== -1 ? izinlerData[izinTabloBaslangicIdx + 1] : [];
-const tumIzinler = izinTabloBaslangicIdx !== -1 ? izinlerData.slice(izinTabloBaslangicIdx + 2) : [];
+// Başlık satırı 28. indeks (A29), veri satırları 29. indeksten (A30) itibaren başlar
+const izinlerBasliklar = izinlerData[28] || [];
+const tumIzinler = izinlerData.slice(29) || [];
 
     // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
