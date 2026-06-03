@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 
-export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [] }: any) {
+export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
     // --- MODAL KONTROLLERİ ---
-    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | null>(null);
+    // YENİ: 'izinler' modalı state'e eklendi
+    const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
@@ -339,6 +340,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
     );
     const hedeflerBasliklar = hedeflerData[0] || [];
+
+    // YENİ: İzinler Data Ayıklama (Şube filtresi YOK, tüm personel görülecek)
+    const izinlerBasliklar = izinlerData[0] || [];
+    const tumIzinler = izinlerData.slice(1) || [];
 
     // --- PROGRESS BAR BİLEŞENİ ---
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
@@ -731,27 +736,113 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN HEDEFLER BUTONU */}
-            {hedeflerAktifMi && (
-                <div 
-                    className="fixed bottom-50 right-8 z-40 group cursor-pointer" 
-                    onClick={() => setActiveModal('hedefler')}
-                >
-                    <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
-                    
-                    <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
-                        <span className="text-2xl mb-0.5">🎯</span>
-                        <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (HEDEFLER VE İZİNLER) */}
+            <div className="fixed bottom-12 right-8 z-40 flex flex-col gap-4 items-end">
+                
+                {/* YENİ: İzinler Butonu */}
+                <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
+                    <div className="absolute inset-0 bg-purple-400 rounded-full animate-pulse opacity-30"></div>
+                    <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-purple-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                        <span className="text-2xl mb-0.5">🏖️</span>
+                        <span className="text-[9px] uppercase tracking-widest">İzinler</span>
                     </button>
                 </div>
-            )}
+
+                {/* Hedefler Butonu */}
+                {hedeflerAktifMi && (
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('hedefler')}>
+                        <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🎯</span>
+                            <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* MODALLAR */}
             {activeModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
-                    {/* YENİ: KAYDIRMASIZ (NO-SCROLL) HEDEFLER MODALI */}
+                    {/* YENİ: İZİNLER MODALI (ŞUBE FİLTRESİ YOK, KAYDIRMASIZ MİKRO TASARIM) */}
+                    {activeModal === 'izinler' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-4 border-b border-purple-100 dark:border-purple-900/30 flex justify-between items-center bg-purple-50 dark:bg-slate-800/50">
+                                <h3 className="text-lg md:text-xl font-black text-purple-900 dark:text-purple-100 flex items-center gap-3">
+                                    <span className="text-2xl">🏖️</span>
+                                    Personel İzin Takvimi
+                                    <span className="text-purple-600 dark:text-purple-300 text-[10px] uppercase tracking-widest bg-purple-100 dark:bg-purple-900/40 px-2 py-1 rounded-md ml-2 border border-purple-200 dark:border-purple-800/50">
+                                        TÜM ŞUBELER
+                                    </span>
+                                </h3>
+
+                                <button
+                                    onClick={() => setActiveModal(null)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-purple-200 dark:bg-slate-700 text-purple-700 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                                                            
+                            <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
+                                {tumIzinler.length > 0 ? (
+                                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-center">
+                                            <thead className="sticky top-0 z-20 bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-100">
+                                                <tr>
+                                                    {izinlerBasliklar.map((baslik: any, idx: number) => (
+                                                        <th
+                                                            key={idx}
+                                                            className="px-1 py-2 border border-purple-300 dark:border-purple-800/50 text-[9px] sm:text-[10px] font-black uppercase break-words leading-tight align-middle"
+                                                            style={{ minWidth: idx === 0 || idx === 1 ? '90px' : 'auto' }}
+                                                        >
+                                                            {baslik}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {tumIzinler.map((row: any, rowIndex: number) => (
+                                                    <tr
+                                                        key={rowIndex}
+                                                        className="hover:bg-purple-50 dark:hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        {izinlerBasliklar.map((_: any, cellIndex: number) => (
+                                                            <td
+                                                                key={cellIndex}
+                                                                className={`px-1 py-2 border border-slate-200 dark:border-slate-700 text-[10px] sm:text-xs align-middle leading-tight break-words ${
+                                                                    cellIndex === 1
+                                                                        ? 'font-black text-purple-600 dark:text-purple-400'
+                                                                        : 'text-slate-700 dark:text-slate-200 font-medium'
+                                                                }`}
+                                                            >
+                                                                {row[cellIndex] || "-"}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 opacity-60">
+                                        <span className="text-6xl mb-4">📭</span>
+                                        <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">
+                                            İzin Kaydı Bulunamadı
+                                        </h4>
+                                        <p className="font-bold uppercase tracking-widest text-xs text-slate-500">
+                                            Şu an için sisteme girilmiş bir personel izni bulunmuyor.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* HEDEFLER MODALI (KAYDIRMASIZ MİKRO TASARIM) */}
                     {activeModal === 'hedefler' && (
                         <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
 
