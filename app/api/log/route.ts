@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+mport { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 
 export async function POST(req: Request) {
