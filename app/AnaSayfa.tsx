@@ -211,7 +211,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     // --- PERSONEL VERİSİ ---
     let aktifPersoneller: any[] = [];
-    let sirketSampiyonlari: any[] = [];
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
@@ -277,19 +276,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 return { ...p, projeksiyon, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1), basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0, isBasarili: projeksiyon >= p.anaHedef };
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
-
-        sirketSampiyonlari = Object.values(personelDict)
-            .filter((p: any) => p.magaza.includes('CMR')) 
-            .map((p: any) => {
-                let pAnlik = 0, pTahmin = 0;
-                dinamikBaremler.forEach(b => {
-                    pAnlik += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, false);
-                    pTahmin += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, true);
-                });
-                return { ...p, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1) };
-            })
-            .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin))
-            .slice(0, 3); 
     }
 
     const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
@@ -534,7 +520,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
 
-            {!isCmr ? (
+            {!isCmr && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
                         <div className="flex items-center gap-4 mb-6">
@@ -568,95 +554,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                  {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
                             </div>
                         </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center shrink-0 shadow-inner">
-                                <span className="text-3xl animate-bounce">🏆</span>
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Şirket Şampiyonları</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Tüm CMR Şubeleri Arası Liderlik Tablosu (İlk 3)</p>
-                            </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="flex items-center gap-2 px-3 border-r border-slate-200 dark:border-slate-700">
-                                <span className="text-lg">🥇</span>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">1. Ödülü</span>
-                                    <span className="text-sm font-black text-amber-500">+5 Puan</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 px-3 border-r border-slate-200 dark:border-slate-700">
-                                <span className="text-lg">🥈</span>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">2. Ödülü</span>
-                                    <span className="text-sm font-black text-slate-500">+3 Puan</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 px-3">
-                                <span className="text-lg">🥉</span>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">3. Ödülü</span>
-                                    <span className="text-sm font-black text-orange-500">+1 Puan</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {sirketSampiyonlari.map((sampiyon, idx) => {
-                            const isFirst = idx === 0;
-                            const isSecond = idx === 1;
-                            const isThird = idx === 2;
-
-                            return (
-                                <div key={idx} className={`relative rounded-3xl p-6 border flex flex-col items-center text-center transition-all transform hover:-translate-y-2 ${
-                                    isFirst ? 'bg-gradient-to-b from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-300 dark:border-amber-500/50 shadow-[0_10px_25px_rgba(251,191,36,0.2)]' :
-                                    isSecond ? 'bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 border-slate-300 dark:border-slate-600 shadow-lg' :
-                                    'bg-gradient-to-b from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-900 border-orange-200 dark:border-orange-700/30 shadow-md'
-                                }`}>
-                                    {isFirst && <div className="absolute -top-3 bg-amber-500 text-white text-[11px] font-black px-4 py-1 rounded-full shadow-md uppercase tracking-widest">Lider</div>}
-                                    
-                                    <div className={`absolute top-4 right-4 flex flex-col items-center justify-center w-11 h-11 rounded-full shadow-sm border ${
-                                        isFirst ? 'bg-amber-100 text-amber-600 border-amber-200 shadow-amber-500/20' :
-                                        isSecond ? 'bg-slate-100 text-slate-600 border-slate-200 shadow-slate-500/20' :
-                                        'bg-orange-100 text-orange-600 border-orange-200 shadow-orange-500/20'
-                                    }`}>
-                                        <span className="text-sm font-black leading-none">+{isFirst ? '5' : isSecond ? '3' : '1'}</span>
-                                        <span className="text-[7px] font-black uppercase leading-none mt-0.5">PUAN</span>
-                                    </div>
-
-                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black mb-4 shadow-inner border-2 border-white/50 ${
-                                        isFirst ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white' :
-                                        isSecond ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white' :
-                                        'bg-gradient-to-br from-orange-300 to-rose-400 text-white'
-                                    }`}>
-                                        {idx + 1}
-                                    </div>
-                                    
-                                    <h4 className={`font-black text-xl mb-1 ${isFirst ? 'text-amber-700 dark:text-amber-400' : isSecond ? 'text-slate-700 dark:text-slate-300' : 'text-orange-700 dark:text-orange-400'}`}>
-                                        {sampiyon.isim}
-                                    </h4>
-                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6">{sampiyon.magaza}</p>
-
-                                    <div className="w-full space-y-3">
-                                        <div className="flex justify-between items-center bg-white/60 dark:bg-black/20 rounded-xl px-4 py-3">
-                                            <span className="text-[11px] font-black text-slate-500 uppercase">Anlık Puan</span>
-                                            <span className="font-black text-lg text-slate-800 dark:text-white">{sampiyon.toplamPuan}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center bg-white/60 dark:bg-black/20 rounded-xl px-4 py-3">
-                                            <span className="text-[11px] font-black text-slate-500 uppercase">Ay Sonu Tahmin</span>
-                                            <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">{sampiyon.puanTahmin}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
                     </div>
                 </div>
             )}
@@ -710,7 +607,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </svg>
                                 </button>
                             </div>
-                                                            
+                                                                        
                             <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
                                 {tumIzinler.length > 0 ? (
                                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
@@ -823,7 +720,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </svg>
                                 </button>
                             </div>
-                                                            
+                                                                        
                             <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
                                 {seciliSubeHedefleri.length > 0 ? (
                                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
