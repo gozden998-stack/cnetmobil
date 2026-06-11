@@ -1,57 +1,121 @@
 import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
+    // --- MODAL KONTROLLERİ ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
+
+    // --- KANAL KISITLAMA MANTIĞI ---
     const branchLower = selectedBranch.toLowerCase();
     const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
     
     const hedeflerAktifMi = !isBlocked;
     const izinlerAktifMi = !isBlocked;
 
-    // --- VERİ AYIKLAMA ---
+    // =========================================================================
+    // 🚀 TABLO KESİCİ: HEDEFLER VE İZİNLERİ KARIŞTIRMADAN AYIR
+    // =========================================================================
     const veriKaynagi = izinlerData && izinlerData.length > 0 ? izinlerData : hedeflerData;
-    const izinIdx = veriKaynagi.findIndex((row: any) => Array.isArray(row) && row.join("").toUpperCase().includes("İZİN ÇİZELGESİ"));
-    
+    const izinIdx = veriKaynagi.findIndex((row: any) => 
+        Array.isArray(row) && row.join("").toUpperCase().includes("İZİN ÇİZELGESİ")
+    );
+
+    // 1. HEDEFLER TABLOSUNU AYIKLA (Üst Tablo)
     const ustTabloData = izinIdx !== -1 ? hedeflerData.slice(0, izinIdx) : hedeflerData;
-    const seciliSubeHedefleri = ustTabloData.filter((row: any) => Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim());
+    const seciliSubeHedefleri = ustTabloData.filter((row: any) => 
+        Array.isArray(row) && String(row[0] || "").toUpperCase() === selectedBranch.toUpperCase().trim()
+    );
     const hedeflerBasliklar = ustTabloData[0] || [];
 
+    // 2. İZİNLER TABLOSUNU AYIKLA (Alt Tablo - Birebir E-Tablo Görünümü)
     const altTabloData = izinIdx !== -1 ? veriKaynagi.slice(izinIdx) : [];
+    
+    // E-Tablo'daki başlık hiyerarşisi:
+    // altTabloData[1] -> TARİH satırı
+    // altTabloData[2] -> AD SOYAD satırı
     const izinTarihBasliklari = altTabloData.length > 1 ? altTabloData[1] : [];
     const izinGunBasliklari = altTabloData.length > 2 ? altTabloData[2] : [];
+    
+    // 3. satırdan itibaren personeller başlıyor (Tamamen boş satırları yoksay)
     const tumIzinler = altTabloData.length > 3 ? altTabloData.slice(3).filter((row:any) => row.length > 1 && (row[0] || row[1])) : [];
 
+    // --- YENİ: İZİNLER İÇİN DİNAMİK RENK PALETİ ---
+    const izinRenkleri = [
+        { bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-800 dark:text-sky-300', badge: 'bg-sky-500 text-white' },
+        { bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-300', badge: 'bg-emerald-500 text-white' },
+        { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-800 dark:text-purple-300', badge: 'bg-purple-500 text-white' },
+        { bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-800 dark:text-rose-300', badge: 'bg-rose-500 text-white' },
+        { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-300', badge: 'bg-amber-500 text-white' },
+        { bg: 'bg-indigo-100 dark:bg-indigo-900/40', text: 'text-indigo-800 dark:text-indigo-300', badge: 'bg-indigo-500 text-white' },
+        { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-800 dark:text-teal-300', badge: 'bg-teal-500 text-white' },
+        { bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-800 dark:text-fuchsia-300', badge: 'bg-fuchsia-500 text-white' },
+    ];
+    let aktifSubeRenkIndex = -1;
+
+    // --- TÜRKİYE FORMATINA UYGUN GELİŞMİŞ SAYI OKUMA MOTORU ---
     const parseNum = (val: any) => {
-        if (!val) return 0;
+        if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
         let strVal = String(val).trim();
-        if (strVal.includes('.') && strVal.includes(',')) strVal = strVal.replace(/\./g, '').replace(',', '.');
-        else if (strVal.includes(',')) strVal = strVal.replace(',', '.');
-        else if (strVal.includes('.')) strVal = strVal.replace(/\./g, '');
+        
+        if (strVal.includes('.') && strVal.includes(',')) {
+            strVal = strVal.replace(/\./g, '').replace(',', '.');
+        } else if (strVal.includes(',')) {
+            strVal = strVal.replace(',', '.');
+        } else if (strVal.includes('.')) {
+            strVal = strVal.replace(/\./g, '');
+        }
+        
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };
 
     const cleanKey = (s: string) => String(s || "").replace(/[\s\.\-\+]/g, "").toLocaleUpperCase('tr-TR'); 
 
+    // --- TARİH DEDEKTİFİ ---
     let lastUpdatedDate = config?.Guncellenen_Tarih || config?.GÜNCELLENEN || "";
     if (!lastUpdatedDate && personelData) {
-        const tarihSatiri = (personelData as any[]).find((row: any) => Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN")));
+        const tarihSatiri = (personelData as any[]).find((row: any) => 
+            Array.isArray(row) && row.some((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"))
+        );
         if (tarihSatiri) {
             const hucresiIdx = (tarihSatiri as any[]).findIndex((cell: any) => String(cell || "").toUpperCase().includes("GÜNCELLENEN"));
             lastUpdatedDate = String(tarihSatiri[hucresiIdx + 1] || "").trim();
         }
     }
 
-    const currentDay = new Date().getDate(); 
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const getTargetDay = () => {
+        try {
+            const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
+            if (separator) {
+                const gun = parseInt(lastUpdatedDate.split(separator)[0]);
+                if (!isNaN(gun) && gun > 0) return gun;
+            }
+        } catch (e) {}
+        return new Date().getDate(); 
+    };
 
-    // --- PUAN HESAPLAMALARI ---
+    const getDaysInMonth = () => {
+        try {
+            const separator = lastUpdatedDate.includes('.') ? '.' : (lastUpdatedDate.includes('/') ? '/' : null);
+            if (separator) {
+                const parcalar = lastUpdatedDate.split(separator);
+                return new Date(parseInt(parcalar[2]), parseInt(parcalar[1]), 0).getDate();
+            }
+        } catch (e) {}
+        return 31; 
+    };
+
+    const currentDay = getTargetDay(); 
+    const daysInMonth = getDaysInMonth();
+
+    // --- DİNAMİK PUAN AYAR DEDEKTÖRÜ ---
     const dinamikPuanKurallari: Record<string, any> = {};
-    const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI"));
+    const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => 
+        Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI")
+    );
 
     if (hedefPuaniBaslikIdx !== -1) {
         const baslikSatiri = personelData[hedefPuaniBaslikIdx];
@@ -81,7 +145,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         if (!rule) return 0;
         const perf = val / target;
         if (rule.kural70 && perf < 0.7) return 0;
-        return Math.min(rule.maxPuan, perf * rule.hedefPuan);
+        let calculated = perf * rule.hedefPuan;
+        return Math.min(rule.maxPuan, calculated);
     };
     
     // --- MAĞAZA GİDİŞAT ---
@@ -106,25 +171,30 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
         const puanRow = gidisatData[pIdx + 1];
         const maxPuanRow = gidisatData[pIdx + 2];
-        const colorPalette = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500"];
+        const colorPalette = ["bg-sky-500", "bg-purple-500", "bg-orange-500", "bg-emerald-500", "bg-blue-500", "bg-rose-500", "bg-amber-500", "bg-indigo-500", "bg-fuchsia-500"];
         let colorIndex = 0;
+
+        const calcStorePts = (actual: number, target: number, hp: number, mp: number, isProj: boolean) => {
+            if (!target || target === 0 || !hp) return 0;
+            const val = isProj ? (actual / currentDay) * daysInMonth : actual;
+            return Math.min(mp || hp, (val / target) * hp);
+        };
 
         hHeaders.forEach((hNameRaw: any, colIdx: number) => {
             const hName = String(hNameRaw || "").trim();
-            if (colIdx > 0 && hName && !hName.toUpperCase().includes('TOPLAM') && hName.toUpperCase() !== 'HEDEF PUANI') {
+            if (colIdx > 0 && hName && !hName.toUpperCase().includes('TOPLAM') && !hName.toUpperCase().includes('PUAN')) {
                 const cKey = cleanKey(hName);
                 const gCol = gHeaders.findIndex((gh: any) => cleanKey(gh) === cKey);
                 const pCol = pHeaders.findIndex((ph: any) => cleanKey(ph) === cKey);
                 
                 const hVal = parseNum(hedefRow?.[colIdx]);
-                const sVal = gCol > -1 ? parseNum(gerceklesenRow?.[gCol]) : parseNum(gerceklesenRow?.[colIdx]);
-                const hpVal = pCol > -1 ? parseNum(puanRow?.[pCol]) : parseNum(puanRow?.[colIdx]);
-                const mpValRaw = pCol > -1 ? parseNum(maxPuanRow?.[pCol]) : parseNum(maxPuanRow?.[colIdx]);
-                const mpVal = mpValRaw > 0 ? mpValRaw : hpVal; 
+                const sVal = gCol > -1 ? parseNum(gerceklesenRow?.[gCol]) : 0;
+                const hpVal = pCol > -1 ? parseNum(puanRow?.[pCol]) : 0;
+                const mpVal = pCol > -1 ? parseNum(maxPuanRow?.[pCol]) : hpVal; 
                 const isCurr = ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => hName.toUpperCase().includes(k));
                 
-                const anlikPts = hVal > 0 ? Math.min(mpVal || hpVal, (sVal / hVal) * hpVal) : 0;
-                const tahminPts = hVal > 0 ? Math.min(mpVal || hpVal, (((sVal / currentDay) * daysInMonth) / hVal) * hpVal) : 0;
+                const anlikPts = calcStorePts(sVal, hVal, hpVal, mpVal, false);
+                const tahminPts = calcStorePts(sVal, hVal, hpVal, mpVal, true);
 
                 magazaAnlikPuan += anlikPts;
                 magazaTahminPuan += tahminPts;
@@ -137,27 +207,29 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     }
 
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
-    const anaBasariYuzdesi = anaHedef > 0 ? Math.min(100, Math.round((anaSatis / anaHedef) * 100)) : 0;
+    const anaBasarili = anaProjeksiyon >= anaHedef;
 
     // --- PERSONEL VERİSİ ---
     let aktifPersoneller: any[] = [];
     let dinamikBaremler: any[] = [];
     
     if (personelData && personelData.length > 0) {
+        const colorPalette = ["bg-sky-500", "bg-emerald-500", "bg-purple-500", "bg-indigo-500", "bg-orange-500", "bg-rose-500", "bg-amber-500", "bg-blue-500", "bg-fuchsia-500"];
         const gerceklesenIndex = personelData.findIndex((row: any) => Array.isArray(row) && row.some((cell: any) => typeof cell === 'string' && cell.toLowerCase().includes('gerçekleşen')));
-        const baslikSatiri = personelData[0] || [];
         
+        const baslikSatiri = personelData[0] || [];
         baslikSatiri.forEach((cell: any, index: number) => {
             if (index >= 2) {
                 const baslikAdi = String(cell || "").trim();
                 if (baslikAdi && !baslikAdi.toLowerCase().includes('gerçekleşen') && !baslikAdi.toLowerCase().includes('isim')) {
-                    dinamikBaremler.push({ indexOffset: index - 2, orijinalIndex: index, name: baslikAdi, isCurrency: ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => baslikAdi.toUpperCase().includes(k))});
+                    dinamikBaremler.push({ indexOffset: index - 2, orijinalIndex: index, name: baslikAdi, isCurrency: ['KAZANÇ', 'CİRO', 'TL', 'SERVİS', '₺'].some(k => baslikAdi.toUpperCase().includes(k)), color: colorPalette[dinamikBaremler.length % colorPalette.length] });
                 }
             }
         });
 
         const hedefRows = gerceklesenIndex > -1 ? personelData.slice(1, gerceklesenIndex) : personelData.slice(1);
         const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1, hedefPuaniBaslikIdx) : [];
+
         const personelDict: Record<string, any> = {};
         
         hedefRows.forEach((row: any) => {
@@ -165,7 +237,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             const magaza = row[0]?.trim() || "";
             const isim = row[1]?.trim() || "";
             if (magaza && isim) {
-                if (!personelDict[isim]) personelDict[isim] = { isim: isim, magaza: magaza.toUpperCase(), hedefler: {}, gerceklesen: {}, anaHedef: 0, anaSatilan: 0 };
+                if (!personelDict[isim]) {
+                    personelDict[isim] = { isim: isim, magaza: magaza.toUpperCase(), hedefler: {}, gerceklesen: {}, anaHedef: 0, anaSatilan: 0 };
+                }
                 dinamikBaremler.forEach(b => {
                     const d = parseNum(row[b.orijinalIndex]);
                     personelDict[isim].hedefler[b.name] = (personelDict[isim].hedefler[b.name] || 0) + d;
@@ -198,317 +272,630 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     pAnlik += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, false);
                     pTahmin += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, true);
                 });
-                return { ...p, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1), basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0 };
+                const projeksiyon = Math.round((p.anaSatilan / currentDay) * daysInMonth);
+                return { ...p, projeksiyon, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1), basariYuzdesi: p.anaHedef > 0 ? Math.min(100, Math.round((p.anaSatilan / p.anaHedef) * 100)) : 0, isBasarili: projeksiyon >= p.anaHedef };
             })
-            .sort((a: any, b: any) => parseFloat(b.toplamPuan) - parseFloat(a.toplamPuan));
+            .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
     }
 
-    const todayDateStr = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }).format(new Date());
+    const DepartmanProgressBar = ({ title, data, colorClass, puan, isRiskliBarem }: any) => {
+        if (!data || data.hedef === 0) return null;
+        const kalan = Math.max(0, data.hedef - data.satilan);
+        const yuzde = data.hedef > 0 ? Math.min(100, Math.round((data.satilan / data.hedef) * 100)) : 0;
+        const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
+        const isBasarili = projeksiyon >= data.hedef;
+        const isRisky = (data.hedef > 0 && !isBasarili) || isRiskliBarem;
+
+        const formatVal = (v: number) => data.isCurrency 
+            ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` 
+            : `${v.toLocaleString('tr-TR')}`;
+
+        return (
+            <div className={`bg-[#1E293B] border ${isRisky ? 'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:bg-slate-800`}>
+                {data.hedef > 0 && (
+                    <div className={`absolute top-0 right-4 text-white text-[8px] font-black px-2 py-0.5 rounded-b-md tracking-widest shadow-sm ${isBasarili ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                        {isBasarili ? 'BAŞARILI' : 'RİSKLİ'}
+                    </div>
+                )}
+                {data.hedefPuan > 0 && (
+                     <div className="absolute top-0 left-0 bg-sky-500/20 border-b border-r border-sky-500/30 text-sky-400 text-[10px] font-black px-3 py-1.5 rounded-br-xl tracking-widest shadow-sm flex items-center gap-1.5">
+                        <span className="text-[12px] animate-pulse">⚡</span> ANLIK PUAN: {data.anlikPuan?.toFixed(1)}
+                    </div>
+                )}
+                <div className="flex justify-between items-start mb-3 mt-4">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</h4>
+                    {puan !== undefined && !data.hedefPuan && (
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${isRiskliBarem ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>Puan: {puan}</span>
+                    )}
+                </div>
+                <div className="flex justify-between items-end mb-2">
+                    <p className="text-xl font-black text-white">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-500">/ {formatVal(data.hedef)}</span></p>
+                    <div className="text-right">
+                        <p className={`text-[9px] font-black uppercase tracking-wider ${kalan > 0 ? (isRisky ? 'text-rose-500' : 'text-[#E11D48]') : 'text-emerald-500'}`}>
+                            {data.hedef > 0 ? (kalan > 0 ? `Kalan: ${formatVal(kalan)}` : 'TAMAMLANDI') : 'HEDEF YOK'}
+                        </p>
+                    </div>
+                </div>
+                {isRiskliBarem && (
+                   <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2 mb-2 animate-pulse">
+                        <p className="text-[8px] font-black text-rose-500 text-center uppercase tracking-tighter">⚠️ BARAJ ALTINDA</p>
+                   </div>
+                )}
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-3">
+                    <div className={`h-full ${colorClass} rounded-full transition-all duration-1000`} style={{ width: `${yuzde}%` }}></div>
+                </div>
+                {data.hedef > 0 && (
+                    <div className="flex justify-between items-center text-[9px] font-bold border-t border-slate-700/50 pt-2.5">
+                        <span className="text-slate-500 uppercase">AY SONU TAHMİN:</span>
+                        <span className={isBasarili ? 'text-emerald-400' : 'text-rose-400'}>{formatVal(projeksiyon)}</span>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
-        <div className="bg-[#F8FAFC] min-h-screen text-slate-800 font-sans px-4 md:px-8 py-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
-            
-            {/* 1. ÜST HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        Hoş geldiniz, {selectedBranch} <span className="text-2xl">👋</span>
-                    </h1>
-                    <p className="text-slate-500 text-sm font-medium mt-1">Bugün {todayDateStr}</p>
-                </div>
-                
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
-                        <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input type="text" placeholder="Ara..." className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
-                    </div>
-                    <button className="relative w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-50">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                        <span className="absolute top-0 right-0 w-4 h-4 bg-blue-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white">3</span>
-                    </button>
-                    <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                        <div className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                            {selectedBranch.charAt(0)}
-                        </div>
-                        <div className="hidden sm:block text-sm">
-                            <p className="font-bold text-slate-900 leading-none">{selectedBranch}</p>
-                            <p className="text-[10px] text-slate-500 font-medium">CnetMobil</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 2. KPI KARTLARI & AKSİYON BUTONU */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-                {/* Şube Durum Kartı */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+        <div className="space-y-6 w-full animate-in fade-in duration-500 relative">
+            <div className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-blue-700 rounded-[2rem] p-8 md:p-10 shadow-lg shadow-sky-900/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/20 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="relative z-10 flex flex-col gap-3">
+                    <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider uppercase w-max backdrop-blur-sm shadow-inner">
+                        <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]"></span>
+                        </span>
+                        {selectedBranch} Şubesi Aktif
                     </div>
                     <div>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{selectedBranch} ŞUBESİ</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span className="text-sm font-semibold text-emerald-600">Aktif</span>
-                        </div>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-1">
+                            İyi Çalışmalar, <span className="font-light opacity-90">Hayırlı İşler</span>
+                        </h2>
+                        <p className="text-sky-100 font-medium text-sm md:text-base opacity-90">Cnetmobil Terminal Sistemi V2.5</p>
                     </div>
                 </div>
-
-                {/* Satış Kartı */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex items-center justify-between group cursor-pointer" onClick={() => setActiveModal('departman')}>
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">BU AY TOPLAM SATIŞ</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-slate-800">{anaSatis}</span>
-                                <span className="text-xs font-semibold text-slate-400">Adet</span>
-                            </div>
-                        </div>
+                <button onClick={() => setAppMode('alim')} className="relative z-10 group bg-white text-sky-600 px-7 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:bg-slate-50 transition-all duration-300 flex items-center gap-3 transform hover:-translate-y-1">
+                    <div className="bg-sky-50 p-2 rounded-xl group-hover:bg-sky-100 transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                     </div>
-                </div>
-
-                {/* Puan Kartı */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">BU AY PUAN</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-slate-800">{magazaAnlikPuan.toFixed(1)}</span>
-                                <span className="text-xs font-semibold text-slate-400">Puan</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Hedef Kartı */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex items-center justify-between cursor-pointer" onClick={() => setActiveModal('tahmin')}>
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">BU AY HEDEF</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-slate-800">{anaHedef}</span>
-                                <span className="text-xs font-semibold text-slate-400">Adet</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <span className={`text-[10px] font-bold ${anaBasariYuzdesi >= 100 ? 'text-emerald-500' : 'text-emerald-600 bg-emerald-50'} px-2 py-1 rounded`}>%{anaBasariYuzdesi}</span>
-                    </div>
-                </div>
-
-                {/* Aksiyon Butonu */}
-                <button onClick={() => setAppMode('alim')} className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-5 flex flex-col items-center justify-center gap-2 shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-1 group">
-                    <div className="bg-white/20 p-2 rounded-full group-hover:scale-110 transition-transform">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    </div>
-                    <span className="font-bold text-sm tracking-wide">Cihaz Alımı Başlat</span>
+                    Cihaz Alımını Başlat
                 </button>
             </div>
 
-            {/* 3. ORTA ALAN: GRAFİK & PERSONEL */}
             {isCmr && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    {/* Placeholder Grafik Alanı */}
-                    <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex flex-col">
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="font-bold text-slate-800 text-lg">Mağaza Genel Gidişatı</h3>
-                            <div className="flex gap-2">
-                                <span className="text-xs text-slate-400 font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">Son Güncelleme: {lastUpdatedDate}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                    <div className="w-full h-full">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-center min-h-[320px]">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 className="text-xl md:text-2xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+                                        CnetMobil <span className="font-medium text-slate-500 dark:text-slate-400">- {selectedBranch}</span>
+                                    </h3>
+                                    {lastUpdatedDate && (
+                                        <div className="mt-2 inline-flex items-center gap-1.5 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800 text-sky-600 dark:text-sky-400 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-sm">
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            SON GÜNCELLEME: {lastUpdatedDate}
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => setActiveModal('departman')} className="bg-[#4CAF50] hover:bg-[#43A047] text-white px-5 py-2.5 rounded-xl font-black text-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 border-b-4 border-green-700 active:border-b-0 active:translate-y-1">
+                                    {magazaAnlikPuan.toFixed(1)} Puan <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                </button>
                             </div>
-                        </div>
-                        {/* CSS tabanlı basit bir trend görseli (Grafik kütüphanesi olmadığı için) */}
-                        <div className="flex-1 flex flex-col justify-end relative mt-10">
-                             <div className="absolute inset-0 flex items-end opacity-20">
-                                <svg viewBox="0 0 100 40" className="w-full h-full preserve-3d" preserveAspectRatio="none">
-                                    <path d="M0,40 L0,30 L20,25 L40,28 L60,15 L80,18 L100,5 L100,40 Z" fill="#3B82F6" />
-                                </svg>
-                            </div>
-                            <div className="absolute inset-0 flex items-end">
-                                <svg viewBox="0 0 100 40" className="w-full h-full preserve-3d overflow-visible" preserveAspectRatio="none">
-                                    <path d="M0,30 L20,25 L40,28 L60,15 L80,18 L100,5" fill="none" stroke="#2563EB" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                    {/* Data Points */}
-                                    <circle cx="20" cy="25" r="1.5" fill="white" stroke="#2563EB" strokeWidth="0.5"/>
-                                    <circle cx="40" cy="28" r="1.5" fill="white" stroke="#2563EB" strokeWidth="0.5"/>
-                                    <circle cx="60" cy="15" r="1.5" fill="white" stroke="#2563EB" strokeWidth="0.5"/>
-                                    <circle cx="80" cy="18" r="1.5" fill="white" stroke="#2563EB" strokeWidth="0.5"/>
-                                    <circle cx="100" cy="5" r="1.5" fill="white" stroke="#2563EB" strokeWidth="0.5"/>
-                                </svg>
-                            </div>
-                            {/* X Axis Labels */}
-                            <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-4 border-t border-slate-100 pt-3 relative z-10">
-                                <span>1. Hafta</span>
-                                <span>2. Hafta</span>
-                                <span>3. Hafta</span>
-                                <span>4. Hafta</span>
-                                <span className="text-blue-600">Bugün</span>
-                            </div>
+                            {dinamikMagazaMetrikleri.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 cursor-pointer">
+                                    <div className="bg-[#FDF8F3] border border-[#F2E5D5] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md">
+                                        <p className="text-slate-700 font-bold text-sm mb-3">Bu Ay Toplam {anaMetrikAdi}</p>
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className="text-4xl font-black text-slate-900">{anaSatis}</span>
+                                            <span className="text-sm font-bold text-slate-500">Adet</span>
+                                        </div>
+                                    </div>
+                                    <div onClick={() => setActiveModal('tahmin')} className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-3xl p-5 relative overflow-hidden transition-all hover:shadow-md hover:border-rose-300 group">
+                                        {!anaBasarili && (
+                                            <div className="absolute top-4 right-4 bg-[#FB7185] text-white text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase shadow-sm z-10 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                RİSKLİ GİDİŞAT
+                                            </div>
+                                        )}
+                                        <p className="text-rose-600 font-bold text-sm mb-3 flex items-center gap-2">
+                                            <span className="text-lg">⏳</span> Ay Sonu {anaMetrikAdi} Tahmini
+                                        </p>
+                                        <div className="flex justify-between items-end">
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className={`text-4xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                                <span className={`text-sm font-bold ${anaBasarili ? 'text-emerald-500' : 'text-rose-500'}`}>Adet</span>
+                                            </div>
+                                            <div className="text-rose-400 group-hover:text-rose-600 transition-colors group-hover:translate-x-1 transform duration-300">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-24 flex flex-col items-center justify-center text-center opacity-50 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">VERİ BEKLENİYOR</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Personel Gidişat Tablosu */}
-                    <div className="lg:col-span-1 bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex flex-col h-[400px]">
-                        <div className="flex justify-between items-center mb-6 border-b border-slate-50 pb-4">
-                            <h3 className="font-bold text-slate-800 text-lg">Personel Gidişat Tablosu</h3>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-full min-h-[320px] max-h-[380px]">
+                        <div className="flex items-center justify-between mb-4 shrink-0">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Personel Gidişat</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ŞUBE LİDERLİK TABLOSU</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] px-2.5 py-1.5 rounded-xl font-black border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    GÜNCELLEME: {lastUpdatedDate || "---"}
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
-                            {aktifPersoneller.map((p, i) => (
-                                <div key={i} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="flex flex-col gap-2 group cursor-pointer">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                                {i + 1}
+
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                            {aktifPersoneller.length > 0 ? aktifPersoneller.map((p: any, index: number) => {
+                                const getRank = (puan: number) => {
+                                    const pVal = parseFloat(puan.toString());
+                                    if (pVal >= 9.0) return { label: 'PRO', color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/20' };
+                                    return { label: 'STANDART', color: 'text-slate-400', bg: 'bg-slate-400/10', border: 'border-slate-400/20' };
+                                };
+                                const rank = getRank(p.toplamPuan);
+                                const trendUp = parseFloat(p.puanTahmin) >= parseFloat(p.toplamPuan);
+
+                                return (
+                                    <div key={index} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} 
+                                        className={`p-4 rounded-3xl border flex items-center justify-between cursor-pointer transition-all group relative overflow-hidden ${
+                                            index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-amber-900/40 dark:to-yellow-900/20 border-amber-400 dark:border-amber-500 shadow-[0_0_20px_rgba(251,191,36,0.3)] transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10' :
+                                            index === 1 ? 'bg-gradient-to-r from-slate-100 to-white dark:from-slate-700/30 dark:to-slate-800/50 border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-slate-300' :
+                                            index === 2 ? 'bg-gradient-to-r from-orange-50 to-white dark:from-orange-900/20 dark:to-slate-800/50 border-orange-200 dark:border-orange-700/50 hover:shadow-md hover:border-orange-300' :
+                                            'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-200'
+                                        }`}>
+                                        
+                                        {index === 0 && (
+                                            <>
+                                                <div className="absolute -top-10 -left-10 w-32 h-32 bg-yellow-300/30 rounded-full blur-2xl animate-pulse"></div>
+                                                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl animate-pulse delay-75"></div>
+                                                <div className="absolute top-2 left-1/4 text-[10px] animate-ping opacity-70">✨</div>
+                                                <div className="absolute bottom-2 right-1/3 text-[12px] animate-bounce opacity-50">🌟</div>
+                                            </>
+                                        )}
+
+                                        <div className="flex items-center gap-4 relative z-10">
+                                            <div className="relative">
+                                                {index === 0 && <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-50"></span>}
+                                                <div className={`relative w-11 h-11 rounded-full flex items-center justify-center font-black text-sm border-2 border-white dark:border-slate-800 ${
+                                                    index === 0 ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-white shadow-lg shadow-amber-500/40' : 
+                                                    index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-lg shadow-slate-500/40' : 
+                                                    index === 2 ? 'bg-gradient-to-br from-orange-300 to-rose-400 text-white shadow-lg shadow-orange-500/40' : 
+                                                    'bg-slate-200 text-slate-500'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
                                             </div>
                                             <div>
-                                                <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors flex items-center gap-1">
+                                                <h4 className={`font-bold text-sm flex items-center gap-1.5 transition-colors ${index === 0 ? 'text-amber-700 dark:text-amber-400 text-base' : 'text-slate-800 dark:text-white group-hover:text-sky-700'}`}>
                                                     {p.isim}
-                                                    <span className="text-emerald-500 text-xs">↗</span>
+                                                    <span className={trendUp ? 'text-emerald-500' : 'text-rose-500'}>{trendUp ? '↗' : '↘'}</span>
                                                 </h4>
-                                                <p className="text-[10px] text-slate-500 font-medium">{p.toplamPuan} Puan</p>
+                                                <div className="flex gap-2 mt-1">
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded shadow-sm ${index === 0 ? 'text-amber-800 bg-amber-200/50' : 'text-emerald-600 bg-emerald-50'}`}>Puan: {p.toplamPuan}</span>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-tighter opacity-70 ${index === 0 ? 'text-amber-600' : 'text-slate-400'}`}>Tahmin: {p.puanTahmin}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            {i === 0 ? <span className="bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1"><span className="text-sm">🏆</span> Satış Lideri</span> :
-                                             i === 1 ? <span className="bg-slate-50 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1"><span className="text-sm">🥈</span> Elit Satıcı</span> :
-                                             i === 2 ? <span className="bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-1 rounded-md text-[10px] font-bold flex items-center gap-1"><span className="text-sm">🥉</span> Uzman Satıcı</span> :
-                                             <span className="text-slate-400 text-[10px] font-bold">%{p.basariYuzdesi}</span>}
+
+                                        <div className="text-right flex items-center gap-4 relative z-10">
+                                            <div className="flex flex-col items-end">
+                                                {index === 0 ? (
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[11px] font-black tracking-widest bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.6)] border border-yellow-300 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[16px] animate-bounce inline-block">🏆</span> SATIŞ LİDERİ
+                                                    </div>
+                                                ) : index === 1 ? (
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-slate-400 to-slate-500 text-white shadow-[0_0_12px_rgba(148,163,184,0.5)] border border-slate-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥈</span> ELİT SATICI
+                                                    </div>
+                                                ) : index === 2 ? (
+                                                    <div className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)] border border-orange-300/50 flex items-center gap-2 transform group-hover:scale-105 transition-all">
+                                                        <span className="text-[14px]">🥉</span> UZMAN SATICI
+                                                    </div>
+                                                ) : (
+                                                    <div className={`px-3 py-1 rounded-xl text-[9px] font-black tracking-widest border transition-all ${rank.bg} ${rank.color} ${rank.border} group-hover:scale-105`}>
+                                                        {rank.label}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className={`transition-all transform group-hover:translate-x-1 ${index === 0 ? 'text-amber-500' : 'text-slate-300 group-hover:text-sky-500'}`}>
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                            </div>
                                         </div>
                                     </div>
-                                    {/* Lineer Progress Bar */}
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className={`h-full rounded-full ${i === 0 ? 'bg-amber-400' : i === 1 ? 'bg-blue-500' : i === 2 ? 'bg-emerald-500' : 'bg-slate-300'}`} style={{ width: `${p.basariYuzdesi}%` }}></div>
-                                        </div>
-                                        {i < 3 && <span className="text-[10px] font-bold text-slate-500 w-6 text-right">%{p.basariYuzdesi}</span>}
-                                    </div>
+                                );
+                            }) : (
+                                <div className="h-full flex flex-col items-center justify-center opacity-50">
+                                    <p className="font-bold text-slate-400 uppercase text-xs tracking-widest text-center">Şubeye ait personel<br/>verisi bekleniyor</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 4. ALT ALAN: KATEGORİLER & DUYURULAR */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Kategorilere Göre Performans */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)]">
-                    <h3 className="font-bold text-slate-800 text-base mb-6">Kategorilere Göre Performans</h3>
-                    <div className="space-y-5">
-                        {dinamikMagazaMetrikleri.slice(0,4).map((metrik, idx) => {
-                            const pct = metrik.data.hedef > 0 ? Math.min(100, Math.round((metrik.data.satilan / metrik.data.hedef) * 100)) : 0;
-                            return (
-                                <div key={idx} className="flex items-center justify-between gap-4 cursor-pointer group" onClick={() => setActiveModal('departman')}>
-                                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500 shrink-0 border border-slate-100">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            {!isCmr && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-900/30 text-sky-500 flex items-center justify-center shrink-0">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Merkez Duyuruları</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Yönetimden gelen son bildirimler</p>
+                            </div>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 flex-1 border border-slate-100 dark:border-slate-800/50">
+                            <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+                                {config.Duyuru_Metni || "Şu an için aktif bir mağaza duyurusu bulunmamaktadır."}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden relative">
+                        <div className="flex items-center gap-4 mb-6 relative z-10">
+                            <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center shrink-0">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Aktif Kampanyalar</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Müşteriye sunulacak fırsatlar</p>
+                            </div>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent rounded-2xl border border-orange-500/20 py-8 relative z-10 overflow-hidden">
+                            <div className="whitespace-nowrap animate-marquee font-bold text-xl md:text-2xl tracking-wide text-orange-600 dark:text-orange-400">
+                                 {config.Kampanya_Metni || "GÜNCEL KAMPANYA BULUNMAMAKTADIR"}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* YUVARLAK BÜYÜYEN KÜÇÜLEN YAN YANA BUTONLAR (FİLTRELİ) */}
+            <div className="fixed bottom-[220px] right-8 z-40 flex flex-col gap-4 items-end">
+                {izinlerAktifMi && (
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('izinler')}>
+                        <div className="absolute inset-0 bg-purple-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-purple-600 to-fuchsia-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-purple-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🏖️</span>
+                            <span className="text-[9px] uppercase tracking-widest">İzinler</span>
+                        </button>
+                    </div>
+                )}
+
+                {hedeflerAktifMi && (
+                    <div className="group cursor-pointer relative" onClick={() => setActiveModal('hedefler')}>
+                        <div className="absolute inset-0 bg-sky-400 rounded-full animate-pulse opacity-30"></div>
+                        <button className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-sky-400 rounded-full flex flex-col items-center justify-center text-white font-black shadow-lg shadow-sky-500/40 border-4 border-white dark:border-slate-800 transition-transform transform group-hover:scale-110">
+                            <span className="text-2xl mb-0.5">🎯</span>
+                            <span className="text-[9px] uppercase tracking-widest">Hedefler</span>
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* MODALLAR */}
+            {activeModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
+                    
+                    {/* YENİ: İZİNLER MODALI - ŞUBELERE GÖRE DİNAMİK RENKLENDİRME */}
+                    {activeModal === 'izinler' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-4 border-b border-purple-100 dark:border-purple-900/30 flex justify-between items-center bg-purple-50 dark:bg-slate-800/50">
+                                <h3 className="text-lg md:text-xl font-black text-purple-900 dark:text-purple-100 flex items-center gap-3">
+                                    <span className="text-2xl">🏖️</span>
+                                    Personel İzin Takvimi
+                                    <span className="text-purple-600 dark:text-purple-300 text-[10px] uppercase tracking-widest bg-purple-100 dark:bg-purple-900/40 px-2 py-1 rounded-md ml-2 border border-purple-200 dark:border-purple-800/50">
+                                        TÜM ŞUBELER
+                                    </span>
+                                </h3>
+
+                                <button
+                                    onClick={() => setActiveModal(null)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-purple-200 dark:bg-slate-700 text-purple-700 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                                                                        
+                            <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
+                                {tumIzinler.length > 0 ? (
+                                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-center border-collapse">
+                                            <thead className="sticky top-0 z-20 shadow-sm">
+                                                {/* 1. BAŞLIK SATIRI (SARI - TARİHLER) */}
+                                                <tr className="bg-[#FFFF00] text-slate-900">
+                                                    {izinTarihBasliklari.map((cell: any, idx: number) => (
+                                                        <th key={`tarih-${idx}`} className="px-2 py-2 border border-yellow-400/60 text-[9px] sm:text-[10px] font-black uppercase">
+                                                            {idx === 0 && (!cell || cell === "") ? "ŞUBE" : cell}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                                {/* 2. BAŞLIK SATIRI (GRİ - GÜNLER) */}
+                                                <tr className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-b-2 border-slate-300 dark:border-slate-600">
+                                                    {izinGunBasliklari.map((cell: any, idx: number) => (
+                                                        <th key={`gun-${idx}`} className="px-2 py-2 border border-slate-200 dark:border-slate-700 text-[9px] sm:text-[10px] font-bold uppercase">
+                                                            {cell}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {tumIzinler.map((row: any, rowIndex: number) => {
+                                                    // Yeni şube başladığında indexi bir artırıp sıradaki renge geçiyoruz
+                                                    const isNewBranch = row[0] && String(row[0]).trim() !== "";
+                                                    if (isNewBranch) {
+                                                        aktifSubeRenkIndex++;
+                                                    }
+                                                    
+                                                    // Mevcut şubenin rengini bul (sırayla)
+                                                    const currentColors = izinRenkleri[Math.max(0, aktifSubeRenkIndex) % izinRenkleri.length];
+                                                    const maxColCount = Math.max(izinTarihBasliklari.length, izinGunBasliklari.length, 7);
+                                                    
+                                                    return (
+                                                        <tr key={rowIndex} className={`bg-white dark:bg-slate-900 transition-colors ${isNewBranch ? 'border-t-[3px] border-slate-300 dark:border-slate-600' : ''}`}>
+                                                            {Array.from({ length: maxColCount }).map((_, cellIndex) => {
+                                                                const cellValue = row[cellIndex] || "";
+                                                                const isIzin = String(cellValue).toUpperCase().includes("İZİN");
+                                                                
+                                                                // Hücrelerin temel stilleri
+                                                                let cellClasses = "px-2 py-1.5 border border-slate-200 dark:border-slate-700/50 text-[10px] sm:text-xs align-middle leading-tight break-words ";
+                                                                
+                                                                // ŞUBE İSMİ HÜCRESİ MANTIKLARI
+                                                                if (cellIndex === 0) {
+                                                                    if (isNewBranch) {
+                                                                        cellClasses += `${currentColors.bg} ${currentColors.text} font-black shadow-inner`;
+                                                                    } else {
+                                                                        cellClasses += "font-black text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80";
+                                                                    }
+                                                                } 
+                                                                // PERSONEL İSMİ HÜCRESİ
+                                                                else if (cellIndex === 1) {
+                                                                    cellClasses += "font-bold text-slate-700 dark:text-slate-300";
+                                                                } 
+                                                                // İZİN YAZAN HÜCRELER (ŞUBE İLE AYNI RENK)
+                                                                else if (isIzin) {
+                                                                    cellClasses += `${currentColors.badge} font-black shadow-md transform hover:scale-105 transition-transform cursor-default`;
+                                                                } 
+                                                                // BOŞ GÜN HÜCRELERİ
+                                                                else {
+                                                                    cellClasses += "text-slate-600 dark:text-slate-400 font-medium";
+                                                                }
+
+                                                                return (
+                                                                    <td key={cellIndex} className={cellClasses}>
+                                                                        {cellValue}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between items-end mb-1.5">
-                                            <p className="text-xs font-bold text-slate-700">{metrik.name}</p>
-                                            <div className="text-[10px] text-slate-500 font-medium">
-                                                <span className="font-bold text-slate-800">%{pct}</span> &nbsp;&nbsp; {metrik.data.isCurrency ? '' : `${metrik.data.satilan} / ${metrik.data.hedef}`}
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 opacity-60">
+                                        <span className="text-6xl mb-4">📭</span>
+                                        <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">
+                                            İzin Kaydı Bulunamadı
+                                        </h4>
+                                        <p className="font-bold uppercase tracking-widest text-xs text-slate-500">
+                                            Şu an için sisteme girilmiş bir personel izni bulunmuyor.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* HEDEFLER MODALI (KAYDIRMASIZ MİKRO TASARIM) */}
+                    {activeModal === 'hedefler' && (
+                        <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                                <h3 className="text-lg md:text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
+                                    <span className="text-2xl">🎯</span>
+                                    {selectedBranch} Personel Hedefleri
+                                    <span className="text-sky-500 text-[10px] uppercase tracking-widest bg-sky-50 dark:bg-sky-900/20 px-2 py-1 rounded-md ml-2 border border-sky-100 dark:border-sky-800">
+                                        {hedeflerData[0]?.[0] || "DÖNEM BELİRTİLMEDİ"}
+                                    </span>
+                                </h3>
+
+                                <button
+                                    onClick={() => setActiveModal(null)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-colors"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                                                                        
+                            <div className="flex-1 overflow-hidden p-2 sm:p-4 flex flex-col">
+                                {seciliSubeHedefleri.length > 0 ? (
+                                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full flex-1 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-center">
+                                            <thead className="sticky top-0 z-20 bg-yellow-300 text-slate-900">
+                                                <tr>
+                                                    {hedeflerBasliklar.map((baslik: any, idx: number) => (
+                                                        <th
+                                                            key={idx}
+                                                            className="px-1 py-2 border border-yellow-400 text-[9px] sm:text-[10px] font-black uppercase break-words leading-tight align-middle"
+                                                            style={{ minWidth: idx === 1 ? '90px' : 'auto' }}
+                                                        >
+                                                            {baslik}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {seciliSubeHedefleri.map((row: any, rowIndex: number) => (
+                                                    <tr
+                                                        key={rowIndex}
+                                                        className="hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        {hedeflerBasliklar.map((_: any, cellIndex: number) => (
+                                                            <td
+                                                                key={cellIndex}
+                                                                className={`px-1 py-2 border border-slate-200 dark:border-slate-700 text-[10px] sm:text-xs align-middle leading-tight break-words ${
+                                                                    cellIndex === 1
+                                                                        ? 'font-black text-sky-600 dark:text-sky-400'
+                                                                        : 'text-slate-700 dark:text-slate-200 font-medium'
+                                                                }`}
+                                                            >
+                                                                {row[cellIndex] || 0}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 opacity-60">
+                                        <span className="text-6xl mb-4">📭</span>
+                                        <h4 className="text-lg font-black text-slate-800 dark:text-white mb-1">
+                                            Hedef Verisi Bulunamadı
+                                        </h4>
+                                        <p className="font-bold uppercase tracking-widest text-xs text-slate-500">
+                                            Bu şubeye ait personel hedefi bulunamadı.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeModal === 'tahmin' && (
+                        <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+                            <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                                <h3 className="text-lg font-bold text-slate-800">Ay Sonu {anaMetrikAdi} Tahmini</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-5">
+                                {!anaBasarili ? (
+                                    <div className="bg-[#FEF2F2] border border-[#FECDD3] rounded-xl p-4 flex gap-3">
+                                        <div className="text-[#E11D48] mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div>
+                                        <div>
+                                            <h4 className="text-[#E11D48] font-bold text-sm mb-1">Hedefin Gerisindesiniz!</h4>
+                                            <p className="text-rose-900/70 text-[11px] leading-relaxed">Mevcut satış hızınıza göre ay sonu tahmini {anaProjeksiyon} adet, hedefinizin ({anaHedef}) altında kalıyor.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
+                                        <div className="text-emerald-500 mt-0.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                                        <div>
+                                            <h4 className="text-emerald-700 font-bold text-sm mb-1">Harika Gidiyorsunuz!</h4>
+                                            <p className="text-emerald-600/80 text-[11px] leading-relaxed">Mevcut hızınızla hedefi aşarak ay sonunu {anaProjeksiyon} adetle kapatmanız öngörülüyor.</p>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-5">
+                                    <div><p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Gidişata Göre Ay Sonu</p></div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className={`text-3xl font-black ${anaBasarili ? 'text-emerald-600' : 'text-[#E11D48]'}`}>{anaProjeksiyon}</span>
+                                        <span className="text-slate-500 text-sm font-medium">Adet</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 border-t border-slate-100">
+                                <button onClick={() => setActiveModal(null)} className="w-full py-3 bg-[#1E293B] hover:bg-slate-800 text-white font-bold rounded-xl text-sm">Kapat</button>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {activeModal === 'departman' && dinamikMagazaMetrikleri.length > 0 && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-700/50">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800">
+                                <div>
+                                    <h3 className="text-xl font-black text-white">{selectedBranch} Departman Hedefleri</h3>
+                                    <div className="flex flex-wrap items-center gap-3 mt-4">
+                                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 flex items-center gap-3 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                                            <div className="text-emerald-500 text-2xl">⚡</div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Şu Anki Toplanan Puan</span>
+                                                <span className="text-2xl font-black text-emerald-400 leading-none mt-1">{magazaAnlikPuan.toFixed(1)} Puan</span>
                                             </div>
                                         </div>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div className={`h-full ${metrik.color} rounded-full`} style={{ width: `${pct}%` }}></div>
+                                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3 opacity-80">
+                                            <div className="text-sky-500 text-2xl">🎯</div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Mağaza Ay Sonu Tahmin Puanı</span>
+                                                <span className="text-lg font-black text-sky-400 leading-none mt-1">{magazaTahminPuan.toFixed(1)} Puan</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Duyurular */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] lg:col-span-2">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-slate-800 text-base">Merkez Duyuru & Kampanyaları</h3>
-                        <button className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">Tümünü Gör →</button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex gap-4 p-4 rounded-xl border border-orange-100 bg-orange-50/50">
-                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors mt-1">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
-                            <div>
-                                <h4 className="font-bold text-sm text-slate-800 mb-1">Güncel Duyuru</h4>
-                                <p className="text-xs text-slate-600 leading-relaxed">{config.Duyuru_Metni || "Aktif duyuru bulunmuyor."}</p>
+                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                                {dinamikMagazaMetrikleri.map((metrik, idx) => (
+                                    <DepartmanProgressBar 
+                                        key={idx}
+                                        title={metrik.name} 
+                                        data={metrik.data} 
+                                        colorClass={metrik.color} 
+                                    />
+                                ))}
                             </div>
                         </div>
-                        <div className="flex gap-4 p-4 rounded-xl border border-blue-100 bg-blue-50/50">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-sm text-slate-800 mb-1">Aktif Kampanya</h4>
-                                <p className="text-xs text-slate-600 leading-relaxed">{config.Kampanya_Metni || "Güncel kampanya bulunmuyor."}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* MODALLAR (Eski kodlarındaki mantıkla aynı) */}
-            {/* Hızlı erişim butonları - Sağ alt */}
-            <div className="fixed bottom-8 right-8 z-40 flex flex-col gap-3">
-                {izinlerAktifMi && (
-                    <button onClick={() => setActiveModal('izinler')} className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-slate-600 shadow-[0_4px_15px_rgba(0,0,0,0.1)] border border-slate-100 hover:scale-105 transition-transform">
-                        <span className="text-xl">🏖️</span>
-                    </button>
-                )}
-                {hedeflerAktifMi && (
-                    <button onClick={() => setActiveModal('hedefler')} className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center text-white shadow-[0_4px_15px_rgba(0,0,0,0.2)] hover:scale-105 transition-transform">
-                        <span className="text-xl">🎯</span>
-                    </button>
-                )}
-            </div>
-
-            {/* Sadece Personel Detay Modal Örneği (Diğerleri eski yapıyla aynı şekilde buraya eklenebilir) */}
-            {activeModal === 'personel_detay' && selectedPersonel && (
-                 <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setActiveModal(null)}></div>
-                    <div className="relative bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
-                                    {selectedPersonel.isim.charAt(0)}
-                                </div>
+                    )}
+                    
+                    {activeModal === 'personel_detay' && selectedPersonel && (
+                        <div className="relative bg-[#0F172A] rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-800 shrink-0 bg-slate-900/50">
                                 <div>
-                                    <h3 className="text-lg font-bold text-slate-900">{selectedPersonel.isim}</h3>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Toplam Toplanan: <span className="font-bold text-blue-600">{selectedPersonel.toplamPuan} Puan</span></p>
+                                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                                        {selectedPersonel.isim} 
+                                        <span className="bg-sky-500/20 text-sky-400 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span>
+                                    </h3>
+                                    <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase mt-1">
+                                        TÜM ŞUBELERDEKİ TOPLAM VERİLER
+                                    </p>
+                                </div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {dinamikBaremler.map((barem, i) => {
+                                        const hedef = selectedPersonel.hedefler[barem.name] || 0;
+                                        const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
+                                        const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
+                                        const isBelowBaraj = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
+                                        const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
+
+                                        if (hedef === 0 && satilan === 0) return null;
+                                        return (
+                                            <DepartmanProgressBar 
+                                                key={i} 
+                                                title={barem.name} 
+                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
+                                                colorClass={barem.color} 
+                                                puan={baremPuanVal.toFixed(1)}
+                                                isRiskliBarem={isBelowBaraj}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             </div>
-                            <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
-                        <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F8FAFC]">
-                            {dinamikBaremler.map((barem, i) => {
-                                const hedef = selectedPersonel.hedefler[barem.name] || 0;
-                                const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
-                                if (hedef === 0 && satilan === 0) return null;
-                                const yuzde = hedef > 0 ? Math.min(100, Math.round((satilan / hedef) * 100)) : 0;
-                                
-                                return (
-                                    <div key={i} className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">{barem.name}</h4>
-                                        <div className="flex justify-between items-end mb-2">
-                                            <p className="text-xl font-black text-slate-800">{barem.isCurrency ? `${satilan.toLocaleString('tr-TR')} ₺` : satilan} <span className="text-sm font-medium text-slate-400">/ {hedef}</span></p>
-                                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">%{yuzde}</span>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mt-3">
-                                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${yuzde}%` }}></div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    )}
                 </div>
             )}
         </div>
