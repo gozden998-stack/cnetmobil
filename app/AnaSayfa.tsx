@@ -246,6 +246,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
     }
 
+    // Personel listesindeki barların doluluk oranını belirlemek için güvenli limit (100 veya gruptaki en yüksek puan)
+    const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
+
     const anaTahminYuzde = anaHedef > 0 ? Math.round((anaProjeksiyon / anaHedef) * 100) : 0;
     const kalanAdet = Math.max(0, anaHedef - anaSatis);
 
@@ -416,6 +419,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             else if (i === 1) rankColor = "text-blue-500 bg-blue-50 border-blue-200";
                             else if (i === 2) rankColor = "text-emerald-500 bg-emerald-50 border-emerald-200";
 
+                            // Puan tabanlı doluluk oranı hesabı (%100'ü aşmaması için sınırlı)
+                            const currentPuan = Number(p.puanTahmin) || 0;
+                            const barWidthPercent = Math.min(100, (currentPuan / maxListePuani) * 100);
+
                             return (
                                 <div key={i} className="flex items-center group cursor-pointer hover:bg-slate-50 p-3 rounded-2xl border border-transparent hover:border-slate-100 transition-all duration-200" onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}>
                                     
@@ -439,7 +446,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <span className="text-[11px] font-black text-blue-600">{p.puanTahmin} Puan</span>
                                         </div>
                                         <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${barWidthPercent}%` }}></div>
                                         </div>
                                     </div>
                                     
