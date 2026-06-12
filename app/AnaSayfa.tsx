@@ -411,7 +411,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     
                     <div className="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2">
                         {aktifPersoneller.map((p, i) => {
-                            // Dinamik renk ve stil kuralları (Sade ve Kurumsal)
                             let rankColor = "text-slate-400 bg-slate-50 border-slate-100";
                             if (i === 0) rankColor = "text-amber-500 bg-amber-50 border-amber-200";
                             else if (i === 1) rankColor = "text-blue-500 bg-blue-50 border-blue-200";
@@ -421,33 +420,27 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <div key={i} className="flex items-center group cursor-pointer hover:bg-slate-50 p-3 rounded-2xl border border-transparent hover:border-slate-100 transition-all duration-200" onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}>
                                     
                                     {/* Sıra & İsim */}
-                                    <div className="flex items-center flex-1">
+                                    <div className="flex items-center w-1/3 shrink-0">
                                         <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-black shrink-0 ${rankColor}`}>
                                             #{i + 1}
                                         </div>
                                         <div className="ml-4">
                                             <p className="text-sm font-black text-slate-800">{p.isim}</p>
                                             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
-                                                Mevcut Puan: <span className="text-slate-600">{p.toplamPuan}</span>
+                                                Mevcut: <span className="text-slate-600">{p.toplamPuan} Puan</span>
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* İlerleme Çubuğu */}
-                                    <div className="flex-1 px-4 hidden sm:block">
+                                    {/* İlerleme Çubuğu ve Tahmini Puan */}
+                                    <div className="flex-1 px-4">
                                         <div className="flex justify-between items-end mb-1.5">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hedef Tamamlama</span>
-                                            <span className="text-[11px] font-black text-slate-700">%{p.basariYuzdesi}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ay Sonu Tahmin</span>
+                                            <span className="text-[11px] font-black text-blue-600">{p.puanTahmin} Puan</span>
                                         </div>
                                         <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                             <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${p.basariYuzdesi}%` }}></div>
                                         </div>
-                                    </div>
-
-                                    {/* Tahmini Puan */}
-                                    <div className="text-right ml-auto pl-4 border-l border-slate-100 shrink-0 w-24">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Tahmini</p>
-                                        <p className="text-lg font-black text-blue-600 leading-none">{p.puanTahmin}</p>
                                     </div>
                                     
                                     {/* Sağ Ok (Aksiyon İkonu) */}
