@@ -243,62 +243,42 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
 
-    // =========================================================================
-    // YENİ GÖRSEL TASARIMLI ORTAK METRİK KARTI (Mağaza ve Personel Detay İçin)
-    // =========================================================================
-    const MetricCard = ({ title, data, colorClass, anlikPuan, kural70, isRiskli }: any) => {
+    const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const tahminYuzde = data.hedef > 0 ? Math.min(100, Math.round((projeksiyon / data.hedef) * 100)) : 0;
-        const kalanAdet = Math.max(0, data.hedef - data.satilan);
+        const isBasarili = projeksiyon >= data.hedef;
         const formatVal = (v: number) => data.isCurrency ? `${v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₺` : `${v.toLocaleString('tr-TR')}`;
 
-        // Baraj kuralı (%70 altıysa Riskli)
-        const isWarning = kural70 && isRiskli;
-        const badgeText = isWarning ? "RİSKLİ" : "BAŞARILI";
-        const badgeColors = isWarning ? "bg-rose-50 text-rose-600 border-rose-200" : "bg-emerald-50 text-emerald-600 border-emerald-200";
-
         return (
-            <div className={`bg-white border ${isWarning ? 'border-rose-300 shadow-sm shadow-rose-100' : 'border-slate-200'} rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden transition-all hover:shadow-md hover:border-blue-200 group`}>
-                
-                {/* ÜST BÖLÜM: Başlık ve Puan Rozeti */}
-                <div className="flex justify-between items-start mb-5">
-                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest w-3/5 leading-snug">{title}</h4>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${badgeColors}`}>
-                            {badgeText}
-                        </span>
-                        {anlikPuan !== undefined && (
-                            <span className="text-[10px] font-black text-slate-700">Puan: <span className={isWarning ? "text-rose-600" : "text-sky-600"}>{anlikPuan}</span></span>
+            <div className={`bg-white border ${isRiskli ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'} rounded-2xl p-4 shadow-sm flex flex-col justify-between relative overflow-hidden transition-all`}>
+                <div className="flex justify-between items-start mb-3 mt-1">
+                    <div className="flex flex-col gap-1.5">
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{title}</h4>
+                        {kural70 && (
+                            isRiskli ? 
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded w-max border border-rose-200">%70 Altı (Riskli)</span> :
+                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded w-max border border-emerald-200">Baraj Geçildi</span>
                         )}
                     </div>
+                    {puan !== undefined && <span className="text-[10px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">Puan: {puan}</span>}
                 </div>
-
-                {/* ORTA BÖLÜM: Gerçekleşen, Hedef ve Kalan */}
                 <div className="flex justify-between items-end mb-2">
-                    <div>
-                        <span className="text-2xl font-black text-slate-800">{formatVal(data.satilan)}</span>
-                        <span className="text-[11px] font-bold text-slate-400 ml-1">/ {formatVal(data.hedef)}</span>
+                    <p className="text-xl font-black text-slate-800">{formatVal(data.satilan)} <span className="text-xs font-medium text-slate-400">/ {formatVal(data.hedef)}</span></p>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-1">
+                    <div className={`h-full ${colorClass} rounded-full`} style={{ width: `${tahminYuzde}%` }}></div>
+                </div>
+                <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-3">
+                    <span>Ay Sonu Gerçekleşme: %{tahminYuzde}</span>
+                    {tahminiPuan !== undefined && <span className="text-blue-600">Tahmini Puan: {tahminiPuan}</span>}
+                </div>
+                {data.hedef > 0 && (
+                    <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-100 pt-2.5">
+                        <span className="text-slate-400 uppercase">Tahmini Kapanış</span>
+                        <span className={isBasarili ? 'text-emerald-500' : 'text-rose-500'}>{formatVal(projeksiyon)}</span>
                     </div>
-                    <div className="text-right pb-1">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Kalan: <span className="text-rose-500 text-[11px]">{kalanAdet}</span></span>
-                    </div>
-                </div>
-
-                {/* BARAJ UYARISI YAZISI */}
-                {isWarning && <p className="text-[9px] font-black text-rose-500 mb-1 mt-1 flex items-center gap-1 uppercase tracking-widest">⚠️ BARAJ ALTINDA</p>}
-                {!isWarning && <div className="h-[14px]"></div>}
-
-                {/* PROGRESS BAR (Yüzde olmadan saf bar) */}
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-4 mt-1">
-                    <div className={`h-full ${colorClass || 'bg-blue-500'} rounded-full transition-all duration-700 ease-out`} style={{ width: `${tahminYuzde}%` }}></div>
-                </div>
-
-                {/* ALT BÖLÜM: Ay Sonu Tahmin */}
-                <div className="flex justify-between items-center mt-auto pt-3 border-t border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AY SONU TAHMİN:</span>
-                    <span className="text-xs font-black text-slate-800">{formatVal(projeksiyon)}</span>
-                </div>
+                )}
             </div>
         );
     };
@@ -493,7 +473,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </>
                 )}
 
-                {/* DRAWER İÇERİĞİ: MAĞAZA */}
+                {/* DRAWER İÇERİĞİ: MAĞAZA (GÜNCELLENEN ALAN) */}
                 {activeDrawer === 'magaza' && (
                     <>
                         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
@@ -503,21 +483,41 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 grid grid-cols-1 gap-4 h-max">
-                            {dinamikMagazaMetrikleri.map((metrik, idx) => {
-                                // Mağaza metrikleri için 70 kuralını, ilgili anahtardan kontrol et (Mağazada genelde yoktur ama dinamik kalsın)
-                                const rule = dinamikPuanKurallari[cleanKey(metrik.name)];
-                                const isRiskli = rule?.kural70 && (metrik.data.hedef > 0 ? (metrik.data.satilan / metrik.data.hedef < 0.7) : false);
+                            {dinamikMagazaMetrikleri.map((m, idx) => {
+                                const kalanAdet = Math.max(0, m.data.hedef - m.data.satilan);
 
                                 return (
-                                    <MetricCard 
-                                        key={idx} 
-                                        title={metrik.name} 
-                                        data={metrik.data} 
-                                        colorClass={metrik.color} 
-                                        anlikPuan={metrik.data.anlikPuan.toFixed(1)} 
-                                        kural70={rule?.kural70} 
-                                        isRiskli={isRiskli} 
-                                    />
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                                        
+                                        <div className="flex justify-between items-start mb-4">
+                                            <p className="text-sm font-black text-slate-700 uppercase">{m.name}</p>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AY SONU</p>
+                                                <p className="text-xl font-black text-purple-600">{m.data.tahminPuan.toFixed(1)} <span className="text-xs font-bold text-purple-400">Puan</span></p>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Metrik Bilgi Panosu */}
+                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <div className="text-center border-r border-slate-200">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Anlık Puan</p>
+                                                <p className="text-sm font-black text-slate-800">{m.data.anlikPuan.toFixed(1)}</p>
+                                            </div>
+                                            <div className="text-center border-r border-slate-200">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Toplam Puan</p>
+                                                <p className="text-sm font-black text-slate-800">{m.data.hedefPuan.toFixed(1)}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Kalan Adet</p>
+                                                <p className="text-sm font-black text-rose-500">{kalanAdet}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 flex justify-between items-center text-[10px] font-bold text-slate-500 px-1">
+                                            <span>Gerçekleşen: <span className="text-slate-800">{m.data.satilan}</span></span>
+                                            <span>Hedef: <span className="text-slate-800">{m.data.hedef}</span></span>
+                                        </div>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -536,7 +536,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             </div>
 
             {/* ========================================================= */}
-            {/* ALT MODALLAR                                              */}
+            {/* ALT MODALLAR (Z-Index Güncellendi)                        */}
             {/* ========================================================= */}
             {activeModal && (
                 <div className="fixed inset-0 z-[10000] flex items-center justify-center px-4">
@@ -618,36 +618,38 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
 
-                    {/* ÇEKMECEDEN AÇILAN PERSONEL DETAY MODALI */}
+                    {activeModal === 'departman' && dinamikMagazaMetrikleri.length > 0 && (
+                        <div className="relative bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-200">
+                            <div className="flex justify-between items-start p-6 border-b border-slate-100 bg-slate-50">
+                                <div><h3 className="text-xl font-black text-slate-800">{selectedBranch} Departman Hedefleri</h3></div>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors mt-1"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                            </div>
+                            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                                {dinamikMagazaMetrikleri.map((metrik, idx) => (<DepartmanProgressBar key={idx} title={metrik.name} data={metrik.data} colorClass={metrik.color} tahminiPuan={metrik.data.tahminPuan.toFixed(1)} />))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* DRAWER İÇİNDEN AÇILAN DETAY MODALI */}
                     {activeModal === 'personel_detay' && selectedPersonel && (
                         <div className="relative bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-100 shrink-0 bg-slate-50">
                                 <div>
-                                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">{selectedPersonel.isim} <span className="bg-sky-100 text-sky-600 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm border border-sky-200">GENEL PUAN: {selectedPersonel.toplamPuan}</span></h3>
+                                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">{selectedPersonel.isim} <span className="bg-sky-100 text-sky-600 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span></h3>
                                 </div>
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="p-6 overflow-y-auto custom-scrollbar bg-slate-50/50">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {dinamikBaremler.map((barem, i) => {
                                         const hedef = selectedPersonel.hedefler[barem.name] || 0; 
                                         const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
                                         const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
                                         const isRiskli = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
                                         const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
-                                        
+                                        const tahminiBaremPuan = calculatePoint(satilan, hedef, barem.name, true);
                                         if (hedef === 0 && satilan === 0) return null;
-                                        return (
-                                            <MetricCard 
-                                                key={i} 
-                                                title={barem.name} 
-                                                data={{ hedef, satilan, isCurrency: barem.isCurrency }} 
-                                                colorClass={barem.color} 
-                                                anlikPuan={baremPuanVal.toFixed(1)} 
-                                                kural70={baremRule?.kural70} 
-                                                isRiskli={isRiskli} 
-                                            />
-                                        );
+                                        return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} tahminiPuan={tahminiBaremPuan.toFixed(1)} kural70={baremRule?.kural70} isRiskli={isRiskli} />;
                                     })}
                                 </div>
                             </div>
