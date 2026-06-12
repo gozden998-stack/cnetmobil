@@ -249,7 +249,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const anaTahminYuzde = anaHedef > 0 ? Math.round((anaProjeksiyon / anaHedef) * 100) : 0;
     const kalanAdet = Math.max(0, anaHedef - anaSatis);
 
-    const DepartmanProgressBar = ({ title, data, colorClass, puan, kural70, isRiskli }: any) => {
+    const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const tahminYuzde = data.hedef > 0 ? Math.min(100, Math.round((projeksiyon / data.hedef) * 100)) : 0;
@@ -276,7 +276,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     <div className={`h-full ${colorClass} rounded-full`} style={{ width: `${tahminYuzde}%` }}></div>
                 </div>
                 <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-3">
-                    <span>Ay Sonu Tahmini: %{tahminYuzde}</span>
+                    <span>Ay Sonu Gerçekleşme: %{tahminYuzde}</span>
+                    {tahminiPuan !== undefined && <span className="text-blue-600">Tahmini Puan: {tahminiPuan}</span>}
                 </div>
                 {data.hedef > 0 && (
                     <div className="flex justify-between items-center text-[10px] font-bold border-t border-slate-100 pt-2.5">
@@ -422,14 +423,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <p className="text-xs font-black text-slate-800 whitespace-nowrap">{p.isim}</p>
                                             <div className="flex items-center gap-1.5 mt-1">
                                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${badgeStyle}`}>{badgeText}</span>
-                                                <span className="text-[10px] font-bold text-slate-800">{p.toplamPuan} Puan</span>
+                                                <span className="text-[10px] font-bold text-slate-800">Anlık: {p.toplamPuan} Puan</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="w-1/2 flex flex-col gap-1 pl-4">
                                         <div className="flex justify-between items-center w-full text-[9px] font-bold text-slate-500">
-                                            <span>Ay Sonu Tahmin</span>
-                                            <span className="text-slate-800">%{p.basariYuzdesi}</span>
+                                            <span>Ay Sonu Tahmini Puan</span>
+                                            <span className="text-slate-800 text-[10px]">{p.puanTahmin} Puan</span>
                                         </div>
                                         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden w-full"><div className={`h-full ${barColor}`} style={{ width: `${p.basariYuzdesi}%` }}></div></div>
                                     </div>
@@ -461,7 +462,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <div>
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Ay Sonu Tahmin</p>
                                         <p className="text-2xl font-black text-slate-800">%{tahminYuzde}</p>
-                                        <p className="text-[10px] font-bold text-blue-500 mt-2">{m.data.satilan} / {m.data.hedef}</p>
+                                        <p className="text-[10px] font-bold text-blue-500 mt-2">Tahmini: {m.data.tahminPuan.toFixed(1)} Puan</p>
                                     </div>
                                     <div className="relative w-12 h-12">
                                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -596,7 +597,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors mt-1"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                                {dinamikMagazaMetrikleri.map((metrik, idx) => (<DepartmanProgressBar key={idx} title={metrik.name} data={metrik.data} colorClass={metrik.color} />))}
+                                {dinamikMagazaMetrikleri.map((metrik, idx) => (<DepartmanProgressBar key={idx} title={metrik.name} data={metrik.data} colorClass={metrik.color} tahminiPuan={metrik.data.tahminPuan.toFixed(1)} />))}
                             </div>
                         </div>
                     )}
@@ -617,8 +618,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
                                         const isRiskli = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
                                         const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
+                                        const tahminiBaremPuan = calculatePoint(satilan, hedef, barem.name, true);
                                         if (hedef === 0 && satilan === 0) return null;
-                                        return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} kural70={baremRule?.kural70} isRiskli={isRiskli} />;
+                                        return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} tahminiPuan={tahminiBaremPuan.toFixed(1)} kural70={baremRule?.kural70} isRiskli={isRiskli} />;
                                     })}
                                 </div>
                             </div>
