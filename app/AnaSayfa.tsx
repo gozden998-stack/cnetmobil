@@ -406,33 +406,53 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col h-full max-h-[360px]">
                     <div className="flex justify-between items-center mb-6 shrink-0">
                         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">PERSONEL GİDİŞAT</h3>
-                        <button onClick={() => setActiveModal('departman')} className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1 rounded-lg hover:bg-slate-50">Tümünü Gör</button>
+                        <button onClick={() => setActiveModal('departman')} className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors">Tümünü Gör</button>
                     </div>
-                    <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-2">
+                    
+                    <div className="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2">
                         {aktifPersoneller.map((p, i) => {
-                            let badgeStyle = "bg-slate-100 text-slate-600"; let badgeText = "Standart"; let barColor = "bg-blue-300"; 
-                            if (i === 0) { badgeStyle = "bg-amber-100 text-amber-700"; badgeText = "Satış Lideri"; barColor = "bg-amber-400"; } 
-                            else if (i === 1) { badgeStyle = "bg-blue-50 text-blue-600"; badgeText = "Elit Satıcı"; barColor = "bg-blue-500";  } 
-                            else if (i === 2) { badgeStyle = "bg-orange-100 text-orange-700"; badgeText = "Uzman Satıcı"; barColor = "bg-orange-500"; }
+                            // Dinamik renk ve stil kuralları (Sade ve Kurumsal)
+                            let rankColor = "text-slate-400 bg-slate-50 border-slate-100";
+                            if (i === 0) rankColor = "text-amber-500 bg-amber-50 border-amber-200";
+                            else if (i === 1) rankColor = "text-blue-500 bg-blue-50 border-blue-200";
+                            else if (i === 2) rankColor = "text-emerald-500 bg-emerald-50 border-emerald-200";
 
                             return (
-                                <div key={i} className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded-xl transition-colors" onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}>
-                                    <div className="flex items-center gap-3 w-1/2">
-                                        <div className="w-8 h-8 flex items-center justify-center text-sm font-black bg-slate-100 text-slate-400 rounded-lg shrink-0">{i + 1}</div>
-                                        <div>
-                                            <p className="text-xs font-black text-slate-800 whitespace-nowrap">{p.isim}</p>
-                                            <div className="flex items-center gap-1.5 mt-1">
-                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${badgeStyle}`}>{badgeText}</span>
-                                                <span className="text-[10px] font-bold text-slate-800">Anlık: {p.toplamPuan} Puan</span>
-                                            </div>
+                                <div key={i} className="flex items-center group cursor-pointer hover:bg-slate-50 p-3 rounded-2xl border border-transparent hover:border-slate-100 transition-all duration-200" onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}>
+                                    
+                                    {/* Sıra & İsim */}
+                                    <div className="flex items-center flex-1">
+                                        <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-black shrink-0 ${rankColor}`}>
+                                            #{i + 1}
+                                        </div>
+                                        <div className="ml-4">
+                                            <p className="text-sm font-black text-slate-800">{p.isim}</p>
+                                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+                                                Mevcut Puan: <span className="text-slate-600">{p.toplamPuan}</span>
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="w-1/2 flex flex-col gap-1 pl-4">
-                                        <div className="flex justify-between items-center w-full text-[9px] font-bold text-slate-500">
-                                            <span>Ay Sonu Tahmini Puan</span>
-                                            <span className="text-slate-800 text-[10px]">{p.puanTahmin} Puan</span>
+
+                                    {/* İlerleme Çubuğu */}
+                                    <div className="flex-1 px-4 hidden sm:block">
+                                        <div className="flex justify-between items-end mb-1.5">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hedef Tamamlama</span>
+                                            <span className="text-[11px] font-black text-slate-700">%{p.basariYuzdesi}</span>
                                         </div>
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden w-full"><div className={`h-full ${barColor}`} style={{ width: `${p.basariYuzdesi}%` }}></div></div>
+                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${p.basariYuzdesi}%` }}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tahmini Puan */}
+                                    <div className="text-right ml-auto pl-4 border-l border-slate-100 shrink-0 w-24">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Tahmini</p>
+                                        <p className="text-lg font-black text-blue-600 leading-none">{p.puanTahmin}</p>
+                                    </div>
+                                    
+                                    {/* Sağ Ok (Aksiyon İkonu) */}
+                                    <div className="ml-3 text-slate-300 group-hover:text-blue-500 transition-colors">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                                     </div>
                                 </div>
                             );
