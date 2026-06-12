@@ -1,22 +1,19 @@
 import React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
-    // --- MODAL KONTROLLERİ ---
+    // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
+    const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
     const isCmr = selectedBranch.includes('CMR');
-
-    // --- KANAL KISITLAMA MANTIĞI ---
     const branchLower = selectedBranch.toLowerCase();
     const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
     
     const hedeflerAktifMi = !isBlocked;
     const izinlerAktifMi = !isBlocked;
 
-    // =========================================================================
-    // TABLO KESİCİ: HEDEFLER VE İZİNLERİ KARIŞTIRMADAN AYIR
-    // =========================================================================
+    // --- VERİ HAZIRLIĞI ---
     const veriKaynagi = izinlerData && izinlerData.length > 0 ? izinlerData : hedeflerData;
     const izinIdx = veriKaynagi.findIndex((row: any) => Array.isArray(row) && row.join("").toUpperCase().includes("İZİN ÇİZELGESİ"));
 
@@ -122,7 +119,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     
     let dinamikMagazaMetrikleri: any[] = [];
     let magazaAnlikPuan = 0, magazaTahminPuan = 0, anaSatis = 0, anaHedef = 0;
-    let anaMetrikAdi = "VERİ YOK"; 
 
     const hIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "HEDEF");
     const gIdx = (gidisatData || []).findIndex((r: any) => r && String(r[0] || "").trim().toUpperCase() === "GERÇEKLEŞEN");
@@ -164,7 +160,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 magazaTahminPuan += tahminPts;
 
                 dinamikMagazaMetrikleri.push({ name: hName, color: colorPalette[colorIndex % colorPalette.length], data: { hedef: hVal, satilan: sVal, isCurrency: isCurr, hedefPuan: hpVal, maxPuan: mpVal, anlikPuan: anlikPts, tahminPuan: tahminPts } });
-                if (colorIndex === 0) { anaSatis = sVal; anaHedef = hVal; anaMetrikAdi = hName; }
+                if (colorIndex === 0) { anaSatis = sVal; anaHedef = hVal; }
                 colorIndex++;
             }
         });
@@ -177,7 +173,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     }
 
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
-    const anaBasarili = anaProjeksiyon >= anaHedef;
 
     let aktifPersoneller: any[] = [];
     let dinamikBaremler: any[] = [];
@@ -246,11 +241,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
     }
 
-    // Personel listesindeki barların doluluk oranını belirlemek için güvenli limit (100 veya gruptaki en yüksek puan)
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
-
     const anaTahminYuzde = anaHedef > 0 ? Math.round((anaProjeksiyon / anaHedef) * 100) : 0;
-    const kalanAdet = Math.max(0, anaHedef - anaSatis);
 
     const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
@@ -293,10 +285,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     };
 
     return (
-        <div className="min-h-screen bg-[#F8F9FB] p-4 md:p-8 font-sans text-slate-800 animate-in fade-in duration-500">
+        <div className="min-h-screen bg-[#F8F9FB] p-4 md:p-8 font-sans text-slate-800 animate-in fade-in duration-500 overflow-x-hidden">
             
-            {/* ÜST BÖLÜM: BEYAZ KPI KARTLARI */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6 mb-6">
+            {/* 1. BÖLÜM: ÜST KPI KARTLARI */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-center gap-6 mb-8">
                 <div className="flex flex-col xl:border-r border-slate-100 pr-6 min-w-max">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
@@ -374,130 +366,44 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* ORTA BÖLÜM: HEDEF ÖZETİ VE PERSONEL GİDİŞAT */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                {/* HEDEF ÖZETİ */}
-                <div className="lg:col-span-1 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-6">HEDEF ÖZETİ</h3>
-                    <div className="flex items-center justify-center relative mb-6">
-                        <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 36 36">
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#F1F5F9" strokeWidth="4" />
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10B981" strokeWidth="4" strokeDasharray={`${anaTahminYuzde}, 100`} />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-2xl font-black text-slate-800">%{anaTahminYuzde}</span>
-                            <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Ay Sonu Tahmin</span>
+            {/* 2. BÖLÜM: TETİKLEYİCİ KARTLAR (Drawer açar) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Personel Sıralama Kartı */}
+                <div 
+                    onClick={() => setActiveDrawer('personel')}
+                    className="relative overflow-hidden cursor-pointer group h-40 bg-[#0F172A] rounded-[2rem] p-8 shadow-xl transition-all hover:shadow-blue-900/20"
+                >
+                    <div className="relative z-10 flex justify-between items-center h-full">
+                        <div>
+                            <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">Personel Gidişat Metrikleri</p>
+                            <h2 className="text-white text-3xl font-black italic">Güncel Durumunuz</h2>
+                            <p className="text-white/80 text-sm font-medium mt-2">Sıralamayı ve puanları inceleyin</p>
                         </div>
-                    </div>
-                    <div className="space-y-3 mt-auto">
-                        <div className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div><span className="text-slate-600 font-medium">Gerçekleşen</span></div>
-                            <span className="font-bold text-emerald-500">{anaSatis} <span className="text-xs text-slate-400">Adet</span></span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div><span className="text-slate-600 font-medium">Kalan</span></div>
-                            <span className="font-bold text-amber-500">{kalanAdet} <span className="text-xs text-slate-400">Adet</span></span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div><span className="text-slate-600 font-medium">Hedef</span></div>
-                            <span className="font-bold text-blue-500">{anaHedef} <span className="text-xs text-slate-400">Adet</span></span>
+                        <div className="flex gap-2 self-end">
+                            <span className="bg-white/10 text-white text-[10px] px-4 py-2 rounded-lg border border-white/10 font-bold uppercase group-hover:bg-blue-600 transition-colors">Sıralamayı Gör</span>
                         </div>
                     </div>
                 </div>
 
-                {/* PERSONEL GİDİŞAT TABLOSU */}
-                <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col h-full max-h-[360px]">
-                    <div className="flex justify-between items-center mb-6 shrink-0">
-                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">PERSONEL GİDİŞAT</h3>
-                        <button onClick={() => setActiveModal('departman')} className="text-xs font-semibold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors">Tümünü Gör</button>
-                    </div>
-                    
-                    <div className="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2">
-                        {aktifPersoneller.map((p, i) => {
-                            let rankColor = "text-slate-400 bg-slate-50 border-slate-100";
-                            if (i === 0) rankColor = "text-amber-500 bg-amber-50 border-amber-200";
-                            else if (i === 1) rankColor = "text-blue-500 bg-blue-50 border-blue-200";
-                            else if (i === 2) rankColor = "text-emerald-500 bg-emerald-50 border-emerald-200";
-
-                            // Puan tabanlı doluluk oranı hesabı (%100'ü aşmaması için sınırlı)
-                            const currentPuan = Number(p.puanTahmin) || 0;
-                            const barWidthPercent = Math.min(100, (currentPuan / maxListePuani) * 100);
-
-                            return (
-                                <div key={i} className="flex items-center group cursor-pointer hover:bg-slate-50 p-3 rounded-2xl border border-transparent hover:border-slate-100 transition-all duration-200" onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}>
-                                    
-                                    {/* Sıra & İsim */}
-                                    <div className="flex items-center w-1/3 shrink-0">
-                                        <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-black shrink-0 ${rankColor}`}>
-                                            #{i + 1}
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-sm font-black text-slate-800">{p.isim}</p>
-                                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
-                                                Mevcut: <span className="text-slate-600">{p.toplamPuan} Puan</span>
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* İlerleme Çubuğu ve Tahmini Puan */}
-                                    <div className="flex-1 px-4">
-                                        <div className="flex justify-between items-end mb-1.5">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ay Sonu Tahmin</span>
-                                            <span className="text-[11px] font-black text-blue-600">{p.puanTahmin} Puan</span>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${barWidthPercent}%` }}></div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Sağ Ok (Aksiyon İkonu) */}
-                                    <div className="ml-3 text-slate-300 group-hover:text-blue-500 transition-colors">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                {/* Mağaza Metrikleri Kartı */}
+                <div 
+                    onClick={() => setActiveDrawer('magaza')}
+                    className="relative overflow-hidden cursor-pointer group h-40 bg-gradient-to-br from-purple-900 to-purple-700 rounded-[2rem] p-8 shadow-xl transition-all hover:shadow-purple-900/20"
+                >
+                    <div className="relative z-10 flex justify-between items-center h-full">
+                        <div>
+                            <p className="text-purple-300 text-xs font-bold uppercase tracking-widest mb-2">Mağaza Skor Metrikleri</p>
+                            <h2 className="text-white text-3xl font-black italic">Mağaza Performansı</h2>
+                            <p className="text-white/80 text-sm font-medium mt-2">Hedef gerçekleşme oranları</p>
+                        </div>
+                        <div className="flex gap-2 self-end">
+                            <span className="bg-white/10 text-white text-[10px] px-4 py-2 rounded-lg border border-white/10 font-bold uppercase group-hover:bg-purple-600 transition-colors">Metrikleri İncele</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* ALT BÖLÜM: MAĞAZA GİDİŞAT (Eski Kategorilere Göre Performans) */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col mb-6">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">MAĞAZA GİDİŞAT</h3>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-                    {dinamikMagazaMetrikleri.slice(0, 4).map((m, idx) => {
-                        const projeksiyon = Math.round((m.data.satilan / currentDay) * daysInMonth);
-                        const tahminYuzde = m.data.hedef > 0 ? Math.round((projeksiyon / m.data.hedef) * 100) : 0;
-                        const colors = ['text-blue-500 bg-blue-50', 'text-emerald-500 bg-emerald-50', 'text-purple-500 bg-purple-50', 'text-amber-500 bg-amber-50'];
-                        const strokeColors = ['#3B82F6', '#10B981', '#A855F7', '#F59E0B'];
-                        return (
-                            <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex flex-col justify-between transition-shadow">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className={`p-1.5 rounded-lg ${colors[idx % 4]}`}><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg></div>
-                                    <p className="text-[11px] font-bold text-slate-800 truncate">{m.name}</p>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Ay Sonu Tahmin</p>
-                                        <p className="text-2xl font-black text-slate-800">%{tahminYuzde}</p>
-                                        <p className="text-[10px] font-bold text-blue-500 mt-2">Tahmini: {m.data.tahminPuan.toFixed(1)} Puan</p>
-                                    </div>
-                                    <div className="relative w-12 h-12">
-                                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#F1F5F9" strokeWidth="4" />
-                                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={strokeColors[idx % 4]} strokeWidth="4" strokeDasharray={`${tahminYuzde}, 100`} />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* HIZLI ERİŞİM */}
+            {/* 3. BÖLÜM: HIZLI ERİŞİM */}
             <div>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">HIZLI ERİŞİM</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -529,9 +435,118 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* MODALLAR */}
+            {/* ========================================================= */}
+            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                      */}
+            {/* ========================================================= */}
+            
+            {/* Arka plan karartması (Overlay) */}
+            <div 
+                className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] transition-opacity duration-300 ${activeDrawer ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
+                onClick={() => setActiveDrawer(null)}
+            ></div>
+
+            {/* Drawer Paneli */}
+            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${activeDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
+                
+                {/* DRAWER İÇERİĞİ: PERSONEL */}
+                {activeDrawer === 'personel' && (
+                    <>
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                            <h3 className="text-lg font-black text-slate-800">Personel Gidişat Sıralaması</h3>
+                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 space-y-3">
+                            {aktifPersoneller.map((p, i) => {
+                                // Podyum renkleri
+                                let rankClass = "bg-white text-slate-500 border border-slate-200";
+                                if (i === 0) rankClass = "bg-amber-100 text-amber-700 border border-amber-200";
+                                else if (i === 1) rankClass = "bg-slate-200 text-slate-700 border border-slate-300";
+                                else if (i === 2) rankClass = "bg-orange-100 text-orange-700 border border-orange-200";
+
+                                const barWidthPercent = Math.min(100, ((Number(p.puanTahmin) || 0) / maxListePuani) * 100);
+
+                                return (
+                                    <div 
+                                        key={i} 
+                                        onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}
+                                        className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] font-black ${rankClass}`}>
+                                                    #{i + 1}
+                                                </div>
+                                                <span className="text-[13px] font-bold text-slate-800">{p.isim}</span>
+                                            </div>
+                                            <span className="text-[13px] font-black text-blue-600">{p.puanTahmin} Puan</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${barWidthPercent}%` }}></div>
+                                            </div>
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-24 text-right">
+                                                AY SONU TAHMİN
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+
+                {/* DRAWER İÇERİĞİ: MAĞAZA */}
+                {activeDrawer === 'magaza' && (
+                    <>
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                            <h3 className="text-lg font-black text-slate-800">Mağaza Gidişat Metrikleri</h3>
+                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 grid grid-cols-1 gap-4 h-max">
+                            {dinamikMagazaMetrikleri.map((m, idx) => {
+                                const projeksiyon = Math.round((m.data.satilan / currentDay) * daysInMonth);
+                                const tahminYuzde = m.data.hedef > 0 ? Math.round((projeksiyon / m.data.hedef) * 100) : 0;
+                                return (
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                                        <p className="text-xs font-bold text-slate-500 uppercase mb-2">{m.name}</p>
+                                        <div className="flex items-end justify-between">
+                                            <div>
+                                                <p className="text-2xl font-black text-slate-800">%{tahminYuzde}</p>
+                                                <p className="text-[10px] font-bold text-purple-600 mt-1">Tahmini: {m.data.tahminPuan.toFixed(1)} Puan</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-black text-slate-800">{m.data.satilan} <span className="text-xs text-slate-400 font-medium">/ {m.data.hedef}</span></p>
+                                                <p className="text-[9px] text-slate-400 uppercase mt-1">Gerçekleşen / Hedef</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+
+                {/* ORTAK SABİT ALT BUTON (KAPAT) */}
+                <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+                    <button 
+                        onClick={() => setActiveDrawer(null)} 
+                        className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition-colors shadow-sm"
+                    >
+                        Paneli Kapat
+                    </button>
+                </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* ALT MODALLAR (Önceki modal yapıları Z-Index güncellendi) */}
+            {/* ========================================================= */}
             {activeModal && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center px-4">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
                     {activeModal === 'izinler' && (
@@ -622,6 +637,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
                     
+                    {/* DRAWER İÇİNDEN AÇILAN DETAY MODALI */}
                     {activeModal === 'personel_detay' && selectedPersonel && (
                         <div className="relative bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="flex justify-between items-start p-6 border-b border-slate-100 shrink-0 bg-slate-50">
