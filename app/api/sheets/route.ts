@@ -26,7 +26,7 @@ export async function GET() {
     // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU ---
     { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
     { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
-    { id: 'LogKayitlari', range: 'LOG!A0:F5000' }
+    { id: 'LogKayitlari', range: 'LOG!A0:F5000' },
     // --- MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
     { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
