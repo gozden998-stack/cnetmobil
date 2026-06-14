@@ -795,3 +795,5 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             )}
         </div>
+     );
+  }
