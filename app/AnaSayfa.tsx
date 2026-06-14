@@ -372,37 +372,39 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 {/* SAĞ KISIM: EN İYİLER VE BUTON */}
                 <div className="flex flex-col sm:flex-row items-center gap-6 2xl:pl-8 2xl:border-l border-slate-100 shrink-0 self-stretch">
                     
-                    {/* Bu Ayın En İyileri Kutusu (Tüm Şirket Çapında) */}
-                    <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 w-full sm:min-w-[220px]">
-                        <div className="flex items-center gap-2 mb-3 border-b border-slate-200/60 pb-2">
-                            <div className="w-7 h-7 rounded bg-amber-100 text-amber-500 flex items-center justify-center">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                    {/* Bu Ayın En İyileri Kutusu (Vodafone ve Zumay kanallarında gizli) */}
+                    {!isBlocked && (
+                        <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 w-full sm:min-w-[220px]">
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-200/60 pb-2">
+                                <div className="w-7 h-7 rounded bg-amber-100 text-amber-500 flex items-center justify-center">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                                </div>
+                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Bu Ayın En İyileri</h3>
                             </div>
-                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Bu Ayın En İyileri</h3>
-                        </div>
-                        <div className="space-y-2">
-                            {tumSirketPersonelleri.slice(0, 3).map((p, i) => {
-                                let badgeClass = "bg-slate-200 text-slate-600";
-                                if (i === 0) badgeClass = "bg-yellow-400 text-yellow-900 shadow-sm";
-                                else if (i === 1) badgeClass = "bg-slate-300 text-slate-800";
-                                else if (i === 2) badgeClass = "bg-orange-300 text-orange-900";
+                            <div className="space-y-2">
+                                {tumSirketPersonelleri.slice(0, 3).map((p, i) => {
+                                    let badgeClass = "bg-slate-200 text-slate-600";
+                                    if (i === 0) badgeClass = "bg-yellow-400 text-yellow-900 shadow-sm";
+                                    else if (i === 1) badgeClass = "bg-slate-300 text-slate-800";
+                                    else if (i === 2) badgeClass = "bg-orange-300 text-orange-900";
 
-                                return (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${badgeClass}`}>
-                                            {i + 1}
+                                    return (
+                                        <div key={i} className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${badgeClass}`}>
+                                                {i + 1}
+                                            </div>
+                                            <span className="text-[11px] font-bold text-slate-700 truncate">
+                                                {p.isim} <span className="text-[9px] text-slate-400 font-medium">({p.magaza})</span>
+                                            </span>
                                         </div>
-                                        <span className="text-[11px] font-bold text-slate-700 truncate">
-                                            {p.isim} <span className="text-[9px] text-slate-400 font-medium">({p.magaza})</span>
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                            {tumSirketPersonelleri.length === 0 && (
-                                <span className="text-[10px] text-slate-400 font-bold uppercase">Personel Yok</span>
-                            )}
+                                    );
+                                })}
+                                {tumSirketPersonelleri.length === 0 && (
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Personel Yok</span>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Buton */}
                     <button onClick={() => setAppMode('alim')} className="w-full sm:w-auto bg-[#1D4ED8] hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold text-sm tracking-wide shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap h-max">
