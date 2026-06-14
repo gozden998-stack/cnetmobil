@@ -493,33 +493,32 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* YENİ EKLENEN: HAFTANIN ODAĞI / YÖNETİCİ NOTU */}
-                {/* Herkese açık. Eğer Vodafone ise tam ekran genişliğinde görünür. */}
-                <div className={`relative overflow-hidden group h-40 bg-gradient-to-br from-pink-600 to-orange-500 rounded-[2rem] p-8 shadow-lg transition-all ${isBlocked ? 'w-full' : ''}`}>
-                    {/* Dekoratif Arka Plan Halkaları */}
-                    <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-                    <div className="absolute bottom-[-20%] right-[10%] w-24 h-24 bg-white opacity-20 rounded-full blur-xl"></div>
-                    
-                    <div className="relative z-10 flex h-full justify-between items-center">
-                        <div className="flex flex-col justify-center">
-                            <div className="flex items-center gap-2 mb-2">
-                                <svg className="w-4 h-4 text-orange-200" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                                <p className="text-orange-100 text-xs font-bold uppercase tracking-widest">Haftanın Odağı</p>
-                            </div>
-                            <h2 className="text-white text-2xl font-black mb-1">Apple Cihaz Alımları</h2>
-                            <p className="text-white/90 text-sm font-medium line-clamp-2">"Bu hafta iPhone grubu cihaz alımlarına ağırlık veriyoruz. Hedefleri tutturalım!"</p>
-                        </div>
+             {/* YENİ EKLENEN: HAFTANIN ODAĞI / YÖNETİCİ NOTU */}
+                {/* Vodafone'da gizli, diğerlerinde görünür. */}
+                {!isBlocked && (
+                    <div className="relative overflow-hidden group h-40 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[2rem] p-8 shadow-lg transition-all w-full">
+                        {/* Dekoratif Arka Plan Halkaları */}
+                        <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                         
-                        {/* Sağ taraftaki minik vurgu kutusu */}
-                        <div className="hidden sm:flex relative z-10 flex-col items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 ml-4">
-                            <span className="text-white text-[10px] font-bold uppercase mb-1">Odak Hedef</span>
-                            <span className="text-white text-3xl font-black">+20</span>
-                            <span className="text-white/70 text-[10px] font-medium">Adet</span>
+                        <div className="relative z-10 flex h-full justify-between items-center">
+                            <div className="flex flex-col justify-center max-w-[70%]">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                    <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Mağaza Vizyonu</p>
+                                </div>
+                                <h2 className="text-white text-xl font-black mb-1 leading-tight">"Müşteri geri çevirmek yok, mağazada yok yok!"</h2>
+                                <p className="text-white/80 text-xs font-medium">Bu vizyonla bu ay hedefi patlatıyoruz! 🚀</p>
+                            </div>
+                            
+                            {/* Sağ taraftaki Puan Kutusu */}
+                            <div className="hidden sm:flex relative z-10 flex-col items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 ml-4">
+                                <span className="text-white/70 text-[9px] font-bold uppercase mb-1">Aylık Hedef</span>
+                                <span className="text-white text-2xl font-black">100+</span>
+                                <span className="text-white/90 text-[10px] font-bold">PUAN</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-            </div>
+                )}  
 
             {/* 3. BÖLÜM: HIZLI ERİŞİM */}
             <div>
