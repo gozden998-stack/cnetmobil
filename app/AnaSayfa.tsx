@@ -519,7 +519,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                 )}  
-
+             </div>
             {/* 3. BÖLÜM: HIZLI ERİŞİM */}
             <div>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 pl-1">Hızlı Erişim</h3>
