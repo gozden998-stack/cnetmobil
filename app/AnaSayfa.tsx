@@ -174,6 +174,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
 
+    let tumSirketPersonelleri: any[] = [];
     let aktifPersoneller: any[] = [];
     let dinamikBaremler: any[] = [];
     
@@ -226,8 +227,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             }
         });
 
-        aktifPersoneller = Object.values(personelDict)
-            .filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()))
+        // 1. ŞİRKET ÇAPINDA TÜM PERSONELLERİ HESAPLA VE SIRALA (Sağ üstteki liste için)
+        tumSirketPersonelleri = Object.values(personelDict)
             .map((p: any) => {
                 let pAnlik = 0, pTahmin = 0;
                 dinamikBaremler.forEach(b => {
@@ -239,6 +240,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 return { ...p, projeksiyon, toplamPuan: pAnlik.toFixed(1), puanTahmin: pTahmin.toFixed(1), basariYuzdesi, isBasarili: projeksiyon >= p.anaHedef };
             })
             .sort((a: any, b: any) => parseFloat(b.puanTahmin) - parseFloat(a.puanTahmin));
+
+        // 2. SADECE SEÇİLİ MAĞAZANIN PERSONELİNİ FİLTRELE (Çekmece - Drawer içi listeleme için)
+        aktifPersoneller = tumSirketPersonelleri.filter((p: any) => p.magaza.includes(selectedBranch.trim().toUpperCase()));
     }
 
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
@@ -368,7 +372,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 {/* SAĞ KISIM: EN İYİLER VE BUTON */}
                 <div className="flex flex-col sm:flex-row items-center gap-6 2xl:pl-8 2xl:border-l border-slate-100 shrink-0 self-stretch">
                     
-                    {/* Bu Ayın En İyileri Kutusu */}
+                    {/* Bu Ayın En İyileri Kutusu (Tüm Şirket Çapında) */}
                     <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 w-full sm:min-w-[220px]">
                         <div className="flex items-center gap-2 mb-3 border-b border-slate-200/60 pb-2">
                             <div className="w-7 h-7 rounded bg-amber-100 text-amber-500 flex items-center justify-center">
@@ -377,7 +381,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Bu Ayın En İyileri</h3>
                         </div>
                         <div className="space-y-2">
-                            {aktifPersoneller.slice(0, 3).map((p, i) => {
+                            {tumSirketPersonelleri.slice(0, 3).map((p, i) => {
                                 let badgeClass = "bg-slate-200 text-slate-600";
                                 if (i === 0) badgeClass = "bg-yellow-400 text-yellow-900 shadow-sm";
                                 else if (i === 1) badgeClass = "bg-slate-300 text-slate-800";
@@ -388,11 +392,13 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${badgeClass}`}>
                                             {i + 1}
                                         </div>
-                                        <span className="text-[11px] font-bold text-slate-700 truncate">{p.isim}</span>
+                                        <span className="text-[11px] font-bold text-slate-700 truncate">
+                                            {p.isim} <span className="text-[9px] text-slate-400 font-medium">({p.magaza})</span>
+                                        </span>
                                     </div>
                                 );
                             })}
-                            {aktifPersoneller.length === 0 && (
+                            {tumSirketPersonelleri.length === 0 && (
                                 <span className="text-[10px] text-slate-400 font-bold uppercase">Personel Yok</span>
                             )}
                         </div>
