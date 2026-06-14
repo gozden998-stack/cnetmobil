@@ -365,9 +365,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                         <div className="mt-auto pt-3 border-t border-slate-100">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                                <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-                                <span className="text-emerald-500">%12.4</span>
-                                <span className="text-slate-400">Geçen aya göre</span>
+                                <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> 
                             </div>
                         </div>
                     </div>
@@ -390,8 +388,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="mt-auto pt-3 border-t border-slate-100">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold">
                                 <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-                                <span className="text-emerald-500">%8.3</span>
-                                <span className="text-slate-400">Geçen aya göre</span>
                             </div>
                         </div>
                     </div>
@@ -414,8 +410,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="mt-auto pt-3 border-t border-slate-100">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold">
                                 <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-                                <span className="text-emerald-500">%5.2</span>
-                                <span className="text-slate-400">Geçen aya göre</span>
                             </div>
                         </div>
                     </div>
