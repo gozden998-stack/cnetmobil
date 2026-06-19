@@ -403,36 +403,65 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </div>
 
-                {/* SAĞ KISIM: EN İYİLER VE BUTON */}
-                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-auto">
+                {/* SAĞ KISIM: YENİ "BU AYIN EN İYİLERİ" LİDERLİK TABLOSU (PODYUM) */}
+                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-auto min-w-[340px]">
                     {!isBlocked && (
-                        <div className="bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100 w-full min-w-[240px] flex-1">
-                            <div className="flex items-center gap-2 mb-4 border-b border-slate-200/60 pb-3">
-                                <div className="w-7 h-7 rounded bg-amber-100 text-amber-500 flex items-center justify-center">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
-                                </div>
-                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Bu Ayın En İyileri</h3>
-                            </div>
-                            <div className="space-y-3">
-                                {tumSirketPersonelleri.slice(0, 3).map((p, i) => {
-                                    let badgeClass = "bg-slate-200 text-slate-600";
-                                    if (i === 0) badgeClass = "bg-yellow-400 text-yellow-900 shadow-sm";
-                                    else if (i === 1) badgeClass = "bg-slate-300 text-slate-800";
-                                    else if (i === 2) badgeClass = "bg-orange-300 text-orange-900";
+                        <div className="relative overflow-hidden bg-gradient-to-b from-[#1e1b4b] to-[#0f172a] p-6 rounded-[2rem] border border-[#2e2b5e] w-full flex-1 flex flex-col shadow-2xl">
+                            {/* Dekoratif Arka Plan Işıkları */}
+                            <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #4c1d95 0%, transparent 70%)' }}></div>
 
-                                    return (
-                                        <div key={i} className="flex items-center gap-3">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${badgeClass}`}>
-                                                {i + 1}
+                            {/* Başlık ve Kupa */}
+                            <div className="relative z-10 flex items-center justify-center gap-3 mb-8">
+                                <div className="w-8 h-8 rounded bg-gradient-to-br from-yellow-400 to-yellow-600 text-white flex items-center justify-center shadow-lg shadow-yellow-500/30">
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                                </div>
+                                <h3 className="text-sm font-black text-white uppercase tracking-widest text-center">Bu Ayın En İyileri</h3>
+                            </div>
+
+                            {/* Podyum Görselleştirme */}
+                            <div className="relative z-10 flex-1 flex items-end justify-center gap-1.5 mt-2 pb-2">
+                                {tumSirketPersonelleri.length > 0 ? (
+                                    <>
+                                        {/* 2. SIRA (GÜMÜŞ) */}
+                                        {tumSirketPersonelleri[1] && (
+                                            <div className="flex flex-col items-center justify-end w-[31%] z-10">
+                                                <div className="relative w-full bg-gradient-to-b from-slate-100 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-slate-300 p-2 pt-6 h-28 flex flex-col items-center text-center justify-between">
+                                                    <div className="absolute -top-4 w-9 h-9 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-sm">2</div>
+                                                    <p className="text-[10px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[1].isim}</p>
+                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[1].magaza}</p>
+                                                    <div className="w-full bg-slate-100 py-1 rounded mt-1 border border-slate-200"><p className="text-[10px] font-black text-slate-700">{tumSirketPersonelleri[1].puanTahmin} Puan</p></div>
+                                                </div>
                                             </div>
-                                            <span className="text-xs font-bold text-slate-700 truncate">
-                                                {p.isim} <span className="text-[9px] text-slate-400 font-medium">({p.magaza})</span>
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                                {tumSirketPersonelleri.length === 0 && (
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Personel Yok</span>
+                                        )}
+
+                                        {/* 1. SIRA (ALTIN) */}
+                                        {tumSirketPersonelleri[0] && (
+                                            <div className="flex flex-col items-center justify-end w-[38%] z-20">
+                                                <div className="relative w-full bg-gradient-to-b from-yellow-50 to-white rounded-t-xl rounded-b-lg shadow-2xl shadow-yellow-500/30 border-b-[6px] border-yellow-400 p-2 pt-8 h-36 flex flex-col items-center text-center justify-between transform -translate-y-2">
+                                                    <div className="absolute -top-5 w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-white flex items-center justify-center font-black text-white shadow-lg text-lg ring-4 ring-yellow-400/20">1</div>
+                                                    <p className="text-[11px] font-black text-slate-800 leading-tight line-clamp-2 mt-2">{tumSirketPersonelleri[0].isim}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[0].magaza}</p>
+                                                    <div className="w-full bg-yellow-100 py-1.5 rounded mt-1 border border-yellow-200"><p className="text-[11px] font-black text-yellow-700">{tumSirketPersonelleri[0].puanTahmin} Puan</p></div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 3. SIRA (BRONZ) */}
+                                        {tumSirketPersonelleri[2] && (
+                                            <div className="flex flex-col items-center justify-end w-[31%] z-10">
+                                                <div className="relative w-full bg-gradient-to-b from-orange-50 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-orange-400 p-2 pt-5 h-24 flex flex-col items-center text-center justify-between">
+                                                    <div className="absolute -top-3 w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-xs">3</div>
+                                                    <p className="text-[9px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[2].isim}</p>
+                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[2].magaza}</p>
+                                                    <div className="w-full bg-orange-100 py-1 rounded mt-1 border border-orange-200"><p className="text-[9px] font-black text-orange-700">{tumSirketPersonelleri[2].puanTahmin} Puan</p></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="w-full text-center py-6">
+                                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Henüz Personel Verisi Yok</span>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -553,7 +582,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             </div>
 
             {/* ========================================================= */}
-            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                      */}
+            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                     */}
             {/* ========================================================= */}
             <div 
                 className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] transition-opacity duration-300 ${activeDrawer ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
@@ -796,4 +825,4 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             )}
         </div>
      );
-  }
+}
