@@ -321,8 +321,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* ORTA KISIM: 4 DETAYLI KPI KARTI */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                    
-                    {/* ===== CİHAZ ADET HEDEF (YENİ GAUGE TASARIM) ===== */}
                     <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -336,51 +334,13 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <span className="text-xs font-bold text-slate-400">Adet</span>
                             </div>
                         </div>
-                        
-                        {/* YENİ YARIM DAİRE (GAUGE) TASARIMI */}
-                        <div className="mt-auto pt-3 border-t border-slate-50">
-                            <div className="flex items-center justify-between gap-2">
-                                
-                                {/* SVG Grafik Alanı */}
-                                <div className="relative w-24 h-12 flex-shrink-0">
-                                    <svg className="w-full h-full overflow-visible" viewBox="0 0 100 50">
-                                        {/* Arka plan (Boş Kısım) */}
-                                        <path 
-                                            d="M 15 45 A 35 35 0 0 1 85 45" 
-                                            fill="none" 
-                                            stroke="#DBEAFE" 
-                                            strokeWidth="12" 
-                                            strokeLinecap="round" 
-                                        />
-                                        {/* Ön plan (Dolan Kısım) */}
-                                        <path 
-                                            d="M 15 45 A 35 35 0 0 1 85 45" 
-                                            fill="none" 
-                                            stroke="#2563EB" 
-                                            strokeWidth="12" 
-                                            strokeLinecap="round" 
-                                            strokeDasharray="100" 
-                                            strokeDashoffset={Math.max(0, 100 - tamamlananYuzde)} 
-                                            pathLength={100} 
-                                            className="transition-all duration-1000 ease-out" 
-                                        />
-                                    </svg>
-                                    
-                                    {/* Grafiğin İçindeki Yüzde Değeri */}
-                                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-0.5">
-                                        <span className="text-sm font-black text-slate-800">%{tamamlananYuzde}</span>
-                                    </div>
-                                </div>
-                                
-                                {/* Yan Bilgiler (Gerçekleşen / Hedef) */}
-                                <div className="flex flex-col items-end">
-                                    <span className="text-xs font-black text-slate-700">
-                                        {anaSatis} <span className="text-[10px] font-bold text-slate-400">/ {anaHedef}</span>
-                                    </span>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Tamamlandı</span>
-                                    <span className="text-[10px] font-bold text-blue-500 mt-1">Kalan {kalanHedef}</span>
-                                </div>
-                                
+                        <div className="mt-auto">
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
+                                <div className="h-full bg-blue-600 rounded-full transition-all duration-1000" style={{ width: `${tamamlananYuzde}%` }}></div>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-600">%{tamamlananYuzde} Tamamlandı</span>
+                                <span className="text-slate-400">Kalan <span className="text-slate-700">{kalanHedef}</span></span>
                             </div>
                         </div>
                     </div>
