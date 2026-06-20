@@ -348,7 +348,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         <path 
                                             d="M 15 45 A 35 35 0 0 1 85 45" 
                                             fill="none" 
-                                            stroke="#DBEAFE" /* bg-blue-100 */
+                                            stroke="#DBEAFE" 
                                             strokeWidth="12" 
                                             strokeLinecap="round" 
                                         />
@@ -356,12 +356,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         <path 
                                             d="M 15 45 A 35 35 0 0 1 85 45" 
                                             fill="none" 
-                                            stroke="#2563EB" /* bg-blue-600 */
+                                            stroke="#2563EB" 
                                             strokeWidth="12" 
                                             strokeLinecap="round" 
                                             strokeDasharray="100" 
                                             strokeDashoffset={Math.max(0, 100 - tamamlananYuzde)} 
-                                            pathLength="100" 
+                                            pathLength={100} 
                                             className="transition-all duration-1000 ease-out" 
                                         />
                                     </svg>
