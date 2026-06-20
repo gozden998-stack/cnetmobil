@@ -1,16 +1,26 @@
 // app/admin/raporlar/page.tsx
 import React from 'react';
 
-// Google Sheets'ten anlık veri çeken fonksiyon
-async function getLiveBranchData() {
+// 1. TypeScript için Veri Şemasını (Interface) tanımlıyoruz
+interface BranchData {
+  id: number;
+  name: string;
+  dailyRevenue: number;
+  monthlyTarget: number;
+  sales: number;
+  repairs: number;
+  status: string;
+  bg: string;
+}
+
+// 2. Fonksiyonun bu şemaya uygun bir liste döneceğini (Promise<BranchData[]>) belirtiyoruz
+async function getLiveBranchData(): Promise<BranchData[]> {
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
   
-  // Excel'deki sayfa adı ve veri aralığı (Örn: Sayfa1'deki A2 ile E9 arası 8 şube)
   const range = 'Sayfa1!A2:E9'; 
 
   try {
-    // cache: 'no-store' verinin her saniye güncel ve anlık gelmesini sağlar
     const res = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${apiKey}`,
       { cache: 'no-store' }
@@ -21,37 +31,35 @@ async function getLiveBranchData() {
     const data = await res.json();
     const rows = data.values || [];
 
-    // Excel satırlarını admin paneli formatına dönüştürüyoruz
-    return rows.map((row: any, index: number) => {
-      const target = row[2] ? Number(row[2]) : 0; // C sütunu: Hedef %
+    return rows.map((row: any, index: number): BranchData => {
+      const target = row[2] ? Number(row[2]) : 0; 
       
       return {
         id: index + 1,
-        name: row[0] || `Şube ${index + 1}`, // A sütunu: Şube Adı
-        dailyRevenue: row[1] ? Number(row[1]) : 0, // B sütunu: Günlük Ciro (Sayı olarak)
+        name: row[0] || `Şube ${index + 1}`,
+        dailyRevenue: row[1] ? Number(row[1]) : 0, 
         monthlyTarget: target,
-        sales: row[3] ? Number(row[3]) : 0, // D sütunu: Satış Adeti
-        repairs: row[4] ? Number(row[4]) : 0, // E sütunu: Servis Adeti
+        sales: row[3] ? Number(row[3]) : 0, 
+        repairs: row[4] ? Number(row[4]) : 0, 
         status: target >= 75 ? 'text-emerald-500' : target >= 50 ? 'text-amber-500' : 'text-red-500',
         bg: target >= 75 ? 'bg-emerald-500' : target >= 50 ? 'bg-amber-500' : 'bg-red-500'
       };
     });
   } catch (error) {
     console.error('Veri çekilirken hata oluştu:', error);
-    return []; // Hata durumunda panel kilitlenmesin diye boş liste döner
+    return []; 
   }
 }
 
 export default async function RaporlarPage() {
-  // Canlı veriyi çekiyoruz
   const branchData = await getLiveBranchData();
 
-  // Excel'den gelen verilerle üstteki özet kartlarını otomatik hesaplıyoruz
-  const totalRevenue = branchData.reduce((acc, curr) => acc + curr.dailyRevenue, 0);
-  const totalSales = branchData.reduce((acc, curr) => acc + curr.sales, 0);
-  const totalRepairs = branchData.reduce((acc, curr) => acc + curr.repairs, 0);
+  // 3. Tip tanımlamaları eklendiği için reduce fonksiyonu artık hata vermeyecek
+  const totalRevenue = branchData.reduce((acc: number, curr: BranchData) => acc + curr.dailyRevenue, 0);
+  const totalSales = branchData.reduce((acc: number, curr: BranchData) => acc + curr.sales, 0);
+  const totalRepairs = branchData.reduce((acc: number, curr: BranchData) => acc + curr.repairs, 0);
   const avgTarget = branchData.length 
-    ? Math.round(branchData.reduce((acc, curr) => acc + curr.monthlyTarget, 0) / branchData.length) 
+    ? Math.round(branchData.reduce((acc: number, curr: BranchData) => acc + curr.monthlyTarget, 0) / branchData.length) 
     : 0;
 
   return (
@@ -63,7 +71,6 @@ export default async function RaporlarPage() {
         </div>
       </div>
 
-      {/* Dinamik Özet Kartları */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <p className="text-sm font-medium text-slate-500 mb-1">Toplam Günlük Ciro</p>
@@ -83,7 +90,6 @@ export default async function RaporlarPage() {
         </div>
       </div>
 
-      {/* Canlı Mağaza Performans Tablosu */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
