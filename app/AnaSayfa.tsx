@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+mport React, { useEffect, useState } from 'react';
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
     // --- KONTROLLER ---
