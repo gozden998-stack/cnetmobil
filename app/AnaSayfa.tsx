@@ -172,7 +172,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return Math.min(mp || hp, (v / tgt) * hp);
     }
 
-    const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const tamamlananYuzde = anaHedef > 0 ? Math.min(100, Math.round((anaSatis / anaHedef) * 100)) : 0;
     const kalanHedef = Math.max(0, anaHedef - anaSatis);
 
@@ -247,6 +246,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
 
+    // Personel kartı için dinamik ortalama başarı puanı
+    const ortalamaPerformans = aktifPersoneller.length > 0 
+        ? (aktifPersoneller.reduce((acc, p) => acc + (Number(p.puanTahmin) || 0), 0) / aktifPersoneller.length).toFixed(1)
+        : "0";
+
     const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
@@ -287,149 +291,253 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         );
     };
 
-    const Sparkline = ({ colorCode, pathD, stopColor }: any) => (
-        <svg className="w-20 h-10" viewBox="0 0 100 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d={pathD} stroke={colorCode} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d={`${pathD} L 100 30 L 0 30 Z`} fill={`url(#grad-${stopColor})`} opacity="0.15"/>
-            <defs>
-                <linearGradient id={`grad-${stopColor}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={colorCode} stopOpacity="1"/>
-                    <stop offset="100%" stopColor={colorCode} stopOpacity="0"/>
-                </linearGradient>
-            </defs>
-        </svg>
-    );
-
     return (
-        <div className="min-h-screen bg-[#F8F9FB] p-4 md:p-8 font-sans text-slate-800 animate-in fade-in duration-500 overflow-x-hidden">
+        <div className="min-h-screen bg-[#070B14] p-4 md:p-8 font-sans text-slate-100 animate-in fade-in duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
             
-            {/* 1. BÖLÜM: ÜST KPI KARTLARI (YAYVAN TASARIM) */}
-            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 mb-8 flex flex-col xl:flex-row gap-6 justify-between">
+            {/* ========================================================= */}
+            {/* ÜST KOKPİT BARI (HEADER & CTA) */}
+            {/* ========================================================= */}
+            <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xl">
+                <div className="flex items-center gap-3">
+                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse ring-4 ring-emerald-400/20"></div>
+                    <div>
+                        <h1 className="font-black text-white text-xl md:text-2xl tracking-tight uppercase">{selectedBranch} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">KOKPİT</span></h1>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">Son Senkronizasyon: <span className="text-slate-300 font-bold">{lastUpdatedDate || "Sistem Saati"}</span></p>
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => setAppMode('alim')} 
+                    className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-8 py-4 rounded-2xl font-black text-sm tracking-wide shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2.5 whitespace-nowrap"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    Cihaz Alımı Başlat
+                </button>
+            </div>
+
+            {/* ========================================================= */}
+            {/* HERO DECK: 4 BÜYÜK PREMİUM KART (Görsel Kodlarının Bağlandığı Yer) */}
+            {/* ========================================================= */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+
+                {/* 1. KART: Güncel Durumunuz (Personel) */}
+                <div className="bg-gradient-to-br from-[#041534] to-[#081f4f] rounded-3xl p-7 text-white shadow-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all pointer-events-none"></div>
+                    <div>
+                        <div className="text-blue-400 text-xs font-extrabold uppercase tracking-widest">
+                            Personel Metrikleri
+                        </div>
+                        <h2 className="text-3xl xl:text-4xl italic font-black mt-3 tracking-tight leading-tight">
+                            Güncel Durumunuz
+                        </h2>
+
+                        <div className="bg-[#0b214d]/80 backdrop-blur-md rounded-2xl mt-6 p-4 grid grid-cols-3 gap-2 border border-white/5">
+                            <div className="text-center border-r border-white/5">
+                                <div className="text-slate-400 text-[11px] font-medium">Sistemdeki</div>
+                                <div className="text-2xl font-black text-white mt-0.5">{tumSirketPersonelleri.length}</div>
+                            </div>
+                            <div className="text-center border-r border-white/5">
+                                <div className="text-slate-400 text-[11px] font-medium">Şube Aktif</div>
+                                <div className="text-2xl font-black text-sky-400 mt-0.5">{aktifPersoneller.length}</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-slate-400 text-[11px] font-medium">Ort. Puan</div>
+                                <div className="text-2xl font-black text-emerald-400 mt-0.5">{ortalamaPerformans}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-white/5">
+                        <button onClick={() => setActiveDrawer('personel')} className="bg-[#13294f] hover:bg-[#1c3b73] transition-colors py-2.5 rounded-xl font-bold text-xs text-slate-200">
+                            Sıralama
+                        </button>
+                        <button onClick={() => setActiveModal('departman')} className="bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 transition-colors py-2.5 rounded-xl font-bold text-xs">
+                            Puanlar
+                        </button>
+                        <button onClick={() => setActiveDrawer('personel')} className="bg-blue-600 hover:bg-blue-500 transition-colors py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-blue-900/50">
+                            İncele
+                        </button>
+                    </div>
+                </div>
+
+                {/* 2. KART: Mağaza Performansı */}
+                <div className="bg-gradient-to-r from-purple-800 to-violet-600 rounded-3xl p-7 text-white shadow-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform pointer-events-none"></div>
+                    <div>
+                        <div className="uppercase text-xs font-extrabold tracking-widest text-purple-200">
+                            Mağaza Skor Metrikleri
+                        </div>
+                        <h2 className="text-3xl xl:text-4xl italic font-black mt-3 tracking-tight leading-tight">
+                            Mağaza Performansı
+                        </h2>
+
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 mt-6 grid grid-cols-3 gap-2 text-center border border-white/10">
+                            <div className="border-r border-white/10">
+                                <div className="text-purple-200 text-[11px] font-medium">Aylık Hedef</div>
+                                <div className="text-2xl font-black mt-0.5">{anaHedef}</div>
+                            </div>
+                            <div className="border-r border-white/10">
+                                <div className="text-purple-200 text-[11px] font-medium">Gerçekleşen</div>
+                                <div className="text-2xl font-black text-emerald-300 mt-0.5">{anaSatis}</div>
+                            </div>
+                            <div>
+                                <div className="text-purple-200 text-[11px] font-medium">Kalan</div>
+                                <div className="text-2xl font-black text-amber-300 mt-0.5">{kalanHedef}</div>
+                            </div>
+                        </div>
+
+                        <div className="mt-5">
+                            <div className="w-full bg-black/25 h-3 rounded-full overflow-hidden p-0.5 border border-white/10">
+                                <div className="bg-gradient-to-r from-cyan-400 to-emerald-400 h-full rounded-full transition-all duration-1000" style={{ width: `${tamamlananYuzde}%` }}></div>
+                            </div>
+                            <div className="text-right mt-1.5 text-[11px] font-bold text-purple-200 tracking-wider">
+                                %{tamamlananYuzde} Tamamlandı
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-white/5">
+                        <button onClick={() => setActiveModal('hedefler')} className="bg-white/10 hover:bg-white/20 transition-colors py-2.5 rounded-xl font-bold text-xs text-purple-100">
+                            Hedefler
+                        </button>
+                        <button onClick={() => setActiveDrawer('magaza')} className="bg-white/10 hover:bg-white/20 transition-colors py-2.5 rounded-xl font-bold text-xs text-purple-100">
+                            Kalan Adet
+                        </button>
+                        <button onClick={() => setActiveDrawer('magaza')} className="bg-fuchsia-600 hover:bg-fuchsia-500 transition-colors py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-fuchsia-950/50">
+                            Detaylar
+                        </button>
+                    </div>
+                </div>
+
+                {/* 3. KART: Mağaza Vizyonu */}
+                <div className="bg-gradient-to-r from-cyan-700 to-teal-600 rounded-3xl p-7 text-white shadow-2xl border border-white/5 relative flex flex-col justify-between overflow-hidden">
+                    <div className="absolute top-[-20%] right-[-10%] w-40 h-40 bg-white/15 rounded-full blur-3xl pointer-events-none"></div>
+
+                    <div>
+                        <div className="uppercase text-xs font-extrabold tracking-widest text-cyan-200">
+                            Mağaza Vizyonu
+                        </div>
+                        <h3 className="text-2xl xl:text-3xl font-black italic mt-4 leading-snug">
+                            "Müşteri geri çevirmek yok, mağazada yok yok!"
+                        </h3>
+                        <p className="mt-3 text-cyan-100 text-xs font-medium">Bu vizyonla bu ay hedefi patlatıyoruz 🚀</p>
+                    </div>
+
+                    <div className="bg-black/20 backdrop-blur-md border border-white/15 p-4 rounded-2xl flex items-center justify-between mt-6">
+                        <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-200">Projeksiyon Puan</div>
+                            <div className="text-3xl font-black text-white">{magazaTahminPuan.toFixed(1)}</div>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-[9px] font-bold block text-cyan-300">ANLIK DURUM</span>
+                            <span className="text-lg font-black text-emerald-300">{magazaAnlikPuan.toFixed(1)} Pts</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 4. KART: Motivasyon Köşesi (Yüksek Kontrast Beyaz Kart) */}
+                <div className="bg-white rounded-3xl p-7 shadow-2xl text-slate-900 flex flex-col justify-between relative overflow-hidden">
+                    <div>
+                        <div className="font-black text-xs tracking-widest text-slate-400 uppercase">
+                            MOTİVASYON KÖŞESİ
+                        </div>
+                        <div className="text-7xl text-amber-500 font-serif font-black leading-none -mb-6 mt-1 opacity-40">
+                            “
+                        </div>
+                        <h3 className="text-2xl xl:text-3xl font-black text-slate-800 leading-tight relative z-10">
+                            Bugün attığın adım, yarın liderliğini getirir!
+                        </h3>
+                        <p className="text-slate-500 mt-3 text-xs font-bold tracking-wide">
+                            Odaklan • Hedefe Ulaş • Kazan!
+                        </p>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[11px] font-black tracking-widest text-indigo-600 uppercase">Zirveye Oyna</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* ========================================================= */}
+            {/* ALT GÜVERTE: HIZLI ERİŞİM & LİDERLİK PODYUMI */}
+            {/* ========================================================= */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 
-                {/* SOL KISIM: ŞUBE BİLGİSİ */}
-                <div className="flex flex-col xl:border-r border-slate-100 pr-6 min-w-max self-stretch justify-center">
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                        <h2 className="font-extrabold text-slate-800 uppercase tracking-tight text-lg">{selectedBranch} ŞUBESİ</h2>
-                    </div>
-                    <span className="text-emerald-500 font-bold text-sm mb-4">Aktif</span>
-                    <div className="flex items-center gap-2 text-slate-400 text-xs font-medium">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        Son Güncelleme <br/> {lastUpdatedDate || "Bilinmiyor"}
-                    </div>
-                </div>
-
-                {/* ORTA KISIM: 4 DETAYLI KPI KARTI */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                            </div>
-                            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Cihaz Adet Hedef</p>
-                        </div>
-                        <div className="mb-4">
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black text-slate-800 tracking-tight">{anaHedef}</span>
-                                <span className="text-xs font-bold text-slate-400">Adet</span>
-                            </div>
-                        </div>
-                        <div className="mt-auto">
-                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
-                                <div className="h-full bg-blue-600 rounded-full transition-all duration-1000" style={{ width: `${tamamlananYuzde}%` }}></div>
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] font-bold">
-                                <span className="text-slate-600">%{tamamlananYuzde} Tamamlandı</span>
-                                <span className="text-slate-400">Kalan <span className="text-slate-700">{kalanHedef}</span></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </div>
-                            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Toplam Cihaz Satış</p>
-                        </div>
-                        <div className="flex items-end justify-between mb-2">
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black text-slate-800 tracking-tight">{anaSatis}</span>
-                                <span className="text-xs font-bold text-slate-400">Adet</span>
-                            </div>
-                            <Sparkline colorCode="#10b981" stopColor="emerald" pathD="M0 25 C 20 15, 30 25, 50 10 C 70 -5, 80 15, 100 5" />
-                        </div>
-                        <div className="mt-auto pt-3 border-t border-slate-100">
-                            <span className="text-[10px] font-bold text-slate-400">Gerçekleşen Toplam Adet</span>
-                        </div>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                            </div>
-                            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Aylık Proj. Cihaz</p>
-                        </div>
-                        <div className="flex items-end justify-between mb-2">
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black text-slate-800 tracking-tight">{anaProjeksiyon}</span>
-                                <span className="text-xs font-bold text-slate-400">Adet</span>
-                            </div>
-                            <Sparkline colorCode="#a855f7" stopColor="purple" pathD="M0 20 C 15 25, 30 5, 50 15 C 70 25, 85 0, 100 10" />
-                        </div>
-                        <div className="mt-auto pt-3 border-t border-slate-100">
-                            <span className="text-[10px] font-bold text-slate-400">Tahmini Ay Sonu Sonucu</span>
-                        </div>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                            </div>
-                            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Mağaza Genel Puan</p>
-                        </div>
-                        <div className="flex items-end justify-between mb-2">
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-black text-slate-800 tracking-tight">{magazaAnlikPuan.toFixed(1)}</span>
-                                <span className="text-xs font-bold text-slate-400">Puan</span>
-                            </div>
-                            <Sparkline colorCode="#f59e0b" stopColor="amber" pathD="M0 15 C 20 15, 35 5, 50 20 C 65 35, 80 5, 100 15" />
-                        </div>
-                        <div className="mt-auto pt-3 border-t border-slate-100">
-                            <span className="text-[10px] font-bold text-slate-400">Güncel Performans Puanı</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* SAĞ KISIM: YENİ "BU AYIN EN İYİLERİ" LİDERLİK TABLOSU (PODYUM) */}
-                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-auto min-w-[340px]">
-                    {!isBlocked && (
-                        <div className="relative overflow-hidden bg-gradient-to-b from-[#1e1b4b] to-[#0f172a] p-6 rounded-[2rem] border border-[#2e2b5e] w-full flex-1 flex flex-col shadow-2xl">
-                            {/* Dekoratif Arka Plan Işıkları */}
-                            <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #4c1d95 0%, transparent 70%)' }}></div>
-
-                            {/* Başlık ve Kupa */}
-                            <div className="relative z-10 flex items-center justify-center gap-3 mb-8">
-                                <div className="w-8 h-8 rounded bg-gradient-to-br from-yellow-400 to-yellow-600 text-white flex items-center justify-center shadow-lg shadow-yellow-500/30">
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                {/* SOL KISIM: Hızlı Erişim Butonları (8 Kolon) */}
+                <div className="lg:col-span-8 space-y-6">
+                    <div>
+                        <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 pl-1">Sistem Kısayolları</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {izinlerAktifMi && (
+                                <div onClick={() => setActiveModal('izinler')} className="bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 hover:border-blue-500/50 rounded-2xl p-4 shadow-xl flex items-center justify-between cursor-pointer transition-all group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-11 h-11 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-white uppercase tracking-wider">İZİNLER</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Personel Çizelgesi</p>
+                                        </div>
+                                    </div>
+                                    <svg className="w-4 h-4 text-slate-600 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                                 </div>
-                                <h3 className="text-sm font-black text-white uppercase tracking-widest text-center">Bu Ayın En İyileri</h3>
+                            )}
+                            {hedeflerAktifMi && (
+                                <div onClick={() => setActiveModal('hedefler')} className="bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 hover:border-emerald-500/50 rounded-2xl p-4 shadow-xl flex items-center justify-between cursor-pointer transition-all group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-11 h-11 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-white uppercase tracking-wider">HEDEFLER</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Mağaza Tablosu</p>
+                                        </div>
+                                    </div>
+                                    <svg className="w-4 h-4 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                </div>
+                            )}
+                            <div onClick={() => setActiveModal('departman')} className="bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 hover:border-purple-500/50 rounded-2xl p-4 shadow-xl flex items-center justify-between cursor-pointer transition-all group">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-black text-white uppercase tracking-wider">RAPORLAR</h4>
+                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">Barem Analizi</p>
+                                    </div>
+                                </div>
+                                <svg className="w-4 h-4 text-slate-600 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SAĞ KISIM: Podyum (4 Kolon) */}
+                <div className="lg:col-span-4">
+                    {!isBlocked && (
+                        <div className="relative overflow-hidden bg-gradient-to-b from-[#1e1b4b] to-[#0f172a] p-6 rounded-3xl border border-indigo-500/20 shadow-2xl flex flex-col">
+                            <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #6d28d9 0%, transparent 70%)' }}></div>
+
+                            <div className="relative z-10 flex items-center justify-center gap-2.5 mb-8">
+                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-yellow-400 to-amber-600 text-white flex items-center justify-center shadow-lg shadow-yellow-500/20">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                                </div>
+                                <h3 className="text-xs font-black text-white uppercase tracking-widest text-center">Bu Ayın En İyileri</h3>
                             </div>
 
-                            {/* Podyum Görselleştirme */}
-                            <div className="relative z-10 flex-1 flex items-end justify-center gap-1.5 mt-2 pb-2">
+                            <div className="relative z-10 flex-1 flex items-end justify-center gap-2 pt-4 pb-1">
                                 {tumSirketPersonelleri.length > 0 ? (
                                     <>
                                         {/* 2. SIRA (GÜMÜŞ) */}
                                         {tumSirketPersonelleri[1] && (
                                             <div className="flex flex-col items-center justify-end w-[31%] z-10">
-                                                <div className="relative w-full bg-gradient-to-b from-slate-100 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-slate-300 p-2 pt-6 h-28 flex flex-col items-center text-center justify-between">
-                                                    <div className="absolute -top-4 w-9 h-9 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-sm">2</div>
-                                                    <p className="text-[10px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[1].isim}</p>
-                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[1].magaza}</p>
-                                                    <div className="w-full bg-slate-100 py-1 rounded mt-1 border border-slate-200"><p className="text-[10px] font-black text-slate-700">{tumSirketPersonelleri[1].puanTahmin} Puan</p></div>
+                                                <div className="relative w-full bg-gradient-to-b from-slate-200 to-white rounded-t-2xl rounded-b-xl shadow-xl border-b-[4px] border-slate-400 p-2 pt-6 h-28 flex flex-col items-center text-center justify-between text-slate-900">
+                                                    <div className="absolute -top-4 w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-xs">2</div>
+                                                    <p className="text-[11px] font-black leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[1].isim}</p>
+                                                    <p className="text-[8px] font-extrabold text-slate-500 truncate w-full">{tumSirketPersonelleri[1].magaza}</p>
+                                                    <div className="w-full bg-slate-100 py-1 rounded mt-1 border border-slate-200"><p className="text-[10px] font-black text-slate-700">{tumSirketPersonelleri[1].puanTahmin} Pts</p></div>
                                                 </div>
                                             </div>
                                         )}
@@ -437,11 +545,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         {/* 1. SIRA (ALTIN) */}
                                         {tumSirketPersonelleri[0] && (
                                             <div className="flex flex-col items-center justify-end w-[38%] z-20">
-                                                <div className="relative w-full bg-gradient-to-b from-yellow-50 to-white rounded-t-xl rounded-b-lg shadow-2xl shadow-yellow-500/30 border-b-[6px] border-yellow-400 p-2 pt-8 h-36 flex flex-col items-center text-center justify-between transform -translate-y-2">
-                                                    <div className="absolute -top-5 w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-white flex items-center justify-center font-black text-white shadow-lg text-lg ring-4 ring-yellow-400/20">1</div>
-                                                    <p className="text-[11px] font-black text-slate-800 leading-tight line-clamp-2 mt-2">{tumSirketPersonelleri[0].isim}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[0].magaza}</p>
-                                                    <div className="w-full bg-yellow-100 py-1.5 rounded mt-1 border border-yellow-200"><p className="text-[11px] font-black text-yellow-700">{tumSirketPersonelleri[0].puanTahmin} Puan</p></div>
+                                                <div className="relative w-full bg-gradient-to-b from-amber-100 via-yellow-50 to-white rounded-t-2xl rounded-b-xl shadow-2xl shadow-amber-500/20 border-b-[6px] border-amber-500 p-2 pt-7 h-36 flex flex-col items-center text-center justify-between text-slate-900 transform -translate-y-2">
+                                                    <div className="absolute -top-5 w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-white flex items-center justify-center font-black text-white shadow-lg text-sm ring-4 ring-amber-400/20">1</div>
+                                                    <p className="text-[12px] font-black leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[0].isim}</p>
+                                                    <p className="text-[9px] font-extrabold text-slate-500 truncate w-full">{tumSirketPersonelleri[0].magaza}</p>
+                                                    <div className="w-full bg-amber-200/60 py-1.5 rounded mt-1 border border-amber-300"><p className="text-[11px] font-black text-amber-900">{tumSirketPersonelleri[0].puanTahmin} Pts</p></div>
                                                 </div>
                                             </div>
                                         )}
@@ -449,189 +557,56 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         {/* 3. SIRA (BRONZ) */}
                                         {tumSirketPersonelleri[2] && (
                                             <div className="flex flex-col items-center justify-end w-[31%] z-10">
-                                                <div className="relative w-full bg-gradient-to-b from-orange-50 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-orange-400 p-2 pt-5 h-24 flex flex-col items-center text-center justify-between">
-                                                    <div className="absolute -top-3 w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-xs">3</div>
-                                                    <p className="text-[9px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[2].isim}</p>
-                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[2].magaza}</p>
-                                                    <div className="w-full bg-orange-100 py-1 rounded mt-1 border border-orange-200"><p className="text-[9px] font-black text-orange-700">{tumSirketPersonelleri[2].puanTahmin} Puan</p></div>
+                                                <div className="relative w-full bg-gradient-to-b from-orange-100 to-white rounded-t-2xl rounded-b-xl shadow-xl border-b-[4px] border-orange-400 p-2 pt-5 h-24 flex flex-col items-center text-center justify-between text-slate-900">
+                                                    <div className="absolute -top-3 w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-xs">3</div>
+                                                    <p className="text-[10px] font-black leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[2].isim}</p>
+                                                    <p className="text-[8px] font-extrabold text-slate-500 truncate w-full">{tumSirketPersonelleri[2].magaza}</p>
+                                                    <div className="w-full bg-orange-100 py-1 rounded mt-1 border border-orange-200"><p className="text-[9px] font-black text-orange-800">{tumSirketPersonelleri[2].puanTahmin} Pts</p></div>
                                                 </div>
                                             </div>
                                         )}
                                     </>
                                 ) : (
-                                    <div className="w-full text-center py-6">
-                                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Henüz Personel Verisi Yok</span>
+                                    <div className="w-full text-center py-8">
+                                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Veri Bekleniyor</span>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
-                    <button onClick={() => setAppMode('alim')} className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap mt-auto">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                        Cihaz Alımı Başlat
-                    </button>
                 </div>
-            </div>
 
-            {/* 2. BÖLÜM: TETİKLEYİCİ KARTLAR & YÖNETİCİ NOTU */}
-            <div className={`grid grid-cols-1 ${!isBlocked ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-6 mb-8`}>
-                
-                {/* Personel Metrikleri - Vodafone'da Gizli */}
-                {!isBlocked && (
-                    <div 
-                        onClick={() => setActiveDrawer('personel')}
-                        className="relative overflow-hidden cursor-pointer group h-40 bg-[#0F172A] rounded-[2rem] p-8 shadow-lg transition-all hover:shadow-blue-900/20 flex justify-between items-center"
-                    >
-                        <div className="relative z-10">
-                            <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">Personel Metrikleri</p>
-                            <h2 className="text-white text-3xl font-black italic">Güncel Durumunuz</h2>
-                            <div className="flex gap-3 mt-3">
-                                <span className="bg-white/10 text-white/90 text-[10px] px-3 py-1 rounded border border-white/5 font-bold uppercase">Sıralamalar</span>
-                                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-3 py-1 rounded border border-emerald-500/20 font-bold uppercase">Puanlar</span>
-                            </div>
-                        </div>
-                        <div className="relative z-10 flex flex-col items-end">
-                            <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 mb-2 group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                            </div>
-                            <span className="bg-blue-600 text-white text-[10px] px-4 py-2 rounded-lg font-bold uppercase group-hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/50">İncele</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Mağaza Skor Metrikleri - Vodafone'da Gizli */}
-                {!isBlocked && (
-                    <div 
-                        onClick={() => setActiveDrawer('magaza')}
-                        className="relative overflow-hidden cursor-pointer group h-40 bg-gradient-to-r from-purple-900 to-indigo-800 rounded-[2rem] p-8 shadow-lg transition-all hover:shadow-purple-900/20 flex justify-between items-center"
-                    >
-                        <div className="relative z-10">
-                            <p className="text-purple-300 text-xs font-bold uppercase tracking-widest mb-2">Mağaza Skor Metrikleri</p>
-                            <h2 className="text-white text-3xl font-black italic">Mağaza Performansı</h2>
-                            <div className="flex gap-3 mt-3">
-                                <span className="bg-white/10 text-white/90 text-[10px] px-3 py-1 rounded border border-white/5 font-bold uppercase">Hedefler</span>
-                                <span className="bg-purple-500/30 text-purple-200 text-[10px] px-3 py-1 rounded border border-purple-500/30 font-bold uppercase">Kalan Adet</span>
-                            </div>
-                        </div>
-                        <div className="relative z-10 flex flex-col items-end">
-                            <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-300 mb-2 group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            </div>
-                            <span className="bg-purple-600 text-white text-[10px] px-4 py-2 rounded-lg font-bold uppercase group-hover:bg-purple-500 transition-colors shadow-lg shadow-purple-900/50">Detaylar</span>
-                        </div>
-                    </div>
-                )}
-
-             {/* YENİ EKLENEN: HAFTANIN ODAĞI / YÖNETİCİ NOTU */}
-                {/* Vodafone'da gizli, diğerlerinde görünür. */}
-                {!isBlocked && (
-                    <div className="relative overflow-hidden group h-40 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[2rem] p-8 shadow-lg transition-all w-full">
-                        {/* Dekoratif Arka Plan Halkaları */}
-                        <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-                        
-                        <div className="relative z-10 flex h-full justify-between items-center">
-                            <div className="flex flex-col justify-center max-w-[70%]">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <svg className="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                                    <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Mağaza Vizyonu</p>
-                                </div>
-                                <h2 className="text-white text-xl font-black mb-1 leading-tight">"Müşteri geri çevirmek yok, mağazada yok yok!"</h2>
-                                <p className="text-white/80 text-xs font-medium">Bu vizyonla bu ay hedefi patlatıyoruz! 🚀</p>
-                            </div>
-                            
-                            {/* Sağ taraftaki Puan Kutusu */}
-                            <div className="hidden sm:flex relative z-10 flex-col items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 ml-4">
-                                <span className="text-white/70 text-[9px] font-bold uppercase mb-1">Aylık Hedef</span>
-                                <span className="text-white text-2xl font-black">100+</span>
-                                <span className="text-white/90 text-[10px] font-bold">PUAN</span>
-                            </div>
-                        </div>
-                    </div>
-                )}  
-             </div>
-            {/* 3. BÖLÜM: HIZLI ERİŞİM */}
-            <div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 pl-1">Hızlı Erişim</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {izinlerAktifMi && (
-                        <div onClick={() => setActiveModal('izinler')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
-                                <div><h4 className="text-xs font-black text-slate-800 uppercase">İZİNLER</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Personel izin takvimi</p></div>
-                            </div>
-                            <svg className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-                        </div>
-                    )}
-                    {hedeflerAktifMi && (
-                        <div onClick={() => setActiveModal('hedefler')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all group">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
-                                <div><h4 className="text-xs font-black text-slate-800 uppercase">HEDEFLER</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Mağaza hedef tablosu</p></div>
-                            </div>
-                            <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-                        </div>
-                    )}
-                    <div onClick={() => setActiveModal('departman')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-purple-300 transition-all group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg></div>
-                            <div><h4 className="text-xs font-black text-slate-800 uppercase">RAPORLAR</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Detaylı puan raporları</p></div>
-                        </div>
-                        <svg className="w-4 h-4 text-slate-300 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-                    </div>
-                </div>
             </div>
 
             {/* ========================================================= */}
-            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                     */}
+            {/* ÇEKMECELER (DRAWERS) - Değiştirilmedi, Sadece Dark Zemin Uyarlandı */}
             {/* ========================================================= */}
-            <div 
-                className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] transition-opacity duration-300 ${activeDrawer ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
-                onClick={() => setActiveDrawer(null)}
-            ></div>
+            <div className={`fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[9998] transition-opacity duration-300 ${activeDrawer ? 'opacity-100 visible' : 'opacity-0 invisible'}`} onClick={() => setActiveDrawer(null)}></div>
 
-            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${activeDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
-                
-                {/* DRAWER İÇERİĞİ: PERSONEL */}
+            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#0f172a] text-slate-100 shadow-2xl border-l border-white/10 z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${activeDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
                 {activeDrawer === 'personel' && (
                     <>
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-                            <h3 className="text-lg font-black text-slate-800">Personel Gidişat Sıralaması</h3>
-                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                        <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-[#0f172a] shrink-0">
+                            <h3 className="text-lg font-black text-white">Personel Sıralaması</h3>
+                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-white transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
-                        
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 space-y-3">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3">
                             {aktifPersoneller.map((p, i) => {
-                                let rankClass = "bg-white text-slate-500 border border-slate-200";
-                                if (i === 0) rankClass = "bg-amber-100 text-amber-700 border border-amber-200";
-                                else if (i === 1) rankClass = "bg-slate-200 text-slate-700 border border-slate-300";
-                                else if (i === 2) rankClass = "bg-orange-100 text-orange-700 border border-orange-200";
-
                                 const barWidthPercent = Math.min(100, ((Number(p.puanTahmin) || 0) / maxListePuani) * 100);
-
                                 return (
-                                    <div 
-                                        key={i} 
-                                        onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }}
-                                        className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-blue-300 transition-all cursor-pointer"
-                                    >
-                                        <div className="flex items-center justify-between mb-3">
+                                    <div key={i} onClick={() => { setSelectedPersonel(p); setActiveModal('personel_detay'); }} className="bg-white/5 p-4 rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all cursor-pointer">
+                                        <div className="flex items-center justify-between mb-2.5">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] font-black ${rankClass}`}>
-                                                    #{i + 1}
-                                                </div>
-                                                <span className="text-[13px] font-bold text-slate-800">{p.isim}</span>
+                                                <div className="w-7 h-7 flex items-center justify-center rounded-full text-[11px] font-black bg-blue-500/20 text-blue-400">#{i + 1}</div>
+                                                <span className="text-sm font-bold text-white">{p.isim}</span>
                                             </div>
-                                            <span className="text-[13px] font-black text-blue-600">{p.puanTahmin} Puan</span>
+                                            <span className="text-xs font-black text-emerald-400">{p.puanTahmin} Puan</span>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${barWidthPercent}%` }}></div>
+                                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full" style={{ width: `${barWidthPercent}%` }}></div>
                                             </div>
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-24 text-right">
-                                                AY SONU TAHMİN
-                                            </span>
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 text-right">TAHMİN</span>
                                         </div>
                                     </div>
                                 );
@@ -640,49 +615,41 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </>
                 )}
 
-                {/* DRAWER İÇERİĞİ: MAĞAZA */}
                 {activeDrawer === 'magaza' && (
                     <>
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-                            <h3 className="text-lg font-black text-slate-800">Mağaza Gidişat Metrikleri</h3>
-                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                        <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-[#0f172a] shrink-0">
+                            <h3 className="text-lg font-black text-white">Mağaza Metrik Detayları</h3>
+                            <button onClick={() => setActiveDrawer(null)} className="text-slate-400 hover:text-white transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/50 grid grid-cols-1 gap-4 h-max">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
                             {dinamikMagazaMetrikleri.map((m, idx) => {
                                 const kalanAdet = Math.max(0, m.data.hedef - m.data.satilan);
-
                                 return (
-                                    <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                                        
+                                    <div key={idx} className="bg-white/5 border border-white/10 rounded-2xl p-5">
                                         <div className="flex justify-between items-start mb-4">
-                                            <p className="text-sm font-black text-slate-700 uppercase">{m.name}</p>
+                                            <p className="text-xs font-black text-purple-300 uppercase">{m.name}</p>
                                             <div className="text-right">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AY SONU</p>
-                                                <p className="text-xl font-black text-purple-600">{m.data.tahminPuan.toFixed(1)} <span className="text-xs font-bold text-purple-400">Puan</span></p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">AY SONU</p>
+                                                <p className="text-lg font-black text-emerald-400">{m.data.tahminPuan.toFixed(1)} <span className="text-[10px] font-bold text-emerald-500">Pts</span></p>
                                             </div>
                                         </div>
-                                        
-                                        {/* Metrik Bilgi Panosu */}
-                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                            <div className="text-center border-r border-slate-200">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Anlık Puan</p>
-                                                <p className="text-sm font-black text-slate-800">{m.data.anlikPuan.toFixed(1)}</p>
+                                        <div className="grid grid-cols-3 gap-2 bg-black/30 p-3 rounded-xl border border-white/5">
+                                            <div className="text-center border-r border-white/5">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Anlık</p>
+                                                <p className="text-xs font-black text-white">{m.data.anlikPuan.toFixed(1)}</p>
                                             </div>
-                                            <div className="text-center border-r border-slate-200">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Toplam Puan</p>
-                                                <p className="text-sm font-black text-slate-800">{m.data.hedefPuan.toFixed(1)}</p>
+                                            <div className="text-center border-r border-white/5">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Hedef Pts</p>
+                                                <p className="text-xs font-black text-white">{m.data.hedefPuan.toFixed(1)}</p>
                                             </div>
                                             <div className="text-center">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Kalan Adet</p>
-                                                <p className="text-sm font-black text-rose-500">{kalanAdet}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Kalan</p>
+                                                <p className="text-xs font-black text-rose-400">{kalanAdet}</p>
                                             </div>
                                         </div>
-
-                                        <div className="mt-4 flex justify-between items-center text-[10px] font-bold text-slate-500 px-1">
-                                            <span>Gerçekleşen: <span className="text-slate-800">{m.data.satilan}</span></span>
-                                            <span>Hedef: <span className="text-slate-800">{m.data.hedef}</span></span>
+                                        <div className="mt-3 flex justify-between text-[11px] font-bold text-slate-400 px-1">
+                                            <span>Satış: <span className="text-white">{m.data.satilan}</span></span>
+                                            <span>Hedef: <span className="text-white">{m.data.hedef}</span></span>
                                         </div>
                                     </div>
                                 );
@@ -691,29 +658,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </>
                 )}
 
-                {/* ORTAK SABİT ALT BUTON (KAPAT) */}
-                <div className="p-4 bg-white border-t border-slate-100 shrink-0">
-                    <button 
-                        onClick={() => setActiveDrawer(null)} 
-                        className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition-colors shadow-sm"
-                    >
-                        Paneli Kapat
-                    </button>
+                <div className="p-4 bg-[#0f172a] border-t border-white/10 shrink-0">
+                    <button onClick={() => setActiveDrawer(null)} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-xs uppercase tracking-wider">Kapat</button>
                 </div>
             </div>
 
             {/* ========================================================= */}
-            {/* ALT MODALLAR                                              */}
+            {/* MODALLAR (Beyaz Pop-uplar korunarak şık kontrast sağlandı) */}
             {/* ========================================================= */}
             {activeModal && (
                 <div className="fixed inset-0 z-[10000] flex items-center justify-center px-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setActiveModal(null)}></div>
+                    <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity" onClick={() => setActiveModal(null)}></div>
                     
                     {activeModal === 'izinler' && (
-                        <div className="relative bg-white rounded-3xl w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="relative bg-white text-slate-900 rounded-3xl w-[98vw] max-w-[1500px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">Personel İzin Takvimi</h3>
-                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                <h3 className="text-lg font-black text-slate-800">Personel İzin Takvimi</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="flex-1 overflow-hidden p-4 flex flex-col">
                                 {tumIzinler.length > 0 ? (
@@ -751,16 +712,16 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </tbody>
                                         </table>
                                     </div>
-                                ) : (<div className="flex flex-col items-center justify-center py-16 opacity-60"><h4 className="text-lg font-black text-slate-800 mb-1">İzin Kaydı Bulunamadı</h4></div>)}
+                                ) : (<div className="py-16 text-center text-slate-500 font-bold">İzin Kaydı Bulunamadı</div>)}
                             </div>
                         </div>
                     )}
 
                     {activeModal === 'hedefler' && (
-                        <div className="relative bg-white rounded-[2rem] w-[98vw] max-w-[1600px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">{selectedBranch} Personel Hedefleri</h3>
-                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        <div className="relative bg-white text-slate-900 rounded-3xl w-[98vw] max-w-[1500px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="text-lg font-black text-slate-800">{selectedBranch} Hedef Tablosu</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="flex-1 overflow-hidden p-4 flex flex-col">
                                 {seciliSubeHedefleri.length > 0 ? (
@@ -780,16 +741,16 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </tbody>
                                         </table>
                                     </div>
-                                ) : (<div className="flex flex-col items-center justify-center py-16 opacity-60"><h4 className="text-lg font-black text-slate-800 mb-1">Hedef Verisi Bulunamadı</h4></div>)}
+                                ) : (<div className="py-16 text-center text-slate-500 font-bold">Hedef Verisi Bulunamadı</div>)}
                             </div>
                         </div>
                     )}
 
                     {activeModal === 'departman' && dinamikMagazaMetrikleri.length > 0 && (
-                        <div className="relative bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-slate-200">
-                            <div className="flex justify-between items-start p-6 border-b border-slate-100 bg-slate-50">
-                                <div><h3 className="text-xl font-black text-slate-800">{selectedBranch} Departman Hedefleri</h3></div>
-                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors mt-1"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        <div className="relative bg-white text-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden border border-slate-200">
+                            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+                                <h3 className="text-lg font-black text-slate-800">{selectedBranch} Departman Hedef Raporu</h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
                                 {dinamikMagazaMetrikleri.map((metrik, idx) => (<DepartmanProgressBar key={idx} title={metrik.name} data={metrik.data} colorClass={metrik.color} tahminiPuan={metrik.data.tahminPuan.toFixed(1)} />))}
@@ -798,12 +759,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     )}
                     
                     {activeModal === 'personel_detay' && selectedPersonel && (
-                        <div className="relative bg-white rounded-[2rem] w-full max-w-5xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-                            <div className="flex justify-between items-start p-6 border-b border-slate-100 shrink-0 bg-slate-50">
-                                <div>
-                                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">{selectedPersonel.isim} <span className="bg-sky-100 text-sky-600 text-[10px] px-2.5 py-1 rounded-lg tracking-widest shadow-sm">Genel Puan: {selectedPersonel.toplamPuan}</span></h3>
-                                </div>
-                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg></button>
+                        <div className="relative bg-white text-slate-900 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0 bg-slate-50">
+                                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">{selectedPersonel.isim} <span className="bg-blue-100 text-blue-600 text-xs px-3 py-1 rounded-xl">Genel Puan: {selectedPersonel.toplamPuan}</span></h3>
+                                <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 hover:bg-rose-500 hover:text-white transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="p-6 overflow-y-auto custom-scrollbar bg-slate-50/50">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -823,6 +782,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     )}
                 </div>
             )}
+
         </div>
-     );
+    );
 }
