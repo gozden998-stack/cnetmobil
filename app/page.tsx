@@ -459,11 +459,32 @@ export default function CnetmobilCmrFinalUltimate() {
         colorBonus = 1.05; 
       }
 
-      let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
+     let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
       if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === 'ZUMAY KANALI') {
           finalCash = Math.round(finalCash * 0.92);
       }
+
+      // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BAŞLANGICI ---
+      // Not: Google Sheets'ten "Barem_50k_Uzeri", "Barem_25k_50k" vb. çektiğini varsayıyoruz.
+      // Eğer Sheets'te o an değer yoksa (undefined) varsayılan olarak 3, 7.5 ve 12.5 alacak şekilde korumalı yapıldı.
+      
+      let baremKesintisiYuzdesi = 0;
+
+      if (finalCash > 50000) {
+          baremKesintisiYuzdesi = config.Barem_50k_Uzeri !== undefined ? Number(config.Barem_50k_Uzeri) : 3;
+      } else if (finalCash >= 25000 && finalCash <= 50000) {
+          baremKesintisiYuzdesi = config.Barem_25k_50k !== undefined ? Number(config.Barem_25k_50k) : 7.5;
+      } else if (finalCash >= 1000 && finalCash < 25000) {
+          baremKesintisiYuzdesi = config.Barem_1k_25k !== undefined ? Number(config.Barem_1k_25k) : 12.5;
+      }
+
+      // Barem kesintisini net tutara uygula
+      if (baremKesintisiYuzdesi > 0) {
+          const kesilecekTutar = finalCash * (baremKesintisiYuzdesi / 100);
+          finalCash = Math.round(finalCash - kesilecekTutar);
+      }
+      // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BİTİŞİ ---
 
       const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
       setPrices({ cash: finalCash, trade: finalTrade });
