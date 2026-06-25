@@ -486,9 +486,20 @@ export default function CnetmobilCmrFinalUltimate() {
       }
       // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BİTİŞİ ---
 
-      const finalTrade = Math.round(finalCash * (1 + ((config.Takas_Destegi || 0) / 100)));
-      setPrices({ cash: finalCash, trade: finalTrade });
+      // --- YENİ EKLENEN TAKAS BAREMİ (İÇ HESAPLAMA) BAŞLANGICI ---
+      let takasDestekYuzdesi = 0;
       
+      if (finalCash > 50000) {
+          takasDestekYuzdesi = config.Takas_Barem_50k_Uzeri !== undefined ? Number(config.Takas_Barem_50k_Uzeri) : 3;
+      } else if (finalCash >= 25000 && finalCash <= 50000) {
+          takasDestekYuzdesi = config.Takas_Barem_25k_50k !== undefined ? Number(config.Takas_Barem_25k_50k) : 7.5;
+      } else if (finalCash >= 1000 && finalCash < 25000) {
+          takasDestekYuzdesi = config.Takas_Barem_1k_25k !== undefined ? Number(config.Takas_Barem_1k_25k) : 12.5;
+      }
+
+      const finalTrade = Math.round(finalCash * (1 + (takasDestekYuzdesi / 100)));
+      setPrices({ cash: finalCash, trade: finalTrade });
+      // --- YENİ EKLENEN TAKAS BAREMİ (İÇ HESAPLAMA) BİTİŞİ ---
       if (customOffer && parseInt(customOffer) > finalCash) {
           setCustomOffer(finalCash.toString());
       }
@@ -500,9 +511,21 @@ export default function CnetmobilCmrFinalUltimate() {
   }, [status, selectedCapacity, config, selectedColor, selectedModelName, selectedBranch, selectedBrand]); 
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
-  const calculatedTradePrice = Math.round(finalCashPrice * (1 + ((config.Takas_Destegi || 0) / 100)));
-  const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
+  // --- YENİ EKLENEN TAKAS BAREMİ (DIŞ/NİHAİ HESAPLAMA) BAŞLANGICI ---
+  let disTakasYuzdesi = 0;
+  if (finalCashPrice > 50000) {
+      disTakasYuzdesi = config.Takas_Barem_50k_Uzeri !== undefined ? Number(config.Takas_Barem_50k_Uzeri) : 3;
+  } else if (finalCashPrice >= 25000 && finalCashPrice <= 50000) {
+      disTakasYuzdesi = config.Takas_Barem_25k_50k !== undefined ? Number(config.Takas_Barem_25k_50k) : 7.5;
+  } else if (finalCashPrice >= 1000 && finalCashPrice < 25000) {
+      disTakasYuzdesi = config.Takas_Barem_1k_25k !== undefined ? Number(config.Takas_Barem_1k_25k) : 12.5;
+  }
+
+  const calculatedTradePrice = Math.round(finalCashPrice * (1 + (disTakasYuzdesi / 100)));
+  // --- YENİ EKLENEN TAKAS BAREMİ (DIŞ/NİHAİ HESAPLAMA) BİTİŞİ ---
+
+  const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
     
     const now = new Date();
