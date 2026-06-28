@@ -172,65 +172,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return Math.min(mp || hp, (v / tgt) * hp);
     }
 
-    // --- TÜM MAĞAZALARIN LİDERLİK SIRALAMASI (YENİ EKLENEN MOTOR) ---
-    let tumMagazalarSiralama: any[] = [];
-    if (hIdx !== -1 && gIdx !== -1 && pIdx !== -1) {
-        const hHeaders = gidisatData[hIdx];
-        const gHeaders = gidisatData[gIdx];
-        const pHeaders = gidisatData[pIdx];
-        const puanRow = gidisatData[pIdx + 1];
-        const maxPuanRow = gidisatData[pIdx + 2];
-
-        for (let i = hIdx + 1; i < gIdx; i++) {
-            const hRow = gidisatData[i];
-            if (!Array.isArray(hRow) || !hRow[0]) continue;
-            const mName = String(hRow[0]).trim();
-            if (!mName || mName.toUpperCase().includes("TOPLAM") || mName.toUpperCase().includes("GENEL")) continue;
-
-            const mUpper = mName.toUpperCase();
-            let gRow: any = null;
-            for (let j = gIdx + 1; j < pIdx; j++) {
-                if (String(gidisatData[j]?.[0] || "").trim().toUpperCase() === mUpper ||
-                    String(gidisatData[j]?.[1] || "").trim().toUpperCase() === mUpper) {
-                    gRow = gidisatData[j];
-                    break;
-                }
-            }
-
-            let mTPuan = 0;
-            let mSatis = 0, mHedef = 0;
-
-            hHeaders.forEach((hNameRaw: any, colIdx: number) => {
-                const hName = String(hNameRaw || "").trim();
-                if (colIdx > 0 && hName && !hName.toUpperCase().includes('TOPLAM') && !hName.toUpperCase().includes('PUAN')) {
-                    const cKey = cleanKey(hName);
-                    const gCol = gHeaders.findIndex((gh: any) => cleanKey(gh) === cKey);
-                    const pCol = pHeaders.findIndex((ph: any) => cleanKey(ph) === cKey);
-
-                    const hVal = parseNum(hRow?.[colIdx]);
-                    const sVal = gCol > -1 ? parseNum(gRow?.[gCol]) : 0;
-                    const hpVal = pCol > -1 ? parseNum(puanRow?.[pCol]) : 0;
-                    const mpVal = pCol > -1 ? parseNum(maxPuanRow?.[pCol]) : hpVal;
-
-                    mTPuan += calcStorePts(sVal, hVal, hpVal, mpVal, true);
-                    if (colIdx === 1) { mSatis = sVal; mHedef = hVal; }
-                }
-            });
-
-            const proj = Math.round((mSatis / currentDay) * daysInMonth);
-            const yuzde = mHedef > 0 ? Math.min(100, Math.round((proj / mHedef) * 100)) : 0;
-
-            tumMagazalarSiralama.push({
-                name: mUpper,
-                puan: mTPuan.toFixed(1),
-                tamamlama: yuzde
-            });
-        }
-        tumMagazalarSiralama.sort((a, b) => parseFloat(b.puan) - parseFloat(a.puan));
-    }
-
-    const birinciMagaza = tumMagazalarSiralama[0] || { name: selectedBranch.toUpperCase(), puan: magazaTahminPuan.toFixed(1), tamamlama: anaHedef > 0 ? Math.min(100, Math.round((anaSatis/anaHedef)*100)) : 0 };
-
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const tamamlananYuzde = anaHedef > 0 ? Math.min(100, Math.round((anaSatis / anaHedef) * 100)) : 0;
     const kalanHedef = Math.max(0, anaHedef - anaSatis);
@@ -462,123 +403,67 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </div>
 
-                {/* SAĞ KISIM: YENİ TASARIM "AYIN EN İYİ MAĞAZASI" PODYUMU */}
-                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-[460px] 2xl:w-[500px]">
+                {/* SAĞ KISIM: YENİ "BU AYIN EN İYİLERİ" LİDERLİK TABLOSU (PODYUM) */}
+                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-auto min-w-[340px]">
                     {!isBlocked && (
-                        <div className="relative overflow-hidden bg-gradient-to-br from-[#2c0f59] via-[#210947] to-[#12032b] p-6 rounded-[2rem] border border-purple-500/30 w-full flex-1 flex flex-col justify-between shadow-2xl text-white min-h-[300px]">
-                            
-                            {/* Dekoratif Arka Plan Konfetileri */}
-                            <div className="absolute top-6 right-16 w-2 h-2 rounded-full bg-yellow-400 opacity-80 animate-pulse"></div>
-                            <div className="absolute top-12 right-32 w-2.5 h-1.5 bg-emerald-400 opacity-70 rotate-12"></div>
-                            <div className="absolute top-8 right-44 w-1.5 h-1.5 rounded-full bg-pink-500 opacity-80"></div>
-                            <div className="absolute top-24 right-10 w-2 h-2 rounded bg-purple-400 opacity-60 -rotate-45"></div>
-                            <div className="absolute top-16 right-28 w-1.5 h-2 bg-sky-400 opacity-75 rotate-45"></div>
+                        <div className="relative overflow-hidden bg-gradient-to-b from-[#1e1b4b] to-[#0f172a] p-6 rounded-[2rem] border border-[#2e2b5e] w-full flex-1 flex flex-col shadow-2xl">
+                            {/* Dekoratif Arka Plan Işıkları */}
+                            <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #4c1d95 0%, transparent 70%)' }}></div>
 
-                            {/* Üst Başlık */}
-                            <div className="relative z-10 flex items-center gap-2 mb-4">
-                                <span className="text-amber-400 text-sm">🏆</span>
-                                <h3 className="text-[11px] font-black tracking-widest text-purple-100 uppercase">AYIN EN İYİ MAĞAZASI</h3>
+                            {/* Başlık ve Kupa */}
+                            <div className="relative z-10 flex items-center justify-center gap-3 mb-8">
+                                <div className="w-8 h-8 rounded bg-gradient-to-br from-yellow-400 to-yellow-600 text-white flex items-center justify-center shadow-lg shadow-yellow-500/30">
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L5 10.274zm10 0l-.818 2.552c.25.112.526.174.818.174.292 0 .569-.062.818-.174L15 10.274z" clipRule="evenodd" /></svg>
+                                </div>
+                                <h3 className="text-sm font-black text-white uppercase tracking-widest text-center">Bu Ayın En İyileri</h3>
                             </div>
 
-                            {/* Ana İki Kolonlu Yapı */}
-                            <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-4 flex-1 my-1">
-                                
-                                {/* SOL TARAF: Şampiyon Mağaza Detayı */}
-                                <div className="flex flex-col justify-center w-full sm:w-[52%]">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-base shadow-lg shadow-amber-500/30 shrink-0 border border-yellow-200">
-                                            1
-                                        </div>
-                                        <span className="text-lg sm:text-xl font-black tracking-wide text-white truncate">
-                                            {birinciMagaza.name}
-                                        </span>
-                                    </div>
-
-                                    {/* Cam Efekti KPI Kutusu */}
-                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 mb-3 backdrop-blur-md">
-                                        <div className="grid grid-cols-2 divide-x divide-white/10">
-                                            <div className="pr-2">
-                                                <span className="text-[9px] font-bold text-purple-300 block mb-0.5">Puan</span>
-                                                <span className="text-xl font-black text-amber-400 tracking-tight">{birinciMagaza.puan}</span>
-                                            </div>
-                                            <div className="pl-3">
-                                                <span className="text-[9px] font-bold text-purple-300 block mb-0.5">Hedef Tamamlama</span>
-                                                <span className="text-xl font-black text-emerald-400 tracking-tight">%{birinciMagaza.tamamlama}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Satış Artışı */}
-                                    <div className="flex items-center justify-between text-xs font-bold px-1 mb-4">
-                                        <span className="text-purple-300">Satış Artışı</span>
-                                        <span className="text-emerald-400 font-extrabold text-sm">+{birinciMagaza.satisArtisi || '%18'}</span>
-                                    </div>
-
-                                    {/* Tebrikler Alt Kutusu */}
-                                    <div className="bg-gradient-to-r from-amber-500/15 to-purple-500/5 border border-amber-500/25 rounded-xl p-2.5 flex flex-col">
-                                        <span className="text-amber-400 font-black text-[11px]">Tebrikler!</span>
-                                        <span className="text-[10px] font-medium text-purple-200 mt-0.5">Harika bir performans gösteriyorsunuz.</span>
-                                    </div>
-                                </div>
-
-                                {/* SAĞ TARAF: Podyum ve Kupa */}
-                                <div className="flex flex-col items-center justify-end w-full sm:w-[48%] self-stretch pt-4 sm:pt-0">
-                                    
-                                    {/* Kupa İkonu */}
-                                    <div className="mb-1 animate-bounce duration-1000">
-                                        <span className="text-4xl drop-shadow-[0_10px_10px_rgba(234,179,8,0.4)]">🏆</span>
-                                    </div>
-
-                                    {/* Basamaklar */}
-                                    <div className="flex items-end justify-center gap-1.5 w-full px-1">
-                                        
-                                        {/* 2. SIRA */}
-                                        {tumMagazalarSiralama[1] && (
-                                            <div className="flex flex-col items-center flex-1 max-w-[75px]">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 text-slate-800 font-black text-[10px] flex items-center justify-center shadow z-10 -mb-2.5 border border-white">2</div>
-                                                <div className="w-full bg-gradient-to-b from-slate-100 to-white rounded-t-xl p-1 pt-3.5 h-20 flex flex-col justify-between items-center text-center shadow-lg">
-                                                    <span className="text-[9px] font-black text-slate-800 line-clamp-2 leading-none mt-1">{tumMagazalarSiralama[1].name}</span>
-                                                    <div className="w-full bg-slate-200/80 rounded py-0.5"><span className="text-[8px] font-black text-slate-700">{tumMagazalarSiralama[1].puan} Puan</span></div>
+                            {/* Podyum Görselleştirme */}
+                            <div className="relative z-10 flex-1 flex items-end justify-center gap-1.5 mt-2 pb-2">
+                                {tumSirketPersonelleri.length > 0 ? (
+                                    <>
+                                        {/* 2. SIRA (GÜMÜŞ) */}
+                                        {tumSirketPersonelleri[1] && (
+                                            <div className="flex flex-col items-center justify-end w-[31%] z-10">
+                                                <div className="relative w-full bg-gradient-to-b from-slate-100 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-slate-300 p-2 pt-6 h-28 flex flex-col items-center text-center justify-between">
+                                                    <div className="absolute -top-4 w-9 h-9 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-sm">2</div>
+                                                    <p className="text-[10px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[1].isim}</p>
+                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[1].magaza}</p>
+                                                    <div className="w-full bg-slate-100 py-1 rounded mt-1 border border-slate-200"><p className="text-[10px] font-black text-slate-700">{tumSirketPersonelleri[1].puanTahmin} Puan</p></div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* 1. SIRA */}
-                                        {tumMagazalarSiralama[0] && (
-                                            <div className="flex flex-col items-center flex-1 max-w-[85px] z-10">
-                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 text-slate-950 font-black text-xs flex items-center justify-center shadow-md shadow-amber-500/50 z-10 -mb-3 ring-2 ring-yellow-200">1</div>
-                                                <div className="w-full bg-gradient-to-b from-[#FDE047] via-[#EAB308] to-[#CA8A04] rounded-t-xl p-1 pt-4 h-28 flex flex-col justify-between items-center text-center shadow-xl">
-                                                    <span className="text-[10px] font-black text-slate-950 line-clamp-2 leading-tight mt-1">{tumMagazalarSiralama[0].name}</span>
-                                                    <span className="text-amber-950 text-[10px] font-bold">★</span>
+                                        {/* 1. SIRA (ALTIN) */}
+                                        {tumSirketPersonelleri[0] && (
+                                            <div className="flex flex-col items-center justify-end w-[38%] z-20">
+                                                <div className="relative w-full bg-gradient-to-b from-yellow-50 to-white rounded-t-xl rounded-b-lg shadow-2xl shadow-yellow-500/30 border-b-[6px] border-yellow-400 p-2 pt-8 h-36 flex flex-col items-center text-center justify-between transform -translate-y-2">
+                                                    <div className="absolute -top-5 w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-2 border-white flex items-center justify-center font-black text-white shadow-lg text-lg ring-4 ring-yellow-400/20">1</div>
+                                                    <p className="text-[11px] font-black text-slate-800 leading-tight line-clamp-2 mt-2">{tumSirketPersonelleri[0].isim}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[0].magaza}</p>
+                                                    <div className="w-full bg-yellow-100 py-1.5 rounded mt-1 border border-yellow-200"><p className="text-[11px] font-black text-yellow-700">{tumSirketPersonelleri[0].puanTahmin} Puan</p></div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* 3. SIRA */}
-                                        {tumMagazalarSiralama[2] && (
-                                            <div className="flex flex-col items-center flex-1 max-w-[75px]">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-300 to-amber-700 text-white font-black text-[10px] flex items-center justify-center shadow z-10 -mb-2.5 border border-orange-200">3</div>
-                                                <div className="w-full bg-gradient-to-b from-orange-50 to-white rounded-t-xl p-1 pt-3.5 h-16 flex flex-col justify-between items-center text-center shadow-lg">
-                                                    <span className="text-[9px] font-black text-slate-800 line-clamp-2 leading-none mt-1">{tumMagazalarSiralama[2].name}</span>
-                                                    <div className="w-full bg-rose-100 rounded py-0.5"><span className="text-[8px] font-black text-rose-700">{tumMagazalarSiralama[2].puan} Puan</span></div>
+                                        {/* 3. SIRA (BRONZ) */}
+                                        {tumSirketPersonelleri[2] && (
+                                            <div className="flex flex-col items-center justify-end w-[31%] z-10">
+                                                <div className="relative w-full bg-gradient-to-b from-orange-50 to-white rounded-t-xl rounded-b-lg shadow-lg border-b-[4px] border-orange-400 p-2 pt-5 h-24 flex flex-col items-center text-center justify-between">
+                                                    <div className="absolute -top-3 w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center font-black text-white shadow-md text-xs">3</div>
+                                                    <p className="text-[9px] font-black text-slate-800 leading-tight line-clamp-2 mt-1">{tumSirketPersonelleri[2].isim}</p>
+                                                    <p className="text-[8px] font-bold text-slate-500 truncate w-full">{tumSirketPersonelleri[2].magaza}</p>
+                                                    <div className="w-full bg-orange-100 py-1 rounded mt-1 border border-orange-200"><p className="text-[9px] font-black text-orange-700">{tumSirketPersonelleri[2].puanTahmin} Puan</p></div>
                                                 </div>
                                             </div>
                                         )}
-
+                                    </>
+                                ) : (
+                                    <div className="w-full text-center py-6">
+                                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Henüz Personel Verisi Yok</span>
                                     </div>
-
-                                    {/* Podyum Kaidesi & Butonu */}
-                                    <div 
-                                        onClick={() => setActiveDrawer('magaza')}
-                                        className="w-full bg-gradient-to-r from-[#16082a] via-[#29114c] to-[#16082a] hover:from-[#220d40] hover:to-[#220d40] border-t border-purple-500/30 rounded-b-xl py-2 px-3 text-center cursor-pointer transition-all shadow-inner group flex items-center justify-center gap-1 mt-[-1px] z-20"
-                                    >
-                                        <span className="text-[10px] font-bold text-purple-200 group-hover:text-white transition-colors">Tüm Sıralamayı Gör</span>
-                                        <svg className="w-3 h-3 text-purple-300 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                                    </div>
-
-                                </div>
+                                )}
                             </div>
-
                         </div>
                     )}
                     <button onClick={() => setAppMode('alim')} className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap mt-auto">
@@ -637,9 +522,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-             {/* HAFTANIN ODAĞI / YÖNETİCİ NOTU */}
+             {/* YENİ EKLENEN: HAFTANIN ODAĞI / YÖNETİCİ NOTU */}
+                {/* Vodafone'da gizli, diğerlerinde görünür. */}
                 {!isBlocked && (
                     <div className="relative overflow-hidden group h-40 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-[2rem] p-8 shadow-lg transition-all w-full">
+                        {/* Dekoratif Arka Plan Halkaları */}
                         <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                         
                         <div className="relative z-10 flex h-full justify-between items-center">
@@ -652,6 +539,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <p className="text-white/80 text-xs font-medium">Bu vizyonla bu ay hedefi patlatıyoruz! 🚀</p>
                             </div>
                             
+                            {/* Sağ taraftaki Puan Kutusu */}
                             <div className="hidden sm:flex relative z-10 flex-col items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 ml-4">
                                 <span className="text-white/70 text-[9px] font-bold uppercase mb-1">Aylık Hedef</span>
                                 <span className="text-white text-2xl font-black">100+</span>
@@ -661,7 +549,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}  
              </div>
-
             {/* 3. BÖLÜM: HIZLI ERİŞİM */}
             <div>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 pl-1">Hızlı Erişim</h3>
@@ -768,6 +655,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                                 return (
                                     <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                                        
                                         <div className="flex justify-between items-start mb-4">
                                             <p className="text-sm font-black text-slate-700 uppercase">{m.name}</p>
                                             <div className="text-right">
@@ -776,6 +664,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </div>
                                         
+                                        {/* Metrik Bilgi Panosu */}
                                         <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                             <div className="text-center border-r border-slate-200">
                                                 <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Anlık Puan</p>
