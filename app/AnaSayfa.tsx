@@ -305,11 +305,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
 
-    const toplamPersonelSayisi = tumSirketPersonelleri.length || 24;
-    const aktifPersonelSayisi = aktifPersoneller.length || 21;
+    const toplamPersonelSayisi = tumSirketPersonelleri.length;
+    const aktifPersonelSayisi = aktifPersoneller.length;
     const ortalamaSubePerformans = aktifPersoneller.length > 0 
         ? (aktifPersoneller.reduce((acc, p) => acc + (Number(p.puanTahmin) || 0), 0) / aktifPersoneller.length).toFixed(1)
-        : "72.5";
+        : "0.0";
 
     const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
@@ -382,7 +382,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* 1. BÖLÜM: ÜST KPI KARTLARI (KUTU ÇORBASI TEMİZLENDİ) */}
+            {/* 1. BÖLÜM: ÜST KPI KARTLARI */}
             <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 mb-8 flex flex-col xl:flex-row gap-6 justify-between">
                 
                 {/* ORTA KISIM: 4 DETAYLI KPI KARTI */}
@@ -487,7 +487,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                             <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-4 flex-1 my-1">
                                 
-                                {/* SOL TARAF: Satış Artışı Kaldırıldı */}
                                 <div className="flex flex-col justify-center w-full sm:w-[52%]">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-base shadow-lg shadow-amber-500/30 shrink-0 border border-yellow-200">
@@ -517,7 +516,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </div>
                                 </div>
 
-                                {/* SAĞ TARAF: Podyumdan Puanlar ve Alt Buton Kaldırıldı */}
                                 <div className="flex flex-col items-center justify-end w-full sm:w-[48%] self-stretch pt-4 sm:pt-0 pb-1">
                                     
                                     <div className="mb-2 animate-bounce duration-1000">
@@ -572,10 +570,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
             </div>
 
-            {/* 2. BÖLÜM: YENİ 4'LÜ GRİD (ALT BUTON SADELEŞTİRMELERİ) */}
+            {/* 2. BÖLÜM: YENİ 4'LÜ GRİD */}
             <div className={`grid grid-cols-1 md:grid-cols-2 ${!isBlocked ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-5 mb-8`}>
                 
-                {/* 1. KART (LACİVERT): Personel Metrikleri - SADECE İNCELE */}
+                {/* 1. KART (LACİVERT): Personel Metrikleri */}
                 {!isBlocked && (
                     <div className="relative overflow-hidden bg-[#0A1128] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-blue-900/40">
                         <div className="flex justify-between items-start mb-4">
@@ -612,7 +610,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* 2. KART (MOR): Mağaza Skor Metrikleri - SADECE DETAYLAR */}
+                {/* 2. KART (MOR): Mağaza Skor Metrikleri */}
                 {!isBlocked && (
                     <div className="relative overflow-hidden bg-gradient-to-br from-[#2D124D] to-[#1C0A35] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-purple-800/40">
                         <div className="flex justify-between items-start mb-3">
@@ -628,15 +626,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="grid grid-cols-3 divide-x divide-purple-800/50 my-1">
                             <div className="pr-2">
                                 <span className="text-[9px] text-purple-200/60 block font-medium">Aylık Hedef</span>
-                                <span className="text-white font-black text-xl">{anaHedef || 380}</span>
+                                <span className="text-white font-black text-xl">{anaHedef}</span>
                             </div>
                             <div className="px-2">
                                 <span className="text-[9px] text-purple-200/60 block font-medium">Gerçekleşen</span>
-                                <span className="text-white font-black text-xl">{anaSatis || 225}</span>
+                                <span className="text-white font-black text-xl">{anaSatis}</span>
                             </div>
                             <div className="pl-2">
                                 <span className="text-[9px] text-purple-200/60 block font-medium">Kalan Adet</span>
-                                <span className="text-white font-black text-xl">{kalanHedef || 155}</span>
+                                <span className="text-white font-black text-xl">{kalanHedef}</span>
                             </div>
                         </div>
 
@@ -656,7 +654,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* 3. KART (TURKUAZ): Mağaza Vizyonu - 3 İNSAN KALDIRILDI */}
+                {/* 3. KART (TURKUAZ): Mağaza Vizyonu */}
                 {!isBlocked && (
                     <div className="relative overflow-hidden bg-gradient-to-br from-[#0C6967] to-[#064e4c] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] text-white">
                         <div className="absolute top-4 right-20 w-2 h-2 bg-yellow-400 rotate-45"></div>
@@ -686,28 +684,30 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 )}
 
                 {/* 4. KART (BEYAZ): Motivasyon Köşesi */}
-                <div className="relative overflow-hidden bg-white rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-slate-200/80">
-                    <div>
-                        <p className="text-slate-800 text-[10px] font-black uppercase tracking-widest">MOTİVASYON KÖŞESİ</p>
-                        <span className="text-amber-500 font-serif text-4xl leading-none block mt-2 font-bold">“</span>
-                        <p className="text-slate-800 font-black text-sm leading-snug -mt-2 relative z-10">
-                            Bugün attığın adım, yarın liderliğini getirir!
-                        </p>
-                        <p className="text-[11px] font-bold text-indigo-600 mt-2">
-                            Odaklan, Hedefe Ulaş, Kazan!
-                        </p>
-                    </div>
+                {!isBlocked && (
+                    <div className="relative overflow-hidden bg-white rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-slate-200/80">
+                        <div>
+                            <p className="text-slate-800 text-[10px] font-black uppercase tracking-widest">MOTİVASYON KÖŞESİ</p>
+                            <span className="text-amber-500 font-serif text-4xl leading-none block mt-2 font-bold">“</span>
+                            <p className="text-slate-800 font-black text-sm leading-snug -mt-2 relative z-10">
+                                Bugün attığın adım, yarın liderliğini getirir!
+                            </p>
+                            <p className="text-[11px] font-bold text-indigo-600 mt-2">
+                                Odaklan, Hedefe Ulaş, Kazan!
+                            </p>
+                        </div>
 
-                    <div className="absolute right-[-10px] bottom-[-10px] w-36 h-36 pointer-events-none opacity-90 flex items-end justify-end">
-                        <svg viewBox="0 0 100 100" className="w-full h-full">
-                            <path d="M20 100 L60 40 L100 100 Z" fill="#1E3A8A" opacity="0.15" />
-                            <path d="M40 100 L75 30 L110 100 Z" fill="#3B82F6" opacity="0.2" />
-                            <path d="M0 100 L45 50 L90 100 Z" fill="#93C5FD" opacity="0.3" />
-                            <circle cx="75" cy="25" r="4" fill="#F59E0B" />
-                            <path d="M75 25 L75 10 L85 13 L75 16" fill="#F59E0B" stroke="#D97706" strokeWidth="0.5" />
-                        </svg>
+                        <div className="absolute right-[-10px] bottom-[-10px] w-36 h-36 pointer-events-none opacity-90 flex items-end justify-end">
+                            <svg viewBox="0 0 100 100" className="w-full h-full">
+                                <path d="M20 100 L60 40 L100 100 Z" fill="#1E3A8A" opacity="0.15" />
+                                <path d="M40 100 L75 30 L110 100 Z" fill="#3B82F6" opacity="0.2" />
+                                <path d="M0 100 L45 50 L90 100 Z" fill="#93C5FD" opacity="0.3" />
+                                <circle cx="75" cy="25" r="4" fill="#F59E0B" />
+                                <path d="M75 25 L75 10 L85 13 L75 16" fill="#F59E0B" stroke="#D97706" strokeWidth="0.5" />
+                            </svg>
+                        </div>
                     </div>
-                </div>
+                )}
 
             </div>
 
@@ -744,7 +744,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             </div>
 
             {/* ========================================================= */}
-            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                     */}
+            {/* SAĞDAN KAYAN ÇEKMECE (DRAWER) YAPISI                       */}
             {/* ========================================================= */}
             <div 
                 className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998] transition-opacity duration-300 ${activeDrawer ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
