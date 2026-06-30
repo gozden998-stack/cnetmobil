@@ -32,10 +32,11 @@ export default function CnetmobilCmrFinalUltimate() {
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
   const initialThhForm = {
+    rowIndex: null as number | null,
     adSoyad: '', basvuruTarihi: '', sayi: '', konu: '', kepAdresi: '',
     markaModel: '', imeiNo: '', faturaNo: '', faturaTutari: '', alisBilgileri: '',
     durumu: '', durumu2: '', durumu3: '', durumu4: '', sonuc: '',
-    ucretIadesi: '', sonuc2: '', not: ''
+    ucretIadesi: '', sonuc2: '', musteriTelefon: ''
   };
   const [thhForm, setThhForm] = useState(initialThhForm);
   const [thhSaving, setThhSaving] = useState(false);
@@ -478,9 +479,6 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BAŞLANGICI ---
-      // Not: Google Sheets'ten "Barem_50k_Uzeri", "Barem_25k_50k" vb. çektiğini varsayıyoruz.
-      // Eğer Sheets'te o an değer yoksa (undefined) varsayılan olarak 3, 7.5 ve 12.5 alacak şekilde korumalı yapıldı.
-      
       let baremKesintisiYuzdesi = 0;
 
       if (finalCash > 50000) {
@@ -605,28 +603,58 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+  // --- THH FONKSİYONLARI BAŞLANGICI ---
+  const handleClearThhForm = () => setThhForm(initialThhForm);
+
   const handleSaveThh = async () => {
-    if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi alanları zorunludur!");
-    
+    if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi zorunludur!");
     setThhSaving(true);
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ 
-          type: "SAVE_THH", 
-          data: thhForm 
-        })
+        body: JSON.stringify({ type: "SAVE_THH", data: thhForm })
       });
       alert("THH Kaydı Başarıyla Eklendi!");
-      setThhForm(initialThhForm); // Formu temizle
-      setTimeout(refreshDataCache, 1500); // Listeyi yenile
-    } catch (e) {
-      console.error(e);
-      alert("Kaydedilirken bir hata oluştu.");
-    }
+      handleClearThhForm();
+      setTimeout(refreshDataCache, 1500);
+    } catch (e) { alert("Kaydedilirken hata oluştu."); }
     setThhSaving(false);
   };
+
+  const handleUpdateThh = async () => {
+    if (!thhForm.rowIndex) return;
+    setThhSaving(true);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: "UPDATE_THH", row: thhForm.rowIndex, data: thhForm })
+      });
+      alert("Kayıt Başarıyla Güncellendi!");
+      handleClearThhForm();
+      setTimeout(refreshDataCache, 1500);
+    } catch (e) { alert("Güncellenirken hata oluştu."); }
+    setThhSaving(false);
+  };
+
+  const handleDeleteThh = async () => {
+    if (!thhForm.rowIndex) return;
+    if (!confirm("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
+    setThhSaving(true);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: "DELETE_THH", row: thhForm.rowIndex })
+      });
+      alert("Kayıt Başarıyla Silindi!");
+      handleClearThhForm();
+      setTimeout(refreshDataCache, 1500);
+    } catch (e) { alert("Silinirken hata oluştu."); }
+    setThhSaving(false);
+  };
+  // --- THH FONKSİYONLARI BİTİŞİ ---
 
   const deleteAlim = async (sheetIdx: number) => {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
@@ -684,20 +712,17 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { console.error(e); }
   };
 
-  // KULLAN Butonu: Tarayıcı hafızasına zaman damgalı kaydeder ve ekranı anında günceller.
   const handleImeiKullan = async (imei: string) => {
     const personelName = window.prompt("Lütfen isminizi giriniz:");
     if (!personelName || personelName.trim() === "") return;
 
     const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
 
-    // 1. Tarayıcının kalıcı hafızasına zaman damgasıyla kaydet (10 dakika ömür biçiyoruz)
     if (typeof window !== 'undefined') {
       const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
       localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
     }
 
-    // 2. Ekranı anında kırmızı yap ve üstünü çiz
     setImeiData(prev => {
         const newData = [...prev];
         const rowIndex = newData.findIndex(r => r[1] === imei);
@@ -707,7 +732,6 @@ export default function CnetmobilCmrFinalUltimate() {
         return newData;
     });
 
-    // 3. Arka planda sessizce Google Sheets'e gönder
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -887,7 +911,6 @@ if (!isLoggedIn) {
         {/* HEADER */}
         <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
           <div className="flex items-center h-[40px]">
-             {/* Şef, public klasöründeki cnet.png'yi çekiyoruz ve TypeScript'i as string ile susturuyoruz */}
              <img 
                src={"/cnet.png" as string} 
                alt="Cnetmobil Logo" 
@@ -906,13 +929,10 @@ if (!isLoggedIn) {
             </h1>
           </div>
 
-          {/* ANA KONTEYNER (Senin milimetrik ölçülerin için Flex altyapısı) */}
           <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
             
-            {/* [SOL SÜTUN] - ANA LOGIN KUTUSU (Ölçüler: 845x465) */}
             <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
               
-              {/* TAB ALANI (Ölçüler: h-12 container, 390x36 butonlar) */}
               <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
                 <button 
                   type="button"
@@ -930,7 +950,6 @@ if (!isLoggedIn) {
                 </button>
               </div>
 
-              {/* SOL FORM İÇ PADDING (Ölçü: p-7) */}
               <div className="p-7 flex flex-col flex-1">
                 
                 <div className="mb-6 flex-1">
@@ -939,7 +958,6 @@ if (!isLoggedIn) {
                   </label>
 
                   <div className="relative">
-                    {/* INPUTLAR (Ölçü: 790x42) */}
                     <input
                       type="password"
                       value={entryPass}
@@ -954,7 +972,6 @@ if (!isLoggedIn) {
                 </div>
 
                 <div className="mt-auto">
-                  {/* GİRİŞ BUTONU (Ölçü: 790x38) */}
                   <button 
                     onClick={handleLogin}
                     disabled={loginLoading || !entryPass}
@@ -963,7 +980,6 @@ if (!isLoggedIn) {
                     {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
                   </button>
 
-                  {/* APP STORE BUTONLARI (Ölçü: 135x40) */}
                   <div className="flex gap-4">
                     <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
                       🍏 App Store
@@ -976,10 +992,8 @@ if (!isLoggedIn) {
               </div>
             </div>
 
-            {/* [SAĞ SÜTUN] - SAĞ BLOK GENEL (Genişlik ~850px) */}
             <div className="w-full xl:w-[850px] flex flex-col justify-center">
               
-              {/* BAŞLIK BOYUTU (Ölçü: text-5xl font-bold) */}
               <div className="hidden xl:block mb-10 text-left">
                 <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
                   İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
@@ -987,7 +1001,6 @@ if (!isLoggedIn) {
                 </h1>
               </div>
 
-              {/* SAĞ TARAFTAKİ BÜYÜK KARTLAR (Ölçü: 405x74, Yatay Dikdörtgen Düzen) */}
               <div className="flex flex-wrap gap-4">
                 {[
                   {
@@ -1041,7 +1054,6 @@ if (!isLoggedIn) {
                 ))}
               </div>
 
-              {/* ALT İSTATİSTİK KARTLARI (Ölçü: 265x92, 3'lü Blok) */}
               <div className="flex flex-wrap gap-4 mt-6">
                 <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
                   <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
@@ -1227,7 +1239,6 @@ if (!isLoggedIn) {
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
                         
-                        // SİHİRLİ KISIM: Süreli Hafıza Kontrolü
                         const imeiNo = row[1];
                         let localDurum = null;
                         
@@ -1236,17 +1247,14 @@ if (!isLoggedIn) {
                             if (kayitStr) {
                                 try {
                                     const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000; // 10 dakika (milisaniye cinsinden)
+                                    const onDakika = 10 * 60 * 1000;
                                     
-                                    // Eğer üzerinden 10 dakika geçmediyse lokal hafızayı koru
                                     if (new Date().getTime() - kayit.timestamp < onDakika) {
                                         localDurum = kayit.durum;
                                     } else {
-                                        // 10 dakika dolduysa lokal hafızayı temizle, tamamen Excel'e güven
                                         localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                     }
                                 } catch (e) {
-                                    // Eski sürümden kalan metinleri temizlemek için
                                     localStorage.removeItem('kullanilan_imei_' + imeiNo);
                                 }
                             }
@@ -1333,42 +1341,81 @@ if (!isLoggedIn) {
                   </div>
               </div>
 
-              {/* YENİ KAYIT FORMU */}
-              <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl mb-10 shadow-inner">
-                <h3 className="font-black text-sm uppercase tracking-widest text-slate-700 mb-6 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-indigo-500 rounded-full"></span> Yeni Dosya Ekle
-                </h3>
+              {/* YENİ / DÜZENLE KAYIT FORMU */}
+              <div className={`border p-6 rounded-3xl mb-10 shadow-inner transition-colors ${thhForm.rowIndex ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-700 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${thhForm.rowIndex ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500'}`}></span> 
+                    {thhForm.rowIndex ? 'Dosyayı Düzenle' : 'Yeni Dosya Ekle'}
+                  </h3>
+                  {thhForm.rowIndex && (
+                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg uppercase tracking-widest">Düzenleme Modu Aktif</span>
+                  )}
+                </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-                  {Object.keys(initialThhForm).map((key) => {
+                  {Object.keys(initialThhForm).filter(k => k !== 'rowIndex').map((key) => {
                     const labels: any = {
                       adSoyad: 'Tüketici Ad-Soyad', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
                       kepAdresi: 'Kep Adresi', markaModel: 'Marka-Model', imeiNo: 'İmei No', faturaNo: 'Fatura No',
                       faturaTutari: 'Fatura Tutarı', alisBilgileri: 'Alış Bilgileri', durumu: 'Durumu', durumu2: 'Durumu 2',
-                      durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'Ücret İadesi/Değişim/Onarım',
-                      sonuc2: 'Sonuç 2', not: 'Not/Test'
+                      durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'İade/Değişim/Onarım',
+                      sonuc2: 'Sonuç 2', musteriTelefon: 'Müşteri Telefonu'
                     };
+
+                    const dropdownOptions: any = {
+                      ucretIadesi: ['Ücret İadesi', 'Değişim', 'Onarım'],
+                      sonuc: ['Tüketici Talebinin Kabulüne', 'Tüketici Talebinin Reddine'],
+                      durumu: ['Evraklar Yüklendi'],
+                      durumu2: ['Savunma Bekliyor'],
+                      durumu3: ['Savunma Geldi'],
+                      durumu4: ['Savunma Yüklendi'],
+                      sonuc2: ['Ödeme Yapıldı', 'Değişim Yapıldı', 'Ödeme Reddedildi']
+                    };
+
+                    const isDropdown = Object.keys(dropdownOptions).includes(key);
+
                     return (
                       <div key={key} className="space-y-1.5">
                         <label className="text-[9px] font-black text-slate-500 ml-2 uppercase tracking-widest">{labels[key]}</label>
-                        <input 
-                          type={key === 'basvuruTarihi' ? 'date' : 'text'}
-                          className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700" 
-                          value={(thhForm as any)[key]} 
-                          onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
-                        />
+                        {isDropdown ? (
+                          <select 
+                            className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700 cursor-pointer"
+                            value={(thhForm as any)[key]} 
+                            onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
+                          >
+                            <option value="">Seçiniz...</option>
+                            {dropdownOptions[key].map((opt: string) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input 
+                            type={key === 'basvuruTarihi' ? 'date' : 'text'}
+                            className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700" 
+                            value={(thhForm as any)[key]} 
+                            onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
+                          />
+                        )}
                       </div>
                     )
                   })}
                 </div>
                 
-                <div className="flex justify-end">
-                  <button 
-                    onClick={handleSaveThh} 
-                    disabled={thhSaving}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-200 btn-click flex items-center gap-2 disabled:opacity-50">
-                    {thhSaving ? 'KAYDEDİLİYOR...' : 'SİSTEME KAYDET'}
-                  </button>
+                <div className="flex justify-end gap-3 border-t border-slate-200/60 pt-6 mt-2">
+                  {thhForm.rowIndex ? (
+                    <>
+                      <button onClick={handleClearThhForm} disabled={thhSaving} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-sm btn-click disabled:opacity-50">İPTAL</button>
+                      <button onClick={handleDeleteThh} disabled={thhSaving} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-sm btn-click disabled:opacity-50">SİL</button>
+                      <button onClick={handleUpdateThh} disabled={thhSaving} className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-amber-200 btn-click flex items-center gap-2 disabled:opacity-50">
+                        {thhSaving ? 'GÜNCELLENİYOR...' : 'DEĞİŞİKLİKLERİ KAYDET'}
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={handleSaveThh} disabled={thhSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-200 btn-click flex items-center gap-2 disabled:opacity-50">
+                      {thhSaving ? 'KAYDEDİLİYOR...' : 'SİSTEME KAYDET'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1377,15 +1424,15 @@ if (!isLoggedIn) {
                 <div className="min-w-[2000px]">
                   <div className="bg-indigo-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="w-[150px]">TÜKETİCİ AD-SOYAD</div>
-                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">BAŞVURU TARİHİ</div>
+                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">BAŞVURU TRH.</div>
                     <div className="w-[150px] border-l border-indigo-500/50 pl-2">SAYI</div>
                     <div className="w-[200px] border-l border-indigo-500/50 pl-2">KONU</div>
                     <div className="w-[150px] border-l border-indigo-500/50 pl-2">KEP ADRESİ</div>
                     <div className="w-[150px] border-l border-indigo-500/50 pl-2">MARKA-MODEL</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">İMEİ NO</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">FATURA NO</div>
-                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">FATURA TUTARI</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">ALIŞ BİLGİLERİ</div>
+                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">FAT. TUTARI</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">ALIŞ BİLGİSİ</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 2</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 3</div>
@@ -1393,31 +1440,50 @@ if (!isLoggedIn) {
                     <div className="w-[150px] border-l border-indigo-500/50 pl-2">SONUÇ</div>
                     <div className="w-[150px] border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
                     <div className="w-[120px] border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
-                    <div className="flex-1 border-l border-indigo-500/50 pl-2 text-right">NOT</div>
+                    <div className="flex-1 border-l border-indigo-500/50 pl-2 text-right">MÜŞTERİ TEL</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {thhData.slice(1).map((row, i) => (
-                      <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[10px] font-bold items-center ${i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                        <div className="w-[150px] truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
-                        <div className="w-[100px] border-l border-slate-200 pl-2">{row[1] || '-'}</div>
-                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[2] || '-'}</div>
-                        <div className="w-[200px] border-l border-slate-200 pl-2 truncate">{row[3] || '-'}</div>
-                        <div className="w-[150px] border-l border-slate-200 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
-                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[5] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[6] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[7] || '-'}</div>
-                        <div className="w-[100px] border-l border-slate-200 pl-2">{row[8] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[9] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[10] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[11] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[12] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[13] || '-'}</div>
-                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[14] || '-'}</div>
-                        <div className="w-[150px] border-l border-slate-200 pl-2">{row[15] || '-'}</div>
-                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[16] || '-'}</div>
-                        <div className="flex-1 border-l border-slate-200 pl-2 text-right truncate bg-green-100 text-green-800 px-2 rounded">{row[17] || '-'}</div>
-                      </div>
-                    ))}
+                    {thhData.slice(1).map((row, i) => {
+                      const getBadgeColor = (val: string) => {
+                         if (!val) return 'text-slate-700';
+                         if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) return 'bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm';
+                         if (['Ödeme Reddedildi'].includes(val)) return 'bg-red-100 text-red-700 px-2 py-1 rounded shadow-sm';
+                         return 'bg-slate-100 text-slate-700 px-2 py-1 rounded';
+                      };
+
+                      return (
+                        <div 
+                          key={i} 
+                          onClick={() => setThhForm({
+                            rowIndex: i + 2,
+                            adSoyad: row[0] || '', basvuruTarihi: row[1] || '', sayi: row[2] || '', konu: row[3] || '',
+                            kepAdresi: row[4] || '', markaModel: row[5] || '', imeiNo: row[6] || '', faturaNo: row[7] || '',
+                            faturaTutari: row[8] || '', alisBilgileri: row[9] || '', durumu: row[10] || '', durumu2: row[11] || '',
+                            durumu3: row[12] || '', durumu4: row[13] || '', sonuc: row[14] || '', ucretIadesi: row[15] || '',
+                            sonuc2: row[16] || '', musteriTelefon: row[17] || ''
+                          })}
+                          className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[10px] font-bold items-center cursor-pointer hover:bg-indigo-50 ${thhForm.rowIndex === i + 2 ? 'bg-indigo-100/50 border-l-4 border-l-indigo-500' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white')}`}>
+                          <div className="w-[150px] truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
+                          <div className="w-[100px] border-l border-slate-200/60 pl-2">{row[1] || '-'}</div>
+                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate">{row[2] || '-'}</div>
+                          <div className="w-[200px] border-l border-slate-200/60 pl-2 truncate">{row[3] || '-'}</div>
+                          <div className="w-[150px] border-l border-slate-200/60 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
+                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate">{row[5] || '-'}</div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[6] || '-'}</div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[7] || '-'}</div>
+                          <div className="w-[100px] border-l border-slate-200/60 pl-2">{row[8] || '-'}</div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[9] || '-'}</div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[10])}>{row[10] || '-'}</span></div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[11])}>{row[11] || '-'}</span></div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[12])}>{row[12] || '-'}</span></div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[13])}>{row[13] || '-'}</span></div>
+                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[14])}>{row[14] || '-'}</span></div>
+                          <div className="w-[150px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[15])}>{row[15] || '-'}</span></div>
+                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[16])}>{row[16] || '-'}</span></div>
+                          <div className="flex-1 border-l border-slate-200/60 pl-2 text-right truncate font-black tracking-widest">{row[17] || '-'}</div>
+                        </div>
+                      )
+                    })}
                     {thhData.length <= 1 && (
                        <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Henüz kayıt bulunmuyor.</div>
                     )}
