@@ -1332,7 +1332,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-        ) : appMode === 'thh' && step < 99 && isMasterAccess ? (
+         appMode === 'thh' && step < 99 && isMasterAccess ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
