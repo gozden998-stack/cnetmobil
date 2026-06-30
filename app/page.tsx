@@ -27,7 +27,18 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir' | 'thh'>('ana_sayfa');
+
+  // --- THH MODÜLÜ STATE'LERİ ---
+  const [thhData, setThhData] = useState<any[][]>([]);
+  const initialThhForm = {
+    adSoyad: '', basvuruTarihi: '', sayi: '', konu: '', kepAdresi: '',
+    markaModel: '', imeiNo: '', faturaNo: '', faturaTutari: '', alisBilgileri: '',
+    durumu: '', durumu2: '', durumu3: '', durumu4: '', sonuc: '',
+    ucretIadesi: '', sonuc2: '', not: ''
+  };
+  const [thhForm, setThhForm] = useState(initialThhForm);
+  const [thhSaving, setThhSaving] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -362,6 +373,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.YNA) setYnaData(allData.YNA);
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
+      if (allData.THH) setThhData(allData.THH);
       
       // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
@@ -593,6 +605,29 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+  const handleSaveThh = async () => {
+    if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi alanları zorunludur!");
+    
+    setThhSaving(true);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ 
+          type: "SAVE_THH", 
+          data: thhForm 
+        })
+      });
+      alert("THH Kaydı Başarıyla Eklendi!");
+      setThhForm(initialThhForm); // Formu temizle
+      setTimeout(refreshDataCache, 1500); // Listeyi yenile
+    } catch (e) {
+      console.error(e);
+      alert("Kaydedilirken bir hata oluştu.");
+    }
+    setThhSaving(false);
+  };
+
   const deleteAlim = async (sheetIdx: number) => {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
     setAlimlar(prev => prev.filter(item => item.sheetIndex !== sheetIdx));
@@ -722,7 +757,8 @@ export default function CnetmobilCmrFinalUltimate() {
       items: [
         { id: 'ana_sayfa', label: 'Ana Sayfa', visible: true },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
-        { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay }
+        { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
+        { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
       ]
     },
     {
@@ -1282,6 +1318,109 @@ if (!isLoggedIn) {
                           <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
                         </div>
                     )})}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) :
+
+          appMode === 'thh' && step < 99 && isMasterAccess ? (
+            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
+                  <div>
+                    <h2 className="text-3xl font-black italic tracking-tighter text-indigo-600">THH TAKİP MERKEZİ</h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Tüketici Hakem Heyeti Dosyaları ve Süreç Yönetimi</p>
+                  </div>
+              </div>
+
+              {/* YENİ KAYIT FORMU */}
+              <div className="bg-slate-50 border border-slate-200 p-6 rounded-3xl mb-10 shadow-inner">
+                <h3 className="font-black text-sm uppercase tracking-widest text-slate-700 mb-6 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-indigo-500 rounded-full"></span> Yeni Dosya Ekle
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+                  {Object.keys(initialThhForm).map((key) => {
+                    const labels: any = {
+                      adSoyad: 'Tüketici Ad-Soyad', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
+                      kepAdresi: 'Kep Adresi', markaModel: 'Marka-Model', imeiNo: 'İmei No', faturaNo: 'Fatura No',
+                      faturaTutari: 'Fatura Tutarı', alisBilgileri: 'Alış Bilgileri', durumu: 'Durumu', durumu2: 'Durumu 2',
+                      durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'Ücret İadesi/Değişim/Onarım',
+                      sonuc2: 'Sonuç 2', not: 'Not/Test'
+                    };
+                    return (
+                      <div key={key} className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-500 ml-2 uppercase tracking-widest">{labels[key]}</label>
+                        <input 
+                          type={key === 'basvuruTarihi' ? 'date' : 'text'}
+                          className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700" 
+                          value={(thhForm as any)[key]} 
+                          onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+                
+                <div className="flex justify-end">
+                  <button 
+                    onClick={handleSaveThh} 
+                    disabled={thhSaving}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-200 btn-click flex items-center gap-2 disabled:opacity-50">
+                    {thhSaving ? 'KAYDEDİLİYOR...' : 'SİSTEME KAYDET'}
+                  </button>
+                </div>
+              </div>
+
+              {/* KAYITLI VERİLER TABLOSU */}
+              <div className="overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[2000px]">
+                  <div className="bg-indigo-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
+                    <div className="w-[150px]">TÜKETİCİ AD-SOYAD</div>
+                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">BAŞVURU TARİHİ</div>
+                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">SAYI</div>
+                    <div className="w-[200px] border-l border-indigo-500/50 pl-2">KONU</div>
+                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">KEP ADRESİ</div>
+                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">MARKA-MODEL</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">İMEİ NO</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">FATURA NO</div>
+                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">FATURA TUTARI</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">ALIŞ BİLGİLERİ</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 2</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 3</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 4</div>
+                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">SONUÇ</div>
+                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
+                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
+                    <div className="flex-1 border-l border-indigo-500/50 pl-2 text-right">NOT</div>
+                  </div>
+                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+                    {thhData.slice(1).map((row, i) => (
+                      <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[10px] font-bold items-center ${i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
+                        <div className="w-[150px] truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
+                        <div className="w-[100px] border-l border-slate-200 pl-2">{row[1] || '-'}</div>
+                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[2] || '-'}</div>
+                        <div className="w-[200px] border-l border-slate-200 pl-2 truncate">{row[3] || '-'}</div>
+                        <div className="w-[150px] border-l border-slate-200 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
+                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[5] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[6] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[7] || '-'}</div>
+                        <div className="w-[100px] border-l border-slate-200 pl-2">{row[8] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[9] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[10] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[11] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[12] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[13] || '-'}</div>
+                        <div className="w-[150px] border-l border-slate-200 pl-2 truncate">{row[14] || '-'}</div>
+                        <div className="w-[150px] border-l border-slate-200 pl-2">{row[15] || '-'}</div>
+                        <div className="w-[120px] border-l border-slate-200 pl-2">{row[16] || '-'}</div>
+                        <div className="flex-1 border-l border-slate-200 pl-2 text-right truncate bg-green-100 text-green-800 px-2 rounded">{row[17] || '-'}</div>
+                      </div>
+                    ))}
+                    {thhData.length <= 1 && (
+                       <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Henüz kayıt bulunmuyor.</div>
+                    )}
                   </div>
                 </div>
               </div>
