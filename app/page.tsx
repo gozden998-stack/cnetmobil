@@ -1356,11 +1356,11 @@ if (!isLoggedIn) {
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
                   {Object.keys(initialThhForm).filter(k => k !== 'rowIndex').map((key) => {
                     const labels: any = {
-                      adSoyad: 'Tüketici Ad-Soyad', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
+                      adSoyad: 'Tüketici Ad-Soyad',  musteriTelefon: 'Müşteri Telefonu', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
                       kepAdresi: 'Kep Adresi', markaModel: 'Marka-Model', imeiNo: 'İmei No', faturaNo: 'Fatura No',
                       faturaTutari: 'Fatura Tutarı', alisBilgileri: 'Alış Bilgileri', durumu: 'Durumu', durumu2: 'Durumu 2',
                       durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'İade/Değişim/Onarım',
-                      sonuc2: 'Sonuç 2', musteriTelefon: 'Müşteri Telefonu'
+                      sonuc2: 'Sonuç 2'
                     };
 
                     const dropdownOptions: any = {
