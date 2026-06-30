@@ -1332,7 +1332,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-          appMode === 'thh' && step < 99 && isMasterAccess ? (
+        ) : appMode === 'thh' && step < 99 && isMasterAccess ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
@@ -1356,11 +1356,11 @@ if (!isLoggedIn) {
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
                   {Object.keys(initialThhForm).filter(k => k !== 'rowIndex').map((key) => {
                     const labels: any = {
-                      adSoyad: 'Tüketici Ad-Soyad',  musteriTelefon: 'Müşteri Telefonu', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
+                      adSoyad: 'Tüketici Ad-Soyad', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
                       kepAdresi: 'Kep Adresi', markaModel: 'Marka-Model', imeiNo: 'İmei No', faturaNo: 'Fatura No',
                       faturaTutari: 'Fatura Tutarı', alisBilgileri: 'Alış Bilgileri', durumu: 'Durumu', durumu2: 'Durumu 2',
                       durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'İade/Değişim/Onarım',
-                      sonuc2: 'Sonuç 2'
+                      sonuc2: 'Sonuç 2', musteriTelefon: 'Müşteri Telefonu'
                     };
 
                     const dropdownOptions: any = {
@@ -1418,11 +1418,13 @@ if (!isLoggedIn) {
                   )}
                 </div>
               </div>
-{/* KAYITLI VERİLER TABLOSU */}
+
+              {/* KAYITLI VERİLER TABLOSU */}
               <div className="overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-max"> {/* min-w-[2000px] yerine min-w-max yapıldı */}
+                <div className="min-w-max">
                   <div className="bg-indigo-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
                     <div className="w-[150px] shrink-0">TÜKETİCİ AD-SOYAD</div>
+                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">MÜŞTERİ TEL</div>
                     <div className="w-[100px] shrink-0 border-l border-indigo-500/50 pl-2">BAŞVURU TRH.</div>
                     <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">SAYI</div>
                     <div className="w-[200px] shrink-0 border-l border-indigo-500/50 pl-2">KONU</div>
@@ -1439,11 +1441,9 @@ if (!isLoggedIn) {
                     <div className="w-[160px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ</div>
                     <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
                     <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2 text-right">MÜŞTERİ TEL</div>
                   </div>
                   <div className="bg-white rounded-b-2xl border-x border-b border-slate-200">
                     {thhData.slice(1).map((row, i) => {
-                      // Etiketlerin alt satıra geçip hizayı bozmasını engellemek için whitespace-nowrap eklendi
                       const getBadgeColor = (val: string) => {
                          if (!val) return 'text-slate-700';
                          if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) return 'bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm whitespace-nowrap';
@@ -1465,6 +1465,7 @@ if (!isLoggedIn) {
                           className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[10px] font-bold items-center cursor-pointer hover:bg-indigo-50 ${thhForm.rowIndex === i + 2 ? 'bg-indigo-100/50 border-l-4 border-l-indigo-500' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white')}`}>
                           
                           <div className="w-[150px] shrink-0 truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
+                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate font-black tracking-widest text-slate-600">{row[17] || '-'}</div>
                           <div className="w-[100px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[1] || '-'}</div>
                           <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[2] || '-'}</div>
                           <div className="w-[200px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[3] || '-'}</div>
@@ -1481,7 +1482,6 @@ if (!isLoggedIn) {
                           <div className="w-[160px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[14])}>{row[14] || '-'}</span></div>
                           <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[15])}>{row[15] || '-'}</span></div>
                           <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[16])}>{row[16] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 text-right truncate font-black tracking-widest">{row[17] || '-'}</div>
                           
                         </div>
                       )
@@ -1492,9 +1492,8 @@ if (!isLoggedIn) {
                   </div>
                 </div>
               </div>
-     
+            </div>
           ) :
-
           appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
