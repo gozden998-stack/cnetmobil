@@ -26,6 +26,10 @@ export async function GET() {
     // --- YENİ EKLENEN MAĞAZA GİDİŞAT TABLOSU ---
     { id: 'MagazaGidisat', range: 'MagazaGidisat!A1:E100' },
     { id: 'PersonelGidisat', range: 'PersonelGidisat!A2:L100' },
+    
+    // --- YENİ EKLENEN THH TABLOSU ---
+    { id: 'THH', range: 'THH!A1:R1000' },
+    
     // --- MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
     { id: 'CustomerConfig', range: 'Cihaz Sat!N2:O50' }
