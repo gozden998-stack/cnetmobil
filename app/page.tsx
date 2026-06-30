@@ -33,10 +33,10 @@ export default function CnetmobilCmrFinalUltimate() {
   const [thhData, setThhData] = useState<any[][]>([]);
   const initialThhForm = {
     rowIndex: null as number | null,
-    adSoyad: '', basvuruTarihi: '', sayi: '', konu: '', kepAdresi: '',
+    adSoyad: '', musteriTelefon: '', basvuruTarihi: '', sayi: '', konu: '', kepAdresi: '',
     markaModel: '', imeiNo: '', faturaNo: '', faturaTutari: '', alisBilgileri: '',
     durumu: '', durumu2: '', durumu3: '', durumu4: '', sonuc: '',
-    ucretIadesi: '', sonuc2: '', musteriTelefon: ''
+    ucretIadesi: '', sonuc2: ''
   };
   const [thhForm, setThhForm] = useState(initialThhForm);
   const [thhSaving, setThhSaving] = useState(false);
@@ -52,7 +52,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [hedeflerData, setHedeflerData] = useState<any[][]>([]);
   const servisFiyatlariRef = useRef<any>({});
   const [servisFiyatlari, setServisFiyatlari] = useState<Record<string, {ekran?: string, ekranOrj?: string, ekranOled?: string, ekranCipli?: string, batarya?: string, arkaCam?: string, kasa?: string}>>({});
-  const [servisForm, setServisForm] = useState({model: '', ekran: '', ekranOrj: '', ekranOled: '', ekranCipli: '', batarya: '', arkaCam: '', kasa: ''});
 
   const [db, setDb] = useState<any[]>([]);
   const [brandDb, setBrandDb] = useState<any[]>([]);
@@ -792,15 +791,15 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'yna_list', label: 'YNA List', visible: !isZumay },
         { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
         { 
-  id: 'kampanya_sifir', 
-  label: (
-    <div className="flex flex-col items-center justify-center -space-y-0.5">
-      <span className="font-black tracking-widest">KAMPANYALI</span>
-      <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
-    </div>
-  ), 
-  visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
-},
+          id: 'kampanya_sifir', 
+          label: (
+            <div className="flex flex-col items-center justify-center -space-y-0.5">
+              <span className="font-black tracking-widest">KAMPANYALI</span>
+              <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
+            </div>
+          ), 
+          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
+        },
         { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
@@ -853,7 +852,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const datePart = rawDate.split(' ')[0];
           let itemDateFormatted = '';
           
-                    if (datePart && datePart.includes('.')) {
+          if (datePart && datePart.includes('.')) {
               const [d, m, y] = datePart.split('.');
               if(y && m && d) itemDateFormatted = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
           } else if (datePart && datePart.includes('/')) {
@@ -908,7 +907,6 @@ if (!isLoggedIn) {
   return (
     <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
       <div>
-        {/* HEADER */}
         <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
           <div className="flex items-center h-[40px]">
              <img 
@@ -920,7 +918,6 @@ if (!isLoggedIn) {
           <div className="text-white text-[18px]">☎</div>
         </header>
 
-        {/* HERO ALANI */}
         <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
           
           <div className="text-center pt-7 pb-5 xl:hidden">
@@ -1076,7 +1073,6 @@ if (!isLoggedIn) {
         </section>
       </div>
 
-      {/* FOOTER */}
       <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
         <div className="text-[26px] font-bold mb-6 text-gray-800">
           Bizi Takip Edin
@@ -1331,168 +1327,213 @@ if (!isLoggedIn) {
               </div>
             </div>
           ) :
-        appMode === 'thh' && step < 99 && isMasterAccess ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-indigo-600">THH TAKİP MERKEZİ</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Tüketici Hakem Heyeti Dosyaları ve Süreç Yönetimi</p>
+
+          appMode === 'thh' && step < 99 && isMasterAccess ? (
+            <div className="w-full max-w-[1500px] mx-auto space-y-6 animate-in fade-in duration-500">
+              
+              {/* ÜST FORM KART */}
+              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
+                <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black text-slate-800 uppercase tracking-widest">{thhForm.rowIndex ? 'DOSYAYI DÜZENLE' : 'YENİ DOSYA EKLE'}</h2>
+                      <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Tüketici başvurusu bilgilerini eksiksiz doldurunuz.</p>
+                    </div>
                   </div>
-              </div>
-
-              {/* YENİ / DÜZENLE KAYIT FORMU */}
-              <div className={`border p-6 rounded-3xl mb-10 shadow-inner transition-colors ${thhForm.rowIndex ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-700 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${thhForm.rowIndex ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500'}`}></span> 
-                    {thhForm.rowIndex ? 'Dosyayı Düzenle' : 'Yeni Dosya Ekle'}
-                  </h3>
                   {thhForm.rowIndex && (
-                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg uppercase tracking-widest">Düzenleme Modu Aktif</span>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-                  {Object.keys(initialThhForm).filter(k => k !== 'rowIndex').map((key) => {
-                    const labels: any = {
-                      adSoyad: 'Tüketici Ad-Soyad', basvuruTarihi: 'Başvuru Tarihi', sayi: 'Sayı', konu: 'Konu',
-                      kepAdresi: 'Kep Adresi', markaModel: 'Marka-Model', imeiNo: 'İmei No', faturaNo: 'Fatura No',
-                      faturaTutari: 'Fatura Tutarı', alisBilgileri: 'Alış Bilgileri', durumu: 'Durumu', durumu2: 'Durumu 2',
-                      durumu3: 'Durumu 3', durumu4: 'Durumu 4', sonuc: 'Sonuç', ucretIadesi: 'İade/Değişim/Onarım',
-                      sonuc2: 'Sonuç 2', musteriTelefon: 'Müşteri Telefonu'
-                    };
-
-                    const dropdownOptions: any = {
-                      ucretIadesi: ['Ücret İadesi', 'Değişim', 'Onarım'],
-                      sonuc: ['Tüketici Talebinin Kabulüne', 'Tüketici Talebinin Reddine'],
-                      durumu: ['Evraklar Yüklendi'],
-                      durumu2: ['Savunma Bekliyor'],
-                      durumu3: ['Savunma Geldi'],
-                      durumu4: ['Savunma Yüklendi'],
-                      sonuc2: ['Ödeme Yapıldı', 'Değişim Yapıldı', 'Ödeme Reddedildi']
-                    };
-
-                    const isDropdown = Object.keys(dropdownOptions).includes(key);
-
-                    return (
-                      <div key={key} className="space-y-1.5">
-                        <label className="text-[9px] font-black text-slate-500 ml-2 uppercase tracking-widest">{labels[key]}</label>
-                        {isDropdown ? (
-                          <select 
-                            className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700 cursor-pointer"
-                            value={(thhForm as any)[key]} 
-                            onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
-                          >
-                            <option value="">Seçiniz...</option>
-                            {dropdownOptions[key].map((opt: string) => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input 
-                            type={key === 'basvuruTarihi' ? 'date' : 'text'}
-                            className="w-full p-3 bg-white rounded-xl text-xs outline-none border border-slate-200 focus:border-indigo-500 transition-all shadow-sm font-bold text-slate-700" 
-                            value={(thhForm as any)[key]} 
-                            onChange={(e) => setThhForm({...thhForm, [key]: e.target.value})}
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                
-                <div className="flex justify-end gap-3 border-t border-slate-200/60 pt-6 mt-2">
-                  {thhForm.rowIndex ? (
-                    <>
-                      <button onClick={handleClearThhForm} disabled={thhSaving} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-sm btn-click disabled:opacity-50">İPTAL</button>
-                      <button onClick={handleDeleteThh} disabled={thhSaving} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-sm btn-click disabled:opacity-50">SİL</button>
-                      <button onClick={handleUpdateThh} disabled={thhSaving} className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-amber-200 btn-click flex items-center gap-2 disabled:opacity-50">
-                        {thhSaving ? 'GÜNCELLENİYOR...' : 'DEĞİŞİKLİKLERİ KAYDET'}
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={handleSaveThh} disabled={thhSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-200 btn-click flex items-center gap-2 disabled:opacity-50">
-                      {thhSaving ? 'KAYDEDİLİYOR...' : 'SİSTEME KAYDET'}
+                    <button onClick={handleClearThhForm} className="text-slate-400 hover:text-red-500 transition-colors btn-click flex items-center gap-2 text-xs font-black bg-slate-50 px-4 py-2 rounded-lg">
+                      İPTAL ET
                     </button>
                   )}
                 </div>
-              </div>
 
-              {/* KAYITLI VERİLER TABLOSU */}
-              <div className="overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-max">
-                  <div className="bg-indigo-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="w-[150px] shrink-0">TÜKETİCİ AD-SOYAD</div>
-                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">MÜŞTERİ TEL</div>
-                    <div className="w-[100px] shrink-0 border-l border-indigo-500/50 pl-2">BAŞVURU TRH.</div>
-                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">SAYI</div>
-                    <div className="w-[200px] shrink-0 border-l border-indigo-500/50 pl-2">KONU</div>
-                    <div className="w-[150px] shrink-0 border-l border-indigo-500/50 pl-2">KEP ADRESİ</div>
-                    <div className="w-[150px] shrink-0 border-l border-indigo-500/50 pl-2">MARKA-MODEL</div>
-                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">İMEİ NO</div>
-                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">FATURA NO</div>
-                    <div className="w-[100px] shrink-0 border-l border-indigo-500/50 pl-2">FAT. TUTARI</div>
-                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">ALIŞ BİLGİSİ</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 2</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 3</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 4</div>
-                    <div className="w-[160px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
-                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
+                <div className="p-8 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* ÖZEL SIRALAMA İÇİN DİZİ KULLANIMI */}
+                    {[
+                      { key: 'adSoyad', label: 'TÜKETİCİ AD-SOYAD', holder: 'Ad soyad giriniz' },
+                      { key: 'musteriTelefon', label: 'MÜŞTERİ TELEFONU', holder: '5XX XXX XX XX' },
+                      { key: 'basvuruTarihi', label: 'BAŞVURU TARİHİ', holder: 'gg.aa.yyyy', type: 'date' },
+                      { key: 'sayi', label: 'SAYI', holder: 'Sayı giriniz' },
+                      { key: 'konu', label: 'KONU', holder: 'Konu giriniz' },
+                      { key: 'kepAdresi', label: 'KEP ADRESİ', holder: 'ornek@hs01.kep.tr' },
+                      { key: 'markaModel', label: 'MARKA-MODEL', holder: 'Marka - Model' },
+                      { key: 'imeiNo', label: 'İMEİ NO', holder: 'İmei numarasını giriniz' },
+                      { key: 'faturaNo', label: 'FATURA NO', holder: 'Fatura numarası' },
+                      { key: 'faturaTutari', label: 'FATURA TUTARI', holder: '0,00 ₺' },
+                      { key: 'alisBilgileri', label: 'ALIŞ BİLGİLERİ', holder: 'Alış bilgilerini giriniz' },
+                      { key: 'durumu', label: 'DURUMU', type: 'select', opts: ['Evraklar Yüklendi'] },
+                      { key: 'durumu2', label: 'DURUMU 2', type: 'select', opts: ['Savunma Bekliyor'] },
+                      { key: 'durumu3', label: 'DURUMU 3', type: 'select', opts: ['Savunma Geldi'] },
+                      { key: 'durumu4', label: 'DURUMU 4', type: 'select', opts: ['Savunma Yüklendi'] },
+                      { key: 'sonuc', label: 'SONUÇ', type: 'select', opts: ['Tüketici Talebinin Kabulüne', 'Tüketici Talebinin Reddine'] },
+                      { key: 'ucretIadesi', label: 'İADE/DEĞİŞİM/ONARIM', type: 'select', opts: ['Ücret İadesi', 'Değişim', 'Onarım'] },
+                      { key: 'sonuc2', label: 'SONUÇ 2', type: 'select', opts: ['Ödeme Yapıldı', 'Değişim Yapıldı', 'Ödeme Reddedildi'] }
+                    ].map((field) => (
+                      <div key={field.key} className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-black text-slate-700 tracking-wider ml-1">{field.label}</label>
+                        {field.type === 'select' ? (
+                          <select 
+                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all cursor-pointer shadow-sm"
+                            value={(thhForm as any)[field.key]} 
+                            onChange={(e) => setThhForm({...thhForm, [field.key]: e.target.value})}
+                          >
+                            <option value="">Seçiniz...</option>
+                            {field.opts?.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        ) : (
+                          <input 
+                            type={field.type || 'text'}
+                            placeholder={field.holder}
+                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 transition-all placeholder-slate-300 shadow-sm"
+                            value={(thhForm as any)[field.key]} 
+                            onChange={(e) => setThhForm({...thhForm, [field.key]: e.target.value})}
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div className="bg-white rounded-b-2xl border-x border-b border-slate-200">
-                    {thhData.slice(1).map((row, i) => {
-                      const getBadgeColor = (val: string) => {
-                         if (!val) return 'text-slate-700';
-                         if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) return 'bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm whitespace-nowrap';
-                         if (['Ödeme Reddedildi'].includes(val)) return 'bg-red-100 text-red-700 px-2 py-1 rounded shadow-sm whitespace-nowrap';
-                         return 'bg-slate-100 text-slate-700 px-2 py-1 rounded whitespace-nowrap';
-                      };
+                </div>
 
-                      return (
-                        <div 
-                          key={i} 
-                          onClick={() => setThhForm({
-                            rowIndex: i + 2,
-                            adSoyad: row[0] || '', basvuruTarihi: row[1] || '', sayi: row[2] || '', konu: row[3] || '',
-                            kepAdresi: row[4] || '', markaModel: row[5] || '', imeiNo: row[6] || '', faturaNo: row[7] || '',
-                            faturaTutari: row[8] || '', alisBilgileri: row[9] || '', durumu: row[10] || '', durumu2: row[11] || '',
-                            durumu3: row[12] || '', durumu4: row[13] || '', sonuc: row[14] || '', ucretIadesi: row[15] || '',
-                            sonuc2: row[16] || '', musteriTelefon: row[17] || ''
-                          })}
-                          className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[10px] font-bold items-center cursor-pointer hover:bg-indigo-50 ${thhForm.rowIndex === i + 2 ? 'bg-indigo-100/50 border-l-4 border-l-indigo-500' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white')}`}>
-                          
-                          <div className="w-[150px] shrink-0 truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
-                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate font-black tracking-widest text-slate-600">{row[17] || '-'}</div>
-                          <div className="w-[100px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[1] || '-'}</div>
-                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[2] || '-'}</div>
-                          <div className="w-[200px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[3] || '-'}</div>
-                          <div className="w-[150px] shrink-0 border-l border-slate-200/60 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
-                          <div className="w-[150px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[5] || '-'}</div>
-                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[6] || '-'}</div>
-                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[7] || '-'}</div>
-                          <div className="w-[100px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[8] || '-'}</div>
-                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[9] || '-'}</div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[10])}>{row[10] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[11])}>{row[11] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[12])}>{row[12] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[13])}>{row[13] || '-'}</span></div>
-                          <div className="w-[160px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[14])}>{row[14] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[15])}>{row[15] || '-'}</span></div>
-                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[16])}>{row[16] || '-'}</span></div>
-                          
-                        </div>
-                      )
-                    })}
-                    {thhData.length <= 1 && (
-                       <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Henüz kayıt bulunmuyor.</div>
+                {/* BİLGİLENDİRME & KAYDET ALANI */}
+                <div className="p-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center gap-3 bg-indigo-50 text-indigo-800 px-4 py-3 rounded-xl flex-1 max-w-2xl border border-indigo-100">
+                     <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0">i</div>
+                     <div>
+                       <p className="text-[10px] font-black tracking-widest uppercase mb-0.5">BİLGİLENDİRME</p>
+                       <p className="text-xs font-medium opacity-90">Tüm alanların doğru ve eksiksiz doldurulması sürecin takibi açısından önemlidir.</p>
+                     </div>
+                  </div>
+                  
+                  <div className="flex gap-2 w-full md:w-auto">
+                    {thhForm.rowIndex && (
+                      <button onClick={handleDeleteThh} disabled={thhSaving} className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-6 py-3 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all shadow-sm btn-click disabled:opacity-50">
+                         SİL
+                      </button>
                     )}
+                    <button onClick={thhForm.rowIndex ? handleUpdateThh : handleSaveThh} disabled={thhSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all shadow-md btn-click flex items-center justify-center gap-2 w-full md:w-auto disabled:opacity-50">
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                       {thhSaving ? 'İŞLENİYOR...' : (thhForm.rowIndex ? 'GÜNCELLE' : 'SİSTEME KAYDET')}
+                    </button>
                   </div>
                 </div>
               </div>
+
+              {/* ALT LİSTE TABLOSU KART */}
+              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-8 py-5 border-b border-slate-100 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black text-slate-800 uppercase tracking-widest">DOSYA KAYITLARI</h2>
+                      <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Sisteme kayıtlı tüm dosyalar listelenmektedir.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center w-full md:w-64 focus-within:bg-white focus-within:border-indigo-400 transition-all">
+                      <svg className="w-4 h-4 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Ara..." className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto custom-scrollbar flex-1 min-h-[300px]">
+                  <div className="min-w-max flex flex-col">
+                    {/* BAŞLIK (Sıfır Kayma İçin Genişlikler Sabit) */}
+                    <div className="flex items-center bg-[#4338ca] text-white text-[9px] font-black tracking-widest uppercase px-4 py-3 shrink-0">
+                      <div className="w-[160px] shrink-0 pl-2">TÜKETİCİ AD-SOYAD</div>
+                      <div className="w-[120px] shrink-0">MÜŞTERİ TEL</div>
+                      <div className="w-[110px] shrink-0">BAŞVURU TRH.</div>
+                      <div className="w-[140px] shrink-0">SAYI</div>
+                      <div className="w-[160px] shrink-0">KONU</div>
+                      <div className="w-[160px] shrink-0">KEP ADRESİ</div>
+                      <div className="w-[140px] shrink-0">MARKA-MODEL</div>
+                      <div className="w-[130px] shrink-0">İMEİ NO</div>
+                      <div className="w-[120px] shrink-0">FATURA NO</div>
+                      <div className="w-[100px] shrink-0">FAT. TUTARI</div>
+                      <div className="w-[120px] shrink-0">ALIŞ BİLGİSİ</div>
+                      <div className="w-[140px] shrink-0">DURUMU</div>
+                      <div className="w-[140px] shrink-0">DURUMU 2</div>
+                      <div className="w-[140px] shrink-0">DURUMU 3</div>
+                      <div className="w-[140px] shrink-0">DURUMU 4</div>
+                      <div className="w-[180px] shrink-0">SONUÇ</div>
+                      <div className="w-[140px] shrink-0">İADE/DEĞİŞİM</div>
+                      <div className="w-[140px] shrink-0 text-center">SONUÇ 2</div>
+                    </div>
+                    
+                    {/* VERİLER */}
+                    <div className="flex flex-col flex-1 pb-4">
+                      {thhData.slice(1).filter(r => {
+                         if (!searchQuery) return true;
+                         const s = searchQuery.toLowerCase();
+                         return (r[0]||'').toLowerCase().includes(s) || (r[17]||'').toLowerCase().includes(s) || (r[5]||'').toLowerCase().includes(s);
+                      }).map((row, i) => {
+                        const getBadge = (val: string) => {
+                           if (!val) return null;
+                           let bg = 'bg-slate-100 text-slate-700';
+                           if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) bg = 'bg-emerald-100 text-emerald-700';
+                           if (['Ödeme Reddedildi'].includes(val)) bg = 'bg-red-100 text-red-700';
+                           return <span className={`px-2.5 py-1 rounded-md shadow-sm whitespace-nowrap ${bg}`}>{val}</span>;
+                        };
+
+                        const isEditing = thhForm.rowIndex === i + 2;
+
+                        return (
+                          <div 
+                            key={i} 
+                            onClick={() => setThhForm({
+                              rowIndex: i + 2, adSoyad: row[0]||'', musteriTelefon: row[17]||'', basvuruTarihi: row[1]||'', 
+                              sayi: row[2]||'', konu: row[3]||'', kepAdresi: row[4]||'', markaModel: row[5]||'', 
+                              imeiNo: row[6]||'', faturaNo: row[7]||'', faturaTutari: row[8]||'', alisBilgileri: row[9]||'', 
+                              durumu: row[10]||'', durumu2: row[11]||'', durumu3: row[12]||'', durumu4: row[13]||'', 
+                              sonuc: row[14]||'', ucretIadesi: row[15]||'', sonuc2: row[16]||''
+                            })}
+                            className={`flex items-center px-4 py-3 border-b border-slate-100 text-[10px] font-bold text-slate-700 cursor-pointer transition-colors hover:bg-indigo-50/50 ${isEditing ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : 'bg-white hover:border-slate-200'}`}
+                          >
+                            <div className="w-[160px] shrink-0 pl-2 truncate font-black text-indigo-700">{row[0] || '-'}</div>
+                            <div className="w-[120px] shrink-0 truncate font-black text-slate-900 tracking-widest">{row[17] || '-'}</div>
+                            <div className="w-[110px] shrink-0 truncate">{row[1] || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate">{row[2] || '-'}</div>
+                            <div className="w-[160px] shrink-0 truncate pr-2" title={row[3]}>{row[3] || '-'}</div>
+                            <div className="w-[160px] shrink-0 truncate text-blue-500">{row[4] || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{row[5] || '-'}</div>
+                            <div className="w-[130px] shrink-0 truncate">{row[6] || '-'}</div>
+                            <div className="w-[120px] shrink-0 truncate">{row[7] || '-'}</div>
+                            <div className="w-[100px] shrink-0 truncate">{row[8] || '-'}</div>
+                            <div className="w-[120px] shrink-0 truncate">{row[9] || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{getBadge(row[10]) || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{getBadge(row[11]) || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{getBadge(row[12]) || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{getBadge(row[13]) || '-'}</div>
+                            <div className="w-[180px] shrink-0 truncate pr-2">{getBadge(row[14]) || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate pr-2">{getBadge(row[15]) || '-'}</div>
+                            <div className="w-[140px] shrink-0 truncate text-center">{getBadge(row[16]) || '-'}</div>
+                          </div>
+                        )
+                      })}
+
+                      {thhData.length <= 1 && (
+                        <div className="flex flex-col items-center justify-center p-12 text-slate-300">
+                           <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                           <p className="font-black text-sm uppercase tracking-widest text-slate-400">Henüz Kayıt Bulunmuyor</p>
+                           <p className="text-[10px] font-bold tracking-widest uppercase mt-2">Yeni bir dosya ekleyerek başlayabilirsiniz.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           ) :
+
           appMode === 'ikinci_el' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
@@ -1533,7 +1574,9 @@ if (!isLoggedIn) {
                 </div>
               </div>
             </div>
-         ) : appMode === 'dis_kanal' && step < 99 ? (
+          ) :
+
+          appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
