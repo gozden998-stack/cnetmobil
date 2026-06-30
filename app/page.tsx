@@ -605,35 +605,72 @@ export default function CnetmobilCmrFinalUltimate() {
   // --- THH FONKSİYONLARI BAŞLANGICI ---
   const handleClearThhForm = () => setThhForm(initialThhForm);
 
+  // VODAFONE DEPO MANTIĞI: Cache (300sn) dolana kadar veriyi tarayıcıda korur (Sayfa yenilense bile silinmez)
+  const backupThhToLocal = (newData: any[][]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('thh_backup', JSON.stringify({ data: newData, timestamp: new Date().getTime() }));
+    }
+  };
+
   const handleSaveThh = async () => {
     if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi zorunludur!");
     setThhSaving(true);
+    
+    const newRow = [
+      thhForm.adSoyad, thhForm.basvuruTarihi, thhForm.sayi, thhForm.konu, thhForm.kepAdresi,
+      thhForm.markaModel, thhForm.imeiNo, thhForm.faturaNo, thhForm.faturaTutari, thhForm.alisBilgileri,
+      thhForm.durumu, thhForm.durumu2, thhForm.durumu3, thhForm.durumu4, thhForm.sonuc,
+      thhForm.ucretIadesi, thhForm.sonuc2, thhForm.musteriTelefon
+    ];
+
+    // 1. ANINDA EKRANA YANSIT VE YEDEKLE
+    setThhData(prev => {
+      const newData = [...prev, newRow];
+      backupThhToLocal(newData);
+      return newData;
+    });
+    handleClearThhForm();
+
     try {
+      // 2. ARKA PLANDA SHEETS'E GÖNDER (Bekleme yok, Sayfa yenileme yok)
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: "SAVE_THH", data: thhForm })
       });
-      alert("THH Kaydı Başarıyla Eklendi!");
-      handleClearThhForm();
-      setTimeout(refreshDataCache, 1500);
-    } catch (e) { alert("Kaydedilirken hata oluştu."); }
+    } catch (e) { console.error("Sheets'e kaydedilirken hata:", e); }
+    
     setThhSaving(false);
   };
 
   const handleUpdateThh = async () => {
     if (!thhForm.rowIndex) return;
     setThhSaving(true);
+
+    // 1. ANINDA EKRANA YANSIT VE YEDEKLE
+    setThhData(prev => {
+      const newData = [...prev];
+      const arrIndex = thhForm.rowIndex! - 1; 
+      newData[arrIndex] = [
+        thhForm.adSoyad, thhForm.basvuruTarihi, thhForm.sayi, thhForm.konu, thhForm.kepAdresi,
+        thhForm.markaModel, thhForm.imeiNo, thhForm.faturaNo, thhForm.faturaTutari, thhForm.alisBilgileri,
+        thhForm.durumu, thhForm.durumu2, thhForm.durumu3, thhForm.durumu4, thhForm.sonuc,
+        thhForm.ucretIadesi, thhForm.sonuc2, thhForm.musteriTelefon
+      ];
+      backupThhToLocal(newData);
+      return newData;
+    });
+    handleClearThhForm();
+
     try {
+      // 2. ARKA PLANDA SHEETS'E GÜNCELLE
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: "UPDATE_THH", row: thhForm.rowIndex, data: thhForm })
       });
-      alert("Kayıt Başarıyla Güncellendi!");
-      handleClearThhForm();
-      setTimeout(refreshDataCache, 1500);
-    } catch (e) { alert("Güncellenirken hata oluştu."); }
+    } catch (e) { console.error("Güncellenirken hata:", e); }
+    
     setThhSaving(false);
   };
 
@@ -641,16 +678,25 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.rowIndex) return;
     if (!confirm("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
     setThhSaving(true);
+
+    // 1. ANINDA EKRANA YANSIT VE YEDEKLE
+    const arrIndex = thhForm.rowIndex - 1;
+    setThhData(prev => {
+      const newData = prev.filter((_, idx) => idx !== arrIndex);
+      backupThhToLocal(newData);
+      return newData;
+    });
+    handleClearThhForm();
+
     try {
+      // 2. ARKA PLANDA SHEETS'TEN SİL
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: "DELETE_THH", row: thhForm.rowIndex })
       });
-      alert("Kayıt Başarıyla Silindi!");
-      handleClearThhForm();
-      setTimeout(refreshDataCache, 1500);
-    } catch (e) { alert("Silinirken hata oluştu."); }
+    } catch (e) { console.error("Silinirken hata:", e); }
+    
     setThhSaving(false);
   };
   // --- THH FONKSİYONLARI BİTİŞİ ---
