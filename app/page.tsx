@@ -1418,37 +1418,37 @@ if (!isLoggedIn) {
                   )}
                 </div>
               </div>
-
-              {/* KAYITLI VERİLER TABLOSU */}
+{/* KAYITLI VERİLER TABLOSU */}
               <div className="overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[2000px]">
+                <div className="min-w-max"> {/* min-w-[2000px] yerine min-w-max yapıldı */}
                   <div className="bg-indigo-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="w-[150px]">TÜKETİCİ AD-SOYAD</div>
-                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">BAŞVURU TRH.</div>
-                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">SAYI</div>
-                    <div className="w-[200px] border-l border-indigo-500/50 pl-2">KONU</div>
-                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">KEP ADRESİ</div>
-                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">MARKA-MODEL</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">İMEİ NO</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">FATURA NO</div>
-                    <div className="w-[100px] border-l border-indigo-500/50 pl-2">FAT. TUTARI</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">ALIŞ BİLGİSİ</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 2</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 3</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">DURUMU 4</div>
-                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">SONUÇ</div>
-                    <div className="w-[150px] border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
-                    <div className="w-[120px] border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
-                    <div className="flex-1 border-l border-indigo-500/50 pl-2 text-right">MÜŞTERİ TEL</div>
+                    <div className="w-[150px] shrink-0">TÜKETİCİ AD-SOYAD</div>
+                    <div className="w-[100px] shrink-0 border-l border-indigo-500/50 pl-2">BAŞVURU TRH.</div>
+                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">SAYI</div>
+                    <div className="w-[200px] shrink-0 border-l border-indigo-500/50 pl-2">KONU</div>
+                    <div className="w-[150px] shrink-0 border-l border-indigo-500/50 pl-2">KEP ADRESİ</div>
+                    <div className="w-[150px] shrink-0 border-l border-indigo-500/50 pl-2">MARKA-MODEL</div>
+                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">İMEİ NO</div>
+                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">FATURA NO</div>
+                    <div className="w-[100px] shrink-0 border-l border-indigo-500/50 pl-2">FAT. TUTARI</div>
+                    <div className="w-[120px] shrink-0 border-l border-indigo-500/50 pl-2">ALIŞ BİLGİSİ</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 2</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 3</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">DURUMU 4</div>
+                    <div className="w-[160px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">İADE/DEĞİŞİM</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2">SONUÇ 2</div>
+                    <div className="w-[130px] shrink-0 border-l border-indigo-500/50 pl-2 text-right">MÜŞTERİ TEL</div>
                   </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+                  <div className="bg-white rounded-b-2xl border-x border-b border-slate-200">
                     {thhData.slice(1).map((row, i) => {
+                      // Etiketlerin alt satıra geçip hizayı bozmasını engellemek için whitespace-nowrap eklendi
                       const getBadgeColor = (val: string) => {
                          if (!val) return 'text-slate-700';
-                         if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) return 'bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm';
-                         if (['Ödeme Reddedildi'].includes(val)) return 'bg-red-100 text-red-700 px-2 py-1 rounded shadow-sm';
-                         return 'bg-slate-100 text-slate-700 px-2 py-1 rounded';
+                         if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) return 'bg-green-100 text-green-700 px-2 py-1 rounded shadow-sm whitespace-nowrap';
+                         if (['Ödeme Reddedildi'].includes(val)) return 'bg-red-100 text-red-700 px-2 py-1 rounded shadow-sm whitespace-nowrap';
+                         return 'bg-slate-100 text-slate-700 px-2 py-1 rounded whitespace-nowrap';
                       };
 
                       return (
@@ -1463,24 +1463,26 @@ if (!isLoggedIn) {
                             sonuc2: row[16] || '', musteriTelefon: row[17] || ''
                           })}
                           className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[10px] font-bold items-center cursor-pointer hover:bg-indigo-50 ${thhForm.rowIndex === i + 2 ? 'bg-indigo-100/50 border-l-4 border-l-indigo-500' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white')}`}>
-                          <div className="w-[150px] truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
-                          <div className="w-[100px] border-l border-slate-200/60 pl-2">{row[1] || '-'}</div>
-                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate">{row[2] || '-'}</div>
-                          <div className="w-[200px] border-l border-slate-200/60 pl-2 truncate">{row[3] || '-'}</div>
-                          <div className="w-[150px] border-l border-slate-200/60 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
-                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate">{row[5] || '-'}</div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[6] || '-'}</div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[7] || '-'}</div>
-                          <div className="w-[100px] border-l border-slate-200/60 pl-2">{row[8] || '-'}</div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2">{row[9] || '-'}</div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[10])}>{row[10] || '-'}</span></div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[11])}>{row[11] || '-'}</span></div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[12])}>{row[12] || '-'}</span></div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[13])}>{row[13] || '-'}</span></div>
-                          <div className="w-[150px] border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[14])}>{row[14] || '-'}</span></div>
-                          <div className="w-[150px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[15])}>{row[15] || '-'}</span></div>
-                          <div className="w-[120px] border-l border-slate-200/60 pl-2"><span className={getBadgeColor(row[16])}>{row[16] || '-'}</span></div>
-                          <div className="flex-1 border-l border-slate-200/60 pl-2 text-right truncate font-black tracking-widest">{row[17] || '-'}</div>
+                          
+                          <div className="w-[150px] shrink-0 truncate text-indigo-700 pr-2">{row[0] || '-'}</div>
+                          <div className="w-[100px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[1] || '-'}</div>
+                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[2] || '-'}</div>
+                          <div className="w-[200px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[3] || '-'}</div>
+                          <div className="w-[150px] shrink-0 border-l border-slate-200/60 pl-2 text-blue-500 truncate">{row[4] || '-'}</div>
+                          <div className="w-[150px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[5] || '-'}</div>
+                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[6] || '-'}</div>
+                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[7] || '-'}</div>
+                          <div className="w-[100px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[8] || '-'}</div>
+                          <div className="w-[120px] shrink-0 border-l border-slate-200/60 pl-2 truncate">{row[9] || '-'}</div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[10])}>{row[10] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[11])}>{row[11] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[12])}>{row[12] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[13])}>{row[13] || '-'}</span></div>
+                          <div className="w-[160px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[14])}>{row[14] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[15])}>{row[15] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 truncate"><span className={getBadgeColor(row[16])}>{row[16] || '-'}</span></div>
+                          <div className="w-[130px] shrink-0 border-l border-slate-200/60 pl-2 text-right truncate font-black tracking-widest">{row[17] || '-'}</div>
+                          
                         </div>
                       )
                     })}
@@ -1490,7 +1492,7 @@ if (!isLoggedIn) {
                   </div>
                 </div>
               </div>
-            </div>
+     
           ) :
 
           appMode === 'ikinci_el' && step < 99 ? (
