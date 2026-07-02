@@ -1370,7 +1370,7 @@ if (!isLoggedIn) {
                       { key: 'durumu3', label: 'DURUMU 3', type: 'select', opts: ['Savunma Geldi'] },
                       { key: 'durumu4', label: 'DURUMU 4', type: 'select', opts: ['Savunma Yüklendi'] },
                       { key: 'sonuc', label: 'SONUÇ', type: 'select', opts: ['Tüketici Talebinin Kabulüne', 'Tüketici Talebinin Reddine'] },
-                      { key: 'ucretIadesi', label: 'İADE/DEĞİŞİM/ONARIM', type: 'select', opts: ['Ücret İadesi', 'Değişim', 'Onarım'] },
+                      { key: 'ucretIadesi', label: 'İADE/DEĞİŞİM/ONARIM/RED', type: 'select', opts: ['Ücret İadesi', 'Değişim', 'Onarım', 'RED'] },
                       { key: 'sonuc2', label: 'SONUÇ 2', type: 'select', opts: ['Ödeme Yapıldı', 'Değişim Yapıldı', 'Ödeme Reddedildi'] }
                     ].map((field) => (
                       <div key={field.key} className="flex flex-col gap-1.5">
@@ -1478,7 +1478,7 @@ if (!isLoggedIn) {
                         const getBadge = (val: string) => {
                            if (!val) return null;
                            let bg = 'bg-slate-100 text-slate-700';
-                           if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı'].includes(val)) bg = 'bg-emerald-100 text-emerald-700';
+                           if (['Ücret İadesi', 'Ödeme Yapıldı', 'Değişim Yapıldı', 'RED VERİLDİ'].includes(val)) bg = 'bg-emerald-100 text-emerald-700';
                            if (['Ödeme Reddedildi'].includes(val)) bg = 'bg-red-100 text-red-700';
                            return <span className={`px-2.5 py-1 rounded-md shadow-sm whitespace-nowrap ${bg}`}>{val}</span>;
                         };
