@@ -18,7 +18,7 @@ export async function GET() {
     { id: 'YNA', range: 'YNA LİST!A1:F1000' },
     { id: 'DisKanal', range: 'DIŞ KANAL SATIN ALMA!A1:C1000' },
     { id: 'Servis', range: 'Servis_Fiyatlari!A2:G1000' },
-    { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:D1000' },
+    { id: 'IkinciEl', range: '2.EL FİYAT LİSTESİ!A1:J1000' },
     
     // UFAK DOKUNUŞ: C sütunundaki "KULLANILDI" yazılarını da çekebilmek için B1000 olan yer C1000 yapıldı.
     { id: 'Depo', range: 'DEPO!A1:C1000' },
