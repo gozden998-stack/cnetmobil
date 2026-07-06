@@ -774,7 +774,7 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
   };
 
-  const menuGroups = [
+ const menuGroups = [
     {
       title: "ANA MODÜLLER",
       items: [
@@ -1168,7 +1168,8 @@ if (!isLoggedIn) {
           </div>
         </div>
 
-        <div className="flex items-center overflow-x-auto no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
+     {/* lg:overflow-visible EKLENDİ! Bu sayede PC'de dropdown kesilmeyecek */}
+        <div className="flex items-center overflow-x-auto lg:overflow-visible no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
           {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
             const isActive = appMode === item.id || (item.subItems && item.subItems.some(sub => sub.id === appMode));
             const isLast = idx === arr.length - 1;
@@ -1181,7 +1182,8 @@ if (!isLoggedIn) {
                       <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
                     </button>
-                    <div className="absolute top-full left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[200] flex flex-col">
+                    {/* z-[999] eklendi ve PC'de üzerine gelince sorunsuz açılacak */}
+                    <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] flex flex-col">
                       {item.subItems.map(sub => (
                         <button
                           key={sub.id}
