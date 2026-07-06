@@ -27,7 +27,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el' | 'imei_list' | 'kampanya_sifir' | 'thh'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh'>('ana_sayfa');
 
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
@@ -800,7 +800,15 @@ export default function CnetmobilCmrFinalUltimate() {
           ), 
           visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
         },
-        { id: 'ikinci_el', label: '2. El Listesi', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
+        { 
+          id: 'ikinci_el', 
+          label: '2. El Listesi', 
+          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay,
+          subItems: [
+            { id: 'ikinci_el_apple', label: 'Apple Liste' },
+            { id: 'ikinci_el_android', label: 'Android Liste' }
+          ]
+        },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
     }
@@ -1162,24 +1170,45 @@ if (!isLoggedIn) {
 
         <div className="flex items-center overflow-x-auto no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
           {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
-            const isActive = appMode === item.id;
+            const isActive = appMode === item.id || (item.subItems && item.subItems.some(sub => sub.id === appMode));
             const isLast = idx === arr.length - 1;
             return (
-              <div key={item.id} className={`flex items-center h-full ${!isLast ? 'border-r border-white/10' : ''}`}>
-                <button
-                  onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                  className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
-                >
-                  {item.label}
-                  {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
-                </button>
+              <div key={item.id} className={`flex items-center h-full relative group ${!isLast ? 'border-r border-white/10' : ''}`}>
+                {item.subItems ? (
+                  <>
+                    <button className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center gap-1 ${isActive ? 'text-white' : ''}`}>
+                      {item.label}
+                      <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
+                    </button>
+                    <div className="absolute top-full left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[200] flex flex-col">
+                      {item.subItems.map(sub => (
+                        <button
+                          key={sub.id}
+                          onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); }}
+                          className={`px-4 py-3 text-left hover:bg-white/10 transition-colors ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white/70 hover:text-white'}`}
+                        >
+                          {sub.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
+                    className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
+                  >
+                    {item.label}
+                    {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
+                  </button>
+                )}
               </div>
             );
           })}
           {step === 99 && (
               <div className="flex items-center h-full">
                  <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
-                    Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
+                   Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
                  </span>
               </div>
           )}
@@ -1534,14 +1563,24 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-          appMode === 'ikinci_el' && step < 99 ? (
+          (appMode === 'ikinci_el_apple' || appMode === 'ikinci_el_android') && step < 99 ? (() => {
+            const isApple = appMode === 'ikinci_el_apple';
+            // İlgili Sheet sütunlarının (A=0, B=1, C=2, D=3) veya (G=6, H=7, I=8, J=9) index karşılıkları
+            const idx0 = isApple ? 0 : 6;
+            const idx1 = isApple ? 1 : 7;
+            const idx2 = isApple ? 2 : 8;
+            const idx3 = isApple ? 3 : 9;
+
+            return (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
                   <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-500">2.EL FİYAT LİSTESİ</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El Cihaz Fiyatları</p>
+                    <h2 className={`text-3xl font-black italic tracking-tighter ${isApple ? 'text-slate-800' : 'text-green-600'}`}>
+                      2.EL {isApple ? 'APPLE' : 'ANDROID'} FİYAT LİSTESİ
+                    </h2>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El {isApple ? 'Apple' : 'Android'} Cihaz Fiyatları</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
+                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
                     <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                   </div>
@@ -1549,32 +1588,32 @@ if (!isLoggedIn) {
               
               <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
                 <div className="min-w-[650px]">
-                  <div className="bg-orange-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
+                  <div className={`${isApple ? 'bg-slate-800' : 'bg-green-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
                     <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-1 text-center border-l border-orange-500 pl-2">ÖZELLİK/DURUM</div>
-                    <div className="flex-1 text-center border-l border-orange-500 pl-2">FİYATI (TL)</div>
-                    <div className="flex-[2] text-right border-l border-orange-500 pr-2">AÇIKLAMA</div>
+                    <div className={`flex-1 text-center border-l pl-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>ÖZELLİK/DURUM</div>
+                    <div className={`flex-1 text-center border-l pl-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>FİYATI (TL)</div>
+                    <div className={`flex-[2] text-right border-l pr-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>AÇIKLAMA</div>
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {ikinciElData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[0] || '').toUpperCase();
+                    {ikinciElData.slice(1).filter(r => r[idx0] && r[idx0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
+                        const cellName = (row[idx0] || '').toUpperCase();
                         const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
                         return (
                         <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                           <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4`}>
                               {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                              {row[0]}
+                              {row[idx0]}
                           </div>
-                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900 border-l border-slate-200`}>{row[1] || '-'}</div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? 'text-amber-600' : 'text-green-600'}`}>{row[2] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[3] || '-'}</div>
+                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900 border-l border-slate-200`}>{row[idx1] || '-'}</div>
+                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? 'text-amber-600' : (isApple ? 'text-blue-600' : 'text-green-600')}`}>{row[idx2] || '-'}</div>
+                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[idx3] || '-'}</div>
                         </div>
                     )})}
                   </div>
                 </div>
               </div>
             </div>
-          ) :
+          );})() :
 
           appMode === 'dis_kanal' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
