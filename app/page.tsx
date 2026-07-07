@@ -65,6 +65,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSubMenuOpen, setMobileSubMenuOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
@@ -1122,7 +1123,7 @@ if (!isLoggedIn) {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* TOPBAR */}
+   {/* TOPBAR */}
       <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
         <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
           <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
@@ -1168,7 +1169,6 @@ if (!isLoggedIn) {
           </div>
         </div>
 
-     {/* lg:overflow-visible EKLENDİ! Bu sayede PC'de dropdown kesilmeyecek */}
         <div className="flex items-center overflow-x-auto lg:overflow-visible no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
           {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
             const isActive = appMode === item.id || (item.subItems && item.subItems.some(sub => sub.id === appMode));
@@ -1177,23 +1177,43 @@ if (!isLoggedIn) {
               <div key={item.id} className={`flex items-center h-full relative group ${!isLast ? 'border-r border-white/10' : ''}`}>
                 {item.subItems ? (
                   <>
-                    <button className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center gap-1 ${isActive ? 'text-white' : ''}`}>
+                    <button 
+                      onClick={() => setMobileSubMenuOpen(!mobileSubMenuOpen)}
+                      onBlur={() => setTimeout(() => setMobileSubMenuOpen(false), 200)}
+                      className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center gap-1 outline-none ${isActive ? 'text-white' : ''}`}
+                    >
                       {item.label}
                       <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
                     </button>
-                    {/* z-[999] eklendi ve PC'de üzerine gelince sorunsuz açılacak */}
-                    <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] flex flex-col">
+
+                    {/* MASAÜSTÜ (PC) İÇİN HOVER DROPDOWN */}
+                    <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] hidden lg:flex flex-col">
                       {item.subItems.map(sub => (
                         <button
                           key={sub.id}
-                          onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); }}
+                          onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
                           className={`px-4 py-3 text-left hover:bg-white/10 transition-colors ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white/70 hover:text-white'}`}
                         >
                           {sub.label}
                         </button>
                       ))}
                     </div>
+
+                    {/* MOBİL İÇİN TIKLAMALI (FİXED) POPUP MENÜ */}
+                    {mobileSubMenuOpen && (
+                      <div className="fixed top-[105px] left-4 right-4 bg-[#2B2D31] border border-white/10 shadow-2xl rounded-2xl z-[9999] lg:hidden flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                        {item.subItems.map(sub => (
+                          <button
+                            key={sub.id}
+                            onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
+                            className={`px-5 py-4 text-left border-b last:border-0 border-white/5 hover:bg-white/10 transition-colors text-[13px] font-black tracking-wider uppercase ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white hover:text-[#f39c12]'}`}
+                          >
+                            {sub.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <button
