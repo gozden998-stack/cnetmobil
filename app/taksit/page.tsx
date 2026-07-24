@@ -18,7 +18,7 @@ const TAKSIT_ORANLARI = [
 ];
 
 export default function ProPosEkrani() {
-  const [tutarGirdisi, setTutarGirdisi] = useState<string>('100000');
+  const [tutarGirdisi, setTutarGirdisi] = useState<string>('0');
   const [aktifTaksit, setAktifTaksit] = useState<number>(12);
 
   const asilTutar: number = Number(tutarGirdisi) || 0;
