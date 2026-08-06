@@ -42,7 +42,6 @@ export default function CnetmobilMusteriTradeIn() {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Gerçek API'ne istek atılan yer. (Burayı kendi altyapına göre tutuyoruz)
         const res = await fetch('/api/sheets', { cache: 'no-store' });
         const responseData = await res.json();
 
@@ -124,7 +123,7 @@ export default function CnetmobilMusteriTradeIn() {
       <nav className="bg-white sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-[1200px] mx-auto px-4 h-20 flex items-center justify-between">
           <div onClick={() => { setStep(0); resetSelection(); }} className="flex items-center cursor-pointer">
-          <img src="/logo.png" alt="Cnetmobil Logo" className="h-12 w-auto object-contain" />
+            <img src="/logo.png" alt="Cnetmobil Logo" className="h-12 w-auto object-contain" />
           </div>
           
           <div className="hidden lg:flex items-center gap-8 text-[14px] font-semibold text-slate-700">
@@ -168,7 +167,7 @@ export default function CnetmobilMusteriTradeIn() {
                 <div className="flex items-center gap-6 mb-10 text-sm font-bold text-slate-700">
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 5 Dakikada Teklif</span>
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> Güvenli Ödeme</span>
-                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
+                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -181,24 +180,20 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-            {/* Sağ Taraf - Görseller */}
+              {/* Sağ Taraf - Görseller (Koyu Temalı Telefon Görseli İçin) */}
               <div className="flex-1 relative w-full h-[450px] hidden lg:block">
-                {/* Arkadaki parlama efekti */}
                 <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-500/20 rounded-full blur-3xl -z-10"></div>
-                
-                {/* Görselin içine oturduğu şık, oval çerçeve */}
-                <div className="w-full h-full rounded-[40px] shadow-2xl relative overflow-hidden border-4 border-white/50">
-                   
-                   {/* Yüklediğin görseli tam oturtan kod (object-cover) */}
+                <div className="w-full h-full rounded-[40px] shadow-2xl relative overflow-hidden border-4 border-white/50 bg-[#0f0a1c]">
                    <img src="/phones-mockup.png" alt="Telefonlar" className="w-full h-full object-cover scale-105" />
                    
-                   {/* Ücretsiz Kargo Rozeti (Koyu temaya uyumlu versiyon) */}
                    <div className="absolute bottom-8 left-8 bg-white/90 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-bounce">
                      <svg className="w-6 h-6 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
                      <span className="font-black text-slate-800">Ücretsiz Kargo</span>
                    </div>
                 </div>
-              </div> 
+              </div>
+
+            </div> {/* Bu flex-col kapsayıcısını kapatan </div> buydu, yüksek ihtimalle bu silindiği için hata aldın! */}
 
             {/* YATAY FORM MODÜLÜ */}
             <div className="mt-16 bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col xl:flex-row items-center gap-6 relative z-30">
