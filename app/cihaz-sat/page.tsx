@@ -124,7 +124,7 @@ export default function CnetmobilMusteriTradeIn() {
       <nav className="bg-white sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-[1200px] mx-auto px-4 h-20 flex items-center justify-between">
           <div onClick={() => { setStep(0); resetSelection(); }} className="flex items-center cursor-pointer">
-            <h1 className="text-2xl font-black tracking-tighter">Cnet<span className="font-medium">mobil</span><span className="text-[10px] block -mt-1 text-slate-500">Since 2003</span></h1>
+          <img src="/logo.png" alt="Cnetmobil Logo" className="h-12 w-auto object-contain" />
           </div>
           
           <div className="hidden lg:flex items-center gap-8 text-[14px] font-semibold text-slate-700">
@@ -186,8 +186,7 @@ export default function CnetmobilMusteriTradeIn() {
                 <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-100/50 rounded-full blur-3xl -z-10"></div>
                 {/* Not: Telefon PNG'sini public klasörüne phones-mockup.png olarak eklemelisin */}
                 <div className="w-full h-full bg-slate-200 rounded-3xl border border-slate-100 flex items-center justify-center shadow-2xl relative overflow-hidden">
-                   <span className="text-slate-400 font-medium">Telefon Görselleri (phones-mockup.png)</span>
-                   {/* <img src="/phones-mockup.png" alt="Telefonlar" className="w-full h-full object-cover" /> */}
+                  <img src="/phones-mockup.png" alt="Telefonlar" className="w-full h-full object-contain scale-110 drop-shadow-2xl" />
                    
                    {/* Ücretsiz Kargo Rozeti */}
                    <div className="absolute bottom-10 left-10 bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 animate-bounce">
