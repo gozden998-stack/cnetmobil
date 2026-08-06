@@ -181,21 +181,24 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-              {/* Sağ Taraf - Görseller */}
+            {/* Sağ Taraf - Görseller */}
               <div className="flex-1 relative w-full h-[450px] hidden lg:block">
-                <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-100/50 rounded-full blur-3xl -z-10"></div>
-                {/* Not: Telefon PNG'sini public klasörüne phones-mockup.png olarak eklemelisin */}
-                <div className="w-full h-full bg-slate-200 rounded-3xl border border-slate-100 flex items-center justify-center shadow-2xl relative overflow-hidden">
-                  <img src="/phones-mockup.png" alt="Telefonlar" className="w-full h-full object-contain scale-110 drop-shadow-2xl" />
+                {/* Arkadaki parlama efekti */}
+                <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-500/20 rounded-full blur-3xl -z-10"></div>
+                
+                {/* Görselin içine oturduğu şık, oval çerçeve */}
+                <div className="w-full h-full rounded-[40px] shadow-2xl relative overflow-hidden border-4 border-white/50">
                    
-                   {/* Ücretsiz Kargo Rozeti */}
-                   <div className="absolute bottom-10 left-10 bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 animate-bounce">
-                     <svg className="w-6 h-6 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
-                     <span className="font-bold text-slate-800">Ücretsiz Kargo</span>
+                   {/* Yüklediğin görseli tam oturtan kod (object-cover) */}
+                   <img src="/phones-mockup.png" alt="Telefonlar" className="w-full h-full object-cover scale-105" />
+                   
+                   {/* Ücretsiz Kargo Rozeti (Koyu temaya uyumlu versiyon) */}
+                   <div className="absolute bottom-8 left-8 bg-white/90 backdrop-blur-md px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-bounce">
+                     <svg className="w-6 h-6 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+                     <span className="font-black text-slate-800">Ücretsiz Kargo</span>
                    </div>
                 </div>
-              </div>
-            </div>
+              </div> 
 
             {/* YATAY FORM MODÜLÜ */}
             <div className="mt-16 bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col xl:flex-row items-center gap-6 relative z-30">
