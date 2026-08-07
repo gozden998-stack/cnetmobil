@@ -27,7 +27,7 @@ export default function CnetmobilMusteriTradeIn() {
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [estimatedPrice, setEstimatedPrice] = useState(0);
 
-  const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo"];
+  const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo", "Honor", "Vivo"];
 
   // Seçimleri Sıfırlama Fonksiyonu
   const resetSelection = () => {
