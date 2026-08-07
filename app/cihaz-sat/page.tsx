@@ -21,13 +21,13 @@ export default function CnetmobilMusteriTradeIn() {
   const [selectedCapacity, setSelectedCapacity] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // KATEGORİLER
+  // KATEGORİLER VE DİNAMİK MARKALAR
   const [answers, setAnswers] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null });
+  const [baseBrands, setBaseBrands] = useState<string[]>([]);
+  const [brandImages, setBrandImages] = useState<Record<string, string>>({});
   
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '' });
   const [estimatedPrice, setEstimatedPrice] = useState(0);
-
-  const baseBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Oppo", "Honor", "Vivo"];
 
   // Seçimleri Sıfırlama Fonksiyonu
   const resetSelection = () => {
@@ -66,6 +66,28 @@ export default function CnetmobilMusteriTradeIn() {
           });
           setConfig(m);
         }
+
+        if (allData.Markalar) {
+          const bImgs: Record<string, string> = {};
+          const bList: string[] = [];
+          
+          allData.Markalar.forEach((row: any, index: number) => {
+            // Görseldeki 1. satır başlık, onu atlıyoruz
+            if (index === 0) return; 
+            
+            const brandName = row[0] ? String(row[0]).trim() : '';
+            const logoUrl = row[1] ? String(row[1]).trim() : '';
+
+            if (brandName) {
+              bList.push(brandName);
+              if (logoUrl) bImgs[brandName] = logoUrl;
+            }
+          });
+          
+          setBaseBrands(bList);
+          setBrandImages(bImgs);
+        }
+
         setLoading(false);
       } catch (error) { 
         console.error("Veri yüklenemedi", error); 
@@ -119,7 +141,7 @@ export default function CnetmobilMusteriTradeIn() {
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 overflow-x-hidden">
       
-      {/* HEADER (Birebir Tasarım) */}
+      {/* HEADER */}
       <nav className="bg-white sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-[1200px] mx-auto px-4 h-20 flex items-center justify-between">
           <div onClick={() => { setStep(0); resetSelection(); }} className="flex items-center cursor-pointer">
@@ -146,14 +168,13 @@ export default function CnetmobilMusteriTradeIn() {
         </div>
       </nav>
 
-      {/* AÇILIŞ SAYFASI (LANDING PAGE - Görseldeki Yapı) */}
+      {/* AÇILIŞ SAYFASI */}
       {step === 0 && (
         <main className="animate-in fade-in duration-500 bg-[#fbfbfe]">
           
           <div className="max-w-[1200px] mx-auto px-4 pt-16 pb-12 relative">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
               
-              {/* Sol Taraf Metinler */}
               <div className="flex-1 z-10">
                 <h1 className="text-5xl lg:text-[64px] font-extrabold text-slate-800 leading-[1.1] mb-6">
                   Eski Telefonun <br/>
@@ -167,7 +188,7 @@ export default function CnetmobilMusteriTradeIn() {
                 <div className="flex items-center gap-6 mb-10 text-sm font-bold text-slate-700">
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 5 Dakikada Teklif</span>
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> Güvenli Ödeme</span>
-                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
+                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -180,7 +201,6 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-              {/* Sağ Taraf - Görseller (Koyu Temalı Telefon Görseli İçin) */}
               <div className="flex-1 relative w-full h-[450px] hidden lg:block">
                 <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-500/20 rounded-full blur-3xl -z-10"></div>
                 <div className="w-full h-full rounded-[40px] shadow-2xl relative overflow-hidden border-4 border-white/50 bg-[#0f0a1c]">
@@ -193,7 +213,7 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-            </div> {/* Bu flex-col kapsayıcısını kapatan </div> buydu, yüksek ihtimalle bu silindiği için hata aldın! */}
+            </div>
 
             {/* YATAY FORM MODÜLÜ */}
             <div className="mt-16 bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col xl:flex-row items-center gap-6 relative z-30">
@@ -268,8 +288,8 @@ export default function CnetmobilMusteriTradeIn() {
               <div className="flex flex-col gap-1 min-w-max">
                 <button 
                   onClick={() => {
-                    if(selectedCapacity) { setStep(4); } // Direkt 4. adıma (sorulara) atla
-                    else { setStep(1); } // Boşsa 1. adımdan başlat
+                    if(selectedCapacity) { setStep(4); }
+                    else { setStep(1); }
                   }}
                   className="bg-[#1e1b4b] hover:bg-[#312e81] text-white font-semibold py-3.5 px-6 rounded-xl transition-colors"
                 >
@@ -279,7 +299,7 @@ export default function CnetmobilMusteriTradeIn() {
               </div>
             </div>
 
-            {/* AVANTAJ KARTLARI (Grid) */}
+            {/* AVANTAJ KARTLARI */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-16">
               {[
                 { title: 'Hızlı ve Kolay', desc: 'Sadece 5 dakikada teklifini al, zaman kaybetme.', icon: '⚡', color: 'text-purple-500', bg: 'bg-purple-50' },
@@ -300,7 +320,6 @@ export default function CnetmobilMusteriTradeIn() {
               <h2 className="text-3xl font-bold text-slate-800 mb-16">4 Adımda Telefonunu Sat</h2>
               
               <div className="relative flex flex-col md:flex-row justify-between items-start max-w-4xl mx-auto gap-8">
-                {/* Kesik Çizgi */}
                 <div className="hidden md:block absolute top-6 left-[10%] right-[10%] h-[2px] border-t-2 border-dashed border-slate-200 -z-10"></div>
                 
                 {[
@@ -362,14 +381,14 @@ export default function CnetmobilMusteriTradeIn() {
         </main>
       )}
 
-      {/* --- İÇ SAYFALAR (WIZARD: MARKA, MODEL, KAPASİTE, DURUM HESAPLAMALARI) --- */}
+      {/* İÇ SAYFALAR (WIZARD) */}
       {step > 0 && (
         <div className="bg-[#f8fafc] min-h-screen pt-12 pb-32 px-4">
           <div className="max-w-4xl mx-auto text-center mb-10">
              <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
-                {[1,2,3,4,5].map((s) => (
-                   <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-[#4f46e5]' : 'bg-slate-200'}`} />
-                ))}
+               {[1,2,3,4,5].map((s) => (
+                  <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-[#4f46e5]' : 'bg-slate-200'}`} />
+               ))}
              </div>
              <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Aşama {step} / 5</p>
           </div>
@@ -377,13 +396,30 @@ export default function CnetmobilMusteriTradeIn() {
           <main className="max-w-5xl mx-auto relative z-10">
             <div className="bg-white rounded-[40px] shadow-xl p-6 md:p-12 border border-slate-100">
               
+              {/* ADIM 1: MARKA SEÇİMİ (LOGOLU VE DİNAMİK) */}
               {step === 1 && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                     {baseBrands.map(brand => (
-                      <button key={brand} onClick={() => { setSelectedBrand(brand); resetSelection(); setSelectedBrand(brand); setStep(2); }} className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
-                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>{brand}
+                      <button 
+                        key={brand} 
+                        onClick={() => { 
+                          setSelectedBrand(brand); 
+                          resetSelection(); 
+                          setSelectedBrand(brand); 
+                          setStep(2); 
+                        }} 
+                        className="p-6 md:p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900"
+                      >
+                        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform">
+                          {brandImages[brand] ? (
+                            <img src={brandImages[brand]} alt={brand} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                          ) : (
+                            <span className="text-3xl">📱</span>
+                          )}
+                        </div>
+                        {brand}
                       </button>
                     ))}
                   </div>
@@ -461,7 +497,6 @@ export default function CnetmobilMusteriTradeIn() {
                       <button disabled={!Object.values(answers).every(a => a !== null)} onClick={() => setStep(5)} className="w-full py-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[24px] font-black text-xl shadow-xl disabled:opacity-30 transition-all mt-4">Sonucu Göster</button>
                     </div>
                     
-                    {/* Sağ Taraf Özet Kartı */}
                     <div className="w-full lg:w-80 shrink-0 bg-white border-2 border-indigo-50 rounded-[32px] p-6 shadow-xl lg:sticky top-28">
                       <div className="text-center mb-6">
                          <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1">Seçilen Cihaz</h4>
@@ -525,7 +560,7 @@ export default function CnetmobilMusteriTradeIn() {
         © 2026 Cnetmobil Kurumsal Geri Alım Merkezi - Tüm Hakları Saklıdır.
       </footer>
 
-      {/* MODALLAR (Nasıl Çalışır, Güvenlik) */}
+      {/* MODALLAR */}
       {infoModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
            <div className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative">
