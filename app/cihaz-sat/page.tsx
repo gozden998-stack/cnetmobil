@@ -7,6 +7,17 @@ const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID as string;
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY as string;
 const TABLO_ISMI = 'Cihaz Sat'; 
 
+// --- MARKA LOGOLARI (Doğrudan Kod İçinde) ---
+const brandLogos: Record<string, string> = {
+  "Apple": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg",
+  "Samsung": "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg",
+  "Xiaomi": "https://upload.wikimedia.org/wikipedia/commons/a/ae/Xiaomi_logo_%282021-%29.svg",
+  "Huawei": "https://upload.wikimedia.org/wikipedia/commons/e/e4/Huawei_logo_icon.svg",
+  "Oppo": "https://upload.wikimedia.org/wikipedia/commons/b/b8/OPPO_Logo.svg",
+  "Honor": "https://upload.wikimedia.org/wikipedia/commons/6/6b/Honor_Logo.svg",
+  "Vivo": "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo_2019.svg"
+};
+
 export default function CnetmobilMusteriTradeIn() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -167,7 +178,7 @@ export default function CnetmobilMusteriTradeIn() {
                 <div className="flex items-center gap-6 mb-10 text-sm font-bold text-slate-700">
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> 5 Dakikada Teklif</span>
                   <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> Güvenli Ödeme</span>
-                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
+                  <span className="flex items-center gap-2"><svg className="w-4 h-4 text-[#4f46e5]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2v6a2 2 0 00-2 2zM9 11V7a3 3 0 016 0v4"/></svg> %100 Veri Güvenliği</span>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -180,7 +191,7 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-              {/* Sağ Taraf - Görseller (Koyu Temalı Telefon Görseli İçin) */}
+              {/* Sağ Taraf - Görseller */}
               <div className="flex-1 relative w-full h-[450px] hidden lg:block">
                 <div className="absolute top-10 right-0 w-[450px] h-[450px] bg-indigo-500/20 rounded-full blur-3xl -z-10"></div>
                 <div className="w-full h-full rounded-[40px] shadow-2xl relative overflow-hidden border-4 border-white/50 bg-[#0f0a1c]">
@@ -193,7 +204,7 @@ export default function CnetmobilMusteriTradeIn() {
                 </div>
               </div>
 
-            </div> {/* Bu flex-col kapsayıcısını kapatan </div> buydu, yüksek ihtimalle bu silindiği için hata aldın! */}
+            </div> 
 
             {/* YATAY FORM MODÜLÜ */}
             <div className="mt-16 bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col xl:flex-row items-center gap-6 relative z-30">
@@ -367,9 +378,9 @@ export default function CnetmobilMusteriTradeIn() {
         <div className="bg-[#f8fafc] min-h-screen pt-12 pb-32 px-4">
           <div className="max-w-4xl mx-auto text-center mb-10">
              <div className="flex justify-between items-center max-w-xs mx-auto mb-4">
-                {[1,2,3,4,5].map((s) => (
-                   <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-[#4f46e5]' : 'bg-slate-200'}`} />
-                ))}
+               {[1,2,3,4,5].map((s) => (
+                  <div key={s} className={`h-1.5 flex-1 mx-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-[#4f46e5]' : 'bg-slate-200'}`} />
+               ))}
              </div>
              <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Aşama {step} / 5</p>
           </div>
@@ -382,8 +393,18 @@ export default function CnetmobilMusteriTradeIn() {
                   <h2 className="text-2xl md:text-3xl font-black text-center mb-10 text-slate-800">Cihazınızın Markası Nedir?</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                     {baseBrands.map(brand => (
-                      <button key={brand} onClick={() => { setSelectedBrand(brand); resetSelection(); setSelectedBrand(brand); setStep(2); }} className="p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
-                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📱</div>{brand}
+                      <button key={brand} onClick={() => { setSelectedBrand(brand); resetSelection(); setSelectedBrand(brand); setStep(2); }} className="p-6 md:p-8 border-2 border-slate-100 rounded-[32px] hover:border-indigo-500 hover:shadow-xl transition-all font-bold text-xl bg-white flex flex-col items-center gap-4 group text-slate-900">
+                        
+                        {/* DEĞİŞİKLİK BURADA: LOGO VEYA EMOJİ GÖSTERİMİ */}
+                        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center p-2 group-hover:scale-110 transition-transform">
+                          {brandLogos[brand] ? (
+                            <img src={brandLogos[brand]} alt={brand} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                          ) : (
+                            <span className="text-3xl">📱</span>
+                          )}
+                        </div>
+                        {brand}
+
                       </button>
                     ))}
                   </div>
