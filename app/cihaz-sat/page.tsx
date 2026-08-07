@@ -10,12 +10,12 @@ const TABLO_ISMI = 'Cihaz Sat';
 // --- MARKA LOGOLARI (Doğrudan Kod İçinde) ---
 const brandLogos: Record<string, string> = {
   "Apple": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg",
-  "Samsung": "https://upload.wikimedia.org/wikipedia/commons/2/24/Samsung_Logo.svg",
+  "Samsung": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSqA-p6-kcPTtrOEPDeBVgotKVuq5pop4yolw&s",
   "Xiaomi": "https://upload.wikimedia.org/wikipedia/commons/a/ae/Xiaomi_logo_%282021-%29.svg",
-  "Huawei": "https://upload.wikimedia.org/wikipedia/commons/e/e4/Huawei_logo_icon.svg",
-  "Oppo": "https://upload.wikimedia.org/wikipedia/commons/b/b8/OPPO_Logo.svg",
-  "Honor": "https://upload.wikimedia.org/wikipedia/commons/6/6b/Honor_Logo.svg",
-  "Vivo": "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo_2019.svg"
+  "Huawei": "https://upload.wikimedia.org/wikipedia/en/thumb/0/04/Huawei_Standard_logo.svg/960px-Huawei_Standard_logo.svg.png",
+  "Oppo": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/OPPO_LOGO_2019.svg/960px-OPPO_LOGO_2019.svg.png",
+  "Honor": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSOIhLbGvwrYSxdn90Iho_XQsL8XoomSiE5bQ&s",
+  "Vivo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Vivo_logo_2019.svg/1280px-Vivo_logo_2019.svg.png"
 };
 
 export default function CnetmobilMusteriTradeIn() {
