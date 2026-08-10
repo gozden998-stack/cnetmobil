@@ -419,7 +419,7 @@ export default function CnetmobilCmrFinalUltimate() {
     // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
       loadData(); 
-    }, 300000);
+    }, 900000);
 
     return () => clearInterval(intervalId);
   }, []);
