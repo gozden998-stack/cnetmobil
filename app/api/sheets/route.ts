@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 // Vercel'in arka planda sessizce 5 dakikada bir (300 saniye) veriyi yenilemesini sağlar.
 // Bu sayede hem sayfa anında açılır hem de kota dostudur.
-export const revalidate = 300;
+export const revalidate = 900 ;
 
 export async function GET() {
   const SHEET_ID = process.env.SHEET_ID;
