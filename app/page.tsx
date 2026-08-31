@@ -116,7 +116,7 @@ export default function CnetmobilCmrFinalUltimate() {
     "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
     "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
-  ];
+  };
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
@@ -512,8 +512,9 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       const finalTrade = Math.round(finalCash * (1 + (takasDestekYuzdesi / 100)));
-      setPrices({ cash: finalCash, trade: finalTrade });
+      setPrices({ cash: finalTrade > 0 ? finalCash : 0, trade: finalTrade > 0 ? finalTrade : 0 });
       // --- YENİ EKLENEN TAKAS BAREMİ (İÇ HESAPLAMA) BİTİŞİ ---
+      
       if (customOffer && parseInt(customOffer) > finalCash) {
           setCustomOffer(finalCash.toString());
       }
@@ -2266,7 +2267,7 @@ if (!isLoggedIn) {
                     )}
 
                     <div className="bg-slate-900 p-8 rounded-[32px] space-y-4 shadow-2xl">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜNÜ SEÇİN</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">1. İŞLEM TÜRÜN SEÇİN</p>
                       
                       <div className="flex gap-3">
                           <button 
