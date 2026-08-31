@@ -82,6 +82,10 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
   
+  // --- KASKO EKLENTİSİ ---
+  const [isKaskoModalOpen, setIsKaskoModalOpen] = useState(false);
+  const [kaskoAmount, setKaskoAmount] = useState('');
+
   const [adminSelectedBranch, setAdminSelectedBranch] = useState<string>('TÜM ŞUBELER');
   const [dateFilterType, setDateFilterType] = useState<string>('TÜM ZAMANLAR');
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -112,7 +116,7 @@ export default function CnetmobilCmrFinalUltimate() {
     "Realme": { logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/Realme-Logo.png" },
     "Vivo": { logo: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Vivo_logo.svg" },
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
-  };
+  ];
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
@@ -1134,10 +1138,16 @@ if (!isLoggedIn) {
 
           <div className="flex items-center gap-3 lg:gap-6 shrink-0">
             {!isZumay && step < 99 && (
-              <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                Taksit Hesapla
-              </button>
+              <>
+                <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                  Taksit Hesapla
+                </button>
+                <button onClick={() => setIsKaskoModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                  Kasko Hesapla
+                </button>
+              </>
             )}
 
             <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
@@ -2413,6 +2423,99 @@ if (!isLoggedIn) {
                 <div className="h-full flex flex-col items-center justify-center opacity-40 py-10 text-slate-900">
                   <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0-2.08-.402-2.599-1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>tutar giriniz</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KASKO MODALI */}
+      {isKaskoModalOpen && !isZumay && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="bg-purple-50 text-purple-600 w-12 h-12 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Kasko Hesaplama</h2>
+                </div>
+              </div>
+              <button onClick={() => { setIsKaskoModalOpen(false); setKaskoAmount(''); }} className="bg-slate-100 p-3 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="mb-6 shrink-0 space-y-4">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                  <span className="text-slate-400 font-black text-xl">₺</span>
+                </div>
+                <input type="number" placeholder="Cihaz Tutarını Giriniz..." value={kaskoAmount} onChange={(e) => setKaskoAmount(e.target.value)} className="w-full py-6 pl-12 pr-6 bg-slate-50 rounded-3xl text-2xl font-black border border-slate-200 outline-none focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-50 transition-all text-slate-800" />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+              {kaskoAmount && Number(kaskoAmount) > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* SILVER */}
+                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 25000 ? 'bg-white border-slate-200 shadow-sm hover:border-slate-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="text-sm font-black text-slate-500 uppercase tracking-widest">Silver Paket</div>
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold">S</div>
+                    </div>
+                    {Number(kaskoAmount) <= 25000 ? (
+                      <>
+                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
+                          {(Number(kaskoAmount) * 0.175).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %17.5</div>
+                      </>
+                    ) : (
+                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 25B)</div>
+                    )}
+                  </div>
+                  {/* GOLD */}
+                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 60000 ? 'bg-amber-50/30 border-amber-200 shadow-sm hover:border-amber-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="text-sm font-black text-amber-600 uppercase tracking-widest">Gold Paket</div>
+                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold">G</div>
+                    </div>
+                    {Number(kaskoAmount) <= 60000 ? (
+                      <>
+                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
+                          {(Number(kaskoAmount) * 0.135).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %13.5</div>
+                      </>
+                    ) : (
+                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 60B)</div>
+                    )}
+                  </div>
+                  {/* PLATINUM */}
+                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 170000 ? 'bg-indigo-50/30 border-indigo-200 shadow-sm hover:border-indigo-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="text-sm font-black text-indigo-600 uppercase tracking-widest">Platin Paket</div>
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">P</div>
+                    </div>
+                    {Number(kaskoAmount) <= 170000 ? (
+                      <>
+                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
+                          {(Number(kaskoAmount) * 0.11).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %11</div>
+                      </>
+                    ) : (
+                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 170B)</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center opacity-40 py-10 text-slate-900">
+                  <svg className="w-20 h-20 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                  <p className="text-lg font-black uppercase tracking-widest text-center">Hesaplama için<br/>cihaz tutarı giriniz</p>
                 </div>
               )}
             </div>
