@@ -2431,7 +2431,7 @@ if (!isLoggedIn) {
         </div>
       )}
 
-      {/* KASKO MODALI */}
+    {/* KASKO MODALI */}
       {isKaskoModalOpen && !isZumay && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
@@ -2460,58 +2460,99 @@ if (!isLoggedIn) {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
               {kaskoAmount && Number(kaskoAmount) > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* SILVER */}
-                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 25000 ? 'bg-white border-slate-200 shadow-sm hover:border-slate-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="text-sm font-black text-slate-500 uppercase tracking-widest">Silver Paket</div>
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold">S</div>
-                    </div>
-                    {Number(kaskoAmount) <= 25000 ? (
-                      <>
-                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
-                          {(Number(kaskoAmount) * 0.175).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %17.5</div>
-                      </>
-                    ) : (
-                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 25B)</div>
-                    )}
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {(() => {
+                      const val = Number(kaskoAmount);
+                      
+                      // Paket Aralıkları (Kesin Sınırlar)
+                      const isSilver = val > 0 && val <= 25000;
+                      const isGold = val > 25000 && val <= 60000;
+                      const isPlatin = val > 60000 && val <= 170000;
+
+                      // Minimum Fiyat Güvenlikleri (Math.max hesaplaması)
+                      const silverPrice = Math.max(val * 0.175, 2750);
+                      const goldPrice = Math.max(val * 0.135, 3750);
+                      const platinPrice = Math.max(val * 0.11, 7500);
+
+                      return (
+                        <>
+                          {/* SILVER PAKET */}
+                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isSilver ? 'bg-white border-slate-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                              <div className="text-sm font-black text-slate-600 uppercase tracking-widest">Silver Paket</div>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isSilver ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-400'}`}>S</div>
+                            </div>
+                            {isSilver ? (
+                              <div className="animate-in fade-in duration-300">
+                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                  {silverPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                                </div>
+                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 inline-block px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                  MİNİMUM BAREM: 2.750 TL
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-black text-slate-400 uppercase mt-4 leading-relaxed">
+                                Bu paket <br/><span className="text-slate-500 text-sm">0 - 25.000 TL</span><br/>arası içindir.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* GOLD PAKET */}
+                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isGold ? 'bg-amber-50/50 border-amber-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                              <div className="text-sm font-black text-amber-600 uppercase tracking-widest">Gold Paket</div>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isGold ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>G</div>
+                            </div>
+                            {isGold ? (
+                              <div className="animate-in fade-in duration-300">
+                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                  {goldPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                                </div>
+                                <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest bg-amber-100 inline-block px-2.5 py-1.5 rounded-lg border border-amber-200">
+                                  MİNİMUM BAREM: 3.750 TL
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-black text-slate-400 uppercase mt-4 leading-relaxed">
+                                Bu paket <br/><span className="text-slate-500 text-sm">25.001 - 60.000 TL</span><br/>arası içindir.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* PLATIN PAKET */}
+                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isPlatin ? 'bg-indigo-50/50 border-indigo-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                              <div className="text-sm font-black text-indigo-600 uppercase tracking-widest">Platin Paket</div>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isPlatin ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-400'}`}>P</div>
+                            </div>
+                            {isPlatin ? (
+                              <div className="animate-in fade-in duration-300">
+                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                  {platinPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
+                                </div>
+                                <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest bg-indigo-100 inline-block px-2.5 py-1.5 rounded-lg border border-indigo-200">
+                                  MİNİMUM BAREM: 7.500 TL
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-black text-slate-400 uppercase mt-4 leading-relaxed">
+                                Bu paket <br/><span className="text-slate-500 text-sm">60.001 - 170.000 TL</span><br/>arası içindir.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
-                  {/* GOLD */}
-                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 60000 ? 'bg-amber-50/30 border-amber-200 shadow-sm hover:border-amber-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="text-sm font-black text-amber-600 uppercase tracking-widest">Gold Paket</div>
-                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold">G</div>
+                  
+                  {/* LİMİT AŞIMI UYARISI */}
+                  {Number(kaskoAmount) > 170000 && (
+                    <div className="bg-red-50 border-2 border-red-200 text-red-600 p-4 rounded-2xl text-center font-black uppercase tracking-widest text-xs animate-in fade-in">
+                      Maksimum sistem kasko bedeli (170.000 TL) aşıldı!
                     </div>
-                    {Number(kaskoAmount) <= 60000 ? (
-                      <>
-                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
-                          {(Number(kaskoAmount) * 0.135).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %13.5</div>
-                      </>
-                    ) : (
-                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 60B)</div>
-                    )}
-                  </div>
-                  {/* PLATINUM */}
-                  <div className={`p-6 rounded-[28px] border-2 transition-all ${Number(kaskoAmount) <= 170000 ? 'bg-indigo-50/30 border-indigo-200 shadow-sm hover:border-indigo-400' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="text-sm font-black text-indigo-600 uppercase tracking-widest">Platin Paket</div>
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">P</div>
-                    </div>
-                    {Number(kaskoAmount) <= 170000 ? (
-                      <>
-                        <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-2">
-                          {(Number(kaskoAmount) * 0.11).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Çarpan: %11</div>
-                      </>
-                    ) : (
-                      <div className="text-sm font-black text-red-500 uppercase mt-4">Limit Aşıldı (Max 170B)</div>
-                    )}
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center opacity-40 py-10 text-slate-900">
@@ -2523,7 +2564,6 @@ if (!isLoggedIn) {
           </div>
         </div>
       )}
-
       {/* EKSPERTİZ DETAY MODALI */}
       {ekspertizModalData && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
