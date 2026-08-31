@@ -2471,7 +2471,7 @@ if (!isLoggedIn) {
                       const isPlatin = val > 60000 && val <= 170000;
 
                       // Minimum Fiyat Güvenlikleri (Math.max hesaplaması)
-                      const silverPrice = Math.max(val * 0.175, 2750);
+                      const silverPrice = Math.max(val * 0.175, 2250);
                       const goldPrice = Math.max(val * 0.135, 3750);
                       const platinPrice = Math.max(val * 0.11, 7500);
 
