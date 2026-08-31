@@ -1661,12 +1661,18 @@ if (!isLoggedIn) {
                   </div>
               </div>
               
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
+              <div className="max-w-4xl mx-auto overflow-x-auto custom-scrollbar pb-2">
+                <div className="min-w-[450px]">
                   <div className={`${isZumay ? 'bg-red-600' : 'bg-teal-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    <div className={`flex-1 text-center border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pl-2`}>FİYATI (TL)</div>
-                    <div className={`flex-[2] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-2`}>DURUM / BİLGİ</div>
+                    <div className={`flex-[1.5] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-4`}>FİYATI (TL)</div>
+                    
+                    {/* SADECE VODAFONE KANALINDA GÖZÜKEN BAŞLIK (C SÜTUNU) */}
+                    {selectedBranch === 'VODAFONE KANALI' && (
+                       <div className="flex-[1.5] text-right border-l border-teal-500/50 pr-4 text-purple-200">
+                          VODAFONE SATIN ALMA
+                       </div>
+                    )}
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
@@ -1678,8 +1684,16 @@ if (!isLoggedIn) {
                               {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-500' : 'bg-teal-500'}`}></span>}
                               {row[0]}
                           </div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[2] || '-'}</div>
+                          
+                          {/* B SÜTUNU: NORMAL FİYAT */}
+                          <div className={`flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
+                          
+                          {/* C SÜTUNU: SADECE VODAFONE KANALINDA GÖZÜKEN FİYAT */}
+                          {selectedBranch === 'VODAFONE KANALI' && (
+                             <div className="flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 text-purple-600 bg-purple-50/50">
+                                {row[2] || '-'}
+                             </div>
+                          )}
                         </div>
                     )})}
                   </div>
