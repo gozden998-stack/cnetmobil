@@ -1876,7 +1876,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-   appMode === 'cihaz_talep' && step < 99 ? (
+   {appMode === 'cihaz_talep' && step < 99 ? (
   <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
     
     {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
@@ -1919,7 +1919,7 @@ if (!isLoggedIn) {
       <div className="overflow-x-auto custom-scrollbar">
         <div className="min-w-[1100px]">
           
-          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Hizalama) */}
+          {/* TABLO BAŞLIĞI */}
           <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
             <div className="col-span-2">MARKA MODEL</div>
             <div className="col-span-2">HAFIZA / RENK</div>
@@ -1941,7 +1941,7 @@ if (!isLoggedIn) {
               const garanti = row[5] || '';
               const degisenParca = row[6] || '';
               const kutuFatura = row[7] || '';
-              const talepEdenMagaza = row[8] || ''; // I Sütunu (Talep Eden Mağaza)
+              const talepEdenMagaza = row[8] || '';
 
               let gradeStyle = "bg-slate-100 text-slate-600";
               if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
@@ -1953,12 +1953,12 @@ if (!isLoggedIn) {
               return (
                 <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                   
-                  {/* A: MARKA MODEL (col-span-2) */}
+                  {/* A: MARKA MODEL */}
                   <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
                     {markaModel}
                   </div>
                   
-                  {/* B & C: HAFIZA & RENK (col-span-2) */}
+                  {/* B & C: HAFIZA & RENK */}
                   <div className="col-span-2 flex flex-col pr-2">
                     <span className="font-bold text-slate-700 text-xs">{hafiza}</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -1967,32 +1967,32 @@ if (!isLoggedIn) {
                     </div>
                   </div>
                   
-                  {/* D: PİL (col-span-1) */}
+                  {/* D: PİL */}
                   <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
                     <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
                   </div>
                   
-                  {/* E: GRADE (col-span-1) */}
+                  {/* E: GRADE */}
                   <div className="col-span-1 text-center">
                     <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
                   </div>
                   
-                  {/* F: GARANTİ (col-span-2) */}
+                  {/* F: GARANTİ */}
                   <div className="col-span-2 text-center font-bold text-slate-600 text-xs px-1">
                     {garanti || '-'}
                   </div>
 
-                  {/* G: DEĞİŞEN PARÇA (col-span-2) */}
+                  {/* G: DEĞİŞEN PARÇA */}
                   <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
                     {degisenParca || 'Orijinal / Yok'}
                   </div>
 
-                  {/* H: KUTU FATURA (col-span-1) */}
+                  {/* H: KUTU FATURA */}
                   <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {kutuFatura || '-'}
                   </div>
                   
-                  {/* İŞLEM / TALEP OLUŞTUR VEYA MAĞAZA ADI (col-span-1) */}
+                  {/* İŞLEM / TALEP OLUŞTUR */}
                   <div className="col-span-1 text-right">
                     {talepEdenMagaza ? (
                       <span className="inline-block bg-indigo-50 text-indigo-700 px-2.5 py-1.5 rounded-xl text-[9px] font-black tracking-wider truncate max-w-[110px]" title={talepEdenMagaza}>
@@ -2024,9 +2024,9 @@ if (!isLoggedIn) {
       </div>
     </div>
   </div>
-) : null
+) : null}
+
     
-          
           /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
