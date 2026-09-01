@@ -1959,12 +1959,11 @@ export default function CnetmobilCmrFinalUltimate() {
                         const kutuFatura = row[7] || '';
                         
                         let isRequested = false;
-                        const mevcutTalepler = (row[8] || '').toString().toUpperCase();
-                        
-                        if (mevcutTalepler.includes(selectedBranch.toUpperCase())) {
-                            isRequested = true;
+                         const mevcutTalepler = (row[8] || '').toString().trim();
+                         if (mevcutTalepler !== "") {
+                         isRequested = true; // Herhangi bir şube talep attıysa kilitlenir!
+                            
                         }
-
                         if (typeof window !== 'undefined' && !isRequested) {
                             const kayitStr = localStorage.getItem(`talep_${selectedBranch}_${rowIndex}`);
                             if (kayitStr) {
