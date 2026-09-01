@@ -27,7 +27,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
@@ -40,6 +40,13 @@ export default function CnetmobilCmrFinalUltimate() {
   };
   const [thhForm, setThhForm] = useState(initialThhForm);
   const [thhSaving, setThhSaving] = useState(false);
+
+  // --- CİHAZ TALEP STATE'LERİ ---
+  const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
+  const [talepModalOpen, setTalepModalOpen] = useState(false);
+  const [seciliTalep, setSeciliTalep] = useState<any>(null);
+  const [talepAdet, setTalepAdet] = useState(1);
+  const [talepSaving, setTalepSaving] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -379,6 +386,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.DisKanal) setDisKanalData(allData.DisKanal);
       if (allData.IkinciEl) setIkinciElData(allData.IkinciEl);
       if (allData.THH) setThhData(allData.THH);
+      if (allData.CihazTalep) setCihazTalepData(allData.CihazTalep);
       
       // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
@@ -608,6 +616,34 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
+  // --- CİHAZ TALEP İŞLEMİ (EKLENDİ) ---
+  const handleTalepGonder = async () => {
+    if (!seciliTalep || talepAdet < 1) return;
+    if (talepAdet > seciliTalep.stok) return alert("Stok miktarından fazla talep edemezsiniz!");
+    
+    setTalepSaving(true);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ 
+           type: "SAVE_TALEP", 
+           rowIndex: seciliTalep.rowIndex, 
+           branch: selectedBranch,
+           adet: talepAdet
+        })
+      });
+      alert(`${talepAdet} Adet ${seciliTalep.model} talebiniz merkeze iletildi!`);
+      setTalepModalOpen(false);
+      setSeciliTalep(null);
+      setTalepAdet(1);
+      setTimeout(refreshDataCache, 1500); // Tabloyu güncelle
+    } catch (e) {
+      alert("Talep gönderilirken hata oluştu.");
+    }
+    setTalepSaving(false);
+  };
+
   // --- THH FONKSİYONLARI BAŞLANGICI ---
   const handleClearThhForm = () => setThhForm(initialThhForm);
 
@@ -815,6 +851,8 @@ export default function CnetmobilCmrFinalUltimate() {
             { id: 'ikinci_el_android', label: 'Android Liste' }
           ]
         },
+        // CİHAZ TALEP MENÜYE EKLENDİ
+        { id: 'cihaz_talep', label: 'Cihaz Talep', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
     }
@@ -1837,6 +1875,178 @@ if (!isLoggedIn) {
               </div>
             </div>
           ) :
+
+          appMode === 'cihaz_talep' && step < 99 ? (
+            <div className="w-full max-w-[1400px] mx-auto animate-in fade-in duration-500">
+              
+              {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
+                    <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz stoğunu görüntüleyin ve talep oluşturun.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[160px]">
+                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM CİHAZ</p>
+                      <p className="text-xl font-black text-slate-800">{cihazTalepData.slice(1).reduce((acc, row) => acc + (Number(row[5]) || 0), 0)} <span className="text-sm font-bold text-slate-400">Adet</span></p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[160px]">
+                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">UYGUN CİHAZ</p>
+                      <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[6]||'').toLowerCase() === 'uygun').length} <span className="text-sm font-bold text-emerald-500">Adet</span></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TABLO */}
+              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar">
+                  <div className="min-w-[900px]">
+                    
+                    <div className="flex items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+                      <div className="w-[100px] shrink-0">MARKA</div>
+                      <div className="flex-[2] shrink-0">MODEL</div>
+                      <div className="flex-1 shrink-0">HAFIZA</div>
+                      <div className="flex-1 shrink-0">RENK</div>
+                      <div className="flex-1 shrink-0">GRADE</div>
+                      <div className="flex-1 shrink-0 text-center">STOK ADET</div>
+                      <div className="flex-1 shrink-0 text-center">DURUM</div>
+                      <div className="w-[140px] shrink-0 text-right pr-2">TALEP OLUŞTUR</div>
+                    </div>
+
+                    <div className="flex flex-col">
+                      {cihazTalepData.slice(1).map((row, i) => {
+                        const marka = row[0] || '';
+                        const model = row[1] || '';
+                        const hafiza = row[2] || '';
+                        const renk = row[3] || '';
+                        const grade = (row[4] || '').toUpperCase();
+                        const stok = Number(row[5]) || 0;
+                        const durum = row[6] || '';
+                        
+                        const logo = brandAssets[marka]?.logo || (marka.toLowerCase() === 'apple' ? brandAssets['Apple'].logo : brandAssets['Samsung']?.logo);
+
+                        let gradeStyle = "bg-slate-100 text-slate-600";
+                        if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
+                        if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
+                        if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
+
+                        const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
+
+                        return (
+                          <div key={i} className="flex items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                            
+                            <div className="w-[100px] shrink-0">
+                               <img src={logo} className="w-8 h-8 object-contain opacity-80" alt={marka} />
+                            </div>
+                            
+                            <div className="flex-[2] shrink-0 flex flex-col">
+                               <span className="text-[10px] font-bold text-slate-400">{marka}</span>
+                               <span className="text-sm font-black text-slate-800">{model}</span>
+                            </div>
+                            
+                            <div className="flex-1 shrink-0 font-bold text-slate-700 text-xs">
+                               {hafiza}
+                            </div>
+                            
+                            <div className="flex-1 shrink-0 flex items-center gap-2">
+                               <div className="w-3 h-3 rounded-full shadow-inner" style={{backgroundColor: colorCode}}></div>
+                               <span className="font-bold text-slate-600 text-xs">{renk}</span>
+                            </div>
+                            
+                            <div className="flex-1 shrink-0">
+                               <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade}</span>
+                            </div>
+                            
+                            <div className="flex-1 shrink-0 text-center font-black text-blue-600 text-sm">
+                               {stok}
+                            </div>
+                            
+                            <div className="flex-1 shrink-0 flex justify-center items-center gap-1.5">
+                               <div className={`w-1.5 h-1.5 rounded-full ${durum.toLowerCase() === 'uygun' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                               <span className={`text-[11px] font-bold ${durum.toLowerCase() === 'uygun' ? 'text-emerald-600' : 'text-red-500'}`}>{durum}</span>
+                            </div>
+                            
+                            <div className="w-[140px] shrink-0 text-right">
+                               <button 
+                                 disabled={stok < 1}
+                                 onClick={() => {
+                                    setSeciliTalep({rowIndex: i + 2, model: `${marka} ${model} ${hafiza}`, stok: stok});
+                                    setTalepAdet(1);
+                                    setTalepModalOpen(true);
+                                 }}
+                                 className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent px-5 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all btn-click"
+                               >
+                                 TALEP OL
+                               </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      
+                      {cihazTalepData.length <= 1 && (
+                         <div className="text-center py-12 text-slate-400 text-sm font-bold">Talep edilebilecek cihaz bulunamadı.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TALEP MODALI */}
+              {talepModalOpen && seciliTalep && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                  <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-md border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Cihaz Talebi</h3>
+                      <button onClick={() => setTalepModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-slate-50 p-2 rounded-xl transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+
+                    <div className="text-center mb-6">
+                       <p className="text-[10px] font-black text-slate-400 tracking-widest uppercase mb-1">Seçili Cihaz</p>
+                       <p className="text-xl font-black text-blue-600">{seciliTalep.model}</p>
+                       <p className="text-xs font-bold text-slate-500 mt-2">Mevcut Stok: <span className="text-slate-800 font-black">{seciliTalep.stok} Adet</span></p>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-4 mb-8">
+                       <button onClick={() => setTalepAdet(prev => Math.max(1, prev - 1))} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 font-black text-2xl hover:bg-slate-100 btn-click flex items-center justify-center">-</button>
+                       <input type="number" value={talepAdet} onChange={(e) => setTalepAdet(Math.min(seciliTalep.stok, Math.max(1, Number(e.target.value))))} className="w-20 h-12 text-center text-xl font-black border-2 border-blue-500 rounded-2xl outline-none text-slate-800" />
+                       <button onClick={() => setTalepAdet(prev => Math.min(seciliTalep.stok, prev + 1))} className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 font-black text-2xl hover:bg-blue-100 btn-click flex items-center justify-center">+</button>
+                    </div>
+
+                    <button 
+                      onClick={handleTalepGonder} 
+                      disabled={talepSaving}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs tracking-widest uppercase py-4 rounded-2xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 btn-click flex justify-center items-center gap-2"
+                    >
+                      {talepSaving ? (
+                        <>İşleniyor...</>
+                      ) : (
+                        <>TALEBİ MERKEZE İLET</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) :
           
           /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
@@ -2445,7 +2655,7 @@ if (!isLoggedIn) {
         </div>
       )}
 
-    {/* KASKO MODALI */}
+   {/* KASKO MODALI */}
       {isKaskoModalOpen && !isZumay && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
