@@ -1876,7 +1876,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-     appMode === 'cihaz_talep' && step < 99 ? (
+   appMode === 'cihaz_talep' && step < 99 ? (
   <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
     
     {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
@@ -1919,7 +1919,7 @@ if (!isLoggedIn) {
       <div className="overflow-x-auto custom-scrollbar">
         <div className="min-w-[1100px]">
           
-          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Dağılım) */}
+          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Hizalama) */}
           <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
             <div className="col-span-2">MARKA MODEL</div>
             <div className="col-span-2">HAFIZA / RENK</div>
@@ -2002,11 +2002,11 @@ if (!isLoggedIn) {
                       <button 
                         onClick={() => {
                           if (window.confirm(`${markaModel} (${hafiza} - ${renk}) cihazını talep etmek istediğinize emin misiniz?`)) {
-                            // Talep gönderme fonksiyonunuz (Örn: magazaAdi değişkeniniz ile)
                             handleTekTikTalep(i + 2, markaModel);
                           }
                         }}
-                        className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
+                        disabled={talepSaving}
+                        className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-50"
                       >
                         TALEP OL
                       </button>
@@ -2024,7 +2024,8 @@ if (!isLoggedIn) {
       </div>
     </div>
   </div>
-) :
+) : null
+    
           
           /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
