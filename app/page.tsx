@@ -1876,7 +1876,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-       appMode === 'cihaz_talep' && step < 99 ? (
+     appMode === 'cihaz_talep' && step < 99 ? (
   <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
     
     {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
@@ -1887,7 +1887,7 @@ if (!isLoggedIn) {
         </div>
         <div>
           <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-          <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
+          <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve tek tıkla talep oluşturun.</p>
         </div>
       </div>
 
@@ -1907,8 +1907,8 @@ if (!isLoggedIn) {
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
           <div>
-            <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">AKTİF TALEPLER</p>
-            <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Kayıt</span></p>
+            <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">TALEP EDİLEN</p>
+            <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Adet</span></p>
           </div>
         </div>
       </div>
@@ -1925,10 +1925,9 @@ if (!isLoggedIn) {
             <div className="col-span-2">HAFIZA / RENK</div>
             <div className="col-span-1 text-center">PİL</div>
             <div className="col-span-1 text-center">GRADE</div>
-            <div className="col-span-1 text-center">GARANTİ</div>
+            <div className="col-span-2 text-center">GARANTİ</div>
             <div className="col-span-2">DEĞİŞEN PARÇA</div>
             <div className="col-span-1 text-center">KUTU FATURA</div>
-            <div className="col-span-1 text-center">TALEPLER</div>
             <div className="col-span-1 text-right pr-2">İŞLEM</div>
           </div>
 
@@ -1942,7 +1941,7 @@ if (!isLoggedIn) {
               const garanti = row[5] || '';
               const degisenParca = row[6] || '';
               const kutuFatura = row[7] || '';
-              const talepler = row[8] || ''; // I Sütunu (Talepler)
+              const talepEdenMagaza = row[8] || ''; // I Sütunu (Talep Eden Mağaza)
 
               let gradeStyle = "bg-slate-100 text-slate-600";
               if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
@@ -1978,8 +1977,8 @@ if (!isLoggedIn) {
                     <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
                   </div>
                   
-                  {/* F: GARANTİ (col-span-1) */}
-                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
+                  {/* F: GARANTİ (col-span-2) */}
+                  <div className="col-span-2 text-center font-bold text-slate-600 text-xs px-1">
                     {garanti || '-'}
                   </div>
 
@@ -1992,30 +1991,26 @@ if (!isLoggedIn) {
                   <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {kutuFatura || '-'}
                   </div>
-
-                  {/* I: TALEPLER (col-span-1) */}
-                  <div className="col-span-1 text-center">
-                    {talepler ? (
-                      <span className="inline-block bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-black truncate max-w-[90px]" title={talepler}>
-                        {talepler}
+                  
+                  {/* İŞLEM / TALEP OLUŞTUR VEYA MAĞAZA ADI (col-span-1) */}
+                  <div className="col-span-1 text-right">
+                    {talepEdenMagaza ? (
+                      <span className="inline-block bg-indigo-50 text-indigo-700 px-2.5 py-1.5 rounded-xl text-[9px] font-black tracking-wider truncate max-w-[110px]" title={talepEdenMagaza}>
+                        {talepEdenMagaza}
                       </span>
                     ) : (
-                      <span className="text-slate-300 text-xs">-</span>
+                      <button 
+                        onClick={() => {
+                          if (window.confirm(`${markaModel} (${hafiza} - ${renk}) cihazını talep etmek istediğinize emin misiniz?`)) {
+                            // Talep gönderme fonksiyonunuz (Örn: magazaAdi değişkeniniz ile)
+                            handleTekTikTalep(i + 2, markaModel);
+                          }
+                        }}
+                        className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
+                      >
+                        TALEP OL
+                      </button>
                     )}
-                  </div>
-                  
-                  {/* İŞLEM / TALEP OLUŞTUR (col-span-1) */}
-                  <div className="col-span-1 text-right">
-                    <button 
-                      onClick={() => {
-                        setSeciliTalep({rowIndex: i + 2, model: `${markaModel} (${hafiza} - ${renk})`});
-                        setTalepAdet(1);
-                        setTalepModalOpen(true);
-                      }}
-                      className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
-                    >
-                      TALEP OL
-                    </button>
                   </div>
                 </div>
               )
@@ -2028,43 +2023,6 @@ if (!isLoggedIn) {
         </div>
       </div>
     </div>
-
-    {/* TALEP MODALI */}
-    {talepModalOpen && seciliTalep && (
-      <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-        <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-md border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
-          <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Cihaz Talebi</h3>
-            <button onClick={() => setTalepModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-slate-50 p-2 rounded-xl transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-
-          <div className="text-center mb-6">
-             <p className="text-[10px] font-black text-slate-400 tracking-widest uppercase mb-1">Seçili Cihaz</p>
-             <p className="text-xl font-black text-blue-600">{seciliTalep.model}</p>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 mb-8">
-             <button onClick={() => setTalepAdet(prev => Math.max(1, prev - 1))} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 font-black text-2xl hover:bg-slate-100 btn-click flex items-center justify-center">-</button>
-             <input type="number" value={talepAdet} onChange={(e) => setTalepAdet(Math.max(1, Number(e.target.value)))} className="w-20 h-12 text-center text-xl font-black border-2 border-blue-500 rounded-2xl outline-none text-slate-800" />
-             <button onClick={() => setTalepAdet(prev => prev + 1)} className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 font-black text-2xl hover:bg-blue-100 btn-click flex items-center justify-center">+</button>
-          </div>
-
-          <button 
-            onClick={handleTalepGonder} 
-            disabled={talepSaving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs tracking-widest uppercase py-4 rounded-2xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 btn-click flex justify-center items-center gap-2"
-          >
-            {talepSaving ? (
-              <>İşleniyor...</>
-            ) : (
-              <>TALEBİ MERKEZE İLET</>
-            )}
-          </button>
-        </div>
-      </div>
-    )}
   </div>
 ) :
           
