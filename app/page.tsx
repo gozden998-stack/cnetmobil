@@ -1876,7 +1876,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-        appMode === 'cihaz_talep' && step < 99 ? (
+       appMode === 'cihaz_talep' && step < 99 ? (
   <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
     
     {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
@@ -1919,16 +1919,17 @@ if (!isLoggedIn) {
       <div className="overflow-x-auto custom-scrollbar">
         <div className="min-w-[1100px]">
           
-          <div className="grid grid-cols-9 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-            <div>MARKA MODEL</div>
-            <div>HAFIZA / RENK</div>
-            <div className="text-center">PİL</div>
-            <div className="text-center">GRADE</div>
-            <div className="text-center">GARANTİ</div>
-            <div>DEĞİŞEN PARÇA</div>
-            <div className="text-center">KUTU FATURA</div>
-            <div className="text-center">TALEPLER</div>
-            <div className="text-right pr-2">İŞLEM</div>
+          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Dağılım) */}
+          <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+            <div className="col-span-2">MARKA MODEL</div>
+            <div className="col-span-2">HAFIZA / RENK</div>
+            <div className="col-span-1 text-center">PİL</div>
+            <div className="col-span-1 text-center">GRADE</div>
+            <div className="col-span-1 text-center">GARANTİ</div>
+            <div className="col-span-2">DEĞİŞEN PARÇA</div>
+            <div className="col-span-1 text-center">KUTU FATURA</div>
+            <div className="col-span-1 text-center">TALEPLER</div>
+            <div className="col-span-1 text-right pr-2">İŞLEM</div>
           </div>
 
           <div className="flex flex-col">
@@ -1951,51 +1952,51 @@ if (!isLoggedIn) {
               const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
 
               return (
-                <div key={i} className="grid grid-cols-9 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                   
-                  {/* A: MARKA MODEL */}
-                  <div className="font-black text-slate-800 text-xs">
+                  {/* A: MARKA MODEL (col-span-2) */}
+                  <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
                     {markaModel}
                   </div>
                   
-                  {/* B & C: HAFIZA & RENK */}
-                  <div className="flex flex-col">
+                  {/* B & C: HAFIZA & RENK (col-span-2) */}
+                  <div className="col-span-2 flex flex-col pr-2">
                     <span className="font-bold text-slate-700 text-xs">{hafiza}</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                      <span className="text-[11px] font-medium text-slate-500">{renk}</span>
+                      <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
                     </div>
                   </div>
                   
-                  {/* D: PİL */}
-                  <div className="text-center font-bold text-slate-700 text-xs">
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-md">{pil}</span>
+                  {/* D: PİL (col-span-1) */}
+                  <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
+                    <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
                   </div>
                   
-                  {/* E: GRADE */}
-                  <div className="text-center">
-                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
+                  {/* E: GRADE (col-span-1) */}
+                  <div className="col-span-1 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
                   </div>
                   
-                  {/* F: GARANTİ */}
-                  <div className="text-center font-bold text-slate-600 text-xs">
+                  {/* F: GARANTİ (col-span-1) */}
+                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {garanti || '-'}
                   </div>
 
-                  {/* G: DEĞİŞEN PARÇA */}
-                  <div className="font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
+                  {/* G: DEĞİŞEN PARÇA (col-span-2) */}
+                  <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
                     {degisenParca || 'Orijinal / Yok'}
                   </div>
 
-                  {/* H: KUTU FATURA */}
-                  <div className="text-center font-bold text-slate-600 text-xs">
+                  {/* H: KUTU FATURA (col-span-1) */}
+                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {kutuFatura || '-'}
                   </div>
 
-                  {/* I: TALEPLER */}
-                  <div className="text-center">
+                  {/* I: TALEPLER (col-span-1) */}
+                  <div className="col-span-1 text-center">
                     {talepler ? (
-                      <span className="inline-block bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg text-[10px] font-black truncate max-w-[120px]" title={talepler}>
+                      <span className="inline-block bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-black truncate max-w-[90px]" title={talepler}>
                         {talepler}
                       </span>
                     ) : (
@@ -2003,15 +2004,15 @@ if (!isLoggedIn) {
                     )}
                   </div>
                   
-                  {/* İŞLEM / TALEP OLUŞTUR */}
-                  <div className="text-right">
+                  {/* İŞLEM / TALEP OLUŞTUR (col-span-1) */}
+                  <div className="col-span-1 text-right">
                     <button 
                       onClick={() => {
                         setSeciliTalep({rowIndex: i + 2, model: `${markaModel} (${hafiza} - ${renk})`});
                         setTalepAdet(1);
                         setTalepModalOpen(true);
                       }}
-                      className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all btn-click"
+                      className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
                     >
                       TALEP OL
                     </button>
