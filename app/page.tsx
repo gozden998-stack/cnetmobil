@@ -44,6 +44,7 @@ export default function CnetmobilCmrFinalUltimate() {
   // --- CİHAZ TALEP STATE'LERİ ---
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
   const [talepSaving, setTalepSaving] = useState(false);
+  const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
@@ -628,6 +629,33 @@ export default function CnetmobilCmrFinalUltimate() {
       alert("Talep gönderilirken hata oluştu.");
     }
     setTalepSaving(false);
+  };
+
+  const handleGonderildi = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+    if (!isAdmin && !isMasterAccess) {
+      alert("Bu işlemi yalnızca yöneticiler gerçekleştirebilir!");
+      return;
+    }
+    if (!confirm(`${magaza} şubesinin talep ettiği ${cihazAdi} için cihaz gönderildi olarak işaretlenecek ve stoktan düşülecektir. Onaylıyor musunuz?`)) return;
+
+    setGonderildiLoadingIndex(rowIndex);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          type: "GONDER_TALEP",
+          rowIndex: rowIndex
+        })
+      });
+
+      alert("Cihaz gönderildi ve stoktan düşüldü.");
+      setTimeout(refreshDataCache, 1500);
+    } catch (e) {
+      console.error(e);
+      alert("İşlem sırasında bir hata oluştu.");
+    }
+    setGonderildiLoadingIndex(null);
   };
 
   const handleClearThhForm = () => setThhForm(initialThhForm);
@@ -2541,7 +2569,7 @@ export default function CnetmobilCmrFinalUltimate() {
         ))}
       </div>
 
-      {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL) */}
+      {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL - GÖNDERİLDİ İŞLEMLİ) */}
       {aktifTaleplerModalOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-5xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
@@ -2561,26 +2589,31 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
 
             <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
-              <div className="min-w-[850px]">
-                <div className="bg-emerald-600 text-white grid grid-cols-6 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md">
+              <div className="min-w-[950px]">
+                <div className="bg-emerald-600 text-white grid grid-cols-6 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md items-center">
                   <div>TARİH / SAAT</div>
                   <div>MAĞAZA</div>
                   <div>MARKA / MODEL</div>
                   <div>HAFIZA</div>
                   <div>RENK</div>
-                  <div className="text-right pr-2">DURUM</div>
+                  <div className="text-right pr-2">İŞLEM</div>
                 </div>
 
                 <div className="flex flex-col mt-2">
-                  {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').map((row, idx) => {
+                  {cihazTalepData.map((row, originalIndex) => {
+                    if (originalIndex === 0) return null; // Header atla
+                    const magazaAdi = (row[8] || '').toString().trim();
+                    if (!magazaAdi) return null; // Sadece aktif talebi olanlar
+
+                    const rowIndex = originalIndex + 1; // Sheets satır numarası
                     const markaModel = row[0] || '-';
                     const hafiza = row[1] || '-';
                     const renk = row[2] || '-';
-                    const magazaAdi = row[8] || 'Şube Talebi';
                     const tarihSaat = row[9] || new Date().toLocaleString('tr-TR');
+                    const isProcessing = gonderildiLoadingIndex === rowIndex;
 
                     return (
-                      <div key={idx} className="grid grid-cols-6 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
+                      <div key={originalIndex} className="grid grid-cols-6 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
                         <div className="text-slate-500 font-medium">{tarihSaat}</div>
                         <div className="font-black text-slate-900">{magazaAdi}</div>
                         <div className="font-black text-slate-800">{markaModel}</div>
@@ -2589,9 +2622,13 @@ export default function CnetmobilCmrFinalUltimate() {
                           <span className="text-[11px] text-slate-600">{renk}</span>
                         </div>
                         <div className="text-right pr-2">
-                          <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase shadow-sm">
-                            Aktif
-                          </span>
+                          <button
+                            disabled={isProcessing}
+                            onClick={() => handleGonderildi(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {isProcessing ? 'GÖNDERİLİYOR...' : 'GÖNDERİLDİ'}
+                          </button>
                         </div>
                       </div>
                     );
