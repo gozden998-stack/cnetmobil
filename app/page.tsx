@@ -616,10 +616,9 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- CİHAZ TALEP İŞLEMİ (EKLENDİ) ---
-  const handleTalepGonder = async () => {
-    if (!seciliTalep || talepAdet < 1) return;
-    if (talepAdet > seciliTalep.stok) return alert("Stok miktarından fazla talep edemezsiniz!");
+  // --- CİHAZ TALEP İŞLEMİ GÜNCEL ---
+  const handleTalepGonder = async (rowIndex: number, modelName: string) => {
+    if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
     
     setTalepSaving(true);
     try {
@@ -628,15 +627,18 @@ export default function CnetmobilCmrFinalUltimate() {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ 
            type: "SAVE_TALEP", 
-           rowIndex: seciliTalep.rowIndex, 
+           rowIndex: rowIndex, 
            branch: selectedBranch,
-           adet: talepAdet
+           adet: 1
         })
       });
-      alert(`${talepAdet} Adet ${seciliTalep.model} talebiniz merkeze iletildi!`);
-      setTalepModalOpen(false);
-      setSeciliTalep(null);
-      setTalepAdet(1);
+      alert(`${modelName} talebiniz merkeze iletildi!`);
+      
+      // LocalStorage'a kaydet (15 dk koruma)
+      if (typeof window !== 'undefined') {
+         localStorage.setItem(`talep_${selectedBranch}_${rowIndex}`, JSON.stringify({ timestamp: new Date().getTime() }));
+      }
+      
       setTimeout(refreshDataCache, 1500); // Tabloyu güncelle
     } catch (e) {
       alert("Talep gönderilirken hata oluştu.");
@@ -1876,7 +1878,7 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-   {appMode === 'cihaz_talep' && step < 99 ? (
+       appMode === 'cihaz_talep' && step < 99 ? (
   <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
     
     {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
@@ -1887,7 +1889,7 @@ if (!isLoggedIn) {
         </div>
         <div>
           <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-          <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve tek tıkla talep oluşturun.</p>
+          <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
         </div>
       </div>
 
@@ -1907,8 +1909,8 @@ if (!isLoggedIn) {
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
           <div>
-            <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">TALEP EDİLEN</p>
-            <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Adet</span></p>
+            <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">AKTİF TALEPLER</p>
+            <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Kayıt</span></p>
           </div>
         </div>
       </div>
@@ -1919,20 +1921,22 @@ if (!isLoggedIn) {
       <div className="overflow-x-auto custom-scrollbar">
         <div className="min-w-[1100px]">
           
-          {/* TABLO BAŞLIĞI */}
+          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Dağılım - Hafıza ve Renk Ayrı) */}
           <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
             <div className="col-span-2">MARKA MODEL</div>
-            <div className="col-span-2">HAFIZA / RENK</div>
+            <div className="col-span-1">HAFIZA</div>
+            <div className="col-span-1">RENK</div>
             <div className="col-span-1 text-center">PİL</div>
             <div className="col-span-1 text-center">GRADE</div>
-            <div className="col-span-2 text-center">GARANTİ</div>
-            <div className="col-span-2">DEĞİŞEN PARÇA</div>
+            <div className="col-span-1 text-center">GARANTİ</div>
+            <div className="col-span-3">DEĞİŞEN PARÇA</div>
             <div className="col-span-1 text-center">KUTU FATURA</div>
             <div className="col-span-1 text-right pr-2">İŞLEM</div>
           </div>
 
           <div className="flex flex-col">
             {cihazTalepData.slice(1).map((row, i) => {
+              const rowIndex = i + 2;
               const markaModel = row[0] || '';
               const hafiza = row[1] || '';
               const renk = row[2] || '';
@@ -1941,7 +1945,31 @@ if (!isLoggedIn) {
               const garanti = row[5] || '';
               const degisenParca = row[6] || '';
               const kutuFatura = row[7] || '';
-              const talepEdenMagaza = row[8] || '';
+              
+              // Talep durumu kontrolü (LocalStorage + Mevcut Google Sheet Verisi)
+              let isRequested = false;
+              const mevcutTalepler = (row[8] || '').toString().toUpperCase();
+              
+              if (mevcutTalepler.includes(selectedBranch.toUpperCase())) {
+                  isRequested = true;
+              }
+
+              if (typeof window !== 'undefined' && !isRequested) {
+                  const kayitStr = localStorage.getItem(`talep_${selectedBranch}_${rowIndex}`);
+                  if (kayitStr) {
+                      try {
+                          const kayit = JSON.parse(kayitStr);
+                          const onBesDakika = 15 * 60 * 1000;
+                          if (new Date().getTime() - kayit.timestamp < onBesDakika) {
+                              isRequested = true;
+                          } else {
+                              localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
+                          }
+                      } catch(e) {
+                          localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
+                      }
+                  }
+              }
 
               let gradeStyle = "bg-slate-100 text-slate-600";
               if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
@@ -1953,63 +1981,60 @@ if (!isLoggedIn) {
               return (
                 <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                   
-                  {/* A: MARKA MODEL */}
+                  {/* A: MARKA MODEL (col-span-2) */}
                   <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
                     {markaModel}
                   </div>
                   
-                  {/* B & C: HAFIZA & RENK */}
-                  <div className="col-span-2 flex flex-col pr-2">
-                    <span className="font-bold text-slate-700 text-xs">{hafiza}</span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                      <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
-                    </div>
+                  {/* B: HAFIZA (col-span-1) */}
+                  <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
+                    {hafiza}
                   </div>
                   
-                  {/* D: PİL */}
+                  {/* C: RENK (col-span-1) */}
+                  <div className="col-span-1 flex items-center gap-1.5 pr-2">
+                    <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
+                    <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
+                  </div>
+                  
+                  {/* D: PİL (col-span-1) */}
                   <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
                     <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
                   </div>
                   
-                  {/* E: GRADE */}
+                  {/* E: GRADE (col-span-1) */}
                   <div className="col-span-1 text-center">
                     <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
                   </div>
                   
-                  {/* F: GARANTİ */}
-                  <div className="col-span-2 text-center font-bold text-slate-600 text-xs px-1">
+                  {/* F: GARANTİ (col-span-1) */}
+                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {garanti || '-'}
                   </div>
 
-                  {/* G: DEĞİŞEN PARÇA */}
-                  <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
+                  {/* G: DEĞİŞEN PARÇA (col-span-3) */}
+                  <div className="col-span-3 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
                     {degisenParca || 'Orijinal / Yok'}
                   </div>
 
-                  {/* H: KUTU FATURA */}
+                  {/* H: KUTU FATURA (col-span-1) */}
                   <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                     {kutuFatura || '-'}
                   </div>
                   
-                  {/* İŞLEM / TALEP OLUŞTUR */}
+                  {/* İŞLEM / TALEP OLUŞTUR (col-span-1) */}
                   <div className="col-span-1 text-right">
-                    {talepEdenMagaza ? (
-                      <span className="inline-block bg-indigo-50 text-indigo-700 px-2.5 py-1.5 rounded-xl text-[9px] font-black tracking-wider truncate max-w-[110px]" title={talepEdenMagaza}>
-                        {talepEdenMagaza}
-                      </span>
+                    {isRequested ? (
+                       <button disabled className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap cursor-not-allowed">
+                         ✓ TALEP EDİLDİ
+                       </button>
                     ) : (
-                      <button 
-                        onClick={() => {
-                          if (window.confirm(`${markaModel} (${hafiza} - ${renk}) cihazını talep etmek istediğinize emin misiniz?`)) {
-                            handleTekTikTalep(i + 2, markaModel);
-                          }
-                        }}
-                        disabled={talepSaving}
-                        className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-50"
-                      >
-                        TALEP OL
-                      </button>
+                       <button 
+                         onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`)}
+                         className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
+                       >
+                         TALEP OL
+                       </button>
                     )}
                   </div>
                 </div>
@@ -2023,10 +2048,10 @@ if (!isLoggedIn) {
         </div>
       </div>
     </div>
-  </div>
-) : null}
 
-    
+  </div>
+) :
+          
           /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
