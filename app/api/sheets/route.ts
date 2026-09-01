@@ -31,7 +31,7 @@ export async function GET() {
     { id: 'THH', range: 'THH!A1:R1000' },
     
 // --- YENİ EKLENEN CİHAZ TALEP TABLOSU ---
-    { id: 'CihazTalep', range: 'CihazTalep!A1:H1000' },
+    { id: 'CihazTalep', range: 'CihazTalep!A1:I1000' },
     
     // --- MÜŞTERİ (TRADE-IN) TABLOLARI ---
     { id: 'CustomerDevices', range: 'Cihaz Sat!A2:F1000' },
