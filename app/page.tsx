@@ -43,10 +43,8 @@ export default function CnetmobilCmrFinalUltimate() {
 
   // --- CİHAZ TALEP STATE'LERİ ---
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
-  const [talepModalOpen, setTalepModalOpen] = useState(false);
-  const [seciliTalep, setSeciliTalep] = useState<any>(null);
-  const [talepAdet, setTalepAdet] = useState(1);
   const [talepSaving, setTalepSaving] = useState(false);
+  const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -388,7 +386,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.THH) setThhData(allData.THH);
       if (allData.CihazTalep) setCihazTalepData(allData.CihazTalep);
       
-      // Standart Veri Çekme (Tarayıcı Lokal Hafızası Görüntülemede Devreye Girecek)
       if (allData.Depo) setImeiData(allData.Depo);
       
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
@@ -424,11 +421,8 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
- // --- 🚀 İLK YÜKLEME VE 5 DAKİKALIK OTOMATİK SESSİZ YENİLEME ---
   useEffect(() => {
     loadData();
-    
-    // 300.000 ms = 5 dakika
     const intervalId = setInterval(() => { 
       loadData(); 
     }, 900000);
@@ -441,7 +435,7 @@ export default function CnetmobilCmrFinalUltimate() {
       let price = selectedCapacity.base;
       if (status.power === 'Hayır') price *= (1 - ((config.Guc_Yok || 0) / 100));
 
-   let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
+      let ekranKirikYuzdesi = config.Ekran_Kirik || 0;
       if (selectedBrand?.toLowerCase() !== 'apple') {
           ekranKirikYuzdesi = config.Ekran_Kirik_Android !== undefined ? config.Ekran_Kirik_Android : (config.Ekran_Kirik || 0);
       }
@@ -484,13 +478,12 @@ export default function CnetmobilCmrFinalUltimate() {
         colorBonus = 1.05; 
       }
 
-     let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
+      let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
       if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === 'ZUMAY KANALI') {
           finalCash = Math.round(finalCash * 0.92);
       }
 
-      // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BAŞLANGICI ---
       let baremKesintisiYuzdesi = 0;
 
       if (finalCash > 50000) {
@@ -501,14 +494,11 @@ export default function CnetmobilCmrFinalUltimate() {
           baremKesintisiYuzdesi = config.Barem_1k_25k !== undefined ? Number(config.Barem_1k_25k) : 12.5;
       }
 
-      // Barem kesintisini net tutara uygula
       if (baremKesintisiYuzdesi > 0) {
           const kesilecekTutar = finalCash * (baremKesintisiYuzdesi / 100);
           finalCash = Math.round(finalCash - kesilecekTutar);
       }
-      // --- YENİ EKLENEN FİYAT BAREMİ KESİNTİLERİ BİTİŞİ ---
 
-      // --- YENİ EKLENEN TAKAS BAREMİ (İÇ HESAPLAMA) BAŞLANGICI ---
       let takasDestekYuzdesi = 0;
       
       if (finalCash > 50000) {
@@ -521,7 +511,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
       const finalTrade = Math.round(finalCash * (1 + (takasDestekYuzdesi / 100)));
       setPrices({ cash: finalTrade > 0 ? finalCash : 0, trade: finalTrade > 0 ? finalTrade : 0 });
-      // --- YENİ EKLENEN TAKAS BAREMİ (İÇ HESAPLAMA) BİTİŞİ ---
       
       if (customOffer && parseInt(customOffer) > finalCash) {
           setCustomOffer(finalCash.toString());
@@ -535,7 +524,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const finalCashPrice = isCustomOfferActive && customOffer ? Math.min(parseInt(customOffer) || 0, prices.cash) : prices.cash;
 
-  // --- YENİ EKLENEN TAKAS BAREMİ (DIŞ/NİHAİ HESAPLAMA) BAŞLANGICI ---
   let disTakasYuzdesi = 0;
   if (finalCashPrice > 50000) {
       disTakasYuzdesi = config.Takas_Barem_50k_Uzeri !== undefined ? Number(config.Takas_Barem_50k_Uzeri) : 3;
@@ -546,11 +534,9 @@ export default function CnetmobilCmrFinalUltimate() {
   }
 
   const calculatedTradePrice = Math.round(finalCashPrice * (1 + (disTakasYuzdesi / 100)));
-  // --- YENİ EKLENEN TAKAS BAREMİ (DIŞ/NİHAİ HESAPLAMA) BİTİŞİ ---
-
   const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
+
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
-    
     const now = new Date();
     const dateFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' });
     const timeFormatter = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -616,7 +602,6 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  // --- CİHAZ TALEP İŞLEMİ GÜNCEL ---
   const handleTalepGonder = async (rowIndex: number, modelName: string) => {
     if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
     
@@ -634,19 +619,17 @@ export default function CnetmobilCmrFinalUltimate() {
       });
       alert(`${modelName} talebiniz merkeze iletildi!`);
       
-      // LocalStorage'a kaydet (15 dk koruma)
       if (typeof window !== 'undefined') {
          localStorage.setItem(`talep_${selectedBranch}_${rowIndex}`, JSON.stringify({ timestamp: new Date().getTime() }));
       }
       
-      setTimeout(refreshDataCache, 1500); // Tabloyu güncelle
+      setTimeout(refreshDataCache, 1500);
     } catch (e) {
       alert("Talep gönderilirken hata oluştu.");
     }
     setTalepSaving(false);
   };
 
-  // --- THH FONKSİYONLARI BAŞLANGICI ---
   const handleClearThhForm = () => setThhForm(initialThhForm);
 
   const handleSaveThh = async () => {
@@ -697,7 +680,6 @@ export default function CnetmobilCmrFinalUltimate() {
     } catch (e) { alert("Silinirken hata oluştu."); }
     setThhSaving(false);
   };
-  // --- THH FONKSİYONLARI BİTİŞİ ---
 
   const deleteAlim = async (sheetIdx: number) => {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
@@ -818,7 +800,7 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
   };
 
- const menuGroups = [
+  const menuGroups = [
     {
       title: "ANA MODÜLLER",
       items: [
@@ -853,7 +835,6 @@ export default function CnetmobilCmrFinalUltimate() {
             { id: 'ikinci_el_android', label: 'Android Liste' }
           ]
         },
-        // CİHAZ TALEP MENÜYE EKLENDİ
         { id: 'cihaz_talep', label: 'Cihaz Talep', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
@@ -957,198 +938,198 @@ export default function CnetmobilCmrFinalUltimate() {
     </div>
   );
 
-if (!isLoggedIn) {
-  return (
-    <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
-      <div>
-        <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
-          <div className="flex items-center h-[40px]">
-             <img 
-               src={"/cnet.png" as string} 
-               alt="Cnetmobil Logo" 
-               className="h-[32px] w-auto object-contain brightness-0 invert" 
-             />
-          </div>
-          <div className="text-white text-[18px]">☎</div>
-        </header>
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
+        <div>
+          <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
+            <div className="flex items-center h-[40px]">
+               <img 
+                 src={"/cnet.png" as string} 
+                 alt="Cnetmobil Logo" 
+                 className="h-[32px] w-auto object-contain brightness-0 invert" 
+               />
+            </div>
+            <div className="text-white text-[18px]">☎</div>
+          </header>
 
-        <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
-          
-          <div className="text-center pt-7 pb-5 xl:hidden">
-            <h1 className="text-[20px] font-bold text-white">
-              İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
-            </h1>
-          </div>
-
-          <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
+          <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
             
-            <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
-              
-              <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
-                <button 
-                  type="button"
-                  onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
-                  className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'personel' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  Mağaza Girişi
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
-                  className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'yonetici' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  Yönetici Girişi
-                </button>
-              </div>
-
-              <div className="p-7 flex flex-col flex-1">
-                
-                <div className="mb-6 flex-1">
-                  <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5 mt-4">
-                    {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
-                  </label>
-
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={entryPass}
-                      onChange={(e) => setEntryPass(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                      disabled={loginLoading}
-                      placeholder="•••••"
-                      className="w-full h-[42px] border border-gray-300 rounded-lg px-3 outline-none text-xl tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all shadow-inner"
-                    />
-                    <div className="absolute right-3 top-[10px] text-gray-400 select-none">👁</div>
-                  </div>
-                </div>
-
-                <div className="mt-auto">
-                  <button 
-                    onClick={handleLogin}
-                    disabled={loginLoading || !entryPass}
-                    className="w-full h-[38px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-lg uppercase tracking-wide text-[14px] disabled:opacity-50 shadow-md mb-6"
-                  >
-                    {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
-                  </button>
-
-                  <div className="flex gap-4">
-                    <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                      🍏 App Store
-                    </button>
-                    <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                      ▶ Google Play
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div className="text-center pt-7 pb-5 xl:hidden">
+              <h1 className="text-[20px] font-bold text-white">
+                İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
+              </h1>
             </div>
 
-            <div className="w-full xl:w-[850px] flex flex-col justify-center">
+            <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
               
-              <div className="hidden xl:block mb-10 text-left">
-                <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
-                  İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
-                  <span className="text-[#ff8a00]">Güçlendirin</span>
-                </h1>
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                {[
-                  {
-                    title: "Cihaz Değerlendirme",
-                    icon: (
-                      <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                        <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                        <path d="M9 10l2 2 4-4"></path>
-                      </svg>
-                    )
-                  },
-                  {
-                    title: "Teknik Servis Merkezi",
-                    icon: (
-                      <svg className="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                      </svg>
-                    )
-                  },
-                  {
-                    title: "Güncel Fiyat Listeleri",
-                    icon: (
-                      <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                      </svg>
-                    )
-                  },
-                  {
-                    title: "Dış Kanal Satın Alma",
-                    icon: (
-                      <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                      </svg>
-                    )
-                  }
-                ].map((item, i) => (
-                  <div
-                    key={i}
-                    className="w-full xl:w-[405px] h-[74px] rounded-2xl bg-white px-6 flex items-center shadow-lg hover:shadow-xl transition-shadow gap-4"
+              <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+                
+                <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
+                  <button 
+                    type="button"
+                    onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
+                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'personel' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
                   >
-                    {item.icon}
-                    <div className="font-bold text-[16px] text-gray-800">
-                      {item.title}
+                    Mağaza Girişi
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
+                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'yonetici' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Yönetici Girişi
+                  </button>
+                </div>
+
+                <div className="p-7 flex flex-col flex-1">
+                  
+                  <div className="mb-6 flex-1">
+                    <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5 mt-4">
+                      {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
+                    </label>
+
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={entryPass}
+                        onChange={(e) => setEntryPass(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        disabled={loginLoading}
+                        placeholder="•••••"
+                        className="w-full h-[42px] border border-gray-300 rounded-lg px-3 outline-none text-xl tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all shadow-inner"
+                      />
+                      <div className="absolute right-3 top-[10px] text-gray-400 select-none">👁</div>
                     </div>
                   </div>
-                ))}
+
+                  <div className="mt-auto">
+                    <button 
+                      onClick={handleLogin}
+                      disabled={loginLoading || !entryPass}
+                      className="w-full h-[38px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-lg uppercase tracking-wide text-[14px] disabled:opacity-50 shadow-md mb-6"
+                    >
+                      {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
+                    </button>
+
+                    <div className="flex gap-4">
+                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
+                        🍏 App Store
+                      </button>
+                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
+                        ▶ Google Play
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 mt-6">
-                <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                  <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
-                  <div className="text-[13px] font-bold text-gray-500">Aktif Şube</div>
+              <div className="w-full xl:w-[850px] flex flex-col justify-center">
+                
+                <div className="hidden xl:block mb-10 text-left">
+                  <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
+                    İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
+                    <span className="text-[#ff8a00]">Güçlendirin</span>
+                  </h1>
                 </div>
 
-                <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                  <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">5 Dk</div>
-                  <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    {
+                      title: "Cihaz Değerlendirme",
+                      icon: (
+                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                          <path d="M9 10l2 2 4-4"></path>
+                        </svg>
+                      )
+                    },
+                    {
+                      title: "Teknik Servis Merkezi",
+                      icon: (
+                        <svg className="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                        </svg>
+                      )
+                    },
+                    {
+                      title: "Güncel Fiyat Listeleri",
+                      icon: (
+                        <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <line x1="16" y1="13" x2="8" y2="13"></line>
+                          <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                      )
+                    },
+                    {
+                      title: "Dış Kanal Satın Alma",
+                      icon: (
+                        <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        </svg>
+                      )
+                    }
+                  ].map((item, i) => (
+                    <div
+                      key={i}
+                      className="w-full xl:w-[405px] h-[74px] rounded-2xl bg-white px-6 flex items-center shadow-lg hover:shadow-xl transition-shadow gap-4"
+                    >
+                      {item.icon}
+                      <div className="font-bold text-[16px] text-gray-800">
+                        {item.title}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                  <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">%100</div>
-                  <div className="text-[13px] font-bold text-gray-500">Güvenli Veri</div>
+                <div className="flex flex-wrap gap-4 mt-6">
+                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
+                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
+                    <div className="text-[13px] font-bold text-gray-500">Aktif Şube</div>
+                  </div>
+
+                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
+                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">5 Dk</div>
+                    <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
+                  </div>
+
+                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
+                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">%100</div>
+                    <div className="text-[13px] font-bold text-gray-500">Güvenli Veri</div>
+                  </div>
                 </div>
+
               </div>
-
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
 
-      <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
-        <div className="text-[26px] font-bold mb-6 text-gray-800">
-          Bizi Takip Edin
-        </div>
-        <div className="flex justify-center">
-          <a 
-            href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform">
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-            </svg>
-          </a>
-        </div>
-      </footer>
-    </div>
-  );
-}
+        <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
+          <div className="text-[26px] font-bold mb-6 text-gray-800">
+            Bizi Takip Edin
+          </div>
+          <div className="flex justify-center">
+            <a 
+              href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform">
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+              </svg>
+            </a>
+          </div>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
@@ -1168,7 +1149,7 @@ if (!isLoggedIn) {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-   {/* TOPBAR */}
+      {/* TOPBAR */}
       <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
         <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
           <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
@@ -1238,7 +1219,6 @@ if (!isLoggedIn) {
                       {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
                     </button>
 
-                    {/* MASAÜSTÜ (PC) İÇİN HOVER DROPDOWN */}
                     <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] hidden lg:flex flex-col">
                       {item.subItems.map(sub => (
                         <button
@@ -1251,7 +1231,6 @@ if (!isLoggedIn) {
                       ))}
                     </div>
 
-                    {/* MOBİL İÇİN TIKLAMALI (FİXED) POPUP MENÜ */}
                     {mobileSubMenuOpen && (
                       <div className="fixed top-[105px] left-4 right-4 bg-[#2B2D31] border border-white/10 shadow-2xl rounded-2xl z-[9999] lg:hidden flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
                         {item.subItems.map(sub => (
@@ -1336,7 +1315,6 @@ if (!isLoggedIn) {
                   </div>
                   <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
                     {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
-                        
                         const imeiNo = row[1];
                         let localDurum = null;
                         
@@ -1433,7 +1411,6 @@ if (!isLoggedIn) {
           appMode === 'thh' && step < 99 && isMasterAccess ? (
             <div className="w-full max-w-[1500px] mx-auto space-y-6 animate-in fade-in duration-500">
               
-              {/* ÜST FORM KART */}
               <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
                 <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100">
                   <div className="flex items-center gap-3">
@@ -1454,7 +1431,6 @@ if (!isLoggedIn) {
 
                 <div className="p-8 pb-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* ÖZEL SIRALAMA İÇİN DİZİ KULLANIMI */}
                     {[
                       { key: 'adSoyad', label: 'TÜKETİCİ AD-SOYAD', holder: 'Ad soyad giriniz' },
                       { key: 'musteriTelefon', label: 'MÜŞTERİ TELEFONU', holder: '5XX XXX XX XX' },
@@ -1500,7 +1476,6 @@ if (!isLoggedIn) {
                   </div>
                 </div>
 
-                {/* BİLGİLENDİRME & KAYDET ALANI */}
                 <div className="p-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
                   <div className="flex items-center gap-3 bg-indigo-50 text-indigo-800 px-4 py-3 rounded-xl flex-1 max-w-2xl border border-indigo-100">
                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0">i</div>
@@ -1524,9 +1499,7 @@ if (!isLoggedIn) {
                 </div>
               </div>
 
-              {/* ALT LİSTE TABLOSU KART */}
               <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-8 py-5 border-b border-slate-100 gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
@@ -1548,7 +1521,6 @@ if (!isLoggedIn) {
 
                 <div className="overflow-x-auto custom-scrollbar flex-1 min-h-[300px]">
                   <div className="min-w-max flex flex-col">
-                    {/* BAŞLIK (Sıfır Kayma İçin Genişlikler Sabit) */}
                     <div className="flex items-center bg-[#4338ca] text-white text-[9px] font-black tracking-widest uppercase px-4 py-3 shrink-0">
                       <div className="w-[160px] shrink-0 pl-2">TÜKETİCİ AD-SOYAD</div>
                       <div className="w-[120px] shrink-0">MÜŞTERİ TEL</div>
@@ -1570,7 +1542,6 @@ if (!isLoggedIn) {
                       <div className="w-[140px] shrink-0 text-center">SONUÇ 2</div>
                     </div>
                     
-                    {/* VERİLER */}
                     <div className="flex flex-col flex-1 pb-4">
                       {thhData.slice(1).filter(r => {
                          if (!searchQuery) return true;
@@ -1631,14 +1602,12 @@ if (!isLoggedIn) {
                     </div>
                   </div>
                 </div>
-
               </div>
             </div>
           ) :
 
           (appMode === 'ikinci_el_apple' || appMode === 'ikinci_el_android') && step < 99 ? (() => {
             const isApple = appMode === 'ikinci_el_apple';
-            // İlgili Sheet sütunlarının (A=0, B=1, C=2, D=3) veya (G=6, H=7, I=8, J=9) index karşılıkları
             const idx0 = isApple ? 0 : 6;
             const idx1 = isApple ? 1 : 7;
             const idx2 = isApple ? 2 : 8;
@@ -1707,7 +1676,6 @@ if (!isLoggedIn) {
                     <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
                     <div className={`flex-[1.5] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-4`}>FİYATI (TL)</div>
                     
-                    {/* SADECE VODAFONE KANALINDA GÖZÜKEN BAŞLIK (C SÜTUNU) */}
                     {selectedBranch === 'VODAFONE KANALI' && (
                        <div className="flex-[1.5] text-right border-l border-teal-500/50 pr-4 text-purple-200">
                           VODAFONE SATIN ALMA
@@ -1725,10 +1693,8 @@ if (!isLoggedIn) {
                               {row[0]}
                           </div>
                           
-                          {/* B SÜTUNU: NORMAL FİYAT */}
                           <div className={`flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
                           
-                          {/* C SÜTUNU: SADECE VODAFONE KANALINDA GÖZÜKEN FİYAT */}
                           {selectedBranch === 'VODAFONE KANALI' && (
                              <div className="flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 text-purple-600 bg-purple-50/50">
                                 {row[2] || '-'}
@@ -1878,181 +1844,188 @@ if (!isLoggedIn) {
             </div>
           ) :
 
-       appMode === 'cihaz_talep' && step < 99 ? (
-  <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
-    
-    {/* ÜST BİLGİ VE İSTATİSTİK ALANI */}
-    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
-      <div className="flex items-center gap-4">
-        <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-        </div>
-        <div>
-          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-          <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
-        </div>
-      </div>
-
-      <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
-        <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[160px]">
-          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM KAYIT</p>
-            <p className="text-xl font-black text-slate-800">{Math.max(0, cihazTalepData.length - 1)} <span className="text-sm font-bold text-slate-400">Adet</span></p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[160px]">
-          <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">AKTİF TALEPLER</p>
-            <p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Kayıt</span></p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {/* TABLO */}
-    <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
-      <div className="overflow-x-auto custom-scrollbar">
-        <div className="min-w-[1100px]">
-          
-          {/* TABLO BAŞLIĞI (12 Kolon Orantılı Dağılım - Hafıza ve Renk Ayrı) */}
-          <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-            <div className="col-span-2">MARKA MODEL</div>
-            <div className="col-span-1">HAFIZA</div>
-            <div className="col-span-1">RENK</div>
-            <div className="col-span-1 text-center">PİL</div>
-            <div className="col-span-1 text-center">GRADE</div>
-            <div className="col-span-1 text-center">GARANTİ</div>
-            <div className="col-span-3">DEĞİŞEN PARÇA</div>
-            <div className="col-span-1 text-center">KUTU FATURA</div>
-            <div className="col-span-1 text-right pr-2">İŞLEM</div>
-          </div>
-
-          <div className="flex flex-col">
-            {cihazTalepData.slice(1).map((row, i) => {
-              const rowIndex = i + 2;
-              const markaModel = row[0] || '';
-              const hafiza = row[1] || '';
-              const renk = row[2] || '';
-              const pil = row[3] || '';
-              const grade = (row[4] || '').toUpperCase();
-              const garanti = row[5] || '';
-              const degisenParca = row[6] || '';
-              const kutuFatura = row[7] || '';
+          appMode === 'cihaz_talep' && step < 99 ? (
+            <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
               
-              // Talep durumu kontrolü (LocalStorage + Mevcut Google Sheet Verisi)
-              let isRequested = false;
-              const mevcutTalepler = (row[8] || '').toString().toUpperCase();
-              
-              if (mevcutTalepler.includes(selectedBranch.toUpperCase())) {
-                  isRequested = true;
-              }
-
-              if (typeof window !== 'undefined' && !isRequested) {
-                  const kayitStr = localStorage.getItem(`talep_${selectedBranch}_${rowIndex}`);
-                  if (kayitStr) {
-                      try {
-                          const kayit = JSON.parse(kayitStr);
-                          const onBesDakika = 15 * 60 * 1000;
-                          if (new Date().getTime() - kayit.timestamp < onBesDakika) {
-                              isRequested = true;
-                          } else {
-                              localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
-                          }
-                      } catch(e) {
-                          localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
-                      }
-                  }
-              }
-
-              let gradeStyle = "bg-slate-100 text-slate-600";
-              if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
-              if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
-              if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
-
-              const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
-
-              return (
-                <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                  
-                  {/* A: MARKA MODEL (col-span-2) */}
-                  <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
-                    {markaModel}
+              {/* ÜST BİLGİ VE TIKLANABİLİR İSTATİSTİK KARTLARI */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                   </div>
-                  
-                  {/* B: HAFIZA (col-span-1) */}
-                  <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
-                    {hafiza}
-                  </div>
-                  
-                  {/* C: RENK (col-span-1) */}
-                  <div className="col-span-1 flex items-center gap-1.5 pr-2">
-                    <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                    <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
-                  </div>
-                  
-                  {/* D: PİL (col-span-1) */}
-                  <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
-                    <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
-                  </div>
-                  
-                  {/* E: GRADE (col-span-1) */}
-                  <div className="col-span-1 text-center">
-                    <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
-                  </div>
-                  
-                  {/* F: GARANTİ (col-span-1) */}
-                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                    {garanti || '-'}
-                  </div>
-
-                  {/* G: DEĞİŞEN PARÇA (col-span-3) */}
-                  <div className="col-span-3 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
-                    {degisenParca || 'Orijinal / Yok'}
-                  </div>
-
-                  {/* H: KUTU FATURA (col-span-1) */}
-                  <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                    {kutuFatura || '-'}
-                  </div>
-                  
-                  {/* İŞLEM / TALEP OLUŞTUR (col-span-1) */}
-                  <div className="col-span-1 text-right">
-                    {isRequested ? (
-                       <button disabled className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap cursor-not-allowed">
-                         ✓ TALEP EDİLDİ
-                       </button>
-                    ) : (
-                       <button 
-                         onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`)}
-                         className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
-                       >
-                         TALEP OL
-                       </button>
-                    )}
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
+                    <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
                   </div>
                 </div>
-              )
-            })}
-            
-            {cihazTalepData.length <= 1 && (
-               <div className="text-center py-12 text-slate-400 text-sm font-bold">Listelenecek cihaz bulunamadı.</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
 
-  </div>
-) :
+                <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+                  {/* TOPLAM KAYIT KARTI */}
+                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[180px]">
+                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM KAYIT</p>
+                      <p className="text-xl font-black text-slate-800">
+                        {Math.max(0, cihazTalepData.length - 1)} <span className="text-sm font-bold text-slate-400">Adet</span>
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* AKTİF TALEPLER KARTI (YÖNETİCİYE ÖZEL TIKLANABİLİR) */}
+                  <div 
+                    onClick={() => {
+                      if (isMasterAccess || isAdmin) {
+                        setAktifTaleplerModalOpen(true);
+                      } else {
+                        alert("Aktif talepler detayını yalnızca yöneticiler görüntüleyebilir.");
+                      }
+                    }}
+                    className={`flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[190px] transition-all ${isMasterAccess || isAdmin ? 'cursor-pointer hover:bg-emerald-100 hover:shadow-md btn-click' : 'opacity-80 cursor-not-allowed'}`}
+                    title={isMasterAccess || isAdmin ? "Aktif talepleri görüntülemek için tıklayın" : "Yalnızca yöneticiler erişebilir"}
+                  >
+                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest flex items-center gap-1">
+                        AKTİF TALEPLER
+                        {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
+                      </p>
+                      <p className="text-xl font-black text-emerald-700">
+                        {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ANA TABLO */}
+              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar">
+                  <div className="min-w-[1100px]">
+                    
+                    <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+                      <div className="col-span-2">MARKA MODEL</div>
+                      <div className="col-span-1">HAFIZA</div>
+                      <div className="col-span-1">RENK</div>
+                      <div className="col-span-1 text-center">PİL</div>
+                      <div className="col-span-1 text-center">GRADE</div>
+                      <div className="col-span-1 text-center">GARANTİ</div>
+                      <div className="col-span-3">DEĞİŞEN PARÇA</div>
+                      <div className="col-span-1 text-center">KUTU FATURA</div>
+                      <div className="col-span-1 text-right pr-2">İŞLEM</div>
+                    </div>
+
+                    <div className="flex flex-col">
+                      {cihazTalepData.slice(1).map((row, i) => {
+                        const rowIndex = i + 2;
+                        const markaModel = row[0] || '';
+                        const hafiza = row[1] || '';
+                        const renk = row[2] || '';
+                        const pil = row[3] || '';
+                        const grade = (row[4] || '').toUpperCase();
+                        const garanti = row[5] || '';
+                        const degisenParca = row[6] || '';
+                        const kutuFatura = row[7] || '';
+                        
+                        let isRequested = false;
+                        const mevcutTalepler = (row[8] || '').toString().toUpperCase();
+                        
+                        if (mevcutTalepler.includes(selectedBranch.toUpperCase())) {
+                            isRequested = true;
+                        }
+
+                        if (typeof window !== 'undefined' && !isRequested) {
+                            const kayitStr = localStorage.getItem(`talep_${selectedBranch}_${rowIndex}`);
+                            if (kayitStr) {
+                                try {
+                                    const kayit = JSON.parse(kayitStr);
+                                    const onBesDakika = 15 * 60 * 1000;
+                                    if (new Date().getTime() - kayit.timestamp < onBesDakika) {
+                                        isRequested = true;
+                                    } else {
+                                        localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
+                                    }
+                                } catch(e) {
+                                    localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
+                                }
+                            }
+                        }
+
+                        let gradeStyle = "bg-slate-100 text-slate-600";
+                        if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
+                        if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
+                        if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
+
+                        const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
+
+                        return (
+                          <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                            
+                            <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
+                              {markaModel}
+                            </div>
+                            
+                            <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
+                              {hafiza}
+                            </div>
+                            
+                            <div className="col-span-1 flex items-center gap-1.5 pr-2">
+                              <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
+                              <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
+                            </div>
+                            
+                            <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
+                              <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
+                            </div>
+                            
+                            <div className="col-span-1 text-center">
+                              <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
+                            </div>
+                            
+                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
+                              {garanti || '-'}
+                            </div>
+
+                            <div className="col-span-3 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
+                              {degisenParca || 'Orijinal / Yok'}
+                            </div>
+
+                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
+                              {kutuFatura || '-'}
+                            </div>
+                            
+                            <div className="col-span-1 text-right">
+                              {isRequested ? (
+                                 <button disabled className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap cursor-not-allowed">
+                                   ✓ TALEP EDİLDİ
+                                 </button>
+                              ) : (
+                                 <button 
+                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`)}
+                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
+                                 >
+                                   TALEP OL
+                                 </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      
+                      {cihazTalepData.length <= 1 && (
+                         <div className="text-center py-12 text-slate-400 text-sm font-bold">Listelenecek cihaz bulunamadı.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          ) :
           
-          /* YÖNETİCİ GÖRÜNÜMÜ */
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {isAdmin && (
@@ -2214,7 +2187,6 @@ if (!isLoggedIn) {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        
                         <div className="bg-orange-50/50 p-6 rounded-[32px] border border-orange-100 text-center hover:bg-orange-50 hover:shadow-lg transition-all group flex flex-col justify-between">
                           <div>
                               <div className="text-3xl mb-4 grayscale group-hover:grayscale-0 transition-all">📱</div>
@@ -2268,7 +2240,6 @@ if (!isLoggedIn) {
                               {servisFiyatlari[selectedModelName]?.kasa ? `${Number(servisFiyatlari[selectedModelName]?.kasa).toLocaleString()} TL` : 'Fiyat Yok'}
                           </div>
                         </div>
-
                     </div>
                   </div>
                 ) : (
@@ -2375,9 +2346,7 @@ if (!isLoggedIn) {
                 )}
               </div>
               
-              {/* SAĞ KISIM (FİYATLAR) */}
               <div className="lg:w-[350px] space-y-6 sticky top-32 h-fit">
-                
                 {appMode === 'servis' ? (
                   <div className="bg-white border border-orange-200 p-8 rounded-[32px] space-y-4 shadow-xl">
                       <div className="w-16 h-16 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -2572,6 +2541,74 @@ if (!isLoggedIn) {
         ))}
       </div>
 
+      {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL) */}
+      {aktifTaleplerModalOpen && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
+          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-5xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-5 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">AKTİF TALEPLER LİSTESİ</h3>
+                  <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Şubeler tarafından oluşturulan aktif cihaz talepleri</p>
+                </div>
+              </div>
+              <button onClick={() => setAktifTaleplerModalOpen(false)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-2xl transition-all btn-click">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
+              <div className="min-w-[850px]">
+                <div className="bg-emerald-600 text-white grid grid-cols-6 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md">
+                  <div>TARİH / SAAT</div>
+                  <div>MAĞAZA</div>
+                  <div>MARKA / MODEL</div>
+                  <div>HAFIZA</div>
+                  <div>RENK</div>
+                  <div className="text-right pr-2">DURUM</div>
+                </div>
+
+                <div className="flex flex-col mt-2">
+                  {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').map((row, idx) => {
+                    const markaModel = row[0] || '-';
+                    const hafiza = row[1] || '-';
+                    const renk = row[2] || '-';
+                    const magazaAdi = row[8] || 'Şube Talebi';
+                    const tarihSaat = row[9] || new Date().toLocaleString('tr-TR');
+
+                    return (
+                      <div key={idx} className="grid grid-cols-6 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
+                        <div className="text-slate-500 font-medium">{tarihSaat}</div>
+                        <div className="font-black text-slate-900">{magazaAdi}</div>
+                        <div className="font-black text-slate-800">{markaModel}</div>
+                        <div>{hafiza}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-600">{renk}</span>
+                        </div>
+                        <div className="text-right pr-2">
+                          <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase shadow-sm">
+                            Aktif
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length === 0 && (
+                    <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
+                      Aktif talep bulunmuyor.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
@@ -2659,7 +2696,7 @@ if (!isLoggedIn) {
         </div>
       )}
 
-   {/* KASKO MODALI */}
+      {/* KASKO MODALI */}
       {isKaskoModalOpen && !isZumay && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
           <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
@@ -2693,19 +2730,16 @@ if (!isLoggedIn) {
                     {(() => {
                       const val = Number(kaskoAmount);
                       
-                      // Paket Aralıkları (Kesin Sınırlar)
                       const isSilver = val > 0 && val <= 25000;
                       const isGold = val > 25000 && val <= 60000;
                       const isPlatin = val > 60000 && val <= 170000;
 
-                      // Minimum Fiyat Güvenlikleri (Math.max hesaplaması)
                       const silverPrice = Math.max(val * 0.175, 2250);
                       const goldPrice = Math.max(val * 0.135, 3750);
                       const platinPrice = Math.max(val * 0.11, 7500);
 
                       return (
                         <>
-                          {/* SILVER PAKET */}
                           <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isSilver ? 'bg-white border-slate-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-slate-600 uppercase tracking-widest">Silver Paket</div>
@@ -2727,7 +2761,6 @@ if (!isLoggedIn) {
                             )}
                           </div>
 
-                          {/* GOLD PAKET */}
                           <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isGold ? 'bg-amber-50/50 border-amber-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-amber-600 uppercase tracking-widest">Gold Paket</div>
@@ -2749,7 +2782,6 @@ if (!isLoggedIn) {
                             )}
                           </div>
 
-                          {/* PLATIN PAKET */}
                           <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isPlatin ? 'bg-indigo-50/50 border-indigo-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-indigo-600 uppercase tracking-widest">Platin Paket</div>
@@ -2775,7 +2807,6 @@ if (!isLoggedIn) {
                     })()}
                   </div>
                   
-                  {/* LİMİT AŞIMI UYARISI */}
                   {Number(kaskoAmount) > 170000 && (
                     <div className="bg-red-50 border-2 border-red-200 text-red-600 p-4 rounded-2xl text-center font-black uppercase tracking-widest text-xs animate-in fade-in">
                       Maksimum sistem kasko bedeli (170.000 TL) aşıldı!
@@ -2792,7 +2823,7 @@ if (!isLoggedIn) {
           </div>
         </div>
       )}
-      {/* EKSPERTİZ DETAY MODALI */}
+
       {ekspertizModalData && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
           <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-200 flex flex-col animate-in fade-in zoom-in duration-300">
@@ -2833,7 +2864,6 @@ if (!isLoggedIn) {
         </div>
       )}
 
-      {/* YAZDIRMA EKRANI */}
       {appMode === 'alim' && (
         <div id="print-area">
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
