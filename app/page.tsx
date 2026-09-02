@@ -228,6 +228,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
+  const sheetRowsRef = useRef<SupabaseSheetRow[]>([]);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -401,10 +402,8 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const loadData = async () => {
+  const applySheetRowsToPanel = (directRows: SupabaseSheetRow[]) => {
     try {
-      // Vercel /api/sheets yerine doğrudan Supabase'den oku.
-      const directRows = await fetchAllSheetRowsDirect();
       const allData = buildPanelData(directRows);
 
       let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
@@ -529,41 +528,114 @@ export default function CnetmobilCmrFinalUltimate() {
 
       setLoading(false);
     } catch (e) {
-      console.error("Veri tünelinde hata:", e);
+      console.error("Panel state güncelleme hatası:", e);
+      setLoading(false);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      // Sadece ilk açılış / manuel fallback için tam veri çekilir.
+      const directRows = await fetchAllSheetRowsDirect();
+      sheetRowsRef.current = directRows;
+      applySheetRowsToPanel(directRows);
+    } catch (e) {
+      console.error("Supabase ilk veri yükleme hatası:", e);
       setLoading(false);
     }
   };
 
   const refreshDataCache = async () => {
-    try {
-      await loadData();
-    } catch (e) {
-      console.error("Veri yenilenirken hata oluştu", e);
-    }
+    // Eski kodun çağrılarını bozmamak için bırakıldı.
+    // Artık ağdan tekrar tam veri çekmez; değişiklik Realtime ile gelir.
+    await new Promise((resolve) => setTimeout(resolve, 250));
   };
 
   useEffect(() => {
-    // İlk açılışta veriyi bir kez Supabase'den çek.
+    let mounted = true;
+
+    // Panel açılışında yalnızca 1 kez tam veri.
     loadData();
 
-    // Sonrasında polling YOK. Supabase değişikliği geldiğinde yenile.
-    // Kısa debounce, art arda gelen birden fazla satır event'ini tek yenilemede toplar.
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const upsertLocalRow = (row: SupabaseSheetRow) => {
+      if (!row || !row.sheet_name || !row.row_number) return;
+
+      const next = [...sheetRowsRef.current];
+      const index = next.findIndex((item) =>
+        item.sheet_name === row.sheet_name &&
+        item.row_number === row.row_number
+      );
+
+      if (index >= 0) {
+        next[index] = row;
+      } else {
+        next.push(row);
+      }
+
+      next.sort((a, b) => {
+        const sheetCompare = a.sheet_name.localeCompare(b.sheet_name, 'tr');
+        if (sheetCompare !== 0) return sheetCompare;
+        return a.row_number - b.row_number;
+      });
+
+      sheetRowsRef.current = next;
+      if (mounted) applySheetRowsToPanel(next);
+    };
+
+    const deleteLocalRow = (oldRow: Partial<SupabaseSheetRow>) => {
+      let next = sheetRowsRef.current;
+
+      if (oldRow.id !== undefined && oldRow.id !== null) {
+        next = next.filter((item) => item.id !== oldRow.id);
+      } else if (oldRow.sheet_name && oldRow.row_number) {
+        next = next.filter((item) =>
+          !(item.sheet_name === oldRow.sheet_name &&
+            item.row_number === oldRow.row_number)
+        );
+      } else {
+        // DELETE event'inde yeterli kimlik yoksa güvenli fallback:
+        // sadece bu nadir durumda bir defa tam veri yenilenir.
+        loadData();
+        return;
+      }
+
+      sheetRowsRef.current = next;
+      if (mounted) applySheetRowsToPanel(next);
+    };
 
     const channel = supabase
-      .channel('cnetmobil-sheet-rows-live')
+      .channel('cnetmobil-sheet-rows-live-v2')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'sheet_rows',
         },
-        () => {
-          if (refreshTimer) clearTimeout(refreshTimer);
-          refreshTimer = setTimeout(() => {
-            loadData();
-          }, 350);
+        (payload: any) => {
+          upsertLocalRow(payload.new as SupabaseSheetRow);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sheet_rows',
+        },
+        (payload: any) => {
+          upsertLocalRow(payload.new as SupabaseSheetRow);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'sheet_rows',
+        },
+        (payload: any) => {
+          deleteLocalRow(payload.old as Partial<SupabaseSheetRow>);
         }
       )
       .subscribe((status) => {
@@ -573,7 +645,7 @@ export default function CnetmobilCmrFinalUltimate() {
       });
 
     return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, []);
