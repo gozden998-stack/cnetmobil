@@ -94,7 +94,7 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
     MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
     PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 12),
+    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 13),
     CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
     CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
@@ -171,6 +171,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [talepSaving, setTalepSaving] = useState(false);
   const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | null>(null);
   const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
+  const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
@@ -868,7 +869,7 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} şubesinin talep ettiği ${cihazAdi} için cihaz gönderildi olarak işaretlenecek ve stoktan düşülecektir. Onaylıyor musunuz?`)) return;
+    if (!confirm(`${magaza} şubesinin talep ettiği ${cihazAdi} GÖNDERİLDİ olarak işaretlenecek. Personel gönderildi bilgisini görecek, kayıt daha sonra yönetici tarafından silinebilecek. Onaylıyor musunuz?`)) return;
 
     setGonderildiLoadingIndex(rowIndex);
 
@@ -891,10 +892,8 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // Supabase güncellendikten sonra listeyi hemen yenile.
       await refreshDataCache();
-
-      alert("Cihaz gönderildi ve stoktan düşüldü.");
+      alert("Talep GÖNDERİLDİ olarak işaretlendi. Mağaza bu durumu anlık görecek.");
     } catch (e) {
       console.error(e);
       alert("İşlem sırasında bir hata oluştu.");
@@ -909,7 +908,18 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} şubesinin ${cihazAdi} talebi REDDEDİLECEK. Cihaz stokta kalacak. Onaylıyor musunuz?`)) return;
+    const redNedeni = window.prompt(
+      `${magaza} şubesinin ${cihazAdi} talebi için RED NEDENİ yazınız:\n\nÖrnek: Cihaz mağaza stoğunda kalacak / Fiyat uygun değil / Cihaz başka işlem için ayrıldı`
+    );
+
+    if (redNedeni === null) return;
+    const temizNeden = redNedeni.trim();
+    if (!temizNeden) {
+      alert("RED nedeni boş bırakılamaz.");
+      return;
+    }
+
+    if (!confirm(`Talep REDDEDİLECEK.\n\nMağaza: ${magaza}\nCihaz: ${cihazAdi}\nRed nedeni: ${temizNeden}\n\nOnaylıyor musunuz?`)) return;
 
     setRedLoadingIndex(rowIndex);
 
@@ -921,7 +931,8 @@ export default function CnetmobilCmrFinalUltimate() {
         },
         body: JSON.stringify({
           type: "RED_TALEP",
-          rowIndex: rowIndex
+          rowIndex: rowIndex,
+          reason: temizNeden
         })
       });
 
@@ -933,12 +944,51 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       await refreshDataCache();
-      alert(`${magaza} şubesinin talebi reddedildi.`);
+      alert(`${magaza} şubesinin talebi reddedildi. Red nedeni mağaza ekranında gösterilecek.`);
     } catch (e) {
       console.error("Talep reddetme hatası:", e);
       alert("Talep reddedilirken hata oluştu.");
     } finally {
       setRedLoadingIndex(null);
+    }
+  };
+
+  const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+    if (!isAdmin && !isMasterAccess) {
+      alert("Bu kaydı yalnızca yönetici silebilir!");
+      return;
+    }
+
+    if (!confirm(`${magaza} - ${cihazAdi} gönderilmiş talep kaydı TAMAMEN SİLİNECEK.\n\nGoogle Sheets, Supabase ve tüm panellerden kaldırılacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
+
+    setDeleteTalepLoadingIndex(rowIndex);
+
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          type: "DELETE_TALEP_RECORD",
+          rowIndex: rowIndex
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.result !== "success") {
+        alert(result.message || "Talep kaydı silinemedi.");
+        return;
+      }
+
+      await refreshDataCache();
+      alert("Gönderilmiş talep kaydı silindi.");
+    } catch (e) {
+      console.error("Talep kaydı silme hatası:", e);
+      alert("Talep kaydı silinirken hata oluştu.");
+    } finally {
+      setDeleteTalepLoadingIndex(null);
     }
   };
 
@@ -2206,7 +2256,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
                       </p>
                       <p className="text-xl font-black text-emerald-700">
-                        {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
+                        {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
                       </p>
                     </div>
                   </div>
@@ -2244,8 +2294,11 @@ export default function CnetmobilCmrFinalUltimate() {
                         
                         const mevcutTalepler = (row[8] || '').toString().trim();
                         const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
+                        const kararTarihi = (row[11] || '').toString().trim();
+                        const redNedeni = (row[12] || '').toString().trim();
                         const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                        const isRequested = mevcutTalepler !== ''; // Talep/red bilgisi bulunan cihaz kilitli kalır.
+                        const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
+                        const isRequested = mevcutTalepler !== ''; // Bekleyen/red/gönderildi bilgisi bulunan cihaz kilitli kalır.
                         let gradeStyle = "bg-slate-100 text-slate-600";
                         if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
                         if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
@@ -2291,13 +2344,45 @@ export default function CnetmobilCmrFinalUltimate() {
                             
                             <div className="col-span-1 text-right">
                               {isRequested ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${isRejected ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
-                                    {isRejected ? '✕ TALEP RED EDİLDİ' : '✓ TALEP EDİLDİ'}
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${
+                                      isRejected
+                                        ? 'bg-red-50 text-red-600 border-red-200'
+                                        : isSent
+                                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                    }`}>
+                                      {isRejected ? '✕ TALEP RED EDİLDİ' : isSent ? '✓ GÖNDERİLDİ' : '✓ TALEP EDİLDİ'}
+                                    </div>
+
+                                    {isSent && (isMasterAccess || isAdmin) && (
+                                      <button
+                                        disabled={deleteTalepLoadingIndex === rowIndex}
+                                        onClick={() => handleTalepKaydiSil(rowIndex, `${markaModel} (${hafiza})`, mevcutTalepler)}
+                                        title="Gönderilmiş talep kaydını tamamen sil"
+                                        className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all disabled:opacity-50"
+                                      >
+                                        {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
+                                      </button>
+                                    )}
                                   </div>
-                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : 'text-slate-500'}`}>
+
+                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : isSent ? 'text-blue-600' : 'text-slate-500'}`}>
                                     {mevcutTalepler}
                                   </div>
+
+                                  {isRejected && redNedeni && (
+                                    <div className="max-w-[210px] text-right text-[9px] font-bold normal-case leading-tight text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1" title={redNedeni}>
+                                      Neden: {redNedeni}
+                                    </div>
+                                  )}
+
+                                  {(isRejected || isSent) && kararTarihi && (
+                                    <div className="text-[8px] font-semibold text-slate-400">
+                                      {kararTarihi}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                  <button 
@@ -2874,7 +2959,8 @@ export default function CnetmobilCmrFinalUltimate() {
                     const magazaAdi = (row[8] || '').toString().trim();
                     const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
                     const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                    if (!magazaAdi || isRejected) return null; // Sadece bekleyen aktif talepler
+                    const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
+                    if (!magazaAdi || isRejected || isSent) return null; // Sadece bekleyen aktif talepler
 
                     const rowIndex = originalIndex + 1; // Sheets satır numarası
                     const markaModel = row[0] || '-';
@@ -2912,7 +2998,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     );
                   })}
 
-                  {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ'; }).length === 0 && (
+                  {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
                     <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
                       Aktif talep bulunmuyor.
                     </div>
@@ -3052,7 +3138,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       // KASKO KADEMELİ FİYAT KORUMASI
                       // Paket yükselirken kasko fiyatı bir önceki paketin ulaştığı
                       // maksimum tutarın altına düşemez.
-                      const SILVER_MIN = 2250;
+                      const SILVER_MIN = 2750;
                       const GOLD_MIN = 3750;
                       const PLATIN_MIN = 7500;
 
@@ -3097,7 +3183,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {silverPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 inline-block px-2.5 py-1.5 rounded-lg border border-slate-200">
-                                  MİNİMUM BAREM: 2.250 TL
+                                  MİNİMUM BAREM: 2.750 TL
                                 </div>
                               </div>
                             ) : (
@@ -3118,7 +3204,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {goldPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest bg-amber-100 inline-block px-2.5 py-1.5 rounded-lg border border-amber-200">
-                                  MİNİMUM BAREM: 4.375 TL
+                                  MİNİMUM BAREM: 3.750 TL
                                 </div>
                               </div>
                             ) : (
@@ -3139,7 +3225,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {platinPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest bg-indigo-100 inline-block px-2.5 py-1.5 rounded-lg border border-indigo-200">
-                                  MİNİMUM BAREM: 8.100 TL
+                                  MİNİMUM BAREM: 7.500 TL
                                 </div>
                               </div>
                             ) : (
