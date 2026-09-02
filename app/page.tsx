@@ -3049,9 +3049,40 @@ export default function CnetmobilCmrFinalUltimate() {
                       const isGold = val > 25000 && val <= 60000;
                       const isPlatin = val > 60000 && val <= 170000;
 
-                      const silverPrice = Math.max(val * 0.175, 2250);
-                      const goldPrice = Math.max(val * 0.135, 3750);
-                      const platinPrice = Math.max(val * 0.11, 7500);
+                      // KASKO KADEMELİ FİYAT KORUMASI
+                      // Paket yükselirken kasko fiyatı bir önceki paketin ulaştığı
+                      // maksimum tutarın altına düşemez.
+                      const SILVER_MIN = 2750;
+                      const GOLD_MIN = 3750;
+                      const PLATIN_MIN = 7500;
+
+                      const SILVER_ORAN = 0.175;
+                      const GOLD_ORAN = 0.135;
+                      const PLATIN_ORAN = 0.11;
+
+                      // Silver 25.000 TL'de 4.375 TL'ye ulaşır.
+                      const silverUstSinirFiyati = Math.max(25000 * SILVER_ORAN, SILVER_MIN); // 4.375 TL
+
+                      // Gold 60.000 TL'de 8.100 TL'ye ulaşır.
+                      const goldUstSinirFiyati = Math.max(60000 * GOLD_ORAN, GOLD_MIN, silverUstSinirFiyati); // 8.100 TL
+
+                      const silverPrice = Math.max(val * SILVER_ORAN, SILVER_MIN);
+
+                      // 25.001 TL'den sonra Gold hesabı 4.375 TL'nin altına inemez.
+                      // Gold oranı 4.375 TL'yi geçtiği anda normal oran hesabı devam eder.
+                      const goldPrice = Math.max(
+                        val * GOLD_ORAN,
+                        GOLD_MIN,
+                        silverUstSinirFiyati
+                      );
+
+                      // 60.001 TL'den sonra Platin hesabı 8.100 TL'nin altına inemez.
+                      // Platin oranı 8.100 TL'yi geçtiği anda normal oran hesabı devam eder.
+                      const platinPrice = Math.max(
+                        val * PLATIN_ORAN,
+                        PLATIN_MIN,
+                        goldUstSinirFiyati
+                      );
 
                       return (
                         <>
