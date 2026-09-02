@@ -94,7 +94,7 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
     MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
     PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 13),
+    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
     CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
     CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
@@ -824,8 +824,33 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  const handleTalepGonder = async (rowIndex: number, modelName: string) => {
-    if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
+  const handleTalepGonder = async (rowIndex: number, modelName: string, stokAdedi: number) => {
+    const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
+
+    if (guvenliStok <= 0) {
+      alert("Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.");
+      return;
+    }
+
+    const adetInput = window.prompt(
+      `${modelName} için kaç adet talep etmek istiyorsunuz?\n\nMevcut stok: ${guvenliStok} adet`,
+      "1"
+    );
+
+    if (adetInput === null) return;
+
+    const talepAdedi = Number(adetInput);
+    if (!Number.isInteger(talepAdedi) || talepAdedi < 1) {
+      alert("Talep adedi 1 veya daha büyük tam sayı olmalıdır.");
+      return;
+    }
+
+    if (talepAdedi > guvenliStok) {
+      alert(`En fazla ${guvenliStok} adet talep edebilirsiniz.`);
+      return;
+    }
+
+    if (!confirm(`${modelName} için ${talepAdedi} adet talep oluşturulacak. Onaylıyor musunuz?`)) return;
 
     setTalepSaving(true);
 
@@ -839,7 +864,7 @@ export default function CnetmobilCmrFinalUltimate() {
           type: "SAVE_TALEP",
           rowIndex: rowIndex,
           branch: selectedBranch,
-          adet: 1
+          adet: talepAdedi
         })
       });
 
@@ -854,7 +879,7 @@ export default function CnetmobilCmrFinalUltimate() {
       // Ekstra 1.5 saniye beklemeden veriyi hemen yeniliyoruz.
       await refreshDataCache();
 
-      alert(`${modelName} talebiniz merkeze iletildi!`);
+      alert(`${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi!`);
     } catch (e) {
       console.error("Talep gönderme hatası:", e);
       alert("Talep gönderilirken hata oluştu.");
@@ -2268,16 +2293,17 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="overflow-x-auto custom-scrollbar">
                   <div className="min-w-[1100px]">
                     
-                    <div className="grid grid-cols-12 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
+                    <div className="grid grid-cols-13 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
                       <div className="col-span-2">MARKA MODEL</div>
                       <div className="col-span-1">HAFIZA</div>
                       <div className="col-span-1">RENK</div>
                       <div className="col-span-1 text-center">PİL</div>
                       <div className="col-span-1 text-center">GRADE</div>
                       <div className="col-span-1 text-center">GARANTİ</div>
-                      <div className="col-span-3">DEĞİŞEN PARÇA</div>
+                      <div className="col-span-2">DEĞİŞEN PARÇA</div>
                       <div className="col-span-1 text-center">KUTU FATURA</div>
-                      <div className="col-span-1 text-right pr-2">İŞLEM</div>
+                      <div className="col-span-1 text-center">STOK</div>
+                      <div className="col-span-2 text-right pr-2">İŞLEM</div>
                     </div>
 
                     <div className="flex flex-col">
@@ -2296,6 +2322,8 @@ export default function CnetmobilCmrFinalUltimate() {
                         const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
                         const kararTarihi = (row[11] || '').toString().trim();
                         const redNedeni = (row[12] || '').toString().trim();
+                        const stokAdedi = Math.max(0, Number(row[13]) || 0);
+                        const talepAdedi = Math.max(0, Number(row[14]) || 0);
                         const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
                         const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
                         const isRequested = mevcutTalepler !== ''; // Bekleyen/red/gönderildi bilgisi bulunan cihaz kilitli kalır.
@@ -2307,7 +2335,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
 
                         return (
-                          <div key={i} className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <div key={i} className="grid grid-cols-13 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                             
                             <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
                               {markaModel}
@@ -2334,15 +2362,21 @@ export default function CnetmobilCmrFinalUltimate() {
                               {garanti || '-'}
                             </div>
 
-                            <div className="col-span-3 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
+                            <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
                               {degisenParca || 'Orijinal / Yok'}
                             </div>
 
                             <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
                               {kutuFatura || '-'}
                             </div>
+
+                            <div className="col-span-1 text-center">
+                              <span className={`inline-flex min-w-[42px] justify-center px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi > 0 ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                                {stokAdedi} ADET
+                              </span>
+                            </div>
                             
-                            <div className="col-span-1 text-right">
+                            <div className="col-span-2 text-right">
                               {isRequested ? (
                                 <div className="flex flex-col items-end gap-1.5">
                                   <div className="flex items-center justify-end gap-1.5">
@@ -2353,7 +2387,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                           ? 'bg-blue-50 text-blue-700 border-blue-200'
                                           : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                                     }`}>
-                                      {isRejected ? '✕ TALEP RED EDİLDİ' : isSent ? '✓ GÖNDERİLDİ' : '✓ TALEP EDİLDİ'}
+                                      {isRejected ? `✕ ${talepAdedi || 1} ADET TALEP RED EDİLDİ` : isSent ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ` : `✓ ${talepAdedi || 1} ADET TALEP EDİLDİ`}
                                     </div>
 
                                     {isSent && (isMasterAccess || isAdmin) && (
@@ -2386,10 +2420,11 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                               ) : (
                                  <button 
-                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`)}
-                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap"
+                                   disabled={stokAdedi <= 0 || talepSaving}
+                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`, stokAdedi)}
+                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600"
                                  >
-                                   TALEP OL
+                                   {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
                                  </button>
                               )}
                             </div>
@@ -2944,12 +2979,13 @@ export default function CnetmobilCmrFinalUltimate() {
 
             <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
               <div className="min-w-[950px]">
-                <div className="bg-emerald-600 text-white grid grid-cols-6 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md items-center">
+                <div className="bg-emerald-600 text-white grid grid-cols-7 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md items-center">
                   <div>TARİH / SAAT</div>
                   <div>MAĞAZA</div>
                   <div>MARKA / MODEL</div>
                   <div>HAFIZA</div>
                   <div>RENK</div>
+                  <div className="text-center">ADET</div>
                   <div className="text-right pr-2">İŞLEM</div>
                 </div>
 
@@ -2967,16 +3003,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     const hafiza = row[1] || '-';
                     const renk = row[2] || '-';
                     const tarihSaat = row[9] || new Date().toLocaleString('tr-TR');
+                    const talepAdedi = Math.max(1, Number(row[14]) || 1);
                     const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
 
                     return (
-                      <div key={originalIndex} className="grid grid-cols-6 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
+                      <div key={originalIndex} className="grid grid-cols-7 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
                         <div className="text-slate-500 font-medium">{tarihSaat}</div>
                         <div className="font-black text-slate-900">{magazaAdi}</div>
                         <div className="font-black text-slate-800">{markaModel}</div>
                         <div>{hafiza}</div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-slate-600">{renk}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-700 font-black">{talepAdedi} ADET</span>
                         </div>
                         <div className="flex items-center justify-end gap-2 pr-2">
                           <button
