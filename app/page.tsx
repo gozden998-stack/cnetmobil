@@ -901,6 +901,26 @@ export default function CnetmobilCmrFinalUltimate() {
       return String(a.row[0] || '').localeCompare(String(b.row[0] || ''), 'tr');
     });
 
+
+  // =====================================================
+  // CİHAZ TALEP - OPTİMİSTİK UI
+  // Kullanıcı butona bastığı anda ekranı günceller.
+  // Apps Script + Sheets + Supabase işlemi arkada tamamlanır;
+  // Realtime geldiğinde gerçek veri otomatik olarak ekrana oturur.
+  // =====================================================
+  const patchCihazTalepLocal = (rowIndex: number, patcher: (row: any[]) => any[]) => {
+    setCihazTalepData(prev => {
+      const dataIndex = rowIndex - 1; // CihazTalepData 1. satır = Sheets row 1 (header)
+      if (dataIndex < 0 || dataIndex >= prev.length) return prev;
+      const next = prev.map((row, i) => i === dataIndex ? patcher([...(row || [])]) : row);
+      return next;
+    });
+  };
+
+  const restoreCihazTalepSnapshot = (snapshot: any[][]) => {
+    setCihazTalepData(snapshot.map(row => [...(row || [])]));
+  };
+
   const toggleTalepSecim = (rowIndex: number, stok: number) => {
     setTalepSeciliRows(prev => prev.includes(rowIndex) ? prev.filter(x => x !== rowIndex) : [...prev, rowIndex]);
     setTalepTopluAdetler(prev => ({ ...prev, [rowIndex]: prev[rowIndex] || Math.min(1, Math.max(1, stok)) }));
@@ -912,54 +932,124 @@ export default function CnetmobilCmrFinalUltimate() {
       adet: Math.max(1, Number(talepTopluAdetler[rowIndex]) || 1)
     }));
     if (!items.length) return showTalepMessage('SEÇİM YOK', 'Lütfen en az bir cihaz seçin.', 'error');
+
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    // ANINDA ekrana yansıt. Kullanıcı Apps Script'i beklemez.
+    setCihazTalepDialog(null);
+    items.forEach(item => {
+      patchCihazTalepLocal(item.rowIndex, row => {
+        row[9] = selectedBranch;
+        row[10] = now;
+        row[11] = 'BEKLİYOR';
+        row[12] = '';
+        row[13] = '';
+        row[14] = item.adet;
+        return row;
+      });
+    });
+    setTalepSeciliRows([]);
+    setTalepTopluAdetler({});
     setTopluIslemLoading(true);
+
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: 'TOPLU_TALEP', branch: selectedBranch, items })
       });
       const result = await response.json();
-      if (result.result !== 'success') return showTalepMessage('TOPLU TALEP BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
-      setTalepSeciliRows([]); setTalepTopluAdetler({});
-      await refreshDataCache();
-      showTalepMessage('TOPLU TALEP OLUŞTURULDU', `${result.successCount || items.length} cihaz talebi merkeze iletildi.`, 'success');
+      if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
+        showTalepMessage('TOPLU TALEP BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+        return;
+      }
+      // refresh yok: Supabase Realtime gerçek veriyi kendisi getirecek.
     } catch (e) {
-      console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu talep gönderilirken hata oluştu.', 'error');
+      console.error(e);
+      restoreCihazTalepSnapshot(snapshot);
+      showTalepMessage('BAĞLANTI HATASI', 'Toplu talep gönderilirken hata oluştu.', 'error');
     } finally { setTopluIslemLoading(false); }
   };
 
   const submitTopluGonderildi = async () => {
     if (!aktifSeciliRows.length) return showTalepMessage('SEÇİM YOK', 'Gönderilecek talepleri seçin.', 'error');
+
+    const rowIndexes = [...aktifSeciliRows];
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    setCihazTalepDialog(null);
+    rowIndexes.forEach(rowIndex => {
+      patchCihazTalepLocal(rowIndex, row => {
+        const stok = Math.max(0, Number(row[8]) || 0);
+        const adet = Math.max(1, Number(row[14]) || 1);
+        row[8] = Math.max(0, stok - adet);
+        row[11] = 'GÖNDERİLDİ';
+        row[12] = now;
+        row[13] = '';
+        return row;
+      });
+    });
+    setAktifSeciliRows([]);
     setTopluIslemLoading(true);
+
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'TOPLU_GONDER_TALEP', rowIndexes: aktifSeciliRows })
+        body: JSON.stringify({ type: 'TOPLU_GONDER_TALEP', rowIndexes })
       });
       const result = await response.json();
-      if (result.result !== 'success') return showTalepMessage('TOPLU İŞLEM BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
-      setAktifSeciliRows([]); await refreshDataCache();
-      showTalepMessage('TOPLU GÖNDERİLDİ', `${result.successCount || 0} talep gönderildi olarak işaretlendi.`, 'success');
-    } catch (e) { console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu gönderim sırasında hata oluştu.', 'error'); }
-    finally { setTopluIslemLoading(false); }
+      if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
+        showTalepMessage('TOPLU İŞLEM BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      restoreCihazTalepSnapshot(snapshot);
+      showTalepMessage('BAĞLANTI HATASI', 'Toplu gönderim sırasında hata oluştu.', 'error');
+    } finally { setTopluIslemLoading(false); }
   };
 
   const submitTopluRed = async () => {
     const temizNeden = redNedeniInput.trim();
     if (!aktifSeciliRows.length) return showTalepMessage('SEÇİM YOK', 'Reddedilecek talepleri seçin.', 'error');
     if (!temizNeden) return showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazaların göreceği red nedenini yazın.', 'error');
+
+    const rowIndexes = [...aktifSeciliRows];
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    setCihazTalepDialog(null);
+    rowIndexes.forEach(rowIndex => {
+      patchCihazTalepLocal(rowIndex, row => {
+        row[11] = 'RED EDİLDİ';
+        row[12] = now;
+        row[13] = temizNeden;
+        return row;
+      });
+    });
+    setAktifSeciliRows([]);
+    setRedNedeniInput('');
     setTopluIslemLoading(true);
+
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'TOPLU_RED_TALEP', rowIndexes: aktifSeciliRows, reason: temizNeden })
+        body: JSON.stringify({ type: 'TOPLU_RED_TALEP', rowIndexes, reason: temizNeden })
       });
       const result = await response.json();
-      if (result.result !== 'success') return showTalepMessage('TOPLU RED BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
-      setAktifSeciliRows([]); setRedNedeniInput(''); await refreshDataCache();
-      showTalepMessage('TALEPLER REDDEDİLDİ', `${result.successCount || 0} talep reddedildi ve neden mağazalara iletildi.`, 'success');
-    } catch (e) { console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu red sırasında hata oluştu.', 'error'); }
-    finally { setTopluIslemLoading(false); }
+      if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
+        showTalepMessage('TOPLU RED BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      restoreCihazTalepSnapshot(snapshot);
+      showTalepMessage('BAĞLANTI HATASI', 'Toplu red sırasında hata oluştu.', 'error');
+    } finally { setTopluIslemLoading(false); }
   };
 
   const aktifTalepleriExcelIndir = () => {
@@ -1000,37 +1090,43 @@ export default function CnetmobilCmrFinalUltimate() {
       showTalepMessage('GEÇERSİZ ADET', 'Talep adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
       return;
     }
-
     if (talepAdedi > stokAdedi) {
       showTalepMessage('STOK YETERSİZ', `En fazla ${stokAdedi} adet talep edebilirsiniz.`, 'error');
       return;
     }
 
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    // Modalı anında kapat ve satırı hemen TALEP EDİLDİ durumuna getir.
+    setCihazTalepDialog(null);
+    patchCihazTalepLocal(rowIndex, row => {
+      row[9] = selectedBranch;
+      row[10] = now;
+      row[11] = 'BEKLİYOR';
+      row[12] = '';
+      row[13] = '';
+      row[14] = talepAdedi;
+      return row;
+    });
     setTalepSaving(true);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          type: 'SAVE_TALEP',
-          rowIndex,
-          branch: selectedBranch,
-          adet: talepAdedi
-        })
+        body: JSON.stringify({ type: 'SAVE_TALEP', rowIndex, branch: selectedBranch, adet: talepAdedi })
       });
-
       const result = await response.json();
-
       if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
         showTalepMessage('TALEP OLUŞTURULAMADI', result.message || 'Talep oluşturulamadı.', 'error');
         return;
       }
-
-      await refreshDataCache();
-      showTalepMessage('TALEP OLUŞTURULDU', `${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi.`, 'success');
+      // Burada refreshDataCache YOK. Realtime doğrulanmış kaydı getirecek.
     } catch (e) {
       console.error('Talep gönderme hatası:', e);
+      restoreCihazTalepSnapshot(snapshot);
       showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
     } finally {
       setTalepSaving(false);
@@ -1049,7 +1145,20 @@ export default function CnetmobilCmrFinalUltimate() {
   const submitGonderildi = async () => {
     if (!cihazTalepDialog || cihazTalepDialog.type !== 'gonder') return;
 
-    const { rowIndex, magaza } = cihazTalepDialog;
+    const { rowIndex } = cihazTalepDialog;
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    setCihazTalepDialog(null);
+    patchCihazTalepLocal(rowIndex, row => {
+      const stok = Math.max(0, Number(row[8]) || 0);
+      const adet = Math.max(1, Number(row[14]) || 1);
+      row[8] = Math.max(0, stok - adet);
+      row[11] = 'GÖNDERİLDİ';
+      row[12] = now;
+      row[13] = '';
+      return row;
+    });
     setGonderildiLoadingIndex(rowIndex);
 
     try {
@@ -1058,18 +1167,15 @@ export default function CnetmobilCmrFinalUltimate() {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
       });
-
       const result = await response.json();
-
       if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
         showTalepMessage('İŞLEM BAŞARISIZ', result.message || 'İşlem gerçekleştirilemedi.', 'error');
         return;
       }
-
-      await refreshDataCache();
-      showTalepMessage('GÖNDERİLDİ', `${magaza} mağazasının talebi gönderildi olarak işaretlendi. Mağaza durumu anlık görecek.`, 'success');
     } catch (e) {
       console.error(e);
+      restoreCihazTalepSnapshot(snapshot);
       showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
     } finally {
       setGonderildiLoadingIndex(null);
@@ -1089,38 +1195,40 @@ export default function CnetmobilCmrFinalUltimate() {
   const submitTalepRed = async () => {
     if (!cihazTalepDialog || cihazTalepDialog.type !== 'red') return;
 
-    const { rowIndex, magaza } = cihazTalepDialog;
+    const { rowIndex } = cihazTalepDialog;
     const temizNeden = redNedeniInput.trim();
-
     if (!temizNeden) {
       showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazanın göreceği red nedenini yazın.', 'error');
       return;
     }
 
+    const snapshot = cihazTalepData.map(row => [...(row || [])]);
+    const now = new Date().toLocaleString('tr-TR');
+
+    setCihazTalepDialog(null);
+    patchCihazTalepLocal(rowIndex, row => {
+      row[11] = 'RED EDİLDİ';
+      row[12] = now;
+      row[13] = temizNeden;
+      return row;
+    });
     setRedLoadingIndex(rowIndex);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          type: 'RED_TALEP',
-          rowIndex,
-          reason: temizNeden
-        })
+        body: JSON.stringify({ type: 'RED_TALEP', rowIndex, reason: temizNeden })
       });
-
       const result = await response.json();
-
       if (result.result !== 'success') {
+        restoreCihazTalepSnapshot(snapshot);
         showTalepMessage('TALEP REDDEDİLEMEDİ', result.message || 'Talep reddedilemedi.', 'error');
         return;
       }
-
-      await refreshDataCache();
-      showTalepMessage('TALEP REDDEDİLDİ', `${magaza} mağazasına red nedeni ile birlikte iletildi.`, 'success');
     } catch (e) {
       console.error('Talep reddetme hatası:', e);
+      restoreCihazTalepSnapshot(snapshot);
       showTalepMessage('İŞLEM HATASI', 'Talep reddedilirken hata oluştu.', 'error');
     } finally {
       setRedLoadingIndex(null);
