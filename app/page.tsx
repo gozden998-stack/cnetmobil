@@ -276,13 +276,16 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const loadData = async (bypassClientCache = false) => {
+  const loadData = async () => {
     try {
-      const fetchOptions: RequestInit = bypassClientCache 
-        ? { cache: 'no-store', headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } } 
-        : {};
+      const res = await fetch('/api/sheets', {
+        cache: 'no-store'
+      });
 
-      const res = await fetch('/api/sheets', fetchOptions); 
+      if (!res.ok) {
+        throw new Error(`Veri alınamadı: ${res.status}`);
+      }
+
       const responseData = await res.json();
       const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
       const allData = JSON.parse(decodedString);
@@ -416,9 +419,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const refreshDataCache = async () => {
     try {
-      await loadData(true); 
+      await loadData();
     } catch (e) {
-      console.error("Önbellek temizlenirken hata oluştu", e);
+      console.error("Veri yenilenirken hata oluştu", e);
     }
   };
 
@@ -605,30 +608,41 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const handleTalepGonder = async (rowIndex: number, modelName: string) => {
     if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
-    
+
     setTalepSaving(true);
+
     try {
-      await fetch(SCRIPT_URL, {
+      const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ 
-           type: "SAVE_TALEP", 
-           rowIndex: rowIndex, 
-           branch: selectedBranch,
-           adet: 1
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          type: "SAVE_TALEP",
+          rowIndex: rowIndex,
+          branch: selectedBranch,
+          adet: 1
         })
       });
-      alert(`${modelName} talebiniz merkeze iletildi!`);
-      
-      if (typeof window !== 'undefined') {
-         localStorage.setItem(`talep_${selectedBranch}_${rowIndex}`, JSON.stringify({ timestamp: new Date().getTime() }));
+
+      const result = await response.json();
+
+      if (result.result !== "success") {
+        alert(result.message || "Talep oluşturulamadı.");
+        return;
       }
-      
-      setTimeout(refreshDataCache, 1500);
+
+      // Apps Script işlemi tamamlandığında Supabase de güncellenmiş olur.
+      // Ekstra 1.5 saniye beklemeden veriyi hemen yeniliyoruz.
+      await refreshDataCache();
+
+      alert(`${modelName} talebiniz merkeze iletildi!`);
     } catch (e) {
+      console.error("Talep gönderme hatası:", e);
       alert("Talep gönderilirken hata oluştu.");
+    } finally {
+      setTalepSaving(false);
     }
-    setTalepSaving(false);
   };
 
   const handleGonderildi = async (rowIndex: number, cihazAdi: string, magaza: string) => {
@@ -636,26 +650,40 @@ export default function CnetmobilCmrFinalUltimate() {
       alert("Bu işlemi yalnızca yöneticiler gerçekleştirebilir!");
       return;
     }
+
     if (!confirm(`${magaza} şubesinin talep ettiği ${cihazAdi} için cihaz gönderildi olarak işaretlenecek ve stoktan düşülecektir. Onaylıyor musunuz?`)) return;
 
     setGonderildiLoadingIndex(rowIndex);
+
     try {
-      await fetch(SCRIPT_URL, {
+      const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
         body: JSON.stringify({
           type: "GONDER_TALEP",
           rowIndex: rowIndex
         })
       });
 
+      const result = await response.json();
+
+      if (result.result !== "success") {
+        alert(result.message || "İşlem gerçekleştirilemedi.");
+        return;
+      }
+
+      // Supabase güncellendikten sonra listeyi hemen yenile.
+      await refreshDataCache();
+
       alert("Cihaz gönderildi ve stoktan düşüldü.");
-      setTimeout(refreshDataCache, 1500);
     } catch (e) {
       console.error(e);
       alert("İşlem sırasında bir hata oluştu.");
+    } finally {
+      setGonderildiLoadingIndex(null);
     }
-    setGonderildiLoadingIndex(null);
   };
 
   const handleClearThhForm = () => setThhForm(initialThhForm);
@@ -1121,7 +1149,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
 
                   <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">5 Dk</div>
+                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">30 Sn</div>
                     <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
                   </div>
 
@@ -1964,23 +1992,6 @@ export default function CnetmobilCmrFinalUltimate() {
                          isRequested = true; // Herhangi bir şube talep attıysa kilitlenir!
                             
                         }
-                        if (typeof window !== 'undefined' && !isRequested) {
-                            const kayitStr = localStorage.getItem(`talep_${selectedBranch}_${rowIndex}`);
-                            if (kayitStr) {
-                                try {
-                                    const kayit = JSON.parse(kayitStr);
-                                    const onBesDakika = 15 * 60 * 1000;
-                                    if (new Date().getTime() - kayit.timestamp < onBesDakika) {
-                                        isRequested = true;
-                                    } else {
-                                        localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
-                                    }
-                                } catch(e) {
-                                    localStorage.removeItem(`talep_${selectedBranch}_${rowIndex}`);
-                                }
-                            }
-                        }
-
                         let gradeStyle = "bg-slate-100 text-slate-600";
                         if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
                         if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
