@@ -179,11 +179,20 @@ export default function CnetmobilCmrFinalUltimate() {
     | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
     | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
+    | { type: 'toplu_talep' }
+    | { type: 'toplu_gonder' }
+    | { type: 'toplu_red' }
     | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
 
   const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
   const [talepAdetInput, setTalepAdetInput] = useState('1');
   const [redNedeniInput, setRedNedeniInput] = useState('');
+  const [talepSeciliRows, setTalepSeciliRows] = useState<number[]>([]);
+  const [talepTopluAdetler, setTalepTopluAdetler] = useState<Record<number, number>>({});
+  const [aktifSeciliRows, setAktifSeciliRows] = useState<number[]>([]);
+  const [gradeFilter, setGradeFilter] = useState('TÜMÜ');
+  const [talepSort, setTalepSort] = useState<'MODEL' | 'GRADE' | 'STOK_DESC' | 'STOK_ASC'>('MODEL');
+  const [topluIslemLoading, setTopluIslemLoading] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -837,6 +846,94 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const showTalepMessage = (title: string, message: string, tone: 'success' | 'error' | 'info' = 'info') => {
     setCihazTalepDialog({ type: 'message', title, message, tone });
+  };
+
+  const cihazTalepRows = cihazTalepData.slice(1).map((row, i) => ({ row, rowIndex: i + 2 }));
+  const cihazTalepGrades = Array.from(new Set(cihazTalepRows.map(({ row }) => String(row[4] || '').trim().toUpperCase()).filter(Boolean)));
+  const filtreliCihazTalepRows = cihazTalepRows
+    .filter(({ row }) => gradeFilter === 'TÜMÜ' || String(row[4] || '').trim().toUpperCase() === gradeFilter)
+    .sort((a, b) => {
+      if (talepSort === 'GRADE') return String(a.row[4] || '').localeCompare(String(b.row[4] || ''), 'tr');
+      if (talepSort === 'STOK_DESC') return (Number(b.row[8]) || 0) - (Number(a.row[8]) || 0);
+      if (talepSort === 'STOK_ASC') return (Number(a.row[8]) || 0) - (Number(b.row[8]) || 0);
+      return String(a.row[0] || '').localeCompare(String(b.row[0] || ''), 'tr');
+    });
+
+  const toggleTalepSecim = (rowIndex: number, stok: number) => {
+    setTalepSeciliRows(prev => prev.includes(rowIndex) ? prev.filter(x => x !== rowIndex) : [...prev, rowIndex]);
+    setTalepTopluAdetler(prev => ({ ...prev, [rowIndex]: prev[rowIndex] || Math.min(1, Math.max(1, stok)) }));
+  };
+
+  const submitTopluTalep = async () => {
+    const items = talepSeciliRows.map(rowIndex => ({
+      rowIndex,
+      adet: Math.max(1, Number(talepTopluAdetler[rowIndex]) || 1)
+    }));
+    if (!items.length) return showTalepMessage('SEÇİM YOK', 'Lütfen en az bir cihaz seçin.', 'error');
+    setTopluIslemLoading(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'TOPLU_TALEP', branch: selectedBranch, items })
+      });
+      const result = await response.json();
+      if (result.result !== 'success') return showTalepMessage('TOPLU TALEP BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+      setTalepSeciliRows([]); setTalepTopluAdetler({});
+      await refreshDataCache();
+      showTalepMessage('TOPLU TALEP OLUŞTURULDU', `${result.successCount || items.length} cihaz talebi merkeze iletildi.`, 'success');
+    } catch (e) {
+      console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu talep gönderilirken hata oluştu.', 'error');
+    } finally { setTopluIslemLoading(false); }
+  };
+
+  const submitTopluGonderildi = async () => {
+    if (!aktifSeciliRows.length) return showTalepMessage('SEÇİM YOK', 'Gönderilecek talepleri seçin.', 'error');
+    setTopluIslemLoading(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'TOPLU_GONDER_TALEP', rowIndexes: aktifSeciliRows })
+      });
+      const result = await response.json();
+      if (result.result !== 'success') return showTalepMessage('TOPLU İŞLEM BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+      setAktifSeciliRows([]); await refreshDataCache();
+      showTalepMessage('TOPLU GÖNDERİLDİ', `${result.successCount || 0} talep gönderildi olarak işaretlendi.`, 'success');
+    } catch (e) { console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu gönderim sırasında hata oluştu.', 'error'); }
+    finally { setTopluIslemLoading(false); }
+  };
+
+  const submitTopluRed = async () => {
+    const temizNeden = redNedeniInput.trim();
+    if (!aktifSeciliRows.length) return showTalepMessage('SEÇİM YOK', 'Reddedilecek talepleri seçin.', 'error');
+    if (!temizNeden) return showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazaların göreceği red nedenini yazın.', 'error');
+    setTopluIslemLoading(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'TOPLU_RED_TALEP', rowIndexes: aktifSeciliRows, reason: temizNeden })
+      });
+      const result = await response.json();
+      if (result.result !== 'success') return showTalepMessage('TOPLU RED BAŞARISIZ', result.message || 'İşlem tamamlanamadı.', 'error');
+      setAktifSeciliRows([]); setRedNedeniInput(''); await refreshDataCache();
+      showTalepMessage('TALEPLER REDDEDİLDİ', `${result.successCount || 0} talep reddedildi ve neden mağazalara iletildi.`, 'success');
+    } catch (e) { console.error(e); showTalepMessage('BAĞLANTI HATASI', 'Toplu red sırasında hata oluştu.', 'error'); }
+    finally { setTopluIslemLoading(false); }
+  };
+
+  const aktifTalepleriExcelIndir = () => {
+    const rows = cihazTalepData.slice(1).map((row, i) => ({ row, rowIndex: i + 2 })).filter(({ row }) => {
+      const branch = String(row[9] || '').trim();
+      const durum = String(row[11] || '').trim().toUpperCase();
+      return branch && !['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(durum);
+    });
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      ['Tarih','Mağaza','Marka Model','Hafıza','Renk','Grade','Stok','Talep Adet','Durum'].map(esc).join(';'),
+      ...rows.map(({ row }) => [row[10], row[9], row[0], row[1], row[2], row[4], row[8], row[14] || 1, row[11] || 'BEKLİYOR'].map(esc).join(';'))
+    ];
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = `aktif_talepler_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
@@ -2242,214 +2339,51 @@ export default function CnetmobilCmrFinalUltimate() {
           ) :
 
           appMode === 'cihaz_talep' && step < 99 ? (
-            <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
-              
-              {/* ÜST BİLGİ VE TIKLANABİLİR İSTATİSTİK KARTLARI */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
+            <div className="w-full max-w-[1500px] mx-auto animate-in fade-in duration-500">
+              <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-5 gap-5 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-                    <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
-                  </div>
+                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg></div>
+                  <div><h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2><p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Cihazları seçin, adet belirleyin ve toplu talep oluşturun.</p></div>
                 </div>
-
-                <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
-                  {/* TOPLAM KAYIT KARTI */}
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[180px]">
-                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM KAYIT</p>
-                      <p className="text-xl font-black text-slate-800">
-                        {Math.max(0, cihazTalepData.length - 1)} <span className="text-sm font-bold text-slate-400">Adet</span>
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* AKTİF TALEPLER KARTI (YÖNETİCİYE ÖZEL TIKLANABİLİR) */}
-                  <div 
-                    onClick={() => {
-                      if (isMasterAccess || isAdmin) {
-                        setAktifTaleplerModalOpen(true);
-                      } else {
-                        alert("Aktif talepler detayını yalnızca yöneticiler görüntüleyebilir.");
-                      }
-                    }}
-                    className={`flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[190px] transition-all ${isMasterAccess || isAdmin ? 'cursor-pointer hover:bg-emerald-100 hover:shadow-md btn-click' : 'opacity-80 cursor-not-allowed'}`}
-                    title={isMasterAccess || isAdmin ? "Aktif talepleri görüntülemek için tıklayın" : "Yalnızca yöneticiler erişebilir"}
-                  >
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest flex items-center gap-1">
-                        AKTİF TALEPLER
-                        {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
-                      </p>
-                      <p className="text-xl font-black text-emerald-700">
-                        {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex gap-3 w-full xl:w-auto overflow-x-auto no-scrollbar">
+                  <div className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[150px]"><p className="text-[9px] font-black text-slate-400 uppercase">TOPLAM KAYIT</p><p className="text-xl font-black">{Math.max(0, cihazTalepData.length - 1)} <span className="text-xs text-slate-400">Adet</span></p></div>
+                  <div onClick={() => (isMasterAccess || isAdmin) ? setAktifTaleplerModalOpen(true) : showTalepMessage('YETKİ GEREKLİ','Aktif talepleri yalnızca yöneticiler görüntüleyebilir.','error')} className={`bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[165px] ${(isMasterAccess || isAdmin) ? 'cursor-pointer hover:bg-emerald-100' : 'opacity-70'}`}><p className="text-[9px] font-black text-emerald-600 uppercase">AKTİF TALEPLER</p><p className="text-xl font-black text-emerald-700">{cihazTalepData.slice(1).filter(r => { const b=String(r[9]||'').trim(); const d=String(r[11]||'').trim().toUpperCase(); return b && !['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(d); }).length} <span className="text-xs text-emerald-500">Kayıt</span></p></div>
                 </div>
               </div>
 
-              {/* ANA TABLO */}
+              <div className="bg-white rounded-[22px] border border-slate-200 shadow-sm p-4 mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} className="h-10 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase outline-none"><option value="TÜMÜ">TÜM GRADE</option>{cihazTalepGrades.map(g => <option key={g} value={g}>{g}</option>)}</select>
+                  <select value={talepSort} onChange={e => setTalepSort(e.target.value as any)} className="h-10 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase outline-none"><option value="MODEL">MODEL A-Z</option><option value="GRADE">GRADE</option><option value="STOK_DESC">STOK ÇOKTAN AZA</option><option value="STOK_ASC">STOK AZDAN ÇOĞA</option></select>
+                  <button onClick={() => { const uygun=filtreliCihazTalepRows.filter(({row}) => !String(row[9]||'').trim() && (Number(row[8])||0)>0).map(x=>x.rowIndex); setTalepSeciliRows(prev => prev.length===uygun.length ? [] : uygun); }} className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase hover:bg-slate-50">{talepSeciliRows.length ? 'SEÇİMİ TEMİZLE' : 'UYGUNLARI SEÇ'}</button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-[10px] font-black text-slate-500 uppercase">Seçilen: <span className="text-blue-600">{talepSeciliRows.length} cihaz</span> / <span className="text-blue-600">{talepSeciliRows.reduce((t,r)=>t+(Number(talepTopluAdetler[r])||1),0)} adet</span></div>
+                  <button disabled={!talepSeciliRows.length || topluIslemLoading} onClick={() => setCihazTalepDialog({type:'toplu_talep'})} className="h-11 px-5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-40 hover:bg-blue-700">TOPLU TALEP OLUŞTUR</button>
+                </div>
+              </div>
+
               <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar">
-                  <div className="min-w-[1100px]">
-                    
-                    <div className="grid grid-cols-13 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                      <div className="col-span-2">MARKA MODEL</div>
-                      <div className="col-span-1">HAFIZA</div>
-                      <div className="col-span-1">RENK</div>
-                      <div className="col-span-1 text-center">PİL</div>
-                      <div className="col-span-1 text-center">GRADE</div>
-                      <div className="col-span-1 text-center">GARANTİ</div>
-                      <div className="col-span-2">DEĞİŞEN PARÇA</div>
-                      <div className="col-span-1 text-center">KUTU FATURA</div>
-                      <div className="col-span-1 text-center">STOK</div>
-                      <div className="col-span-2 text-right pr-2">İŞLEM</div>
-                    </div>
-
-                    <div className="flex flex-col">
-                      {cihazTalepData.slice(1).map((row, i) => {
-                        const rowIndex = i + 2;
-                        const markaModel = row[0] || '';
-                        const hafiza = row[1] || '';
-                        const renk = row[2] || '';
-                        const pil = row[3] || '';
-                        const grade = (row[4] || '').toUpperCase();
-                        const garanti = row[5] || '';
-                        const degisenParca = row[6] || '';
-                        const kutuFatura = row[7] || '';
-                        
-                        const mevcutTalepler = (row[9] || '').toString().trim();
-                        const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
-                        const kararTarihi = (row[12] || '').toString().trim();
-                        const redNedeni = (row[13] || '').toString().trim();
-                        const stokAdedi = Math.max(0, Number(row[8]) || 0);
-                        const talepAdedi = Math.max(0, Number(row[14]) || 0);
-                        const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                        const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
-                        const isRequested = mevcutTalepler !== ''; // Bekleyen/red/gönderildi bilgisi bulunan cihaz kilitli kalır.
-                        let gradeStyle = "bg-slate-100 text-slate-600";
-                        if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
-                        if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
-                        if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
-
-                        const colorCode = renk.toLowerCase().includes('kırmızı') ? '#ef4444' : renk.toLowerCase().includes('siyah') ? '#1e293b' : renk.toLowerCase().includes('mavi') ? '#3b82f6' : renk.toLowerCase().includes('gri') ? '#94a3b8' : renk.toLowerCase().includes('mor') ? '#a855f7' : renk.toLowerCase().includes('yeşil') ? '#22c55e' : '#cbd5e1';
-
-                        return (
-                          <div key={i} className="grid grid-cols-13 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                            
-                            <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
-                              {markaModel}
-                            </div>
-                            
-                            <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
-                              {hafiza}
-                            </div>
-                            
-                            <div className="col-span-1 flex items-center gap-1.5 pr-2">
-                              <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                              <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
-                              <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center">
-                              <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {garanti || '-'}
-                            </div>
-
-                            <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
-                              {degisenParca || 'Orijinal / Yok'}
-                            </div>
-
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {kutuFatura || '-'}
-                            </div>
-
-                            <div className="col-span-1 text-center">
-                              <span className={`inline-flex min-w-[42px] justify-center px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi > 0 ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                                {stokAdedi} ADET
-                              </span>
-                            </div>
-                            
-                            <div className="col-span-2 text-right">
-                              {isRequested ? (
-                                <div className="flex flex-col items-end gap-1.5">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${
-                                      isRejected
-                                        ? 'bg-red-50 text-red-600 border-red-200'
-                                        : isSent
-                                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                    }`}>
-                                      {isRejected ? `✕ ${talepAdedi || 1} ADET TALEP RED EDİLDİ` : isSent ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ` : `✓ ${talepAdedi || 1} ADET TALEP EDİLDİ`}
-                                    </div>
-
-                                    {isSent && (isMasterAccess || isAdmin) && (
-                                      <button
-                                        disabled={deleteTalepLoadingIndex === rowIndex}
-                                        onClick={() => handleTalepKaydiSil(rowIndex, `${markaModel} (${hafiza})`, mevcutTalepler)}
-                                        title="Gönderilmiş talep kaydını tamamen sil"
-                                        className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all disabled:opacity-50"
-                                      >
-                                        {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : isSent ? 'text-blue-600' : 'text-slate-500'}`}>
-                                    {mevcutTalepler}
-                                  </div>
-
-                                  {isRejected && redNedeni && (
-                                    <div className="max-w-[210px] text-right text-[9px] font-bold normal-case leading-tight text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1" title={redNedeni}>
-                                      Neden: {redNedeni}
-                                    </div>
-                                  )}
-
-                                  {(isRejected || isSent) && kararTarihi && (
-                                    <div className="text-[8px] font-semibold text-slate-400">
-                                      {kararTarihi}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                 <button 
-                                   disabled={stokAdedi <= 0 || talepSaving}
-                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`, stokAdedi)}
-                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600"
-                                 >
-                                   {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
-                                 </button>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                      
-                      {cihazTalepData.length <= 1 && (
-                         <div className="text-center py-12 text-slate-400 text-sm font-bold">Listelenecek cihaz bulunamadı.</div>
-                      )}
-                    </div>
+                <div className="overflow-x-auto custom-scrollbar"><div className="min-w-[1250px]">
+                  <div className="grid grid-cols-[44px_2fr_1fr_1fr_.7fr_.9fr_1fr_1.5fr_1fr_.8fr_1.2fr] items-center px-5 py-4 border-b text-[9px] font-black text-slate-400 tracking-widest uppercase"><div></div><div>MARKA MODEL</div><div>HAFIZA</div><div>RENK</div><div className="text-center">PİL</div><div className="text-center">GRADE</div><div className="text-center">GARANTİ</div><div>DEĞİŞEN PARÇA</div><div className="text-center">KUTU FATURA</div><div className="text-center">STOK</div><div className="text-right">İŞLEM / ADET</div></div>
+                  <div className="flex flex-col">
+                    {filtreliCihazTalepRows.map(({row,rowIndex}) => {
+                      const markaModel=row[0]||'', hafiza=row[1]||'', renk=row[2]||'', pil=row[3]||'', grade=String(row[4]||'').toUpperCase(), garanti=row[5]||'', degisenParca=row[6]||'', kutuFatura=row[7]||'';
+                      const mevcutTalepler=String(row[9]||'').trim(), talepDurumu=String(row[11]||'').trim().toUpperCase(), kararTarihi=String(row[12]||'').trim(), redNedeni=String(row[13]||'').trim();
+                      const stokAdedi=Math.max(0,Number(row[8])||0), talepAdedi=Math.max(0,Number(row[14])||0); const isRejected=['RED EDİLDİ','REDDEDİLDİ'].includes(talepDurumu), isSent=['GÖNDERİLDİ','GONDERILDI'].includes(talepDurumu), isRequested=!!mevcutTalepler; const secili=talepSeciliRows.includes(rowIndex); const secilebilir=!isRequested&&stokAdedi>0;
+                      const colorCode=renk.toLowerCase().includes('kırmızı')?'#ef4444':renk.toLowerCase().includes('siyah')?'#1e293b':renk.toLowerCase().includes('mavi')?'#3b82f6':renk.toLowerCase().includes('mor')?'#a855f7':renk.toLowerCase().includes('yeşil')?'#22c55e':'#cbd5e1';
+                      return <div key={rowIndex} className={`grid grid-cols-[44px_2fr_1fr_1fr_.7fr_.9fr_1fr_1.5fr_1fr_.8fr_1.2fr] items-center px-5 py-3.5 border-b border-slate-50 ${secili?'bg-blue-50/60':'hover:bg-slate-50/60'}`}>
+                        <div><input type="checkbox" disabled={!secilebilir} checked={secili} onChange={()=>toggleTalepSecim(rowIndex,stokAdedi)} className="w-4 h-4 accent-blue-600 disabled:opacity-30" /></div>
+                        <div className="font-black text-xs text-slate-800">{markaModel}</div><div className="font-bold text-xs">{hafiza}</div><div className="flex items-center gap-1.5 text-[11px]"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:colorCode}}></span>{renk}</div><div className="text-center text-xs font-bold">{pil}</div><div className="text-center"><span className="px-2 py-1 rounded-lg bg-slate-100 text-[9px] font-black">{grade||'-'}</span></div><div className="text-center text-xs">{garanti||'-'}</div><div className="text-xs truncate" title={degisenParca}>{degisenParca||'Orijinal / Yok'}</div><div className="text-center text-xs">{kutuFatura||'-'}</div><div className="text-center"><span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi>0?'bg-blue-50 text-blue-700':'bg-red-50 text-red-600'}`}>{stokAdedi}</span></div>
+                        <div className="flex justify-end items-center gap-2">
+                          {isRequested ? <div className="flex flex-col items-end gap-1"><span className={`px-2 py-1 rounded-lg text-[8px] font-black border ${isRejected?'bg-red-50 text-red-600 border-red-200':isSent?'bg-blue-50 text-blue-700 border-blue-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{isRejected?`✕ ${talepAdedi||1} RED`:isSent?`✓ ${talepAdedi||1} GÖNDERİLDİ`:`✓ ${talepAdedi||1} TALEP`}</span><span className="text-[8px] font-black text-slate-500">{mevcutTalepler}</span>{isRejected&&redNedeni&&<span className="max-w-[180px] text-[8px] text-red-600">Neden: {redNedeni}</span>}{(isRejected||isSent)&&kararTarihi&&<span className="text-[8px] text-slate-400">{kararTarihi}</span>}</div> : secili ? <div className="flex items-center gap-1"><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.max(1,(p[rowIndex]||1)-1)}))} className="w-8 h-8 rounded-lg bg-slate-100 font-black">−</button><input type="number" min={1} max={stokAdedi} value={talepTopluAdetler[rowIndex]||1} onChange={e=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,Math.max(1,Number(e.target.value)||1))}))} className="w-12 h-8 text-center border rounded-lg text-xs font-black"/><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,(p[rowIndex]||1)+1)}))} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-black">+</button></div> : <button disabled={stokAdedi<=0||talepSaving} onClick={()=>handleTalepGonder(rowIndex,`${markaModel} (${hafiza} - ${renk})`,stokAdedi)} className="border-2 border-blue-600 text-blue-600 px-3 py-1.5 rounded-xl text-[8px] font-black uppercase disabled:opacity-30">{stokAdedi>0?'TALEP OL':'STOK YOK'}</button>}
+                        </div>
+                      </div>
+                    })}
+                    {!filtreliCihazTalepRows.length && <div className="text-center py-12 text-slate-400 text-sm font-bold">Filtreye uygun cihaz bulunamadı.</div>}
                   </div>
-                </div>
+                </div></div>
               </div>
-
             </div>
           ) :
           
@@ -3058,6 +2992,16 @@ export default function CnetmobilCmrFinalUltimate() {
               </>
             )}
 
+            {cihazTalepDialog.type === 'toplu_talep' && (
+              <div className="p-8"><div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl font-black mb-5">✓</div><h3 className="text-xl font-black text-slate-900">TOPLU TALEP OLUŞTUR</h3><p className="mt-2 text-sm font-semibold text-slate-500">{talepSeciliRows.length} cihaz için toplam {talepSeciliRows.reduce((t,r)=>t+(Number(talepTopluAdetler[r])||1),0)} adet talep gönderilecek.</p><div className="flex gap-3 mt-7"><button onClick={()=>setCihazTalepDialog(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-xs font-black">VAZGEÇ</button><button disabled={topluIslemLoading} onClick={()=>{setCihazTalepDialog(null);submitTopluTalep()}} className="flex-[1.4] py-3 rounded-xl bg-blue-600 text-white text-xs font-black disabled:opacity-40">{topluIslemLoading?'İŞLENİYOR...':'ONAYLA'}</button></div></div>
+            )}
+            {cihazTalepDialog.type === 'toplu_gonder' && (
+              <div className="p-8"><div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl font-black mb-5">✓</div><h3 className="text-xl font-black text-slate-900">TOPLU GÖNDERİLDİ</h3><p className="mt-2 text-sm font-semibold text-slate-500">Seçili {aktifSeciliRows.length} talep gönderildi olarak işaretlenecek ve talep adetleri stoktan düşecek.</p><div className="flex gap-3 mt-7"><button onClick={()=>setCihazTalepDialog(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-xs font-black">VAZGEÇ</button><button onClick={()=>{setCihazTalepDialog(null);submitTopluGonderildi()}} className="flex-[1.4] py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">ONAYLA</button></div></div>
+            )}
+            {cihazTalepDialog.type === 'toplu_red' && (
+              <div className="p-8"><div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-2xl font-black mb-5">×</div><h3 className="text-xl font-black text-slate-900">TOPLU RED</h3><p className="mt-2 text-sm font-semibold text-slate-500">Seçili {aktifSeciliRows.length} talep aynı red nedeni ile reddedilecek.</p><textarea value={redNedeniInput} onChange={e=>setRedNedeniInput(e.target.value)} placeholder="Red nedenini yazın..." className="mt-5 w-full min-h-[110px] rounded-2xl border border-red-200 bg-red-50/40 p-4 text-sm font-bold outline-none focus:border-red-500"/><div className="flex gap-3 mt-5"><button onClick={()=>setCihazTalepDialog(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-xs font-black">VAZGEÇ</button><button disabled={!redNedeniInput.trim()} onClick={()=>{setCihazTalepDialog(null);submitTopluRed()}} className="flex-[1.4] py-3 rounded-xl bg-red-600 text-white text-xs font-black disabled:opacity-40">TALEPLERİ REDDET</button></div></div>
+            )}
+
             {cihazTalepDialog.type === 'message' && (() => {
               const isError = cihazTalepDialog.tone === 'error';
               const isSuccess = cihazTalepDialog.tone === 'success';
@@ -3076,94 +3020,27 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       )}
 
-      {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL - GÖNDERİLDİ İŞLEMLİ) */}
+      {/* AKTİF TALEPLER - TOPLU İŞLEM + EXCEL */}
       {aktifTaleplerModalOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
-          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-5xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-5 shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">AKTİF TALEPLER LİSTESİ</h3>
-                  <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Şubeler tarafından oluşturulan aktif cihaz talepleri</p>
-                </div>
-              </div>
-              <button onClick={() => setAktifTaleplerModalOpen(false)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-2xl transition-all btn-click">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
-              <div className="min-w-[950px]">
-                <div className="bg-emerald-600 text-white grid grid-cols-7 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md items-center">
-                  <div>TARİH / SAAT</div>
-                  <div>MAĞAZA</div>
-                  <div>MARKA / MODEL</div>
-                  <div>HAFIZA</div>
-                  <div>RENK</div>
-                  <div className="text-center">ADET</div>
-                  <div className="text-right pr-2">İŞLEM</div>
-                </div>
-
-                <div className="flex flex-col mt-2">
-                  {cihazTalepData.map((row, originalIndex) => {
-                    if (originalIndex === 0) return null; // Header atla
-                    const magazaAdi = (row[9] || '').toString().trim();
-                    const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
-                    const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                    const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
-                    if (!magazaAdi || isRejected || isSent) return null; // Sadece bekleyen aktif talepler
-
-                    const rowIndex = originalIndex + 1; // Sheets satır numarası
-                    const markaModel = row[0] || '-';
-                    const hafiza = row[1] || '-';
-                    const renk = row[2] || '-';
-                    const tarihSaat = row[10] || new Date().toLocaleString('tr-TR');
-                    const talepAdedi = Math.max(1, Number(row[14]) || 1);
-                    const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
-
-                    return (
-                      <div key={originalIndex} className="grid grid-cols-7 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
-                        <div className="text-slate-500 font-medium">{tarihSaat}</div>
-                        <div className="font-black text-slate-900">{magazaAdi}</div>
-                        <div className="font-black text-slate-800">{markaModel}</div>
-                        <div>{hafiza}</div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-slate-600">{renk}</span>
-                        </div>
-                        <div className="text-center">
-                          <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-700 font-black">{talepAdedi} ADET</span>
-                        </div>
-                        <div className="flex items-center justify-end gap-2 pr-2">
-                          <button
-                            disabled={isProcessing}
-                            onClick={() => handleGonderildi(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {gonderildiLoadingIndex === rowIndex ? 'GÖNDERİLİYOR...' : 'GÖNDERİLDİ'}
-                          </button>
-                          <button
-                            disabled={isProcessing}
-                            onClick={() => handleTalepReddet(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
-                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {redLoadingIndex === rowIndex ? 'REDDEDİLİYOR...' : 'RED'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {cihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
-                    <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
-                      Aktif talep bulunmuyor.
-                    </div>
-                  )}
-                </div>
+          <div className="bg-white rounded-[34px] shadow-2xl p-6 w-full max-w-6xl flex flex-col max-h-[88vh]">
+            <div className="flex flex-col lg:flex-row justify-between gap-4 border-b pb-5 mb-4">
+              <div><h3 className="text-2xl font-black text-slate-900 uppercase">AKTİF TALEPLER</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Seç, toplu gönder / red ver veya Excel indir</p></div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-[10px] font-black text-slate-500 uppercase mr-2">{aktifSeciliRows.length} seçili</span>
+                <button onClick={aktifTalepleriExcelIndir} className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-[9px] font-black uppercase hover:bg-slate-200">EXCEL İNDİR</button>
+                <button disabled={!aktifSeciliRows.length||topluIslemLoading} onClick={()=>setCihazTalepDialog({type:'toplu_gonder'})} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-[9px] font-black uppercase disabled:opacity-40">TOPLU GÖNDERİLDİ</button>
+                <button disabled={!aktifSeciliRows.length||topluIslemLoading} onClick={()=>{setRedNedeniInput('');setCihazTalepDialog({type:'toplu_red'})}} className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-[9px] font-black uppercase disabled:opacity-40">TOPLU RED</button>
+                <button onClick={()=>{setAktifTaleplerModalOpen(false);setAktifSeciliRows([])}} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 text-xl">×</button>
               </div>
             </div>
+            <div className="overflow-x-auto flex-1"><div className="min-w-[1000px]">
+              <div className="grid grid-cols-[46px_1.1fr_1.1fr_1.8fr_.8fr_.9fr_.7fr_1.5fr] px-4 py-3 rounded-xl bg-emerald-600 text-white text-[9px] font-black uppercase"><div><input type="checkbox" className="accent-white" checked={aktifSeciliRows.length>0 && aktifSeciliRows.length===cihazTalepData.slice(1).filter(r=>{const b=String(r[9]||'').trim();const d=String(r[11]||'').trim().toUpperCase();return b&&!['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(d)}).length} onChange={()=>{const all=cihazTalepData.slice(1).map((r,i)=>({r,idx:i+2})).filter(({r})=>{const b=String(r[9]||'').trim();const d=String(r[11]||'').trim().toUpperCase();return b&&!['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(d)}).map(x=>x.idx);setAktifSeciliRows(p=>p.length===all.length?[]:all)}} /></div><div>TARİH</div><div>MAĞAZA</div><div>CİHAZ</div><div>HAFIZA</div><div>GRADE</div><div>ADET</div><div className="text-right">İŞLEM</div></div>
+              {cihazTalepData.slice(1).map((row,i)=>{
+                const rowIndex=i+2, magaza=String(row[9]||'').trim(), durum=String(row[11]||'').trim().toUpperCase(); if(!magaza||['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(durum)) return null;
+                const processing=gonderildiLoadingIndex===rowIndex||redLoadingIndex===rowIndex; return <div key={rowIndex} className={`grid grid-cols-[46px_1.1fr_1.1fr_1.8fr_.8fr_.9fr_.7fr_1.5fr] items-center px-4 py-3 border-b text-[11px] ${aktifSeciliRows.includes(rowIndex)?'bg-emerald-50':''}`}><div><input type="checkbox" checked={aktifSeciliRows.includes(rowIndex)} onChange={()=>setAktifSeciliRows(p=>p.includes(rowIndex)?p.filter(x=>x!==rowIndex):[...p,rowIndex])} className="w-4 h-4 accent-emerald-600"/></div><div className="text-slate-500">{row[10]||'-'}</div><div className="font-black">{magaza}</div><div className="font-black">{row[0]||'-'}</div><div>{row[1]||'-'}</div><div><span className="px-2 py-1 bg-slate-100 rounded-lg text-[9px] font-black">{row[4]||'-'}</span></div><div className="font-black text-emerald-700">{Math.max(1,Number(row[14])||1)}</div><div className="flex justify-end gap-2"><button disabled={processing} onClick={()=>handleGonderildi(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">GÖNDERİLDİ</button><button disabled={processing} onClick={()=>handleTalepReddet(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-red-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">RED</button></div></div>
+              })}
+            </div></div>
           </div>
         </div>
       )}
