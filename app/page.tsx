@@ -426,7 +426,7 @@ export default function CnetmobilCmrFinalUltimate() {
     loadData();
     const intervalId = setInterval(() => { 
       loadData(); 
-    }, 900000);
+    },30000);
 
     return () => clearInterval(intervalId);
   }, []);
