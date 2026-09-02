@@ -606,44 +606,63 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  const handleTalepGonder = async (rowIndex: number, modelName: string) => {
-    if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
+ const handleTalepGonder = async (rowIndex: number, modelName: string) => {
+  if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
 
-    setTalepSaving(true);
+  setTalepSaving(true);
 
-    try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify({
-          type: "SAVE_TALEP",
-          rowIndex: rowIndex,
-          branch: selectedBranch,
-          adet: 1
-        })
-      });
+  // EKRANDA ANINDA KİLİTLE
+  setCihazTalepData(prev => {
+    const yeni = prev.map(row => [...row]);
 
-      const result = await response.json();
+    // cihazTalepData[0] header olduğu için
+    // Sheets rowIndex 2 => array index 1
+    const arrayIndex = rowIndex - 1;
 
-      if (result.result !== "success") {
-        alert(result.message || "Talep oluşturulamadı.");
-        return;
-      }
-
-      // Apps Script işlemi tamamlandığında Supabase de güncellenmiş olur.
-      // Ekstra 1.5 saniye beklemeden veriyi hemen yeniliyoruz.
-      await refreshDataCache();
-
-      alert(`${modelName} talebiniz merkeze iletildi!`);
-    } catch (e) {
-      console.error("Talep gönderme hatası:", e);
-      alert("Talep gönderilirken hata oluştu.");
-    } finally {
-      setTalepSaving(false);
+    if (yeni[arrayIndex]) {
+      yeni[arrayIndex][8] = selectedBranch;
+      yeni[arrayIndex][9] = new Date().toLocaleString('tr-TR');
     }
-  };
+
+    return yeni;
+  });
+
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify({
+        type: "SAVE_TALEP",
+        rowIndex,
+        branch: selectedBranch,
+        adet: 1
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.result !== "success") {
+      throw new Error(result.message || "Talep oluşturulamadı.");
+    }
+
+    // Supabase'deki gerçek veriyi tekrar al
+    await refreshDataCache();
+
+    alert(`${modelName} talebiniz merkeze iletildi!`);
+
+  } catch (e) {
+    console.error("Talep gönderme hatası:", e);
+
+    // İşlem başarısız olduysa gerçek veriyi geri yükle
+    await refreshDataCache();
+
+    alert("Talep gönderilirken hata oluştu.");
+  } finally {
+    setTalepSaving(false);
+  }
+};
 
   const handleGonderildi = async (rowIndex: number, cihazAdi: string, magaza: string) => {
     if (!isAdmin && !isMasterAccess) {
