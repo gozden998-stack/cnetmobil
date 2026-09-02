@@ -1,10 +1,135 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
+
+// ======================================================
+// SUPABASE - TARAYICIDAN DOĞRUDAN VERİ OKUMA
+// Vercel /api/sheets artık kullanılmıyor.
+// Service Role KULLANMA! Sadece publishable/anon key kullanılır.
+// ======================================================
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
+
+type SupabaseSheetRow = {
+  id?: number;
+  sheet_name: string;
+  row_number: number;
+  data: any[];
+  updated_at?: string;
+};
+
+function trimTrailingEmptyCells(row: any[]): any[] {
+  const result = [...row];
+  while (
+    result.length > 0 &&
+    (result[result.length - 1] === '' ||
+      result[result.length - 1] === null ||
+      result[result.length - 1] === undefined)
+  ) {
+    result.pop();
+  }
+  return result;
+}
+
+function getRangeFromSupabaseRows(
+  rows: SupabaseSheetRow[],
+  startRow: number,
+  endRow: number,
+  startCol: number,
+  endColExclusive: number
+): any[][] {
+  const result = rows
+    .filter((item) => item.row_number >= startRow && item.row_number <= endRow)
+    .sort((a, b) => a.row_number - b.row_number)
+    .map((item) => {
+      const rowData = Array.isArray(item.data) ? item.data : [];
+      return trimTrailingEmptyCells(rowData.slice(startCol, endColExclusive));
+    });
+
+  while (result.length > 0 && result[result.length - 1].length === 0) {
+    result.pop();
+  }
+
+  return result;
+}
+
+function buildPanelData(rows: SupabaseSheetRow[]) {
+  const sheets: Record<string, SupabaseSheetRow[]> = {};
+
+  rows.forEach((row) => {
+    if (!sheets[row.sheet_name]) sheets[row.sheet_name] = [];
+    sheets[row.sheet_name].push(row);
+  });
+
+  return {
+    Devices: getRangeFromSupabaseRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
+    Ayarlar: getRangeFromSupabaseRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
+    Alimlar: getRangeFromSupabaseRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
+    Markalar: getRangeFromSupabaseRows(sheets['Markalar'] || [], 2, 50, 0, 2),
+    CepTablet: getRangeFromSupabaseRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
+    YNA: getRangeFromSupabaseRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
+    DisKanal: getRangeFromSupabaseRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
+    Servis: getRangeFromSupabaseRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
+    IkinciEl: getRangeFromSupabaseRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
+    Depo: getRangeFromSupabaseRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
+    Hedefler: getRangeFromSupabaseRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
+    MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
+    PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
+    THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
+    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 10),
+    CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
+    CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
+  };
+}
+
+async function fetchAllSheetRowsDirect(): Promise<SupabaseSheetRow[]> {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error('Supabase public environment variables eksik.');
+  }
+
+  const pageSize = 1000;
+  let from = 0;
+  let allRows: SupabaseSheetRow[] = [];
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('sheet_rows')
+      .select('id,sheet_name,row_number,data,updated_at')
+      .order('sheet_name', { ascending: true })
+      .order('row_number', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(`Supabase veri okuma hatası: ${error.message}`);
+    }
+
+    const page = (data || []) as SupabaseSheetRow[];
+    allRows = allRows.concat(page);
+
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
 
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
@@ -278,17 +403,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
-      const res = await fetch('/api/sheets', {
-        cache: 'no-store'
-      });
-
-      if (!res.ok) {
-        throw new Error(`Veri alınamadı: ${res.status}`);
-      }
-
-      const responseData = await res.json();
-      const decodedString = decodeURIComponent(escape(window.atob(responseData.payload)));
-      const allData = JSON.parse(decodedString);
+      // Vercel /api/sheets yerine doğrudan Supabase'den oku.
+      const directRows = await fetchAllSheetRowsDirect();
+      const allData = buildPanelData(directRows);
 
       let newNotifications: {id: number, text: string, type: 'new' | 'price'}[] = [];
       const isInitialLoad = prevDbRef.current.length === 0;
@@ -426,12 +543,39 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   useEffect(() => {
+    // İlk açılışta veriyi bir kez Supabase'den çek.
     loadData();
-    const intervalId = setInterval(() => { 
-      loadData(); 
-    },30000);
 
-    return () => clearInterval(intervalId);
+    // Sonrasında polling YOK. Supabase değişikliği geldiğinde yenile.
+    // Kısa debounce, art arda gelen birden fazla satır event'ini tek yenilemede toplar.
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const channel = supabase
+      .channel('cnetmobil-sheet-rows-live')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sheet_rows',
+        },
+        () => {
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(() => {
+            loadData();
+          }, 350);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('Supabase Realtime kanal hatası.');
+        }
+      });
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -606,63 +750,44 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
- const handleTalepGonder = async (rowIndex: number, modelName: string) => {
-  if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
+  const handleTalepGonder = async (rowIndex: number, modelName: string) => {
+    if (!confirm(`${modelName} için talep oluşturmak istediğinize emin misiniz?`)) return;
 
-  setTalepSaving(true);
+    setTalepSaving(true);
 
-  // EKRANDA ANINDA KİLİTLE
-  setCihazTalepData(prev => {
-    const yeni = prev.map(row => [...row]);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          type: "SAVE_TALEP",
+          rowIndex: rowIndex,
+          branch: selectedBranch,
+          adet: 1
+        })
+      });
 
-    // cihazTalepData[0] header olduğu için
-    // Sheets rowIndex 2 => array index 1
-    const arrayIndex = rowIndex - 1;
+      const result = await response.json();
 
-    if (yeni[arrayIndex]) {
-      yeni[arrayIndex][8] = selectedBranch;
-      yeni[arrayIndex][9] = new Date().toLocaleString('tr-TR');
+      if (result.result !== "success") {
+        alert(result.message || "Talep oluşturulamadı.");
+        return;
+      }
+
+      // Apps Script işlemi tamamlandığında Supabase de güncellenmiş olur.
+      // Ekstra 1.5 saniye beklemeden veriyi hemen yeniliyoruz.
+      await refreshDataCache();
+
+      alert(`${modelName} talebiniz merkeze iletildi!`);
+    } catch (e) {
+      console.error("Talep gönderme hatası:", e);
+      alert("Talep gönderilirken hata oluştu.");
+    } finally {
+      setTalepSaving(false);
     }
-
-    return yeni;
-  });
-
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body: JSON.stringify({
-        type: "SAVE_TALEP",
-        rowIndex,
-        branch: selectedBranch,
-        adet: 1
-      })
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || result.result !== "success") {
-      throw new Error(result.message || "Talep oluşturulamadı.");
-    }
-
-    // Supabase'deki gerçek veriyi tekrar al
-    await refreshDataCache();
-
-    alert(`${modelName} talebiniz merkeze iletildi!`);
-
-  } catch (e) {
-    console.error("Talep gönderme hatası:", e);
-
-    // İşlem başarısız olduysa gerçek veriyi geri yükle
-    await refreshDataCache();
-
-    alert("Talep gönderilirken hata oluştu.");
-  } finally {
-    setTalepSaving(false);
-  }
-};
+  };
 
   const handleGonderildi = async (rowIndex: number, cihazAdi: string, magaza: string) => {
     if (!isAdmin && !isMasterAccess) {
@@ -1168,7 +1293,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
 
                   <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">30 Sn</div>
+                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">CANLI</div>
                     <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
                   </div>
 
