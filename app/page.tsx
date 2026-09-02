@@ -174,6 +174,17 @@ export default function CnetmobilCmrFinalUltimate() {
   const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
+  type CihazTalepDialog =
+    | null
+    | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
+    | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
+    | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
+    | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
+
+  const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
+  const [talepAdetInput, setTalepAdetInput] = useState('1');
+  const [redNedeniInput, setRedNedeniInput] = useState('');
+
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
@@ -824,45 +835,47 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  const handleTalepGonder = async (rowIndex: number, modelName: string, stokAdedi: number) => {
+  const showTalepMessage = (title: string, message: string, tone: 'success' | 'error' | 'info' = 'info') => {
+    setCihazTalepDialog({ type: 'message', title, message, tone });
+  };
+
+  const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
     const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
 
     if (guvenliStok <= 0) {
-      alert("Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.");
+      showTalepMessage('STOK YOK', 'Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.', 'error');
       return;
     }
 
-    const adetInput = window.prompt(
-      `${modelName} için kaç adet talep etmek istiyorsunuz?\n\nMevcut stok: ${guvenliStok} adet`,
-      "1"
-    );
+    setTalepAdetInput('1');
+    setCihazTalepDialog({ type: 'adet', rowIndex, modelName, stokAdedi: guvenliStok });
+  };
 
-    if (adetInput === null) return;
+  const submitTalep = async () => {
+    if (!cihazTalepDialog || cihazTalepDialog.type !== 'adet') return;
 
-    const talepAdedi = Number(adetInput);
+    const { rowIndex, modelName, stokAdedi } = cihazTalepDialog;
+    const talepAdedi = Number(talepAdetInput);
+
     if (!Number.isInteger(talepAdedi) || talepAdedi < 1) {
-      alert("Talep adedi 1 veya daha büyük tam sayı olmalıdır.");
+      showTalepMessage('GEÇERSİZ ADET', 'Talep adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
       return;
     }
 
-    if (talepAdedi > guvenliStok) {
-      alert(`En fazla ${guvenliStok} adet talep edebilirsiniz.`);
+    if (talepAdedi > stokAdedi) {
+      showTalepMessage('STOK YETERSİZ', `En fazla ${stokAdedi} adet talep edebilirsiniz.`, 'error');
       return;
     }
-
-    if (!confirm(`${modelName} için ${talepAdedi} adet talep oluşturulacak. Onaylıyor musunuz?`)) return;
 
     setTalepSaving(true);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          type: "SAVE_TALEP",
-          rowIndex: rowIndex,
+          type: 'SAVE_TALEP',
+          rowIndex,
           branch: selectedBranch,
           adet: talepAdedi
         })
@@ -870,109 +883,106 @@ export default function CnetmobilCmrFinalUltimate() {
 
       const result = await response.json();
 
-      if (result.result !== "success") {
-        alert(result.message || "Talep oluşturulamadı.");
+      if (result.result !== 'success') {
+        showTalepMessage('TALEP OLUŞTURULAMADI', result.message || 'Talep oluşturulamadı.', 'error');
         return;
       }
 
-      // Apps Script işlemi tamamlandığında Supabase de güncellenmiş olur.
-      // Ekstra 1.5 saniye beklemeden veriyi hemen yeniliyoruz.
       await refreshDataCache();
-
-      alert(`${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi!`);
+      showTalepMessage('TALEP OLUŞTURULDU', `${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi.`, 'success');
     } catch (e) {
-      console.error("Talep gönderme hatası:", e);
-      alert("Talep gönderilirken hata oluştu.");
+      console.error('Talep gönderme hatası:', e);
+      showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
     } finally {
       setTalepSaving(false);
     }
   };
 
-  const handleGonderildi = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+  const handleGonderildi = (rowIndex: number, cihazAdi: string, magaza: string) => {
     if (!isAdmin && !isMasterAccess) {
-      alert("Bu işlemi yalnızca yöneticiler gerçekleştirebilir!");
+      showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
       return;
     }
 
-    if (!confirm(`${magaza} şubesinin talep ettiği ${cihazAdi} GÖNDERİLDİ olarak işaretlenecek. Personel gönderildi bilgisini görecek, kayıt daha sonra yönetici tarafından silinebilecek. Onaylıyor musunuz?`)) return;
+    setCihazTalepDialog({ type: 'gonder', rowIndex, cihazAdi, magaza });
+  };
 
+  const submitGonderildi = async () => {
+    if (!cihazTalepDialog || cihazTalepDialog.type !== 'gonder') return;
+
+    const { rowIndex, magaza } = cihazTalepDialog;
     setGonderildiLoadingIndex(rowIndex);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify({
-          type: "GONDER_TALEP",
-          rowIndex: rowIndex
-        })
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
       });
 
       const result = await response.json();
 
-      if (result.result !== "success") {
-        alert(result.message || "İşlem gerçekleştirilemedi.");
+      if (result.result !== 'success') {
+        showTalepMessage('İŞLEM BAŞARISIZ', result.message || 'İşlem gerçekleştirilemedi.', 'error');
         return;
       }
 
       await refreshDataCache();
-      alert("Talep GÖNDERİLDİ olarak işaretlendi. Mağaza bu durumu anlık görecek.");
+      showTalepMessage('GÖNDERİLDİ', `${magaza} mağazasının talebi gönderildi olarak işaretlendi. Mağaza durumu anlık görecek.`, 'success');
     } catch (e) {
       console.error(e);
-      alert("İşlem sırasında bir hata oluştu.");
+      showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
     } finally {
       setGonderildiLoadingIndex(null);
     }
   };
 
-  const handleTalepReddet = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+  const handleTalepReddet = (rowIndex: number, cihazAdi: string, magaza: string) => {
     if (!isAdmin && !isMasterAccess) {
-      alert("Bu işlemi yalnızca yöneticiler gerçekleştirebilir!");
+      showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
       return;
     }
 
-    const redNedeni = window.prompt(
-      `${magaza} şubesinin ${cihazAdi} talebi için RED NEDENİ yazınız:\n\nÖrnek: Cihaz mağaza stoğunda kalacak / Fiyat uygun değil / Cihaz başka işlem için ayrıldı`
-    );
+    setRedNedeniInput('');
+    setCihazTalepDialog({ type: 'red', rowIndex, cihazAdi, magaza });
+  };
 
-    if (redNedeni === null) return;
-    const temizNeden = redNedeni.trim();
+  const submitTalepRed = async () => {
+    if (!cihazTalepDialog || cihazTalepDialog.type !== 'red') return;
+
+    const { rowIndex, magaza } = cihazTalepDialog;
+    const temizNeden = redNedeniInput.trim();
+
     if (!temizNeden) {
-      alert("RED nedeni boş bırakılamaz.");
+      showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazanın göreceği red nedenini yazın.', 'error');
       return;
     }
-
-    if (!confirm(`Talep REDDEDİLECEK.\n\nMağaza: ${magaza}\nCihaz: ${cihazAdi}\nRed nedeni: ${temizNeden}\n\nOnaylıyor musunuz?`)) return;
 
     setRedLoadingIndex(rowIndex);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          type: "RED_TALEP",
-          rowIndex: rowIndex,
+          type: 'RED_TALEP',
+          rowIndex,
           reason: temizNeden
         })
       });
 
       const result = await response.json();
 
-      if (result.result !== "success") {
-        alert(result.message || "Talep reddedilemedi.");
+      if (result.result !== 'success') {
+        showTalepMessage('TALEP REDDEDİLEMEDİ', result.message || 'Talep reddedilemedi.', 'error');
         return;
       }
 
       await refreshDataCache();
-      alert(`${magaza} şubesinin talebi reddedildi. Red nedeni mağaza ekranında gösterilecek.`);
+      showTalepMessage('TALEP REDDEDİLDİ', `${magaza} mağazasına red nedeni ile birlikte iletildi.`, 'success');
     } catch (e) {
-      console.error("Talep reddetme hatası:", e);
-      alert("Talep reddedilirken hata oluştu.");
+      console.error('Talep reddetme hatası:', e);
+      showTalepMessage('İŞLEM HATASI', 'Talep reddedilirken hata oluştu.', 'error');
     } finally {
       setRedLoadingIndex(null);
     }
@@ -2318,11 +2328,11 @@ export default function CnetmobilCmrFinalUltimate() {
                         const degisenParca = row[6] || '';
                         const kutuFatura = row[7] || '';
                         
-                        const mevcutTalepler = (row[8] || '').toString().trim();
-                        const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
-                        const kararTarihi = (row[11] || '').toString().trim();
-                        const redNedeni = (row[12] || '').toString().trim();
-                        const stokAdedi = Math.max(0, Number(row[13]) || 0);
+                        const mevcutTalepler = (row[9] || '').toString().trim();
+                        const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
+                        const kararTarihi = (row[12] || '').toString().trim();
+                        const redNedeni = (row[13] || '').toString().trim();
+                        const stokAdedi = Math.max(0, Number(row[8]) || 0);
                         const talepAdedi = Math.max(0, Number(row[14]) || 0);
                         const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
                         const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
@@ -2958,6 +2968,114 @@ export default function CnetmobilCmrFinalUltimate() {
         ))}
       </div>
 
+      {/* CİHAZ TALEP PROFESYONEL İŞLEM MODALI */}
+      {cihazTalepDialog && (
+        <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 backdrop-blur-md p-4 print:hidden">
+          <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {cihazTalepDialog.type === 'adet' && (
+              <>
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black tracking-tight">CİHAZ TALEBİ</h3>
+                      <p className="mt-1 text-xs font-bold text-blue-100">Talep etmek istediğiniz adedi seçin</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-7">
+                  <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">CİHAZ</p>
+                    <p className="mt-1 font-black text-slate-900">{cihazTalepDialog.modelName}</p>
+                    <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-4 py-3 border border-slate-200">
+                      <span className="text-xs font-bold text-slate-500">Mevcut stok</span>
+                      <span className="text-lg font-black text-emerald-600">{cihazTalepDialog.stokAdedi} ADET</span>
+                    </div>
+                  </div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">TALEP ADEDİ</label>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setTalepAdetInput(String(Math.max(1, (Number(talepAdetInput) || 1) - 1)))} className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-2xl font-black text-slate-700 hover:bg-slate-100">−</button>
+                    <input autoFocus type="number" min={1} max={cihazTalepDialog.stokAdedi} value={talepAdetInput} onChange={(e) => setTalepAdetInput(e.target.value)} className="h-14 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-center text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+                    <button type="button" onClick={() => setTalepAdetInput(String(Math.min(cihazTalepDialog.stokAdedi, (Number(talepAdetInput) || 0) + 1)))} className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-2xl font-black text-slate-700 hover:bg-slate-100">+</button>
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={() => setCihazTalepDialog(null)} disabled={talepSaving} className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">İPTAL</button>
+                    <button onClick={submitTalep} disabled={talepSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{talepSaving ? 'GÖNDERİLİYOR...' : 'TALEBİ OLUŞTUR'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {cihazTalepDialog.type === 'gonder' && (
+              <>
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-6 text-white">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <div><h3 className="text-xl font-black">GÖNDERİLDİ ONAYI</h3><p className="mt-1 text-xs font-bold text-emerald-100">İşlemi onaylamadan önce kontrol edin</p></div>
+                  </div>
+                </div>
+                <div className="p-7">
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex justify-between gap-4"><span className="text-xs font-bold text-slate-400">MAĞAZA</span><span className="text-right text-sm font-black text-slate-900">{cihazTalepDialog.magaza}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-xs font-bold text-slate-400">CİHAZ</span><span className="text-right text-sm font-black text-slate-900">{cihazTalepDialog.cihazAdi}</span></div>
+                  </div>
+                  <p className="mt-4 text-sm font-semibold leading-relaxed text-slate-600">Talep <b>GÖNDERİLDİ</b> olarak işaretlenecek ve mağaza bu durumu anlık görecek.</p>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={() => setCihazTalepDialog(null)} disabled={gonderildiLoadingIndex !== null} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+                    <button onClick={submitGonderildi} disabled={gonderildiLoadingIndex !== null} className="flex-[1.4] rounded-2xl bg-emerald-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 disabled:opacity-50">{gonderildiLoadingIndex !== null ? 'İŞLENİYOR...' : 'GÖNDERİLDİ YAP'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {cihazTalepDialog.type === 'red' && (
+              <>
+                <div className="bg-gradient-to-r from-red-600 to-rose-600 px-7 py-6 text-white">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </div>
+                    <div><h3 className="text-xl font-black">TALEBİ REDDET</h3><p className="mt-1 text-xs font-bold text-red-100">Red nedeni mağaza ekranında görünecek</p></div>
+                  </div>
+                </div>
+                <div className="p-7">
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <p><span className="font-bold text-slate-400">Mağaza:</span> <span className="font-black text-slate-900">{cihazTalepDialog.magaza}</span></p>
+                    <p className="mt-1"><span className="font-bold text-slate-400">Cihaz:</span> <span className="font-black text-slate-900">{cihazTalepDialog.cihazAdi}</span></p>
+                  </div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">RED NEDENİ</label>
+                  <textarea autoFocus value={redNedeniInput} onChange={(e) => setRedNedeniInput(e.target.value)} rows={4} maxLength={250} placeholder="Örn: Stok fazlası mevcut, cihaz başka işlem için ayrıldı..." className="w-full resize-none rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm font-bold text-slate-800 outline-none placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50" />
+                  <div className="mt-2 text-right text-[10px] font-bold text-slate-400">{redNedeniInput.length}/250</div>
+                  <div className="mt-5 flex gap-3">
+                    <button onClick={() => setCihazTalepDialog(null)} disabled={redLoadingIndex !== null} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+                    <button onClick={submitTalepRed} disabled={redLoadingIndex !== null || !redNedeniInput.trim()} className="flex-[1.4] rounded-2xl bg-red-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 hover:bg-red-700 disabled:opacity-40">{redLoadingIndex !== null ? 'REDDEDİLİYOR...' : 'REDDET'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {cihazTalepDialog.type === 'message' && (() => {
+              const isError = cihazTalepDialog.tone === 'error';
+              const isSuccess = cihazTalepDialog.tone === 'success';
+              return (
+                <div className="p-8 text-center">
+                  <div className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl ${isError ? 'bg-red-50 text-red-600' : isSuccess ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+                    {isError ? <span className="text-3xl font-black">!</span> : isSuccess ? <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg> : <span className="text-2xl font-black">i</span>}
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">{cihazTalepDialog.title}</h3>
+                  <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-relaxed text-slate-500">{cihazTalepDialog.message}</p>
+                  <button onClick={() => setCihazTalepDialog(null)} className={`mt-7 w-full rounded-2xl py-3.5 text-xs font-black uppercase tracking-widest text-white ${isError ? 'bg-red-600 hover:bg-red-700' : isSuccess ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}>TAMAM</button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL - GÖNDERİLDİ İŞLEMLİ) */}
       {aktifTaleplerModalOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
@@ -2992,8 +3110,8 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="flex flex-col mt-2">
                   {cihazTalepData.map((row, originalIndex) => {
                     if (originalIndex === 0) return null; // Header atla
-                    const magazaAdi = (row[8] || '').toString().trim();
-                    const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
+                    const magazaAdi = (row[9] || '').toString().trim();
+                    const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
                     const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
                     const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
                     if (!magazaAdi || isRejected || isSent) return null; // Sadece bekleyen aktif talepler
@@ -3002,7 +3120,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     const markaModel = row[0] || '-';
                     const hafiza = row[1] || '-';
                     const renk = row[2] || '-';
-                    const tarihSaat = row[9] || new Date().toLocaleString('tr-TR');
+                    const tarihSaat = row[10] || new Date().toLocaleString('tr-TR');
                     const talepAdedi = Math.max(1, Number(row[14]) || 1);
                     const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
 
@@ -3038,7 +3156,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     );
                   })}
 
-                  {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
+                  {cihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
                     <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
                       Aktif talep bulunmuyor.
                     </div>
