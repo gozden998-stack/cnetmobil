@@ -94,7 +94,7 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
     MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
     PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 10),
+    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 12),
     CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
     CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
@@ -170,6 +170,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
   const [talepSaving, setTalepSaving] = useState(false);
   const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | null>(null);
+  const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
@@ -899,6 +900,45 @@ export default function CnetmobilCmrFinalUltimate() {
       alert("İşlem sırasında bir hata oluştu.");
     } finally {
       setGonderildiLoadingIndex(null);
+    }
+  };
+
+  const handleTalepReddet = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+    if (!isAdmin && !isMasterAccess) {
+      alert("Bu işlemi yalnızca yöneticiler gerçekleştirebilir!");
+      return;
+    }
+
+    if (!confirm(`${magaza} şubesinin ${cihazAdi} talebi REDDEDİLECEK. Cihaz stokta kalacak. Onaylıyor musunuz?`)) return;
+
+    setRedLoadingIndex(rowIndex);
+
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          type: "RED_TALEP",
+          rowIndex: rowIndex
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.result !== "success") {
+        alert(result.message || "Talep reddedilemedi.");
+        return;
+      }
+
+      await refreshDataCache();
+      alert(`${magaza} şubesinin talebi reddedildi.`);
+    } catch (e) {
+      console.error("Talep reddetme hatası:", e);
+      alert("Talep reddedilirken hata oluştu.");
+    } finally {
+      setRedLoadingIndex(null);
     }
   };
 
@@ -2166,7 +2206,7 @@ export default function CnetmobilCmrFinalUltimate() {
                         {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
                       </p>
                       <p className="text-xl font-black text-emerald-700">
-                        {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
+                        {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
                       </p>
                     </div>
                   </div>
@@ -2202,12 +2242,10 @@ export default function CnetmobilCmrFinalUltimate() {
                         const degisenParca = row[6] || '';
                         const kutuFatura = row[7] || '';
                         
-                        let isRequested = false;
-                         const mevcutTalepler = (row[8] || '').toString().trim();
-                         if (mevcutTalepler !== "") {
-                         isRequested = true; // Herhangi bir şube talep attıysa kilitlenir!
-                            
-                        }
+                        const mevcutTalepler = (row[8] || '').toString().trim();
+                        const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
+                        const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
+                        const isRequested = mevcutTalepler !== ''; // Talep/red bilgisi bulunan cihaz kilitli kalır.
                         let gradeStyle = "bg-slate-100 text-slate-600";
                         if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
                         if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
@@ -2253,9 +2291,14 @@ export default function CnetmobilCmrFinalUltimate() {
                             
                             <div className="col-span-1 text-right">
                               {isRequested ? (
-                                 <button disabled className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap cursor-not-allowed">
-                                   ✓ TALEP EDİLDİ
-                                 </button>
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${isRejected ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                                    {isRejected ? '✕ TALEP RED EDİLDİ' : '✓ TALEP EDİLDİ'}
+                                  </div>
+                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : 'text-slate-500'}`}>
+                                    {mevcutTalepler}
+                                  </div>
+                                </div>
                               ) : (
                                  <button 
                                    onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`)}
@@ -2829,14 +2872,16 @@ export default function CnetmobilCmrFinalUltimate() {
                   {cihazTalepData.map((row, originalIndex) => {
                     if (originalIndex === 0) return null; // Header atla
                     const magazaAdi = (row[8] || '').toString().trim();
-                    if (!magazaAdi) return null; // Sadece aktif talebi olanlar
+                    const talepDurumu = (row[10] || '').toString().trim().toUpperCase();
+                    const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
+                    if (!magazaAdi || isRejected) return null; // Sadece bekleyen aktif talepler
 
                     const rowIndex = originalIndex + 1; // Sheets satır numarası
                     const markaModel = row[0] || '-';
                     const hafiza = row[1] || '-';
                     const renk = row[2] || '-';
                     const tarihSaat = row[9] || new Date().toLocaleString('tr-TR');
-                    const isProcessing = gonderildiLoadingIndex === rowIndex;
+                    const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
 
                     return (
                       <div key={originalIndex} className="grid grid-cols-6 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
@@ -2847,20 +2892,27 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-slate-600">{renk}</span>
                         </div>
-                        <div className="text-right pr-2">
+                        <div className="flex items-center justify-end gap-2 pr-2">
                           <button
                             disabled={isProcessing}
                             onClick={() => handleGonderildi(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
                           >
-                            {isProcessing ? 'GÖNDERİLİYOR...' : 'GÖNDERİLDİ'}
+                            {gonderildiLoadingIndex === rowIndex ? 'GÖNDERİLİYOR...' : 'GÖNDERİLDİ'}
+                          </button>
+                          <button
+                            disabled={isProcessing}
+                            onClick={() => handleTalepReddet(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {redLoadingIndex === rowIndex ? 'REDDEDİLİYOR...' : 'RED'}
                           </button>
                         </div>
                       </div>
                     );
                   })}
 
-                  {cihazTalepData.slice(1).filter(r => (r[8] || '').toString().trim() !== '').length === 0 && (
+                  {cihazTalepData.slice(1).filter(r => { const b=(r[8] || '').toString().trim(); const d=(r[10] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ'; }).length === 0 && (
                     <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
                       Aktif talep bulunmuyor.
                     </div>
