@@ -849,11 +849,53 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const cihazTalepRows = cihazTalepData.slice(1).map((row, i) => ({ row, rowIndex: i + 2 }));
-  const cihazTalepGrades = Array.from(new Set(cihazTalepRows.map(({ row }) => String(row[4] || '').trim().toUpperCase()).filter(Boolean)));
+
+  const GRADE_SIRASI = ['OUTLET', 'İYİ', 'ÇOK İYİ', 'MÜKEMMEL'];
+  const cihazTalepGrades = Array.from(new Set(cihazTalepRows.map(({ row }) => String(row[4] || '').trim().toUpperCase()).filter(Boolean)))
+    .sort((a, b) => {
+      const ai = GRADE_SIRASI.indexOf(a);
+      const bi = GRADE_SIRASI.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b, 'tr');
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+
+  const getGradeBadgeClass = (gradeValue: string) => {
+    const g = String(gradeValue || '').trim().toUpperCase();
+    if (g === 'OUTLET') return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (g === 'İYİ') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (g === 'ÇOK İYİ') return 'bg-sky-50 text-sky-700 border-sky-200';
+    if (g === 'MÜKEMMEL') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
+  const getDeviceColorCode = (renkValue: string) => {
+    const r = String(renkValue || '').trim().toLocaleLowerCase('tr-TR');
+    if (r.includes('siyah') || r.includes('black')) return '#111827';
+    if (r.includes('beyaz') || r.includes('white')) return '#f8fafc';
+    if (r.includes('mavi') || r.includes('blue')) return '#3b82f6';
+    if (r.includes('lacivert') || r.includes('navy')) return '#1e3a8a';
+    if (r.includes('kırmızı') || r.includes('kirmizi') || r.includes('red')) return '#ef4444';
+    if (r.includes('mor') || r.includes('purple')) return '#a855f7';
+    if (r.includes('yeşil') || r.includes('yesil') || r.includes('green')) return '#22c55e';
+    if (r.includes('gri') || r.includes('gray') || r.includes('grey')) return '#94a3b8';
+    if (r.includes('pembe') || r.includes('pink')) return '#ec4899';
+    if (r.includes('sarı') || r.includes('sari') || r.includes('yellow')) return '#eab308';
+    if (r.includes('turuncu') || r.includes('orange')) return '#f97316';
+    if (r.includes('altın') || r.includes('altin') || r.includes('gold')) return '#d4a017';
+    if (r.includes('gümüş') || r.includes('gumus') || r.includes('silver')) return '#cbd5e1';
+    if (r.includes('bej') || r.includes('beige')) return '#d6c7a1';
+    if (r.includes('kahve') || r.includes('brown')) return '#92400e';
+    if (r.includes('doğal titanyum') || r.includes('dogal titanyum') || r.includes('natural titanium')) return '#a8a29e';
+    if (r.includes('titanyum') || r.includes('titanium')) return '#78716c';
+    return '#cbd5e1';
+  };
+
   const filtreliCihazTalepRows = cihazTalepRows
     .filter(({ row }) => gradeFilter === 'TÜMÜ' || String(row[4] || '').trim().toUpperCase() === gradeFilter)
     .sort((a, b) => {
-      if (talepSort === 'GRADE') return String(a.row[4] || '').localeCompare(String(b.row[4] || ''), 'tr');
+      if (talepSort === 'GRADE') { const ag = String(a.row[4] || '').trim().toUpperCase(); const bg = String(b.row[4] || '').trim().toUpperCase(); const ai = GRADE_SIRASI.indexOf(ag); const bi = GRADE_SIRASI.indexOf(bg); if (ai === -1 && bi === -1) return ag.localeCompare(bg, 'tr'); if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; }
       if (talepSort === 'STOK_DESC') return (Number(b.row[8]) || 0) - (Number(a.row[8]) || 0);
       if (talepSort === 'STOK_ASC') return (Number(a.row[8]) || 0) - (Number(b.row[8]) || 0);
       return String(a.row[0] || '').localeCompare(String(b.row[0] || ''), 'tr');
@@ -2371,10 +2413,10 @@ export default function CnetmobilCmrFinalUltimate() {
                       const markaModel=row[0]||'', hafiza=row[1]||'', renk=row[2]||'', pil=row[3]||'', grade=String(row[4]||'').toUpperCase(), garanti=row[5]||'', degisenParca=row[6]||'', kutuFatura=row[7]||'';
                       const mevcutTalepler=String(row[9]||'').trim(), talepDurumu=String(row[11]||'').trim().toUpperCase(), kararTarihi=String(row[12]||'').trim(), redNedeni=String(row[13]||'').trim();
                       const stokAdedi=Math.max(0,Number(row[8])||0), talepAdedi=Math.max(0,Number(row[14])||0); const isRejected=['RED EDİLDİ','REDDEDİLDİ'].includes(talepDurumu), isSent=['GÖNDERİLDİ','GONDERILDI'].includes(talepDurumu), isRequested=!!mevcutTalepler; const secili=talepSeciliRows.includes(rowIndex); const secilebilir=!isRequested&&stokAdedi>0;
-                      const colorCode=renk.toLowerCase().includes('kırmızı')?'#ef4444':renk.toLowerCase().includes('siyah')?'#1e293b':renk.toLowerCase().includes('mavi')?'#3b82f6':renk.toLowerCase().includes('mor')?'#a855f7':renk.toLowerCase().includes('yeşil')?'#22c55e':'#cbd5e1';
+                      const colorCode=getDeviceColorCode(renk);
                       return <div key={rowIndex} className={`grid grid-cols-[44px_2fr_1fr_1fr_.7fr_.9fr_1fr_1.5fr_1fr_.8fr_1.2fr] items-center px-5 py-3.5 border-b border-slate-50 ${secili?'bg-blue-50/60':'hover:bg-slate-50/60'}`}>
                         <div><input type="checkbox" disabled={!secilebilir} checked={secili} onChange={()=>toggleTalepSecim(rowIndex,stokAdedi)} className="w-4 h-4 accent-blue-600 disabled:opacity-30" /></div>
-                        <div className="font-black text-xs text-slate-800">{markaModel}</div><div className="font-bold text-xs">{hafiza}</div><div className="flex items-center gap-1.5 text-[11px]"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:colorCode}}></span>{renk}</div><div className="text-center text-xs font-bold">{pil}</div><div className="text-center"><span className="px-2 py-1 rounded-lg bg-slate-100 text-[9px] font-black">{grade||'-'}</span></div><div className="text-center text-xs">{garanti||'-'}</div><div className="text-xs truncate" title={degisenParca}>{degisenParca||'Orijinal / Yok'}</div><div className="text-center text-xs">{kutuFatura||'-'}</div><div className="text-center"><span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi>0?'bg-blue-50 text-blue-700':'bg-red-50 text-red-600'}`}>{stokAdedi}</span></div>
+                        <div className="font-black text-xs text-slate-800">{markaModel}</div><div className="font-bold text-xs">{hafiza}</div><div className="flex items-center gap-2 text-[11px] font-bold"><span className={`w-3 h-3 rounded-full border shadow-sm ${String(renk).toLocaleLowerCase('tr-TR').includes('beyaz') ? 'border-slate-300' : 'border-white'}`} style={{backgroundColor:colorCode}}></span>{renk}</div><div className="text-center text-xs font-bold">{pil}</div><div className="text-center"><span className={`px-2.5 py-1 rounded-lg border text-[9px] font-black ${getGradeBadgeClass(grade)}`}>{grade||'-'}</span></div><div className="text-center text-xs">{garanti||'-'}</div><div className="text-xs truncate" title={degisenParca}>{degisenParca||'Orijinal / Yok'}</div><div className="text-center text-xs">{kutuFatura||'-'}</div><div className="text-center"><span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi>0?'bg-blue-50 text-blue-700':'bg-red-50 text-red-600'}`}>{stokAdedi}</span></div>
                         <div className="flex justify-end items-center gap-2">
                           {isRequested ? <div className="flex flex-col items-end gap-1"><span className={`px-2 py-1 rounded-lg text-[8px] font-black border ${isRejected?'bg-red-50 text-red-600 border-red-200':isSent?'bg-blue-50 text-blue-700 border-blue-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{isRejected?`✕ ${talepAdedi||1} RED`:isSent?`✓ ${talepAdedi||1} GÖNDERİLDİ`:`✓ ${talepAdedi||1} TALEP`}</span><span className="text-[8px] font-black text-slate-500">{mevcutTalepler}</span>{isRejected&&redNedeni&&<span className="max-w-[180px] text-[8px] text-red-600">Neden: {redNedeni}</span>}{(isRejected||isSent)&&kararTarihi&&<span className="text-[8px] text-slate-400">{kararTarihi}</span>}</div> : secili ? <div className="flex items-center gap-1"><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.max(1,(p[rowIndex]||1)-1)}))} className="w-8 h-8 rounded-lg bg-slate-100 font-black">−</button><input type="number" min={1} max={stokAdedi} value={talepTopluAdetler[rowIndex]||1} onChange={e=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,Math.max(1,Number(e.target.value)||1))}))} className="w-12 h-8 text-center border rounded-lg text-xs font-black"/><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,(p[rowIndex]||1)+1)}))} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-black">+</button></div> : <button disabled={stokAdedi<=0||talepSaving} onClick={()=>handleTalepGonder(rowIndex,`${markaModel} (${hafiza} - ${renk})`,stokAdedi)} className="border-2 border-blue-600 text-blue-600 px-3 py-1.5 rounded-xl text-[8px] font-black uppercase disabled:opacity-30">{stokAdedi>0?'TALEP OL':'STOK YOK'}</button>}
                         </div>
@@ -3038,7 +3080,7 @@ export default function CnetmobilCmrFinalUltimate() {
               <div className="grid grid-cols-[46px_1.1fr_1.1fr_1.8fr_.8fr_.9fr_.7fr_1.5fr] px-4 py-3 rounded-xl bg-emerald-600 text-white text-[9px] font-black uppercase"><div><input type="checkbox" className="accent-white" checked={aktifSeciliRows.length>0 && aktifSeciliRows.length===cihazTalepData.slice(1).filter(r=>{const b=String(r[9]||'').trim();const d=String(r[11]||'').trim().toUpperCase();return b&&!['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(d)}).length} onChange={()=>{const all=cihazTalepData.slice(1).map((r,i)=>({r,idx:i+2})).filter(({r})=>{const b=String(r[9]||'').trim();const d=String(r[11]||'').trim().toUpperCase();return b&&!['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(d)}).map(x=>x.idx);setAktifSeciliRows(p=>p.length===all.length?[]:all)}} /></div><div>TARİH</div><div>MAĞAZA</div><div>CİHAZ</div><div>HAFIZA</div><div>GRADE</div><div>ADET</div><div className="text-right">İŞLEM</div></div>
               {cihazTalepData.slice(1).map((row,i)=>{
                 const rowIndex=i+2, magaza=String(row[9]||'').trim(), durum=String(row[11]||'').trim().toUpperCase(); if(!magaza||['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(durum)) return null;
-                const processing=gonderildiLoadingIndex===rowIndex||redLoadingIndex===rowIndex; return <div key={rowIndex} className={`grid grid-cols-[46px_1.1fr_1.1fr_1.8fr_.8fr_.9fr_.7fr_1.5fr] items-center px-4 py-3 border-b text-[11px] ${aktifSeciliRows.includes(rowIndex)?'bg-emerald-50':''}`}><div><input type="checkbox" checked={aktifSeciliRows.includes(rowIndex)} onChange={()=>setAktifSeciliRows(p=>p.includes(rowIndex)?p.filter(x=>x!==rowIndex):[...p,rowIndex])} className="w-4 h-4 accent-emerald-600"/></div><div className="text-slate-500">{row[10]||'-'}</div><div className="font-black">{magaza}</div><div className="font-black">{row[0]||'-'}</div><div>{row[1]||'-'}</div><div><span className="px-2 py-1 bg-slate-100 rounded-lg text-[9px] font-black">{row[4]||'-'}</span></div><div className="font-black text-emerald-700">{Math.max(1,Number(row[14])||1)}</div><div className="flex justify-end gap-2"><button disabled={processing} onClick={()=>handleGonderildi(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">GÖNDERİLDİ</button><button disabled={processing} onClick={()=>handleTalepReddet(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-red-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">RED</button></div></div>
+                const processing=gonderildiLoadingIndex===rowIndex||redLoadingIndex===rowIndex; return <div key={rowIndex} className={`grid grid-cols-[46px_1.1fr_1.1fr_1.8fr_.8fr_.9fr_.7fr_1.5fr] items-center px-4 py-3 border-b text-[11px] ${aktifSeciliRows.includes(rowIndex)?'bg-emerald-50':''}`}><div><input type="checkbox" checked={aktifSeciliRows.includes(rowIndex)} onChange={()=>setAktifSeciliRows(p=>p.includes(rowIndex)?p.filter(x=>x!==rowIndex):[...p,rowIndex])} className="w-4 h-4 accent-emerald-600"/></div><div className="text-slate-500">{row[10]||'-'}</div><div className="font-black">{magaza}</div><div className="font-black">{row[0]||'-'}</div><div>{row[1]||'-'}</div><div><span className={`px-2.5 py-1 rounded-lg border text-[9px] font-black ${getGradeBadgeClass(String(row[4]||''))}`}>{String(row[4]||'-').toUpperCase()}</span></div><div className="font-black text-emerald-700">{Math.max(1,Number(row[14])||1)}</div><div className="flex justify-end gap-2"><button disabled={processing} onClick={()=>handleGonderildi(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">GÖNDERİLDİ</button><button disabled={processing} onClick={()=>handleTalepReddet(rowIndex,`${row[0]} (${row[1]})`,magaza)} className="bg-red-600 text-white px-3 py-2 rounded-lg text-[8px] font-black uppercase disabled:opacity-40">RED</button></div></div>
               })}
             </div></div>
           </div>
