@@ -3052,7 +3052,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       // KASKO KADEMELİ FİYAT KORUMASI
                       // Paket yükselirken kasko fiyatı bir önceki paketin ulaştığı
                       // maksimum tutarın altına düşemez.
-                      const SILVER_MIN = 2750;
+                      const SILVER_MIN = 2250;
                       const GOLD_MIN = 3750;
                       const PLATIN_MIN = 7500;
 
@@ -3097,7 +3097,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {silverPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 inline-block px-2.5 py-1.5 rounded-lg border border-slate-200">
-                                  MİNİMUM BAREM: 2.750 TL
+                                  MİNİMUM BAREM: 2.250 TL
                                 </div>
                               </div>
                             ) : (
@@ -3118,7 +3118,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {goldPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest bg-amber-100 inline-block px-2.5 py-1.5 rounded-lg border border-amber-200">
-                                  MİNİMUM BAREM: 3.750 TL
+                                  MİNİMUM BAREM: 4.375 TL
                                 </div>
                               </div>
                             ) : (
@@ -3139,7 +3139,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   {platinPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest bg-indigo-100 inline-block px-2.5 py-1.5 rounded-lg border border-indigo-200">
-                                  MİNİMUM BAREM: 7.500 TL
+                                  MİNİMUM BAREM: 8.100 TL
                                 </div>
                               </div>
                             ) : (
