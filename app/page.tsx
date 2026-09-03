@@ -94,7 +94,7 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
     MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
     PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
+    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 16),
     CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
     CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
@@ -850,6 +850,20 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const cihazTalepRows = cihazTalepData.slice(1).map((row, i) => ({ row, rowIndex: i + 2 }));
 
+  const getTalepKullanilabilirStok = (sourceRowIndex: number, row: any[]) => {
+    const stok = Math.max(0, Number(row[8]) || 0);
+    const rezerve = cihazTalepRows.reduce((toplam, item) => {
+      const kaynak = Number(item.row[15] || 0);
+      const magaza = String(item.row[9] || '').trim();
+      const durum = String(item.row[11] || '').trim().toUpperCase();
+      if (kaynak === sourceRowIndex && magaza && !['RED EDİLDİ','REDDEDİLDİ','GÖNDERİLDİ','GONDERILDI'].includes(durum)) {
+        return toplam + Math.max(1, Number(item.row[14]) || 1);
+      }
+      return toplam;
+    }, 0);
+    return Math.max(0, stok - rezerve);
+  };
+
   const GRADE_SIRASI = ['OUTLET', 'İYİ', 'ÇOK İYİ', 'MÜKEMMEL'];
   const cihazTalepGrades = Array.from(new Set(cihazTalepRows.map(({ row }) => String(row[4] || '').trim().toUpperCase()).filter(Boolean)))
     .sort((a, b) => {
@@ -936,19 +950,8 @@ export default function CnetmobilCmrFinalUltimate() {
     const snapshot = cihazTalepData.map(row => [...(row || [])]);
     const now = new Date().toLocaleString('tr-TR');
 
-    // ANINDA ekrana yansıt. Kullanıcı Apps Script'i beklemez.
+    // V2: Her talep ayrı kayıt satırı olarak oluşur; ana stok satırı açık kalır.
     setCihazTalepDialog(null);
-    items.forEach(item => {
-      patchCihazTalepLocal(item.rowIndex, row => {
-        row[9] = selectedBranch;
-        row[10] = now;
-        row[11] = 'BEKLİYOR';
-        row[12] = '';
-        row[13] = '';
-        row[14] = item.adet;
-        return row;
-      });
-    });
     setTalepSeciliRows([]);
     setTalepTopluAdetler({});
     setTopluIslemLoading(true);
@@ -956,7 +959,7 @@ export default function CnetmobilCmrFinalUltimate() {
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'TOPLU_TALEP', branch: selectedBranch, items })
+        body: JSON.stringify({ type: 'TOPLU_TALEP_V2', branch: selectedBranch, items })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -997,7 +1000,7 @@ export default function CnetmobilCmrFinalUltimate() {
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'TOPLU_GONDER_TALEP', rowIndexes })
+        body: JSON.stringify({ type: 'TOPLU_GONDER_TALEP_V2', rowIndexes })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -1037,7 +1040,7 @@ export default function CnetmobilCmrFinalUltimate() {
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'TOPLU_RED_TALEP', rowIndexes, reason: temizNeden })
+        body: JSON.stringify({ type: 'TOPLU_RED_TALEP_V2', rowIndexes, reason: temizNeden })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -1098,24 +1101,15 @@ export default function CnetmobilCmrFinalUltimate() {
     const snapshot = cihazTalepData.map(row => [...(row || [])]);
     const now = new Date().toLocaleString('tr-TR');
 
-    // Modalı anında kapat ve satırı hemen TALEP EDİLDİ durumuna getir.
+    // V2: modal hemen kapanır; ana stok satırı kapanmaz. Realtime yeni talep satırını ekler.
     setCihazTalepDialog(null);
-    patchCihazTalepLocal(rowIndex, row => {
-      row[9] = selectedBranch;
-      row[10] = now;
-      row[11] = 'BEKLİYOR';
-      row[12] = '';
-      row[13] = '';
-      row[14] = talepAdedi;
-      return row;
-    });
     setTalepSaving(true);
 
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'SAVE_TALEP', rowIndex, branch: selectedBranch, adet: talepAdedi })
+        body: JSON.stringify({ type: 'SAVE_TALEP_V2', rowIndex, branch: selectedBranch, adet: talepAdedi })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -1165,7 +1159,7 @@ export default function CnetmobilCmrFinalUltimate() {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
+        body: JSON.stringify({ type: 'GONDER_TALEP_V2', rowIndex })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -1218,7 +1212,7 @@ export default function CnetmobilCmrFinalUltimate() {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'RED_TALEP', rowIndex, reason: temizNeden })
+        body: JSON.stringify({ type: 'RED_TALEP_V2', rowIndex, reason: temizNeden })
       });
       const result = await response.json();
       if (result.result !== 'success') {
@@ -1252,7 +1246,7 @@ export default function CnetmobilCmrFinalUltimate() {
           'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify({
-          type: "DELETE_TALEP_RECORD",
+          type: "DELETE_TALEP_RECORD_V2",
           rowIndex: rowIndex
         })
       });
@@ -1264,8 +1258,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      await refreshDataCache();
-      alert("Gönderilmiş talep kaydı silindi.");
+      showTalepMessage("KAYIT TEMİZLENDİ", "Gönderilmiş talep kaydı kaldırıldı.", "success");
     } catch (e) {
       console.error("Talep kaydı silme hatası:", e);
       alert("Talep kaydı silinirken hata oluştu.");
@@ -2505,7 +2498,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <select value={gradeFilter} onChange={e => setGradeFilter(e.target.value)} className="h-10 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase outline-none"><option value="TÜMÜ">TÜM GRADE</option>{cihazTalepGrades.map(g => <option key={g} value={g}>{g}</option>)}</select>
                   <select value={talepSort} onChange={e => setTalepSort(e.target.value as any)} className="h-10 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase outline-none"><option value="MODEL">MODEL A-Z</option><option value="GRADE">GRADE</option><option value="STOK_DESC">STOK ÇOKTAN AZA</option><option value="STOK_ASC">STOK AZDAN ÇOĞA</option></select>
-                  <button onClick={() => { const uygun=filtreliCihazTalepRows.filter(({row}) => !String(row[9]||'').trim() && (Number(row[8])||0)>0).map(x=>x.rowIndex); setTalepSeciliRows(prev => prev.length===uygun.length ? [] : uygun); }} className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase hover:bg-slate-50">{talepSeciliRows.length ? 'SEÇİMİ TEMİZLE' : 'UYGUNLARI SEÇ'}</button>
+                  <button onClick={() => { const uygun=filtreliCihazTalepRows.filter(({row,rowIndex}) => !String(row[9]||'').trim() && !Number(row[15]||0) && getTalepKullanilabilirStok(rowIndex,row)>0).map(x=>x.rowIndex); setTalepSeciliRows(prev => prev.length===uygun.length ? [] : uygun); }} className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase hover:bg-slate-50">{talepSeciliRows.length ? 'SEÇİMİ TEMİZLE' : 'UYGUNLARI SEÇ'}</button>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-[10px] font-black text-slate-500 uppercase">Seçilen: <span className="text-blue-600">{talepSeciliRows.length} cihaz</span> / <span className="text-blue-600">{talepSeciliRows.reduce((t,r)=>t+(Number(talepTopluAdetler[r])||1),0)} adet</span></div>
@@ -2520,13 +2513,13 @@ export default function CnetmobilCmrFinalUltimate() {
                     {filtreliCihazTalepRows.map(({row,rowIndex}) => {
                       const markaModel=row[0]||'', hafiza=row[1]||'', renk=row[2]||'', pil=row[3]||'', grade=String(row[4]||'').toUpperCase(), garanti=row[5]||'', degisenParca=row[6]||'', kutuFatura=row[7]||'';
                       const mevcutTalepler=String(row[9]||'').trim(), talepDurumu=String(row[11]||'').trim().toUpperCase(), kararTarihi=String(row[12]||'').trim(), redNedeni=String(row[13]||'').trim();
-                      const stokAdedi=Math.max(0,Number(row[8])||0), talepAdedi=Math.max(0,Number(row[14])||0); const isRejected=['RED EDİLDİ','REDDEDİLDİ'].includes(talepDurumu), isSent=['GÖNDERİLDİ','GONDERILDI'].includes(talepDurumu), isRequested=!!mevcutTalepler; const secili=talepSeciliRows.includes(rowIndex); const secilebilir=!isRequested&&stokAdedi>0;
+                      const kaynakSatir=Number(row[15]||0); const stokAdedi=kaynakSatir ? Math.max(0,Number(row[8])||0) : getTalepKullanilabilirStok(rowIndex,row), talepAdedi=Math.max(0,Number(row[14])||0); const isRejected=['RED EDİLDİ','REDDEDİLDİ'].includes(talepDurumu), isSent=['GÖNDERİLDİ','GONDERILDI'].includes(talepDurumu), isRequested=!!mevcutTalepler; const secili=talepSeciliRows.includes(rowIndex); const secilebilir=!isRequested&&stokAdedi>0;
                       const colorCode=getDeviceColorCode(renk);
                       return <div key={rowIndex} className={`grid grid-cols-[44px_2fr_1fr_1fr_.7fr_.9fr_1fr_1.5fr_1fr_.8fr_1.2fr] items-center px-5 py-3.5 border-b border-slate-50 ${secili?'bg-blue-50/60':'hover:bg-slate-50/60'}`}>
                         <div><input type="checkbox" disabled={!secilebilir} checked={secili} onChange={()=>toggleTalepSecim(rowIndex,stokAdedi)} className="w-4 h-4 accent-blue-600 disabled:opacity-30" /></div>
                         <div className="font-black text-xs text-slate-800">{markaModel}</div><div className="font-bold text-xs">{hafiza}</div><div className="flex items-center gap-2 text-[11px] font-bold"><span className={`w-3 h-3 rounded-full border shadow-sm ${String(renk).toLocaleLowerCase('tr-TR').includes('beyaz') ? 'border-slate-300' : 'border-white'}`} style={{backgroundColor:colorCode}}></span>{renk}</div><div className="text-center text-xs font-bold">{pil}</div><div className="text-center"><span className={`px-2.5 py-1 rounded-lg border text-[9px] font-black ${getGradeBadgeClass(grade)}`}>{grade||'-'}</span></div><div className="text-center text-xs">{garanti||'-'}</div><div className="text-xs truncate" title={degisenParca}>{degisenParca||'Orijinal / Yok'}</div><div className="text-center text-xs">{kutuFatura||'-'}</div><div className="text-center"><span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi>0?'bg-blue-50 text-blue-700':'bg-red-50 text-red-600'}`}>{stokAdedi}</span></div>
                         <div className="flex justify-end items-center gap-2">
-                          {isRequested ? <div className="flex flex-col items-end gap-1"><span className={`px-2 py-1 rounded-lg text-[8px] font-black border ${isRejected?'bg-red-50 text-red-600 border-red-200':isSent?'bg-blue-50 text-blue-700 border-blue-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{isRejected?`✕ ${talepAdedi||1} RED`:isSent?`✓ ${talepAdedi||1} GÖNDERİLDİ`:`✓ ${talepAdedi||1} TALEP`}</span><span className="text-[8px] font-black text-slate-500">{mevcutTalepler}</span>{isRejected&&redNedeni&&<span className="max-w-[180px] text-[8px] text-red-600">Neden: {redNedeni}</span>}{(isRejected||isSent)&&kararTarihi&&<span className="text-[8px] text-slate-400">{kararTarihi}</span>}</div> : secili ? <div className="flex items-center gap-1"><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.max(1,(p[rowIndex]||1)-1)}))} className="w-8 h-8 rounded-lg bg-slate-100 font-black">−</button><input type="number" min={1} max={stokAdedi} value={talepTopluAdetler[rowIndex]||1} onChange={e=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,Math.max(1,Number(e.target.value)||1))}))} className="w-12 h-8 text-center border rounded-lg text-xs font-black"/><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,(p[rowIndex]||1)+1)}))} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-black">+</button></div> : <button disabled={stokAdedi<=0||talepSaving} onClick={()=>handleTalepGonder(rowIndex,`${markaModel} (${hafiza} - ${renk})`,stokAdedi)} className="border-2 border-blue-600 text-blue-600 px-3 py-1.5 rounded-xl text-[8px] font-black uppercase disabled:opacity-30">{stokAdedi>0?'TALEP OL':'STOK YOK'}</button>}
+                          {isRequested ? <div className="flex flex-col items-end gap-1"><span className={`px-2 py-1 rounded-lg text-[8px] font-black border ${isRejected?'bg-red-50 text-red-600 border-red-200':isSent?'bg-blue-50 text-blue-700 border-blue-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{isRejected?`✕ ${talepAdedi||1} RED`:isSent?`✓ ${talepAdedi||1} GÖNDERİLDİ`:`✓ ${talepAdedi||1} TALEP`}</span><span className="text-[8px] font-black text-slate-500">{mevcutTalepler}</span>{isRejected&&redNedeni&&<span className="max-w-[180px] text-[8px] text-red-600">Neden: {redNedeni}</span>}{(isRejected||isSent)&&kararTarihi&&<span className="text-[8px] text-slate-400">{kararTarihi}</span>}{isSent && (isAdmin||isMasterAccess) && <button disabled={deleteTalepLoadingIndex===rowIndex} onClick={()=>handleTalepKaydiSil(rowIndex,`${markaModel} (${hafiza})`,mevcutTalepler)} className="mt-1 w-6 h-6 rounded-full bg-red-50 text-red-600 border border-red-200 font-black hover:bg-red-600 hover:text-white">×</button>}</div> : secili ? <div className="flex items-center gap-1"><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.max(1,(p[rowIndex]||1)-1)}))} className="w-8 h-8 rounded-lg bg-slate-100 font-black">−</button><input type="number" min={1} max={stokAdedi} value={talepTopluAdetler[rowIndex]||1} onChange={e=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,Math.max(1,Number(e.target.value)||1))}))} className="w-12 h-8 text-center border rounded-lg text-xs font-black"/><button onClick={()=>setTalepTopluAdetler(p=>({...p,[rowIndex]:Math.min(stokAdedi,(p[rowIndex]||1)+1)}))} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 font-black">+</button></div> : <button disabled={stokAdedi<=0||talepSaving} onClick={()=>handleTalepGonder(rowIndex,`${markaModel} (${hafiza} - ${renk})`,stokAdedi)} className="border-2 border-blue-600 text-blue-600 px-3 py-1.5 rounded-xl text-[8px] font-black uppercase disabled:opacity-30">{stokAdedi>0?'TALEP OL':'STOK YOK'}</button>}
                         </div>
                       </div>
                     })}
