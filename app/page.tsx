@@ -1089,7 +1089,7 @@ export default function CnetmobilCmrFinalUltimate() {
           'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify({
-          type: "DELETE_TALEP_RECORD",
+          type: "DELETE_CIHAZ_ROW_FULL_V3",
           rowIndex: rowIndex
         })
       });
@@ -1101,7 +1101,8 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      // Satır fiziksel olarak silindi. Realtime ile Supabase kuyruğu yeniden gelir.
+      // Satırı ekrandan da anında kaldır.
+      setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
       alert("Cihaz satırı tamamen silindi. Alt satırlar yukarı kaydırıldı.");
     } catch (e) {
       console.error("Talep kaydı silme hatası:", e);
