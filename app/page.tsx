@@ -100,34 +100,65 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
   };
 }
 
+const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v4';
+const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v4';
+const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // günde en fazla 1 tam çekim
+
+const REQUIRED_SHEETS = [
+  'Google Sheets ile Kurumsal Alım Sistemi','Ayarlar','Alimlar','Markalar',
+  'CEP + TABLET+IOT SAAT LIST','YNA LİST','DIŞ KANAL SATIN ALMA','Servis_Fiyatlari',
+  '2.EL FİYAT LİSTESİ','DEPO','HEDEFLER','MagazaGidisat','PersonelGidisat',
+  'THH','CihazTalep','CİHAZ SAT'
+];
+
+function mergeSheetRows(base: SupabaseSheetRow[], incoming: SupabaseSheetRow[]) {
+  const map = new Map<string, SupabaseSheetRow>();
+  base.forEach(r => map.set(`${r.sheet_name}::${r.row_number}`, r));
+  incoming.forEach(r => map.set(`${r.sheet_name}::${r.row_number}`, r));
+  return Array.from(map.values()).sort((a,b) => {
+    const sc = a.sheet_name.localeCompare(b.sheet_name, 'tr');
+    return sc !== 0 ? sc : a.row_number - b.row_number;
+  });
+}
+
+function saveSheetCache(rows: SupabaseSheetRow[], metaPatch: Record<string, any> = {}) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SUPABASE_CACHE_KEY, JSON.stringify(rows));
+    const oldMeta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
+    localStorage.setItem(SUPABASE_CACHE_META_KEY, JSON.stringify({ ...oldMeta, ...metaPatch }));
+  } catch (e) { console.warn('Supabase cache yazılamadı:', e); }
+}
+
 async function fetchAllSheetRowsDirect(): Promise<SupabaseSheetRow[]> {
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error('Supabase public environment variables eksik.');
-  }
-
-  const pageSize = 1000;
-  let from = 0;
-  let allRows: SupabaseSheetRow[] = [];
-
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) throw new Error('Supabase public environment variables eksik.');
+  const pageSize = 1000; let from = 0; let allRows: SupabaseSheetRow[] = [];
   while (true) {
-    const { data, error } = await supabase
-      .from('sheet_rows')
+    const { data, error } = await supabase.from('sheet_rows')
       .select('id,sheet_name,row_number,data,updated_at')
-      .order('sheet_name', { ascending: true })
-      .order('row_number', { ascending: true })
+      .in('sheet_name', REQUIRED_SHEETS)
+      .order('sheet_name', { ascending: true }).order('row_number', { ascending: true })
       .range(from, from + pageSize - 1);
-
-    if (error) {
-      throw new Error(`Supabase veri okuma hatası: ${error.message}`);
-    }
-
-    const page = (data || []) as SupabaseSheetRow[];
-    allRows = allRows.concat(page);
-
-    if (page.length < pageSize) break;
-    from += pageSize;
+    if (error) throw new Error(`Supabase veri okuma hatası: ${error.message}`);
+    const page = (data || []) as SupabaseSheetRow[]; allRows = allRows.concat(page);
+    if (page.length < pageSize) break; from += pageSize;
   }
+  return allRows;
+}
 
+async function fetchChangedSheetRowsDirect(sinceIso: string): Promise<SupabaseSheetRow[]> {
+  const pageSize = 1000; let from = 0; let allRows: SupabaseSheetRow[] = [];
+  while (true) {
+    const { data, error } = await supabase.from('sheet_rows')
+      .select('id,sheet_name,row_number,data,updated_at')
+      .in('sheet_name', REQUIRED_SHEETS)
+      .gt('updated_at', sinceIso)
+      .order('updated_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(`Supabase delta okuma hatası: ${error.message}`);
+    const page = (data || []) as SupabaseSheetRow[]; allRows = allRows.concat(page);
+    if (page.length < pageSize) break; from += pageSize;
+  }
   return allRows;
 }
 
@@ -548,12 +579,42 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const loadData = async () => {
     try {
-      // Sadece ilk açılış / manuel fallback için tam veri çekilir.
-      const directRows = await fetchAllSheetRowsDirect();
-      sheetRowsRef.current = directRows;
-      applySheetRowsToPanel(directRows);
+      let cachedRows: SupabaseSheetRow[] = [];
+      let meta: any = {};
+      if (typeof window !== 'undefined') {
+        try { cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]'); } catch {}
+        try { meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}'); } catch {}
+      }
+
+      // Cache varsa ekranı Supabase beklemeden anında aç.
+      if (cachedRows.length) {
+        sheetRowsRef.current = cachedRows;
+        applySheetRowsToPanel(cachedRows);
+      }
+
+      const nowMs = Date.now();
+      const needsFull = !cachedRows.length || !meta.lastFullSync || (nowMs - Number(meta.lastFullSync) >= FULL_SYNC_INTERVAL_MS);
+
+      if (needsFull) {
+        const directRows = await fetchAllSheetRowsDirect();
+        sheetRowsRef.current = directRows;
+        applySheetRowsToPanel(directRows);
+        saveSheetCache(directRows, { lastFullSync: nowMs, lastDeltaSync: new Date().toISOString() });
+      } else {
+        // Her açılışta tüm tablo yerine sadece değişen satırları getir.
+        const since = meta.lastDeltaSync || new Date(Number(meta.lastFullSync)).toISOString();
+        const changedRows = await fetchChangedSheetRowsDirect(since);
+        if (changedRows.length) {
+          const merged = mergeSheetRows(cachedRows, changedRows);
+          sheetRowsRef.current = merged;
+          applySheetRowsToPanel(merged);
+          saveSheetCache(merged, { lastDeltaSync: new Date().toISOString() });
+        } else {
+          saveSheetCache(cachedRows, { lastDeltaSync: new Date().toISOString() });
+        }
+      }
     } catch (e) {
-      console.error("Supabase ilk veri yükleme hatası:", e);
+      console.error("Supabase veri yükleme hatası:", e);
       setLoading(false);
     }
   };
@@ -592,6 +653,7 @@ export default function CnetmobilCmrFinalUltimate() {
       });
 
       sheetRowsRef.current = next;
+      saveSheetCache(next, { lastDeltaSync: new Date().toISOString() });
       if (mounted) applySheetRowsToPanel(next);
     };
 
@@ -613,6 +675,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       sheetRowsRef.current = next;
+      saveSheetCache(next, { lastDeltaSync: new Date().toISOString() });
       if (mounted) applySheetRowsToPanel(next);
     };
 
@@ -1015,7 +1078,7 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} - ${cihazAdi} gönderilmiş talep kaydı TAMAMEN SİLİNECEK.\n\nGoogle Sheets, Supabase ve tüm panellerden kaldırılacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
+    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Supabase ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
 
     setDeleteTalepLoadingIndex(rowIndex);
 
@@ -1038,8 +1101,8 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      await refreshDataCache();
-      alert("Gönderilmiş talep kaydı silindi.");
+      // Satır fiziksel olarak silindi. Realtime ile Supabase kuyruğu yeniden gelir.
+      alert("Cihaz satırı tamamen silindi. Alt satırlar yukarı kaydırıldı.");
     } catch (e) {
       console.error("Talep kaydı silme hatası:", e);
       alert("Talep kaydı silinirken hata oluştu.");
@@ -2441,7 +2504,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                       <button
                                         disabled={deleteTalepLoadingIndex === rowIndex}
                                         onClick={() => handleTalepKaydiSil(rowIndex, `${markaModel} (${hafiza})`, mevcutTalepler)}
-                                        title="Gönderilmiş talep kaydını tamamen sil"
+                                        title="Cihaz satırını tamamen sil ve alttakileri yukarı kaydır"
                                         className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all disabled:opacity-50"
                                       >
                                         {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
