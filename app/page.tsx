@@ -1089,7 +1089,7 @@ export default function CnetmobilCmrFinalUltimate() {
           'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify({
-          type: "DELETE_CIHAZ_ROW_FULL_V3",
+          type: "DELETE_CIHAZ_ROW_FULL_V4",
           rowIndex: rowIndex
         })
       });
@@ -1103,7 +1103,20 @@ export default function CnetmobilCmrFinalUltimate() {
 
       // Satırı ekrandan da anında kaldır.
       setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
-      alert("Cihaz satırı tamamen silindi. Alt satırlar yukarı kaydırıldı.");
+
+      // Eski Supabase cache'i bu işlemden sonra satır numarası taşımasın.
+      // Realtime yeni row_number'ları getirecek; sonraki açılışta da temiz veri alınır.
+      if (typeof window !== 'undefined') {
+        try {
+          Object.keys(localStorage).forEach((key) => {
+            if (key.toLowerCase().includes('supabase') && key.toLowerCase().includes('sheet')) {
+              localStorage.removeItem(key);
+            }
+          });
+        } catch (_) {}
+      }
+
+      alert("Cihaz satırı tamamen silindi. Alt satırlar güvenli şekilde yukarı kaydırıldı.");
     } catch (e) {
       console.error("Talep kaydı silme hatası:", e);
       alert("Talep kaydı silinirken hata oluştu.");
