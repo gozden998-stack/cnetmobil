@@ -218,7 +218,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [redNedeniInput, setRedNedeniInput] = useState('');
   const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
   const [cihazEkleForm, setCihazEkleForm] = useState({
-    markaModel: '', hafiza: '', renk: '', pil: '', grade: 'MÜKEMMEL',
+    markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
     garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
   });
 
@@ -915,7 +915,7 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
     setCihazEkleForm({
-      markaModel: '', hafiza: '', renk: '', pil: '', grade: 'MÜKEMMEL',
+      markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
       garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
     });
     setCihazTalepDialog({ type: 'cihaz_ekle' });
@@ -925,7 +925,7 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!isAdmin && !isMasterAccess) return;
     const markaModel = cihazEkleForm.markaModel.trim();
     const hafiza = cihazEkleForm.hafiza.trim();
-    const renk = cihazEkleForm.renk.trim();
+    const renk = (cihazEkleForm.renk === 'DİĞER' ? cihazEkleForm.renkDiger : cihazEkleForm.renk).trim();
     const stokAdet = Number(cihazEkleForm.stokAdet);
 
     if (!markaModel || !hafiza || !renk) {
@@ -3272,8 +3272,36 @@ export default function CnetmobilCmrFinalUltimate() {
                 <div className="p-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={e=>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
-                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label><input value={cihazEkleForm.hafiza} onChange={e=>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} placeholder="128GB" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK *</label><input value={cihazEkleForm.renk} onChange={e=>setCihazEkleForm(p=>({...p,renk:e.target.value}))} placeholder="Siyah" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div>
+                      <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label>
+                      <select value={cihazEkleForm.hafiza} onChange={e=>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white">
+                        <option value="">Hafıza seçin</option>
+                        <option value="16GB">16GB</option><option value="32GB">32GB</option><option value="64GB">64GB</option><option value="128GB">128GB</option>
+                        <option value="256GB">256GB</option><option value="512GB">512GB</option><option value="1TB">1TB</option><option value="2TB">2TB</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK *</label>
+                      <div className="relative">
+                        {cihazEkleForm.renk && cihazEkleForm.renk !== 'DİĞER' && (
+                          <span className="pointer-events-none absolute left-4 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: ({
+                            'SİYAH':'#111827','BEYAZ':'#ffffff','MAVİ':'#3b82f6','LACİVERT':'#1e3a8a','GRİ':'#6b7280','GÜMÜŞ':'#cbd5e1','ALTIN':'#d4af37','YEŞİL':'#22c55e','KIRMIZI':'#ef4444','MOR':'#8b5cf6','PEMBE':'#ec4899','SARI':'#eab308','TURUNCU':'#f97316','KAHVERENGİ':'#92400e','BEJ':'#d6c6a5','TİTANYUM':'#8c8c89','NATURAL TİTANYUM':'#a59f91','SİYAH TİTANYUM':'#4a4a47','BEYAZ TİTANYUM':'#e7e5df','MAVİ TİTANYUM':'#536878'
+                          } as Record<string,string>)[cihazEkleForm.renk] || '#cbd5e1' }} />
+                        )}
+                        <select value={cihazEkleForm.renk} onChange={e=>setCihazEkleForm(p=>({...p,renk:e.target.value,renkDiger:e.target.value==='DİĞER'?p.renkDiger:''}))} className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 text-sm font-black outline-none focus:border-blue-500 focus:bg-white ${cihazEkleForm.renk && cihazEkleForm.renk !== 'DİĞER' ? 'pl-10' : 'px-4'}`}>
+                          <option value="">Renk seçin</option>
+                          <option value="SİYAH">SİYAH</option><option value="BEYAZ">BEYAZ</option><option value="MAVİ">MAVİ</option><option value="LACİVERT">LACİVERT</option>
+                          <option value="GRİ">GRİ</option><option value="GÜMÜŞ">GÜMÜŞ</option><option value="ALTIN">ALTIN</option><option value="YEŞİL">YEŞİL</option>
+                          <option value="KIRMIZI">KIRMIZI</option><option value="MOR">MOR</option><option value="PEMBE">PEMBE</option><option value="SARI">SARI</option>
+                          <option value="TURUNCU">TURUNCU</option><option value="KAHVERENGİ">KAHVERENGİ</option><option value="BEJ">BEJ</option><option value="TİTANYUM">TİTANYUM</option>
+                          <option value="NATURAL TİTANYUM">NATURAL TİTANYUM</option><option value="SİYAH TİTANYUM">SİYAH TİTANYUM</option><option value="BEYAZ TİTANYUM">BEYAZ TİTANYUM</option><option value="MAVİ TİTANYUM">MAVİ TİTANYUM</option>
+                          <option value="DİĞER">DİĞER / ÖZEL RENK</option>
+                        </select>
+                      </div>
+                      {cihazEkleForm.renk === 'DİĞER' && (
+                        <input autoFocus value={cihazEkleForm.renkDiger} onChange={e=>setCihazEkleForm(p=>({...p,renkDiger:e.target.value.toUpperCase()}))} placeholder="Özel rengi yazın" className="mt-2 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
+                      )}
+                    </div>
                     <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={e=>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
                     <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={e=>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
                     <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={e=>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
