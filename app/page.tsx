@@ -210,11 +210,17 @@ export default function CnetmobilCmrFinalUltimate() {
     | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
     | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
+    | { type: 'cihaz_ekle' }
     | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
 
   const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
   const [talepAdetInput, setTalepAdetInput] = useState('1');
   const [redNedeniInput, setRedNedeniInput] = useState('');
+  const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+  const [cihazEkleForm, setCihazEkleForm] = useState({
+    markaModel: '', hafiza: '', renk: '', pil: '', grade: 'MÜKEMMEL',
+    garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
+  });
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -900,6 +906,66 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const showTalepMessage = (title: string, message: string, tone: 'success' | 'error' | 'info' = 'info') => {
     setCihazTalepDialog({ type: 'message', title, message, tone });
+  };
+
+
+  const openCihazEkleModal = () => {
+    if (!isAdmin && !isMasterAccess) {
+      showTalepMessage('YETKİ GEREKLİ', 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.', 'error');
+      return;
+    }
+    setCihazEkleForm({
+      markaModel: '', hafiza: '', renk: '', pil: '', grade: 'MÜKEMMEL',
+      garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
+    });
+    setCihazTalepDialog({ type: 'cihaz_ekle' });
+  };
+
+  const submitCihazEkle = async () => {
+    if (!isAdmin && !isMasterAccess) return;
+    const markaModel = cihazEkleForm.markaModel.trim();
+    const hafiza = cihazEkleForm.hafiza.trim();
+    const renk = cihazEkleForm.renk.trim();
+    const stokAdet = Number(cihazEkleForm.stokAdet);
+
+    if (!markaModel || !hafiza || !renk) {
+      return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
+    }
+    if (!Number.isInteger(stokAdet) || stokAdet < 1) {
+      return showTalepMessage('GEÇERSİZ STOK', 'Stok adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
+    }
+
+    setCihazEkleSaving(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          type: 'ADD_CIHAZ_TALEP_DEVICE',
+          markaModel,
+          hafiza,
+          renk,
+          pil: cihazEkleForm.pil.trim(),
+          grade: cihazEkleForm.grade.trim(),
+          garanti: cihazEkleForm.garanti.trim(),
+          degisenParca: cihazEkleForm.degisenParca.trim(),
+          kutuFatura: cihazEkleForm.kutuFatura.trim(),
+          stokAdet
+        })
+      });
+      const result = await response.json();
+      if (result.result !== 'success') {
+        showTalepMessage('CİHAZ EKLENEMEDİ', result.message || 'Cihaz eklenemedi.', 'error');
+        return;
+      }
+      setCihazTalepDialog(null);
+      showTalepMessage('CİHAZ EKLENDİ', `${markaModel} (${hafiza} - ${renk}) ${stokAdet} adet stok ile eklendi.`, 'success');
+    } catch (e) {
+      console.error('Cihaz ekleme hatası:', e);
+      showTalepMessage('BAĞLANTI HATASI', 'Cihaz eklenirken bağlantı hatası oluştu.', 'error');
+    } finally {
+      setCihazEkleSaving(false);
+    }
   };
 
   const aktifTalepleriExcelIndir = () => {
@@ -2393,6 +2459,23 @@ export default function CnetmobilCmrFinalUltimate() {
                       </p>
                     </div>
                   </div>
+
+                  {(isMasterAccess || isAdmin) && (
+                    <button
+                      type="button"
+                      onClick={openCihazEkleModal}
+                      className="flex items-center gap-4 bg-blue-600 px-6 py-4 rounded-2xl border border-blue-600 min-w-[190px] text-left text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5 btn-click"
+                      title="Cihaz Talep listesine yeni cihaz ekle"
+                    >
+                      <div className="w-10 h-10 bg-white/15 text-white rounded-xl flex items-center justify-center shrink-0 ring-1 ring-white/20">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest">YÖNETİCİ İŞLEMİ</p>
+                        <p className="text-base font-black tracking-tight">+ CİHAZ EKLE</p>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -3171,6 +3254,36 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="mt-5 flex gap-3">
                     <button onClick={() => setCihazTalepDialog(null)} disabled={redLoadingIndex !== null} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
                     <button onClick={submitTalepRed} disabled={redLoadingIndex !== null || !redNedeniInput.trim()} className="flex-[1.4] rounded-2xl bg-red-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-red-200 hover:bg-red-700 disabled:opacity-40">{redLoadingIndex !== null ? 'REDDEDİLİYOR...' : 'REDDET'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {cihazTalepDialog.type === 'cihaz_ekle' && (
+              <>
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    </div>
+                    <div><h3 className="text-xl font-black">YENİ CİHAZ EKLE</h3><p className="mt-1 text-xs font-bold text-blue-100">Cihaz Talep listesine tekli stok kaydı oluştur</p></div>
+                  </div>
+                </div>
+                <div className="p-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={e=>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label><input value={cihazEkleForm.hafiza} onChange={e=>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} placeholder="128GB" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK *</label><input value={cihazEkleForm.renk} onChange={e=>setCihazEkleForm(p=>({...p,renk:e.target.value}))} placeholder="Siyah" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={e=>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={e=>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={e=>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={e=>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={e=>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                    <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={e=>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+                    <button onClick={submitCihazEkle} disabled={cihazEkleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazEkleSaving ? 'EKLENİYOR...' : 'CİHAZI EKLE'}</button>
                   </div>
                 </div>
               </>
