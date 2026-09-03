@@ -1089,7 +1089,7 @@ export default function CnetmobilCmrFinalUltimate() {
           'Content-Type': 'text/plain;charset=utf-8'
         },
         body: JSON.stringify({
-          type: "DELETE_CIHAZ_ROW_FULL_V4",
+          type: "DELETE_CIHAZ_ROW_FULL_V5",
           rowIndex: rowIndex
         })
       });
@@ -2417,6 +2417,10 @@ export default function CnetmobilCmrFinalUltimate() {
                     <div className="flex flex-col">
                       {cihazTalepData.slice(1).map((row, i) => {
                         const rowIndex = i + 2;
+                        // Supabase/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
+                        // rowIndex korunur; böylece işlem yapılan satır Sheets ile birebir aynı kalır.
+                        const satirTamamenBos = Array.from({ length: 15 }, (_, c) => String(row?.[c] ?? '').trim()).every(v => v === '');
+                        if (satirTamamenBos) return null;
                         const markaModel = row[0] || '';
                         const hafiza = row[1] || '';
                         const renk = row[2] || '';
