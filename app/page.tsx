@@ -71,6 +71,34 @@ function getRangeFromSupabaseRows(
   return result;
 }
 
+
+function getRangeFromSupabaseRowsPreserveRowNumbers(
+  rows: SupabaseSheetRow[],
+  startRow: number,
+  endRow: number,
+  startCol: number,
+  endColExclusive: number
+): any[][] {
+  const filtered = rows.filter((item) => item.row_number >= startRow && item.row_number <= endRow);
+  if (!filtered.length) return [];
+
+  const maxRow = Math.min(endRow, Math.max(...filtered.map((item) => Number(item.row_number) || 0)));
+  const result: any[][] = Array.from({ length: Math.max(0, maxRow - startRow + 1) }, () => []);
+
+  filtered.forEach((item) => {
+    const index = item.row_number - startRow;
+    if (index < 0 || index >= result.length) return;
+    const rowData = Array.isArray(item.data) ? item.data : [];
+    result[index] = trimTrailingEmptyCells(rowData.slice(startCol, endColExclusive));
+  });
+
+  while (result.length > 0 && result[result.length - 1].length === 0) {
+    result.pop();
+  }
+
+  return result;
+}
+
 function buildPanelData(rows: SupabaseSheetRow[]) {
   const sheets: Record<string, SupabaseSheetRow[]> = {};
 
@@ -94,7 +122,7 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
     MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
     PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 16),
+    CihazTalep: getRangeFromSupabaseRowsPreserveRowNumbers(sheets['CihazTalep'] || [], 1, 1000, 0, 16),
     CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
     CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
@@ -907,6 +935,7 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const filtreliCihazTalepRows = cihazTalepRows
+    .filter(({ row }) => String(row[0] || '').trim() !== '')
     .filter(({ row }) => gradeFilter === 'TÜMÜ' || String(row[4] || '').trim().toUpperCase() === gradeFilter)
     .sort((a, b) => {
       if (talepSort === 'GRADE') { const ag = String(a.row[4] || '').trim().toUpperCase(); const bg = String(b.row[4] || '').trim().toUpperCase(); const ai = GRADE_SIRASI.indexOf(ag); const bi = GRADE_SIRASI.indexOf(bg); if (ai === -1 && bi === -1) return ag.localeCompare(bg, 'tr'); if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; }
