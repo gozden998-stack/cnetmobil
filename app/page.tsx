@@ -100,65 +100,102 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
   };
 }
 
-const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v4';
-const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v4';
-const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // günde en fazla 1 tam çekim
+// ======================================================
+// V6 - EKRAN BAZLI CACHE + SEÇİLİ EKRANLARDA REALTIME
+// Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
+// Diğer ekranlar: 20 dakika cache
+// ======================================================
+const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v6';
+const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v6';
+const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
 
-const REQUIRED_SHEETS = [
-  'Google Sheets ile Kurumsal Alım Sistemi','Ayarlar','Alimlar','Markalar',
-  'CEP + TABLET+IOT SAAT LIST','YNA LİST','DIŞ KANAL SATIN ALMA','Servis_Fiyatlari',
-  '2.EL FİYAT LİSTESİ','DEPO','HEDEFLER','MagazaGidisat','PersonelGidisat',
-  'THH','CihazTalep','CİHAZ SAT'
-];
+const REALTIME_SHEETS = [
+  'CihazTalep',
+  'CEP + TABLET+IOT SAAT LIST',
+  'YNA LİST',
+  'DIŞ KANAL SATIN ALMA',
+] as const;
 
-function mergeSheetRows(base: SupabaseSheetRow[], incoming: SupabaseSheetRow[]) {
-  const map = new Map<string, SupabaseSheetRow>();
-  base.forEach(r => map.set(`${r.sheet_name}::${r.row_number}`, r));
-  incoming.forEach(r => map.set(`${r.sheet_name}::${r.row_number}`, r));
-  return Array.from(map.values()).sort((a,b) => {
+const MODE_SHEETS: Record<string, string[]> = {
+  ana_sayfa: ['Ayarlar', 'HEDEFLER', 'MagazaGidisat', 'PersonelGidisat'],
+  alim: ['Google Sheets ile Kurumsal Alım Sistemi', 'Ayarlar', 'Alimlar', 'Markalar'],
+  servis: ['Google Sheets ile Kurumsal Alım Sistemi', 'Ayarlar', 'Markalar', 'Servis_Fiyatlari'],
+  cep_tablet: ['CEP + TABLET+IOT SAAT LIST'],
+  kampanya_sifir: ['CEP + TABLET+IOT SAAT LIST'],
+  yna_list: ['YNA LİST'],
+  dis_kanal: ['DIŞ KANAL SATIN ALMA'],
+  ikinci_el_apple: ['2.EL FİYAT LİSTESİ'],
+  ikinci_el_android: ['2.EL FİYAT LİSTESİ'],
+  imei_list: ['DEPO'],
+  thh: ['THH'],
+  cihaz_talep: ['CihazTalep'],
+};
+
+function replaceSheetsInRows(
+  base: SupabaseSheetRow[],
+  incoming: SupabaseSheetRow[],
+  sheetNames: string[]
+) {
+  const names = new Set(sheetNames);
+  return [
+    ...base.filter((row) => !names.has(row.sheet_name)),
+    ...incoming,
+  ].sort((a, b) => {
     const sc = a.sheet_name.localeCompare(b.sheet_name, 'tr');
     return sc !== 0 ? sc : a.row_number - b.row_number;
   });
 }
 
-function saveSheetCache(rows: SupabaseSheetRow[], metaPatch: Record<string, any> = {}) {
+function saveSheetCache(rows: SupabaseSheetRow[], sheetFetchedAt?: Record<string, number>) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(SUPABASE_CACHE_KEY, JSON.stringify(rows));
-    const oldMeta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
-    localStorage.setItem(SUPABASE_CACHE_META_KEY, JSON.stringify({ ...oldMeta, ...metaPatch }));
-  } catch (e) { console.warn('Supabase cache yazılamadı:', e); }
+    if (sheetFetchedAt) {
+      localStorage.setItem(
+        SUPABASE_CACHE_META_KEY,
+        JSON.stringify({ sheetFetchedAt })
+      );
+    }
+  } catch (e) {
+    console.warn('Supabase cache yazılamadı:', e);
+  }
 }
 
-async function fetchAllSheetRowsDirect(): Promise<SupabaseSheetRow[]> {
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) throw new Error('Supabase public environment variables eksik.');
-  const pageSize = 1000; let from = 0; let allRows: SupabaseSheetRow[] = [];
+async function fetchSheetsDirect(sheetNames: string[]): Promise<SupabaseSheetRow[]> {
+  if (!sheetNames.length) return [];
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error('Supabase public environment variables eksik.');
+  }
+
+  const pageSize = 1000;
+  let from = 0;
+  let allRows: SupabaseSheetRow[] = [];
+  const startedAt = performance.now();
+
   while (true) {
-    const { data, error } = await supabase.from('sheet_rows')
+    const { data, error } = await supabase
+      .from('sheet_rows')
       .select('id,sheet_name,row_number,data,updated_at')
-      .in('sheet_name', REQUIRED_SHEETS)
-      .order('sheet_name', { ascending: true }).order('row_number', { ascending: true })
+      .in('sheet_name', sheetNames)
+      .order('sheet_name', { ascending: true })
+      .order('row_number', { ascending: true })
       .range(from, from + pageSize - 1);
+
     if (error) throw new Error(`Supabase veri okuma hatası: ${error.message}`);
-    const page = (data || []) as SupabaseSheetRow[]; allRows = allRows.concat(page);
-    if (page.length < pageSize) break; from += pageSize;
-  }
-  return allRows;
-}
 
-async function fetchChangedSheetRowsDirect(sinceIso: string): Promise<SupabaseSheetRow[]> {
-  const pageSize = 1000; let from = 0; let allRows: SupabaseSheetRow[] = [];
-  while (true) {
-    const { data, error } = await supabase.from('sheet_rows')
-      .select('id,sheet_name,row_number,data,updated_at')
-      .in('sheet_name', REQUIRED_SHEETS)
-      .gt('updated_at', sinceIso)
-      .order('updated_at', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(`Supabase delta okuma hatası: ${error.message}`);
-    const page = (data || []) as SupabaseSheetRow[]; allRows = allRows.concat(page);
-    if (page.length < pageSize) break; from += pageSize;
+    const page = (data || []) as SupabaseSheetRow[];
+    allRows = allRows.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
   }
+
+  try {
+    const approxBytes = new Blob([JSON.stringify(allRows)]).size;
+    console.info(
+      `[SUPABASE V6] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
+    );
+  } catch (_) {}
+
   return allRows;
 }
 
@@ -583,154 +620,165 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  const loadData = async () => {
+  const sheetFetchedAtRef = useRef<Record<string, number>>({});
+  const cacheBootstrappedRef = useRef(false);
+
+  const getSheetsForCurrentScreen = () => {
+    // Yönetici paneli mevcut istatistik/config yapısını kullanıyor.
+    if (step === 99) {
+      return ['Ayarlar', 'Alimlar'];
+    }
+    return MODE_SHEETS[appMode] || [];
+  };
+
+  const loadSheetsForCurrentScreen = async (force = false) => {
     try {
-      let cachedRows: SupabaseSheetRow[] = [];
-      let meta: any = {};
-      if (typeof window !== 'undefined') {
-        try { cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]'); } catch {}
-        try { meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}'); } catch {}
-      }
+      // İlk çalışmada V6 local cache'i anında ekrana uygula.
+      if (!cacheBootstrappedRef.current && typeof window !== 'undefined') {
+        cacheBootstrappedRef.current = true;
+        try {
+          const cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]') as SupabaseSheetRow[];
+          const meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
+          sheetFetchedAtRef.current = meta?.sheetFetchedAt || {};
 
-      // Cache varsa ekranı Supabase beklemeden anında aç.
-      if (cachedRows.length) {
-        sheetRowsRef.current = cachedRows;
-        applySheetRowsToPanel(cachedRows);
-      }
-
-      const nowMs = Date.now();
-      const needsFull = !cachedRows.length || !meta.lastFullSync || (nowMs - Number(meta.lastFullSync) >= FULL_SYNC_INTERVAL_MS);
-
-      if (needsFull) {
-        const directRows = await fetchAllSheetRowsDirect();
-        sheetRowsRef.current = directRows;
-        applySheetRowsToPanel(directRows);
-        saveSheetCache(directRows, { lastFullSync: nowMs, lastDeltaSync: new Date().toISOString() });
-      } else {
-        // Her açılışta tüm tablo yerine sadece değişen satırları getir.
-        const since = meta.lastDeltaSync || new Date(Number(meta.lastFullSync)).toISOString();
-        const changedRows = await fetchChangedSheetRowsDirect(since);
-        if (changedRows.length) {
-          const merged = mergeSheetRows(cachedRows, changedRows);
-          sheetRowsRef.current = merged;
-          applySheetRowsToPanel(merged);
-          saveSheetCache(merged, { lastDeltaSync: new Date().toISOString() });
-        } else {
-          saveSheetCache(cachedRows, { lastDeltaSync: new Date().toISOString() });
+          if (cachedRows.length) {
+            sheetRowsRef.current = cachedRows;
+            applySheetRowsToPanel(cachedRows);
+          }
+        } catch (e) {
+          console.warn('V6 cache okunamadı:', e);
         }
       }
+
+      const neededSheets = getSheetsForCurrentScreen();
+      if (!neededSheets.length) {
+        setLoading(false);
+        return;
+      }
+
+      const now = Date.now();
+      const realtimeSet = new Set<string>(REALTIME_SHEETS as readonly string[]);
+
+      // Anlık ekranlar ekrana girildiğinde güncel sheet bir kez çekilir ve
+      // ekran açıkken Realtime ile devam eder. Normal ekranlar 20 dk cache kullanır.
+      const sheetsToFetch = neededSheets.filter((sheetName) => {
+        if (force) return true;
+        if (realtimeSet.has(sheetName)) return true;
+        const lastFetched = Number(sheetFetchedAtRef.current[sheetName] || 0);
+        return !lastFetched || now - lastFetched >= NORMAL_SCREEN_CACHE_MS;
+      });
+
+      if (!sheetsToFetch.length) {
+        setLoading(false);
+        return;
+      }
+
+      const freshRows = await fetchSheetsDirect(sheetsToFetch);
+      const nextRows = replaceSheetsInRows(
+        sheetRowsRef.current,
+        freshRows,
+        sheetsToFetch
+      );
+
+      sheetsToFetch.forEach((sheetName) => {
+        sheetFetchedAtRef.current[sheetName] = now;
+      });
+
+      sheetRowsRef.current = nextRows;
+      applySheetRowsToPanel(nextRows);
+      saveSheetCache(nextRows, sheetFetchedAtRef.current);
     } catch (e) {
-      console.error("Supabase veri yükleme hatası:", e);
+      console.error('Supabase ekran veri yükleme hatası:', e);
       setLoading(false);
     }
   };
 
   const refreshDataCache = async () => {
-    // Eski kodun çağrılarını bozmamak için bırakıldı.
-    // Artık ağdan tekrar tam veri çekmez; değişiklik Realtime ile gelir.
+    // Eski işlem akışlarını bozmamak için tutuldu.
+    // Yazma sonrası Realtime/local state ekranı güncelliyor.
     await new Promise((resolve) => setTimeout(resolve, 250));
   };
 
+  // Ekran değiştiğinde yalnızca o ekranın ihtiyaç duyduğu sheet(ler)i kontrol et.
   useEffect(() => {
-    let mounted = true;
+    loadSheetsForCurrentScreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appMode, step]);
 
-    // Panel açılışında yalnızca 1 kez tam veri.
-    loadData();
+  // Realtime yalnızca kullanıcı ANLIK bir ekrandayken açık.
+  // Böylece tüm sheet_rows tablosunu sürekli dinlemiyoruz.
+  useEffect(() => {
+    if (step === 99) return;
+
+    const activeRealtimeSheets = (MODE_SHEETS[appMode] || []).filter((sheetName) =>
+      (REALTIME_SHEETS as readonly string[]).includes(sheetName)
+    );
+
+    if (!activeRealtimeSheets.length) return;
+
+    let mounted = true;
 
     const upsertLocalRow = (row: SupabaseSheetRow) => {
       if (!row || !row.sheet_name || !row.row_number) return;
+      if (!activeRealtimeSheets.includes(row.sheet_name)) return;
 
       const next = [...sheetRowsRef.current];
       const index = next.findIndex((item) =>
-        item.sheet_name === row.sheet_name &&
-        item.row_number === row.row_number
+        item.sheet_name === row.sheet_name && item.row_number === row.row_number
       );
 
-      if (index >= 0) {
-        next[index] = row;
-      } else {
-        next.push(row);
-      }
+      if (index >= 0) next[index] = row;
+      else next.push(row);
 
       next.sort((a, b) => {
         const sheetCompare = a.sheet_name.localeCompare(b.sheet_name, 'tr');
-        if (sheetCompare !== 0) return sheetCompare;
-        return a.row_number - b.row_number;
+        return sheetCompare !== 0 ? sheetCompare : a.row_number - b.row_number;
       });
 
       sheetRowsRef.current = next;
-      saveSheetCache(next, { lastDeltaSync: new Date().toISOString() });
+      sheetFetchedAtRef.current[row.sheet_name] = Date.now();
+      saveSheetCache(next, sheetFetchedAtRef.current);
       if (mounted) applySheetRowsToPanel(next);
     };
 
-    const deleteLocalRow = (oldRow: Partial<SupabaseSheetRow>) => {
-      let next = sheetRowsRef.current;
+    let channel = supabase.channel(`cnetmobil-live-v6-${appMode}`);
 
-      if (oldRow.id !== undefined && oldRow.id !== null) {
-        next = next.filter((item) => item.id !== oldRow.id);
-      } else if (oldRow.sheet_name && oldRow.row_number) {
-        next = next.filter((item) =>
-          !(item.sheet_name === oldRow.sheet_name &&
-            item.row_number === oldRow.row_number)
+    activeRealtimeSheets.forEach((sheetName) => {
+      channel = channel
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'sheet_rows',
+            filter: `sheet_name=eq.${sheetName}`,
+          },
+          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'sheet_rows',
+            filter: `sheet_name=eq.${sheetName}`,
+          },
+          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
         );
-      } else {
-        // DELETE event'inde yeterli kimlik yoksa güvenli fallback:
-        // sadece bu nadir durumda bir defa tam veri yenilenir.
-        loadData();
-        return;
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('Supabase Realtime kanal hatası:', appMode);
       }
-
-      sheetRowsRef.current = next;
-      saveSheetCache(next, { lastDeltaSync: new Date().toISOString() });
-      if (mounted) applySheetRowsToPanel(next);
-    };
-
-    const channel = supabase
-      .channel('cnetmobil-sheet-rows-live-v2')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'sheet_rows',
-        },
-        (payload: any) => {
-          upsertLocalRow(payload.new as SupabaseSheetRow);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'sheet_rows',
-        },
-        (payload: any) => {
-          upsertLocalRow(payload.new as SupabaseSheetRow);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'sheet_rows',
-        },
-        (payload: any) => {
-          deleteLocalRow(payload.old as Partial<SupabaseSheetRow>);
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('Supabase Realtime kanal hatası.');
-        }
-      });
+    });
 
     return () => {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appMode, step]);
 
   useEffect(() => {
     if (selectedCapacity && config.Guc_Yok !== undefined) {
@@ -1170,17 +1218,10 @@ export default function CnetmobilCmrFinalUltimate() {
       // Satırı ekrandan da anında kaldır.
       setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
 
-      // Eski Supabase cache'i bu işlemden sonra satır numarası taşımasın.
-      // Realtime yeni row_number'ları getirecek; sonraki açılışta da temiz veri alınır.
-      if (typeof window !== 'undefined') {
-        try {
-          Object.keys(localStorage).forEach((key) => {
-            if (key.toLowerCase().includes('supabase') && key.toLowerCase().includes('sheet')) {
-              localStorage.removeItem(key);
-            }
-          });
-        } catch (_) {}
-      }
+      // V6: bütün panel cache'ini silme. Sadece CihazTalep sheet'ini zorla yenile.
+      // Böylece diğer ekranlar gereksiz yere Supabase'den tekrar çekilmez.
+      sheetFetchedAtRef.current['CihazTalep'] = 0;
+      await loadSheetsForCurrentScreen(true);
 
       alert("Cihaz satırı tamamen silindi. Alt satırlar güvenli şekilde yukarı kaydırıldı.");
     } catch (e) {
