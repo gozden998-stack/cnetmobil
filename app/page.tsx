@@ -668,11 +668,17 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   };
 
-  const refreshDataCache = async () => {
-    // Eski işlem akışlarını bozmamak için tutuldu.
-    // Yazma sonrası kısa gecikme korunuyor; anlık ekranlar polling ile yenileniyor.
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  };
+ const refreshDataCache = async () => {
+  try {
+    // Apps Script → Sheets → PostgreSQL senkronunun tamamlanması için kısa bekleme
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Açık ekranın verisini PostgreSQL'den ZORLA yeniden çek
+    await loadSheetsForCurrentScreen(true);
+  } catch (e) {
+    console.error('Yazma sonrası PostgreSQL yenileme hatası:', e);
+  }
+};
 
   // Ekran değiştiğinde yalnızca o ekranın ihtiyaç duyduğu sheet(ler)i kontrol et.
   useEffect(() => {
