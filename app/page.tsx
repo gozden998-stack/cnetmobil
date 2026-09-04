@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
@@ -8,27 +7,10 @@ const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi';
 const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
 // ======================================================
-// SUPABASE - TARAYICIDAN DOĞRUDAN VERİ OKUMA
-// Vercel /api/sheets artık kullanılmıyor.
-// Service Role KULLANMA! Sadece publishable/anon key kullanılır.
+// POSTGRESQL - TARAYICI SADECE KENDİ NEXT.JS API'MİZE BAĞLANIR
+// PostgreSQL bilgileri yalnızca sunucudaki DATABASE_URL içinde kalır.
 // ======================================================
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-type SupabaseSheetRow = {
+type SheetRow = {
   id?: number;
   sheet_name: string;
   row_number: number;
@@ -49,8 +31,8 @@ function trimTrailingEmptyCells(row: any[]): any[] {
   return result;
 }
 
-function getRangeFromSupabaseRows(
-  rows: SupabaseSheetRow[],
+function getRangeFromSheetRows(
+  rows: SheetRow[],
   startRow: number,
   endRow: number,
   startCol: number,
@@ -71,8 +53,8 @@ function getRangeFromSupabaseRows(
   return result;
 }
 
-function buildPanelData(rows: SupabaseSheetRow[]) {
-  const sheets: Record<string, SupabaseSheetRow[]> = {};
+function buildPanelData(rows: SheetRow[]) {
+  const sheets: Record<string, SheetRow[]> = {};
 
   rows.forEach((row) => {
     if (!sheets[row.sheet_name]) sheets[row.sheet_name] = [];
@@ -80,23 +62,23 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
   });
 
   return {
-    Devices: getRangeFromSupabaseRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
-    Ayarlar: getRangeFromSupabaseRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
-    Alimlar: getRangeFromSupabaseRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
-    Markalar: getRangeFromSupabaseRows(sheets['Markalar'] || [], 2, 50, 0, 2),
-    CepTablet: getRangeFromSupabaseRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
-    YNA: getRangeFromSupabaseRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
-    DisKanal: getRangeFromSupabaseRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
-    Servis: getRangeFromSupabaseRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
-    IkinciEl: getRangeFromSupabaseRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
-    Depo: getRangeFromSupabaseRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
-    Hedefler: getRangeFromSupabaseRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
-    MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
-    PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
-    THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
-    CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
-    CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
+    Devices: getRangeFromSheetRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
+    Ayarlar: getRangeFromSheetRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
+    Alimlar: getRangeFromSheetRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
+    Markalar: getRangeFromSheetRows(sheets['Markalar'] || [], 2, 50, 0, 2),
+    CepTablet: getRangeFromSheetRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
+    YNA: getRangeFromSheetRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
+    DisKanal: getRangeFromSheetRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
+    Servis: getRangeFromSheetRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
+    IkinciEl: getRangeFromSheetRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
+    Depo: getRangeFromSheetRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
+    Hedefler: getRangeFromSheetRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
+    MagazaGidisat: getRangeFromSheetRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
+    PersonelGidisat: getRangeFromSheetRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
+    THH: getRangeFromSheetRows(sheets['THH'] || [], 1, 1000, 0, 18),
+    CihazTalep: getRangeFromSheetRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
+    CustomerDevices: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
+    CustomerConfig: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
 }
 
@@ -105,8 +87,8 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
 // Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
 // Diğer ekranlar: 20 dakika cache
 // ======================================================
-const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v6';
-const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v6';
+const SHEET_CACHE_KEY = 'cnet_pg_sheet_rows_cache_v7';
+const SHEET_CACHE_META_KEY = 'cnet_pg_sheet_rows_cache_meta_v7';
 const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
 
 const REALTIME_SHEETS = [
@@ -132,8 +114,8 @@ const MODE_SHEETS: Record<string, string[]> = {
 };
 
 function replaceSheetsInRows(
-  base: SupabaseSheetRow[],
-  incoming: SupabaseSheetRow[],
+  base: SheetRow[],
+  incoming: SheetRow[],
   sheetNames: string[]
 ) {
   const names = new Set(sheetNames);
@@ -146,53 +128,46 @@ function replaceSheetsInRows(
   });
 }
 
-function saveSheetCache(rows: SupabaseSheetRow[], sheetFetchedAt?: Record<string, number>) {
+function saveSheetCache(rows: SheetRow[], sheetFetchedAt?: Record<string, number>) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(SUPABASE_CACHE_KEY, JSON.stringify(rows));
+    localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify(rows));
     if (sheetFetchedAt) {
       localStorage.setItem(
-        SUPABASE_CACHE_META_KEY,
+        SHEET_CACHE_META_KEY,
         JSON.stringify({ sheetFetchedAt })
       );
     }
   } catch (e) {
-    console.warn('Supabase cache yazılamadı:', e);
+    console.warn('Panel cache yazılamadı:', e);
   }
 }
 
-async function fetchSheetsDirect(sheetNames: string[]): Promise<SupabaseSheetRow[]> {
+async function fetchSheetsDirect(sheetNames: string[]): Promise<SheetRow[]> {
   if (!sheetNames.length) return [];
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error('Supabase public environment variables eksik.');
-  }
 
-  const pageSize = 1000;
-  let from = 0;
-  let allRows: SupabaseSheetRow[] = [];
   const startedAt = performance.now();
+  const params = new URLSearchParams();
+  sheetNames.forEach((name) => params.append('sheet', name));
 
-  while (true) {
-    const { data, error } = await supabase
-      .from('sheet_rows')
-      .select('id,sheet_name,row_number,data,updated_at')
-      .in('sheet_name', sheetNames)
-      .order('sheet_name', { ascending: true })
-      .order('row_number', { ascending: true })
-      .range(from, from + pageSize - 1);
+  const response = await fetch(`/api/sheet-rows?${params.toString()}`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  });
 
-    if (error) throw new Error(`Supabase veri okuma hatası: ${error.message}`);
+  const result = await response.json().catch(() => ({}));
 
-    const page = (data || []) as SupabaseSheetRow[];
-    allRows = allRows.concat(page);
-    if (page.length < pageSize) break;
-    from += pageSize;
+  if (!response.ok) {
+    throw new Error(result?.error || `PostgreSQL API hatası (${response.status})`);
   }
+
+  const allRows = Array.isArray(result?.rows) ? (result.rows as SheetRow[]) : [];
 
   try {
     const approxBytes = new Blob([JSON.stringify(allRows)]).size;
     console.info(
-      `[SUPABASE V6] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
+      `[POSTGRES V7] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
     );
   } catch (_) {}
 
@@ -315,7 +290,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
-  const sheetRowsRef = useRef<SupabaseSheetRow[]>([]);
+  const sheetRowsRef = useRef<SheetRow[]>([]);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -489,7 +464,7 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const applySheetRowsToPanel = (directRows: SupabaseSheetRow[]) => {
+  const applySheetRowsToPanel = (directRows: SheetRow[]) => {
     try {
       const allData = buildPanelData(directRows);
 
@@ -637,8 +612,8 @@ export default function CnetmobilCmrFinalUltimate() {
       if (!cacheBootstrappedRef.current && typeof window !== 'undefined') {
         cacheBootstrappedRef.current = true;
         try {
-          const cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]') as SupabaseSheetRow[];
-          const meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
+          const cachedRows = JSON.parse(localStorage.getItem(SHEET_CACHE_KEY) || '[]') as SheetRow[];
+          const meta = JSON.parse(localStorage.getItem(SHEET_CACHE_META_KEY) || '{}');
           sheetFetchedAtRef.current = meta?.sheetFetchedAt || {};
 
           if (cachedRows.length) {
@@ -688,14 +663,14 @@ export default function CnetmobilCmrFinalUltimate() {
       applySheetRowsToPanel(nextRows);
       saveSheetCache(nextRows, sheetFetchedAtRef.current);
     } catch (e) {
-      console.error('Supabase ekran veri yükleme hatası:', e);
+      console.error('PostgreSQL ekran veri yükleme hatası:', e);
       setLoading(false);
     }
   };
 
   const refreshDataCache = async () => {
     // Eski işlem akışlarını bozmamak için tutuldu.
-    // Yazma sonrası Realtime/local state ekranı güncelliyor.
+    // Yazma sonrası kısa gecikme korunuyor; anlık ekranlar polling ile yenileniyor.
     await new Promise((resolve) => setTimeout(resolve, 250));
   };
 
@@ -705,8 +680,9 @@ export default function CnetmobilCmrFinalUltimate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
 
-  // Realtime yalnızca kullanıcı ANLIK bir ekrandayken açık.
-  // Böylece tüm sheet_rows tablosunu sürekli dinlemiyoruz.
+  // V7: Supabase Realtime yerine kendi sunucumuzdan hafif polling.
+  // Yalnızca kullanıcı anlık ekranlardan birindeyken çalışır.
+  // Şimdilik 3 saniye; daha sonra WebSocket/SSE'ye çevrilebilir.
   useEffect(() => {
     if (step === 99) return;
 
@@ -716,66 +692,43 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (!activeRealtimeSheets.length) return;
 
-    let mounted = true;
+    let cancelled = false;
+    let busy = false;
 
-    const upsertLocalRow = (row: SupabaseSheetRow) => {
-      if (!row || !row.sheet_name || !row.row_number) return;
-      if (!activeRealtimeSheets.includes(row.sheet_name)) return;
+    const poll = async () => {
+      if (cancelled || busy || document.visibilityState === 'hidden') return;
+      busy = true;
 
-      const next = [...sheetRowsRef.current];
-      const index = next.findIndex((item) =>
-        item.sheet_name === row.sheet_name && item.row_number === row.row_number
-      );
+      try {
+        const freshRows = await fetchSheetsDirect(activeRealtimeSheets);
+        if (cancelled) return;
 
-      if (index >= 0) next[index] = row;
-      else next.push(row);
+        const nextRows = replaceSheetsInRows(
+          sheetRowsRef.current,
+          freshRows,
+          activeRealtimeSheets
+        );
 
-      next.sort((a, b) => {
-        const sheetCompare = a.sheet_name.localeCompare(b.sheet_name, 'tr');
-        return sheetCompare !== 0 ? sheetCompare : a.row_number - b.row_number;
-      });
+        const now = Date.now();
+        activeRealtimeSheets.forEach((sheetName) => {
+          sheetFetchedAtRef.current[sheetName] = now;
+        });
 
-      sheetRowsRef.current = next;
-      sheetFetchedAtRef.current[row.sheet_name] = Date.now();
-      saveSheetCache(next, sheetFetchedAtRef.current);
-      if (mounted) applySheetRowsToPanel(next);
+        sheetRowsRef.current = nextRows;
+        saveSheetCache(nextRows, sheetFetchedAtRef.current);
+        applySheetRowsToPanel(nextRows);
+      } catch (e) {
+        console.error('PostgreSQL anlık veri yenileme hatası:', e);
+      } finally {
+        busy = false;
+      }
     };
 
-    let channel = supabase.channel(`cnetmobil-live-v6-${appMode}`);
-
-    activeRealtimeSheets.forEach((sheetName) => {
-      channel = channel
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        );
-    });
-
-    channel.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.error('Supabase Realtime kanal hatası:', appMode);
-      }
-    });
+    const timer = window.setInterval(poll, 3000);
 
     return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
@@ -1192,7 +1145,7 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Supabase ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
+    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Yeni sunucu veritabanı ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
 
     setDeleteTalepLoadingIndex(rowIndex);
 
@@ -1219,7 +1172,7 @@ export default function CnetmobilCmrFinalUltimate() {
       setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
 
       // V6: bütün panel cache'ini silme. Sadece CihazTalep sheet'ini zorla yenile.
-      // Böylece diğer ekranlar gereksiz yere Supabase'den tekrar çekilmez.
+      // Böylece diğer ekranlar gereksiz yere PostgreSQL'den tekrar çekilmez.
       sheetFetchedAtRef.current['CihazTalep'] = 0;
       await loadSheetsForCurrentScreen(true);
 
@@ -2541,7 +2494,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     <div className="flex flex-col">
                       {cihazTalepData.slice(1).map((row, i) => {
                         const rowIndex = i + 2;
-                        // Supabase/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
+                        // Veritabanı/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
                         // rowIndex korunur; böylece işlem yapılan satır Sheets ile birebir aynı kalır.
                         const satirTamamenBos = Array.from({ length: 15 }, (_, c) => String(row?.[c] ?? '').trim()).every(v => v === '');
                         if (satirTamamenBos) return null;
