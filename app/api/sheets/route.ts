@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { Pool } from "pg";
 
-// Artık Google Sheets 15 dakika cache yok.
-// Supabase'deki güncel veri okunur.
+// Artık Supabase kullanılmıyor.
+// Veri doğrudan kendi PostgreSQL sunucumuzdan okunuyor.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -10,6 +11,17 @@ type SheetRow = {
   row_number: number;
   data: any[];
 };
+
+// ======================================================
+// POSTGRESQL BAĞLANTISI
+// ======================================================
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
 // ======================================================
 // SATIR / SÜTUN KESME
@@ -43,59 +55,22 @@ function getRange(
 }
 
 // ======================================================
-// SUPABASE'DEN TÜM KAYITLARI SAYFALI ÇEK
-// Supabase/PostgREST sonuç limitine takılmamak için.
+// POSTGRESQL'DEN TÜM SHEET SATIRLARINI ÇEK
 // ======================================================
 
-async function getAllSheetRows(
-  supabaseUrl: string,
-  serviceRoleKey: string
-): Promise<SheetRow[]> {
-  const pageSize = 1000;
-  let offset = 0;
+async function getAllSheetRows(): Promise<SheetRow[]> {
+  const result = await pool.query<SheetRow>(`
+    SELECT
+      sheet_name,
+      row_number,
+      data
+    FROM public.sheet_rows
+    ORDER BY
+      sheet_name ASC,
+      row_number ASC
+  `);
 
-  const allRows: SheetRow[] = [];
-
-  while (true) {
-    const url =
-      `${supabaseUrl}/rest/v1/sheet_rows` +
-      `?select=sheet_name,row_number,data` +
-      `&order=sheet_name.asc,row_number.asc` +
-      `&limit=${pageSize}` +
-      `&offset=${offset}`;
-
-    const response = await fetch(url, {
-      method: "GET",
-
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json",
-      },
-
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      throw new Error(
-        `Supabase hatası (${response.status}): ${errorText}`
-      );
-    }
-
-    const page: SheetRow[] = await response.json();
-
-    allRows.push(...page);
-
-    if (page.length < pageSize) {
-      break;
-    }
-
-    offset += pageSize;
-  }
-
-  return allRows;
+  return result.rows;
 }
 
 // ======================================================
@@ -104,38 +79,21 @@ async function getAllSheetRows(
 
 export async function GET() {
   try {
-    const SUPABASE_URL =
-      process.env.SUPABASE_URL;
-
-    const SUPABASE_SERVICE_ROLE_KEY =
-      process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!SUPABASE_URL) {
+    if (!process.env.DATABASE_URL) {
       throw new Error(
-        "SUPABASE_URL environment variable bulunamadı."
+        "DATABASE_URL environment variable bulunamadı."
       );
     }
 
-    if (!SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error(
-        "SUPABASE_SERVICE_ROLE_KEY environment variable bulunamadı."
-      );
-    }
-
-    const cleanUrl =
-      SUPABASE_URL.replace(/\/+$/, "");
-
     // ------------------------------------------
-    // Supabase'den verileri al
+    // KENDİ POSTGRESQL SUNUCUMUZDAN VERİLERİ AL
     // ------------------------------------------
 
-    const rows = await getAllSheetRows(
-      cleanUrl,
-      SUPABASE_SERVICE_ROLE_KEY
-    );
+    const rows = await getAllSheetRows();
 
     // ------------------------------------------
     // ESKİ GOOGLE SHEETS API FORMATINI OLUŞTUR
+    // FRONTEND YAPISI DEĞİŞMİYOR
     // ------------------------------------------
 
     const results: Record<string, any[][]> = {
@@ -240,8 +198,7 @@ export async function GET() {
         3
       ),
 
-      // Senin gerçek sheet adın loglarda HEDEFLER
-      // Eski route: Hedefler!A3:M100
+      // HEDEFLER!A3:M100
       Hedefler: getRange(
         rows,
         "HEDEFLER",
@@ -291,7 +248,7 @@ export async function GET() {
         9
       ),
 
-      // Cihaz Sat!A2:F1000
+      // CİHAZ SAT!A2:F1000
       CustomerDevices: getRange(
         rows,
         "CİHAZ SAT",
@@ -301,7 +258,7 @@ export async function GET() {
         6
       ),
 
-      // Cihaz Sat!N2:O50
+      // CİHAZ SAT!N2:O50
       CustomerConfig: getRange(
         rows,
         "CİHAZ SAT",
@@ -314,16 +271,13 @@ export async function GET() {
 
     // ------------------------------------------
     // FRONTEND'İ BOZMAMAK İÇİN
-    // ESKİ BASE64 PAYLOAD DEVAM EDİYOR
+    // ESKİ BASE64 PAYLOAD FORMATINI KORUYORUZ
     // ------------------------------------------
 
-    const rawString =
-      JSON.stringify(results);
+    const rawString = JSON.stringify(results);
 
     const maskedPayload =
-      Buffer.from(rawString).toString(
-        "base64"
-      );
+      Buffer.from(rawString).toString("base64");
 
     return NextResponse.json({
       payload: maskedPayload,
@@ -331,7 +285,7 @@ export async function GET() {
 
   } catch (error) {
     console.error(
-      "Supabase verisi çekilirken hata:",
+      "PostgreSQL verisi çekilirken hata:",
       error
     );
 
