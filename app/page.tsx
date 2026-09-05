@@ -5,6 +5,7 @@ import YoneticiPaneli from './components/YoneticiPaneli';
 import CepTablet from './components/screens/CepTablet';
 import YNAList from './components/screens/YNAList';
 import DisKanal from './components/screens/DisKanal';
+import KampanyaliSifir from './components/screens/KampanyaliSifir';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -3892,41 +3893,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ) :
 
           appMode === 'kampanya_sifir' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-red-600">KAMPANYALI SIFIR LİSTE</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Sıfır Kampanyalı Cihaz Fiyatları</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-red-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                  </div>
-              </div>
-
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
-                  <div className="bg-red-600 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="flex-[3]">ÜRÜN ADI</div>
-                    <div className="flex-1 text-right border-l border-red-500 pl-2">FİYATI (TL)</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {cepTabletData.slice(1).filter(r => r[10] && r[10].trim() !== '' && r[10].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[10] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA') || cellName.includes('İNDİRİM');
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                              {row[10]}
-                          </div>
-                          <div className={`flex-1 text-right font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isHighlighted ? 'text-amber-600' : 'text-slate-900'}`}>{row[11] || '-'}</div>
-                        </div>
-                    )})}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <KampanyaliSifir data={cepTabletData} />
           ) :
 
           appMode === 'thh' && step < 99 && isMasterAccess ? (
