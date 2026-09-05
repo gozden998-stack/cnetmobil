@@ -3412,8 +3412,8 @@ export default function CnetmobilCmrFinalUltimate() {
               cihazTalepPage={cihazTalepPage}
               setCihazTalepPage={setCihazTalepPage}
               openActiveRequestsSignal={cihazTalepOpenActiveSignal}
-              stockSourceBranch={cihazTalepSourceBranch}
               selectedBranch={selectedBranch}
+              stockBranchCode={cihazTalepSourceBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
               isSuperAdminUser={isSuperAdminUser}
