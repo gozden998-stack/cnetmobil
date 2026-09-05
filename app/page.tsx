@@ -1320,6 +1320,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSubMenuOpen, setMobileSubMenuOpen] = useState(false);
+  const secondHandMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [secondHandMenuPos, setSecondHandMenuPos] = useState({
+    left: 0,
+    top: 0,
+    width: 192,
+  });
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
@@ -3612,18 +3618,33 @@ export default function CnetmobilCmrFinalUltimate() {
                   return (
                     <div
                       key={item.id}
-                      onMouseLeave={() => {
-                        if (item.subItems) {
-                          setMobileSubMenuOpen(false);
-                        }
-                      }}
                       className="group relative flex min-w-fit items-stretch"
                     >
                       {item.subItems ? (
                         <>
                           <button
+                            ref={secondHandMenuButtonRef}
                             type="button"
-                            onClick={() => setMobileSubMenuOpen((open) => !open)}
+                            onClick={() => {
+                              const rect =
+                                secondHandMenuButtonRef.current?.getBoundingClientRect();
+
+                              if (rect) {
+                                setSecondHandMenuPos({
+                                  left: Math.max(
+                                    12,
+                                    Math.min(
+                                      window.innerWidth - 204,
+                                      rect.left
+                                    )
+                                  ),
+                                  top: rect.bottom + 6,
+                                  width: Math.max(192, rect.width),
+                                });
+                              }
+
+                              setMobileSubMenuOpen((open) => !open);
+                            }}
                             className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
@@ -3651,7 +3672,18 @@ export default function CnetmobilCmrFinalUltimate() {
                           </button>
 
                           {mobileSubMenuOpen && (
-                            <div className="absolute left-0 top-full z-[999] hidden w-48 overflow-hidden rounded-b-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:flex lg:flex-col">
+                            <div
+                              className="fixed z-[99999] hidden overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl ring-1 ring-black/10 lg:flex lg:flex-col"
+                              style={{
+                                left: secondHandMenuPos.left,
+                                top: secondHandMenuPos.top,
+                                width: secondHandMenuPos.width,
+                              }}
+                            >
+                              <div className="border-b border-white/10 px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/60">
+                                2. El Fiyat Listesi
+                              </div>
+
                               {item.subItems.map((sub) => (
                                 <button
                                   type="button"
@@ -3662,15 +3694,24 @@ export default function CnetmobilCmrFinalUltimate() {
                                     resetSelection();
                                     setMobileSubMenuOpen(false);
                                   }}
-                                  className={`px-4 py-3.5 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                  className={`flex items-center justify-between px-4 py-4 text-left text-[10px] font-black uppercase tracking-wide transition ${
                                     appMode === sub.id
                                       ? 'bg-blue-500/20 text-blue-200'
-                                      : 'text-white/75 hover:bg-white/10 hover:text-white'
+                                      : 'text-white/80 hover:bg-white/10 hover:text-white'
                                   }`}
                                 >
-                                  {sub.label}
+                                  <span>{sub.label}</span>
+                                  <span className="text-blue-300">→</span>
                                 </button>
                               ))}
+
+                              <button
+                                type="button"
+                                onClick={() => setMobileSubMenuOpen(false)}
+                                className="border-t border-white/10 px-4 py-2.5 text-left text-[8px] font-black uppercase tracking-wide text-white/40 hover:bg-white/5 hover:text-white/70"
+                              >
+                                Kapat
+                              </button>
                             </div>
                           )}
 
