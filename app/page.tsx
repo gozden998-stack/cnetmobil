@@ -715,8 +715,22 @@ export default function CnetmobilCmrFinalUltimate() {
   const [secondHandMenuPos, setSecondHandMenuPos] = useState({
     left: 0,
     top: 0,
-    width: 192,
+    width: 220,
   });
+
+  // CİHAZ TALEP MAĞAZA DROPDOWN
+  // Sadece üst menü seçimi için kullanılır.
+  // Cihaz Talep ekranının mevcut görseli / modalları / çalışma yapısı değişmez.
+  const [cihazTalepMenuOpen, setCihazTalepMenuOpen] = useState(false);
+  const cihazTalepMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [cihazTalepMenuPos, setCihazTalepMenuPos] = useState({
+    left: 0,
+    top: 0,
+    width: 240,
+  });
+  const [cihazTalepSourceBranch, setCihazTalepSourceBranch] = useState<
+    'CNET' | 'CMR' | 'CADDE' | 'KAPAKLI' | 'SARAY'
+  >('CMR');
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
@@ -1776,7 +1790,18 @@ export default function CnetmobilCmrFinalUltimate() {
             { id: 'ikinci_el_android', label: 'Android Liste' }
           ]
         },
-        { id: 'cihaz_talep', label: 'Cihaz Talep', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
+        {
+          id: 'cihaz_talep',
+          label: 'Cihaz Talep',
+          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay,
+          branchItems: [
+            { code: 'CNET', label: 'CNET', detail: 'Merkez Depo' },
+            { code: 'CMR', label: 'CMR', detail: 'CMR Mağaza' },
+            { code: 'CADDE', label: 'CADDE', detail: 'Cadde Mağaza' },
+            { code: 'KAPAKLI', label: 'KAPAKLI', detail: 'Kapaklı Mağaza' },
+            { code: 'SARAY', label: 'SARAY', detail: 'Saray Mağaza' }
+          ]
+        },
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
     }
@@ -2588,7 +2613,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
         {/* MODÜL NAVBAR */}
         <div className="border-b border-white/5 bg-black/5">
-          <div className="mx-auto flex max-w-[1920px] items-stretch overflow-x-auto px-2 no-scrollbar lg:px-5">
+          <div className="mx-auto flex max-w-[1920px] items-stretch justify-start overflow-x-auto px-2 no-scrollbar lg:justify-center lg:px-5">
             {step < 99 &&
               menuGroups
                 .flatMap((g) => g.items)
@@ -2599,35 +2624,266 @@ export default function CnetmobilCmrFinalUltimate() {
                     (item.subItems &&
                       item.subItems.some((sub) => sub.id === appMode));
 
+                  const openSecondHandMenu = () => {
+                    const rect =
+                      secondHandMenuButtonRef.current?.getBoundingClientRect();
+
+                    if (rect) {
+                      const width = 220;
+
+                      setSecondHandMenuPos({
+                        left: Math.max(
+                          12,
+                          Math.min(
+                            window.innerWidth - width - 12,
+                            rect.left + rect.width / 2 - width / 2
+                          )
+                        ),
+                        top: rect.bottom + 3,
+                        width,
+                      });
+                    }
+
+                    setMobileSubMenuOpen(true);
+                  };
+
+                  const openCihazTalepMenu = () => {
+                    const rect =
+                      cihazTalepMenuButtonRef.current?.getBoundingClientRect();
+
+                    if (rect) {
+                      const width = 240;
+
+                      setCihazTalepMenuPos({
+                        left: Math.max(
+                          12,
+                          Math.min(
+                            window.innerWidth - width - 12,
+                            rect.left + rect.width / 2 - width / 2
+                          )
+                        ),
+                        top: rect.bottom + 3,
+                        width,
+                      });
+                    }
+
+                    setCihazTalepMenuOpen(true);
+                  };
+
                   return (
                     <div
                       key={item.id}
                       className="group relative flex min-w-fit items-stretch"
+                      onMouseEnter={() => {
+                        if (typeof window === 'undefined' || window.innerWidth < 1024) {
+                          return;
+                        }
+
+                        if (item.subItems) {
+                          openSecondHandMenu();
+                        }
+
+                        if (item.branchItems) {
+                          openCihazTalepMenu();
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (typeof window === 'undefined' || window.innerWidth < 1024) {
+                          return;
+                        }
+
+                        if (item.subItems) {
+                          setMobileSubMenuOpen(false);
+                        }
+
+                        if (item.branchItems) {
+                          setCihazTalepMenuOpen(false);
+                        }
+                      }}
                     >
-                      {item.subItems ? (
+                      {item.branchItems ? (
+                        <>
+                          <button
+                            ref={cihazTalepMenuButtonRef}
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                setCihazTalepMenuOpen((open) => !open);
+                                return;
+                              }
+
+                              openCihazTalepMenu();
+                            }}
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                              isActive
+                                ? 'bg-blue-500/20 text-white'
+                                : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                                isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                              }`}
+                            >
+                              {navIcon(item.id)}
+                            </span>
+
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              Cihaz Talep
+                              <svg
+                                className={`h-2.5 w-2.5 opacity-60 transition-transform ${
+                                  cihazTalepMenuOpen ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </span>
+
+                            {isActive && (
+                              <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                            )}
+                          </button>
+
+                          {cihazTalepMenuOpen && (
+                            <div
+                              className="fixed z-[99999] hidden overflow-hidden rounded-xl border border-white/10 bg-[#10233f] py-1.5 shadow-2xl ring-1 ring-black/15 lg:flex lg:flex-col"
+                              style={{
+                                left: cihazTalepMenuPos.left,
+                                top: cihazTalepMenuPos.top,
+                                width: cihazTalepMenuPos.width,
+                              }}
+                            >
+                              <div className="border-b border-white/10 px-4 py-2.5">
+                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/55">
+                                  Cihaz Talep
+                                </div>
+                                <div className="mt-0.5 text-[10px] font-black text-white">
+                                  Mağaza Seç
+                                </div>
+                              </div>
+
+                              {item.branchItems.map((branchItem) => {
+                                const branchActive =
+                                  appMode === 'cihaz_talep' &&
+                                  cihazTalepSourceBranch === branchItem.code;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    key={branchItem.code}
+                                    onClick={() => {
+                                      setCihazTalepSourceBranch(
+                                        branchItem.code as
+                                          | 'CNET'
+                                          | 'CMR'
+                                          | 'CADDE'
+                                          | 'KAPAKLI'
+                                          | 'SARAY'
+                                      );
+                                      setAppMode('cihaz_talep');
+                                      setStep(1);
+                                      resetSelection();
+                                      setCihazTalepMenuOpen(false);
+                                    }}
+                                    className={`group/sub flex items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                                      branchActive
+                                        ? 'bg-blue-500/20'
+                                        : 'hover:bg-white/10'
+                                    }`}
+                                  >
+                                    <div className="min-w-0">
+                                      <div
+                                        className={`text-[10px] font-black uppercase tracking-wide ${
+                                          branchActive
+                                            ? 'text-blue-200'
+                                            : 'text-white/90 group-hover/sub:text-white'
+                                        }`}
+                                      >
+                                        {branchItem.label}
+                                      </div>
+
+                                      <div className="mt-0.5 text-[8px] font-bold text-blue-100/45">
+                                        {branchItem.detail}
+                                      </div>
+                                    </div>
+
+                                    <div
+                                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-black transition ${
+                                        branchActive
+                                          ? 'bg-blue-500 text-white'
+                                          : 'bg-white/5 text-blue-200 group-hover/sub:bg-blue-500 group-hover/sub:text-white'
+                                      }`}
+                                    >
+                                      {branchActive ? '✓' : '→'}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {cihazTalepMenuOpen && (
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
+                              <div className="border-b border-white/10 px-5 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200/70">
+                                Cihaz Talep · Mağaza Seç
+                              </div>
+
+                              {item.branchItems.map((branchItem) => (
+                                <button
+                                  key={branchItem.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setCihazTalepSourceBranch(
+                                      branchItem.code as
+                                        | 'CNET'
+                                        | 'CMR'
+                                        | 'CADDE'
+                                        | 'KAPAKLI'
+                                        | 'SARAY'
+                                    );
+                                    setAppMode('cihaz_talep');
+                                    setStep(1);
+                                    resetSelection();
+                                    setCihazTalepMenuOpen(false);
+                                  }}
+                                  className={`border-b border-white/5 px-5 py-4 text-left last:border-0 ${
+                                    cihazTalepSourceBranch === branchItem.code &&
+                                    appMode === 'cihaz_talep'
+                                      ? 'bg-blue-500/20'
+                                      : ''
+                                  }`}
+                                >
+                                  <div className="text-[11px] font-black uppercase tracking-wide text-white">
+                                    {branchItem.label}
+                                  </div>
+                                  <div className="mt-1 text-[9px] font-bold text-blue-100/55">
+                                    {branchItem.detail}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : item.subItems ? (
                         <>
                           <button
                             ref={secondHandMenuButtonRef}
                             type="button"
                             onClick={() => {
-                              const rect =
-                                secondHandMenuButtonRef.current?.getBoundingClientRect();
-
-                              if (rect) {
-                                setSecondHandMenuPos({
-                                  left: Math.max(
-                                    12,
-                                    Math.min(
-                                      window.innerWidth - 204,
-                                      rect.left
-                                    )
-                                  ),
-                                  top: rect.bottom + 6,
-                                  width: Math.max(192, rect.width),
-                                });
+                              if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                                setMobileSubMenuOpen((open) => !open);
+                                return;
                               }
 
-                              setMobileSubMenuOpen((open) => !open);
+                              openSecondHandMenu();
                             }}
                             className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
@@ -2645,8 +2901,20 @@ export default function CnetmobilCmrFinalUltimate() {
 
                             <span className="flex items-center gap-1 whitespace-nowrap">
                               2. El Listesi
-                              <svg className="h-2.5 w-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              <svg
+                                className={`h-2.5 w-2.5 opacity-60 transition-transform ${
+                                  mobileSubMenuOpen ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
                               </svg>
                             </span>
 
@@ -2657,15 +2925,20 @@ export default function CnetmobilCmrFinalUltimate() {
 
                           {mobileSubMenuOpen && (
                             <div
-                              className="fixed z-[99999] hidden overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl ring-1 ring-black/10 lg:flex lg:flex-col"
+                              className="fixed z-[99999] hidden overflow-hidden rounded-xl border border-white/10 bg-[#10233f] py-1.5 shadow-2xl ring-1 ring-black/15 lg:flex lg:flex-col"
                               style={{
                                 left: secondHandMenuPos.left,
                                 top: secondHandMenuPos.top,
                                 width: secondHandMenuPos.width,
                               }}
                             >
-                              <div className="border-b border-white/10 px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/60">
-                                2. El Fiyat Listesi
+                              <div className="border-b border-white/10 px-4 py-2.5">
+                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/55">
+                                  2. El Fiyat Listesi
+                                </div>
+                                <div className="mt-0.5 text-[10px] font-black text-white">
+                                  Liste Seç
+                                </div>
                               </div>
 
                               {item.subItems.map((sub) => (
@@ -2678,24 +2951,18 @@ export default function CnetmobilCmrFinalUltimate() {
                                     resetSelection();
                                     setMobileSubMenuOpen(false);
                                   }}
-                                  className={`flex items-center justify-between px-4 py-4 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                  className={`flex items-center justify-between px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition ${
                                     appMode === sub.id
                                       ? 'bg-blue-500/20 text-blue-200'
                                       : 'text-white/80 hover:bg-white/10 hover:text-white'
                                   }`}
                                 >
                                   <span>{sub.label}</span>
-                                  <span className="text-blue-300">→</span>
+                                  <span className="text-blue-300">
+                                    {appMode === sub.id ? '✓' : '→'}
+                                  </span>
                                 </button>
                               ))}
-
-                              <button
-                                type="button"
-                                onClick={() => setMobileSubMenuOpen(false)}
-                                className="border-t border-white/10 px-4 py-2.5 text-left text-[8px] font-black uppercase tracking-wide text-white/40 hover:bg-white/5 hover:text-white/70"
-                              >
-                                Kapat
-                              </button>
                             </div>
                           )}
 
