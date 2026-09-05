@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 type RoleItem = {
   code: string;
   name: string;
+  description?: string | null;
+};
+
+type PermissionItem = {
+  code: string;
+  name: string;
+  module: string;
+  description?: string | null;
 };
 
 type UserItem = {
@@ -18,7 +26,9 @@ type UserItem = {
   updatedAt?: string | null;
   lastLoginAt?: string | null;
   roles: RoleItem[];
+  roleCode: string | null;
   branches: string[];
+  effectivePermissions: string[];
 };
 
 const BRANCHES = [
@@ -30,40 +40,36 @@ const BRANCHES = [
   "ZUMAY KANALI",
 ];
 
-const ROLE_OPTIONS = [
-  {
-    code: "personel",
-    name: "Personel",
-    desc: "Mağaza/personel hesabı",
-  },
-  {
-    code: "yonetici",
-    name: "Yönetici",
-    desc: "Yetkileri Super Admin tarafından belirlenir",
-  },
-  {
-    code: "super_admin",
-    name: "Super Admin",
-    desc: "Sistemde tam yetki — en fazla 2 aktif hesap",
-  },
-];
+const MODULE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  users: "Kullanıcılar",
+  roles: "Rol & Yetki",
+  branches: "Mağazalar",
+  devices: "Cihazlar",
+  prices: "Fiyat Yönetimi",
+  stock: "Stok",
+  requests: "Cihaz Talepleri",
+  purchases: "Alımlar",
+  thh: "THH",
+  reports: "Raporlar",
+  settings: "Sistem Ayarları",
+  audit: "İşlem Geçmişi",
+};
 
 function roleLabel(user: UserItem) {
-  if (user.roles.some((r) => r.code === "super_admin")) return "Super Admin";
-  if (user.roles.some((r) => r.code === "yonetici")) return "Yönetici";
-  if (user.roles.some((r) => r.code === "personel")) return "Personel";
+  if (user.roleCode === "super_admin") return "Super Admin";
+  if (user.roleCode === "yonetici") return "Yönetici";
+  if (user.roleCode === "personel") return "Personel";
   return "Rol Atanmamış";
 }
 
 function roleBadgeClass(user: UserItem) {
-  if (user.roles.some((r) => r.code === "super_admin")) {
+  if (user.roleCode === "super_admin") {
     return "bg-violet-100 text-violet-700 border-violet-200";
   }
-
-  if (user.roles.some((r) => r.code === "yonetici")) {
+  if (user.roleCode === "yonetici") {
     return "bg-blue-100 text-blue-700 border-blue-200";
   }
-
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
@@ -75,20 +81,28 @@ export default function SuperAdminUsersPage() {
   const [meEmail, setMeEmail] = useState("");
 
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [roles, setRoles] = useState<RoleItem[]>([]);
+  const [permissionCatalog, setPermissionCatalog] = useState<PermissionItem[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
 
   const [maxSuperAdmins, setMaxSuperAdmins] = useState(2);
   const [activeSuperAdmins, setActiveSuperAdmins] = useState(0);
 
-  const [formOpen, setFormOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editUser, setEditUser] = useState<UserItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [search, setSearch] = useState("");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [roleCode, setRoleCode] = useState("personel");
   const [branch, setBranch] = useState("CMR MERKEZ");
   const [branches, setBranches] = useState<string[]>(["CMR MERKEZ"]);
+  const [active, setActive] = useState(true);
+  const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(
+    new Set()
+  );
 
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -105,12 +119,39 @@ export default function SuperAdminUsersPage() {
       users.filter(
         (u) =>
           u.active &&
-          u.roles.some(
-            (r) => r.code === "yonetici" || r.code === "super_admin"
-          )
+          (u.roleCode === "yonetici" || u.roleCode === "super_admin")
       ).length,
     [users]
   );
+
+  const groupedPermissions = useMemo(() => {
+    const map = new Map<string, PermissionItem[]>();
+
+    permissionCatalog.forEach((permission) => {
+      if (!map.has(permission.module)) map.set(permission.module, []);
+      map.get(permission.module)!.push(permission);
+    });
+
+    return Array.from(map.entries());
+  }, [permissionCatalog]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase("tr-TR");
+    if (!q) return users;
+
+    return users.filter((user) => {
+      const haystack = [
+        user.email || "",
+        user.branch || "",
+        roleLabel(user),
+        ...(user.branches || []),
+      ]
+        .join(" ")
+        .toLocaleLowerCase("tr-TR");
+
+      return haystack.includes(q);
+    });
+  }, [users, search]);
 
   const loadUsers = async () => {
     setUsersLoading(true);
@@ -128,6 +169,10 @@ export default function SuperAdminUsersPage() {
       }
 
       setUsers(Array.isArray(data.users) ? data.users : []);
+      setRoles(Array.isArray(data.roles) ? data.roles : []);
+      setPermissionCatalog(
+        Array.isArray(data.permissions) ? data.permissions : []
+      );
       setMaxSuperAdmins(Number(data?.limits?.maxActiveSuperAdmins || 2));
       setActiveSuperAdmins(Number(data?.limits?.activeSuperAdmins || 0));
     } catch (error: any) {
@@ -182,22 +227,44 @@ export default function SuperAdminUsersPage() {
     setRoleCode("personel");
     setBranch("CMR MERKEZ");
     setBranches(["CMR MERKEZ"]);
+    setActive(true);
+    setSelectedPermissions(new Set());
     setShowPassword(false);
   };
 
-  const openForm = () => {
+  const openCreate = () => {
     resetForm();
     setMessage(null);
-    setFormOpen(true);
+    setCreateOpen(true);
+  };
+
+  const openEdit = (user: UserItem) => {
+    setMessage(null);
+    setEditUser(user);
+    setEmail(user.email || "");
+    setPassword("");
+    setRoleCode(user.roleCode || "personel");
+    setBranch(user.branch || "CMR MERKEZ");
+    setBranches(
+      user.branches?.length ? [...user.branches] : [user.branch || "CMR MERKEZ"]
+    );
+    setActive(user.active);
+    setSelectedPermissions(new Set(user.effectivePermissions || []));
+    setShowPassword(false);
+  };
+
+  const closeModals = () => {
+    if (saving) return;
+    setCreateOpen(false);
+    setEditUser(null);
+    resetForm();
   };
 
   const changeMainBranch = (value: string) => {
     setBranch(value);
-
-    setBranches((current) => {
-      if (current.includes(value)) return current;
-      return [...current, value];
-    });
+    setBranches((current) =>
+      current.includes(value) ? current : [...current, value]
+    );
   };
 
   const toggleBranch = (value: string) => {
@@ -205,13 +272,30 @@ export default function SuperAdminUsersPage() {
       if (value === branch) {
         return current.includes(value) ? current : [...current, value];
       }
-
-      if (current.includes(value)) {
-        return current.filter((item) => item !== value);
-      }
-
-      return [...current, value];
+      return current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value];
     });
+  };
+
+  const togglePermission = (code: string) => {
+    if (roleCode === "super_admin") return;
+
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  const setAllPermissions = (checked: boolean) => {
+    if (roleCode === "super_admin") return;
+    setSelectedPermissions(
+      checked
+        ? new Set(permissionCatalog.map((permission) => permission.code))
+        : new Set()
+    );
   };
 
   const generatePassword = () => {
@@ -262,22 +346,12 @@ export default function SuperAdminUsersPage() {
       return;
     }
 
-    if (roleCode === "super_admin" && activeSuperAdmins >= maxSuperAdmins) {
-      setMessage({
-        type: "error",
-        text: `En fazla ${maxSuperAdmins} aktif Super Admin hesabı olabilir.`,
-      });
-      return;
-    }
-
     setSaving(true);
 
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
           password,
@@ -298,13 +372,58 @@ export default function SuperAdminUsersPage() {
         text: `${email.trim()} hesabı başarıyla oluşturuldu.`,
       });
 
-      setFormOpen(false);
+      setCreateOpen(false);
       resetForm();
       await loadUsers();
     } catch (error: any) {
       setMessage({
         type: "error",
         text: error?.message || "Kullanıcı oluşturulamadı.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editUser) return;
+
+    setMessage(null);
+    setSaving(true);
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: editUser.id,
+          email: email.trim(),
+          roleCode,
+          branch,
+          branches,
+          active,
+          permissions: Array.from(selectedPermissions),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Kullanıcı güncellenemedi.");
+      }
+
+      setMessage({
+        type: "success",
+        text: `${email.trim()} hesabının ayarları kaydedildi.`,
+      });
+
+      setEditUser(null);
+      resetForm();
+      await loadUsers();
+    } catch (error: any) {
+      setMessage({
+        type: "error",
+        text: error?.message || "Kullanıcı güncellenemedi.",
       });
     } finally {
       setSaving(false);
@@ -340,7 +459,7 @@ export default function SuperAdminUsersPage() {
           </p>
           <button
             onClick={() => router.push("/")}
-            className="mt-6 w-full h-11 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition"
+            className="mt-6 w-full h-11 rounded-xl bg-slate-900 text-white font-bold"
           >
             Panele Dön
           </button>
@@ -349,6 +468,9 @@ export default function SuperAdminUsersPage() {
     );
   }
 
+  const modalOpen = createOpen || Boolean(editUser);
+  const isEditing = Boolean(editUser);
+
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <header className="sticky top-0 z-30 bg-[#172033] text-white shadow-lg">
@@ -356,24 +478,20 @@ export default function SuperAdminUsersPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/")}
-              className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
-              title="Panele dön"
+              className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center"
             >
               ←
             </button>
-
             <div>
-              <div className="font-black tracking-tight text-xl">
-                CNETMOBİL
-              </div>
+              <div className="font-black tracking-tight text-xl">CNETMOBİL</div>
               <div className="text-[11px] text-slate-300">
-                Super Admin • Kullanıcı Yönetimi
+                Super Admin • Kullanıcı & Yetki Yönetimi
               </div>
             </div>
           </div>
 
           <div className="text-right hidden sm:block">
-            <div className="text-xs text-slate-400">Oturum</div>
+            <div className="text-xs text-slate-400">Super Admin</div>
             <div className="text-sm font-semibold">{meEmail}</div>
           </div>
         </div>
@@ -386,20 +504,20 @@ export default function SuperAdminUsersPage() {
               Yönetim Merkezi
             </div>
             <h1 className="text-3xl lg:text-4xl font-black tracking-tight mt-1">
-              Kullanıcılar
+              Kullanıcılar & Yetkiler
             </h1>
-            <p className="text-slate-500 mt-2 max-w-2xl">
-              Personel, yönetici ve Super Admin hesaplarını tek merkezden
-              oluşturun. Rol ve detaylı yetki yönetimini bu ekranın devamında
-              bağlayacağız.
+            <p className="text-slate-500 mt-2 max-w-3xl">
+              E-posta, rol, aktiflik, mağaza erişimi ve işlem yetkilerini
+              buradan yönetin. Yetki değişiklikleri için artık kod veya deploy
+              gerekmiyor.
             </p>
           </div>
 
           <button
-            onClick={openForm}
-            className="h-12 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2"
+            onClick={openCreate}
+            className="h-12 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
           >
-            <span className="text-xl leading-none">+</span>
+            <span className="text-xl">+</span>
             Yeni Kullanıcı
           </button>
         </div>
@@ -445,41 +563,50 @@ export default function SuperAdminUsersPage() {
         </div>
 
         <section className="rounded-3xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 lg:px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4">
+          <div className="px-5 lg:px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-black">Kullanıcı Listesi</h2>
               <p className="text-sm text-slate-500">
-                Sistemde kayıtlı hesaplar
+                Bir kullanıcıyı düzenlemek için satırdaki Düzenle'ye basın.
               </p>
             </div>
 
-            <button
-              onClick={loadUsers}
-              disabled={usersLoading}
-              className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-bold text-sm disabled:opacity-50"
-            >
-              {usersLoading ? "Yenileniyor..." : "Yenile"}
-            </button>
+            <div className="flex gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="E-posta, rol veya şube ara..."
+                className="h-10 w-full md:w-[290px] rounded-xl border border-slate-200 px-4 outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={loadUsers}
+                disabled={usersLoading}
+                className="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-bold text-sm disabled:opacity-50"
+              >
+                {usersLoading ? "..." : "Yenile"}
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-slate-50/80">
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                   <th className="px-6 py-4">Kullanıcı</th>
                   <th className="px-6 py-4">Rol</th>
                   <th className="px-6 py-4">Ana Şube</th>
-                  <th className="px-6 py-4">Erişim</th>
+                  <th className="px-6 py-4">Yetki</th>
                   <th className="px-6 py-4">Durum</th>
                   <th className="px-6 py-4">Son Giriş</th>
+                  <th className="px-6 py-4 text-right">İşlem</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50/60 transition">
+                {filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-slate-50/60">
                     <td className="px-6 py-5">
-                      <div className="font-black text-slate-900">
+                      <div className="font-black">
                         {user.email || "E-posta yok"}
                       </div>
                       <div className="text-xs text-slate-400 mt-1">
@@ -489,7 +616,7 @@ export default function SuperAdminUsersPage() {
 
                     <td className="px-6 py-5">
                       <span
-                        className={`inline-flex items-center border rounded-full px-3 py-1.5 text-xs font-black ${roleBadgeClass(
+                        className={`inline-flex border rounded-full px-3 py-1.5 text-xs font-black ${roleBadgeClass(
                           user
                         )}`}
                       >
@@ -497,20 +624,18 @@ export default function SuperAdminUsersPage() {
                       </span>
                     </td>
 
-                    <td className="px-6 py-5 font-semibold">
-                      {user.branch}
-                    </td>
+                    <td className="px-6 py-5 font-semibold">{user.branch}</td>
 
                     <td className="px-6 py-5">
-                      <div className="flex flex-wrap gap-1.5 max-w-[320px]">
-                        {(user.branches || []).map((item) => (
-                          <span
-                            key={item}
-                            className="text-[11px] font-bold bg-slate-100 text-slate-600 rounded-full px-2.5 py-1"
-                          >
-                            {item}
-                          </span>
-                        ))}
+                      <div className="font-black text-sm">
+                        {user.roleCode === "super_admin"
+                          ? "Tümü"
+                          : user.effectivePermissions?.length || 0}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {user.roleCode === "super_admin"
+                          ? "Tam yetki"
+                          : "aktif yetki"}
                       </div>
                     </td>
 
@@ -531,16 +656,25 @@ export default function SuperAdminUsersPage() {
                         ? new Date(user.lastLoginAt).toLocaleString("tr-TR")
                         : "Henüz giriş yok"}
                     </td>
+
+                    <td className="px-6 py-5 text-right">
+                      <button
+                        onClick={() => openEdit(user)}
+                        className="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-black"
+                      >
+                        Düzenle
+                      </button>
+                    </td>
                   </tr>
                 ))}
 
-                {!usersLoading && users.length === 0 && (
+                {!usersLoading && filteredUsers.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-6 py-14 text-center text-slate-400 font-semibold"
                     >
-                      Kayıtlı kullanıcı bulunamadı.
+                      Kullanıcı bulunamadı.
                     </td>
                   </tr>
                 )}
@@ -550,138 +684,150 @@ export default function SuperAdminUsersPage() {
         </section>
       </main>
 
-      {formOpen && (
+      {modalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-sm p-4 flex items-center justify-center">
-          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-[28px] shadow-2xl border border-white">
-            <div className="p-6 lg:p-7 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div className="w-full max-w-5xl max-h-[94vh] overflow-y-auto bg-white rounded-[28px] shadow-2xl">
+            <div className="p-6 lg:p-7 border-b border-slate-100 flex items-start justify-between gap-4 sticky top-0 bg-white z-10">
               <div>
                 <div className="text-xs font-black text-blue-600 uppercase tracking-widest">
-                  Super Admin
+                  {isEditing ? "Kullanıcı Ayarları" : "Yeni Kullanıcı"}
                 </div>
                 <h2 className="text-2xl font-black mt-1">
-                  Yeni Kullanıcı Oluştur
+                  {isEditing
+                    ? editUser?.email || "Kullanıcı Düzenle"
+                    : "Yeni Kullanıcı Oluştur"}
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Hesap e-posta ve şifre ile giriş yapacak.
-                </p>
               </div>
 
               <button
-                onClick={() => setFormOpen(false)}
+                onClick={closeModals}
                 disabled={saving}
-                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xl"
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-xl"
               >
                 ×
               </button>
             </div>
 
-            <div className="p-6 lg:p-7 space-y-6">
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2">
-                  E-posta
-                </label>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  placeholder="ornek@cnetmobil.com.tr"
-                  className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 outline-none focus:bg-white focus:border-blue-500 transition"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <label className="text-sm font-black text-slate-700">
-                    Geçici Şifre
+            <div className="p-6 lg:p-7 space-y-7">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-black mb-2">
+                    E-posta
                   </label>
-                  <button
-                    type="button"
-                    onClick={generatePassword}
-                    className="text-xs font-black text-blue-600 hover:text-blue-700"
-                  >
-                    Güçlü Şifre Oluştur
-                  </button>
-                </div>
-
-                <div className="relative">
                   <input
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="En az 8 karakter"
-                    className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 pr-14 outline-none focus:bg-white focus:border-blue-500 transition"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    placeholder="kullanici@cnetmobil.com.tr"
+                    className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 outline-none focus:bg-white focus:border-blue-500"
                   />
+                </div>
+
+                {!isEditing && (
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <label className="text-sm font-black">Geçici Şifre</label>
+                      <button
+                        type="button"
+                        onClick={generatePassword}
+                        className="text-xs font-black text-blue-600"
+                      >
+                        Güçlü Şifre Oluştur
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="En az 8 karakter"
+                        className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 pr-14 outline-none focus:bg-white focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-500"
+                      >
+                        {showPassword ? "Gizle" : "Göster"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-black mb-2">Rol</label>
+                  <select
+                    value={roleCode}
+                    onChange={(e) => {
+                      const nextRole = e.target.value;
+                      setRoleCode(nextRole);
+
+                      if (nextRole === "super_admin") {
+                        setSelectedPermissions(
+                          new Set(permissionCatalog.map((p) => p.code))
+                        );
+                      }
+                    }}
+                    className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4"
+                  >
+                    {roles.map((role) => (
+                      <option key={role.code} value={role.code}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-black mb-2">
+                    Ana Şube
+                  </label>
+                  <select
+                    value={branch}
+                    onChange={(e) => changeMainBranch(e.target.value)}
+                    className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4"
+                  >
+                    {BRANCHES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {isEditing && (
+                <div className="rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-black">Hesap Durumu</div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      Pasif kullanıcı giriş yapamaz ve API erişimi kesilir.
+                    </div>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-500"
+                    onClick={() => setActive((v) => !v)}
+                    className={`w-[82px] h-10 rounded-full p-1 transition ${
+                      active ? "bg-emerald-500" : "bg-slate-300"
+                    }`}
                   >
-                    {showPassword ? "Gizle" : "Göster"}
+                    <div
+                      className={`w-8 h-8 bg-white rounded-full shadow transition-transform ${
+                        active ? "translate-x-10" : "translate-x-0"
+                      }`}
+                    />
                   </button>
                 </div>
-
-                <p className="text-xs text-slate-400 mt-2">
-                  En az 8 karakter, büyük harf, küçük harf ve rakam.
-                </p>
-              </div>
+              )}
 
               <div>
-                <label className="block text-sm font-black text-slate-700 mb-3">
-                  Rol
-                </label>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {ROLE_OPTIONS.map((role) => {
-                    const disabled =
-                      role.code === "super_admin" &&
-                      activeSuperAdmins >= maxSuperAdmins;
-
-                    return (
-                      <button
-                        key={role.code}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setRoleCode(role.code)}
-                        className={`text-left rounded-2xl border p-4 transition ${
-                          roleCode === role.code
-                            ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100"
-                            : "border-slate-200 bg-white hover:bg-slate-50"
-                        } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                      >
-                        <div className="font-black">{role.name}</div>
-                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          {role.desc}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2">
-                  Ana Şube
-                </label>
-
-                <select
-                  value={branch}
-                  onChange={(e) => changeMainBranch(e.target.value)}
-                  className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 outline-none focus:bg-white focus:border-blue-500"
-                >
-                  {BRANCHES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3">
+                <label className="block text-sm font-black mb-3">
                   Erişebileceği Şubeler
                 </label>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {BRANCHES.map((item) => {
                     const checked = branches.includes(item);
                     const isMain = item === branch;
@@ -700,10 +846,10 @@ export default function SuperAdminUsersPage() {
                           checked={checked}
                           onChange={() => toggleBranch(item)}
                         />
-                        <div className="flex-1">
+                        <div>
                           <div className="font-bold text-sm">{item}</div>
                           {isMain && (
-                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider">
+                            <div className="text-[10px] font-black text-blue-600 uppercase">
                               Ana Şube
                             </div>
                           )}
@@ -714,17 +860,101 @@ export default function SuperAdminUsersPage() {
                 </div>
               </div>
 
-              {roleCode === "super_admin" && (
-                <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
-                  <strong>Super Admin:</strong> Sistemdeki tüm aktif yetkilere
-                  otomatik sahip olur. Aktif hesap sınırı {maxSuperAdmins}.
+              {isEditing && (
+                <div>
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                    <div>
+                      <div className="text-sm font-black">İşlem Yetkileri</div>
+                      <div className="text-sm text-slate-500 mt-1">
+                        Seçimler PostgreSQL'e kaydedilir ve panel API'lerinde
+                        anında uygulanır.
+                      </div>
+                    </div>
+
+                    {roleCode !== "super_admin" && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAllPermissions(true)}
+                          className="h-9 px-4 rounded-xl border border-slate-200 text-xs font-black hover:bg-slate-50"
+                        >
+                          Tümünü Seç
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAllPermissions(false)}
+                          className="h-9 px-4 rounded-xl border border-slate-200 text-xs font-black hover:bg-slate-50"
+                        >
+                          Tümünü Kaldır
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {roleCode === "super_admin" && (
+                    <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4 text-violet-800 text-sm">
+                      <strong>Super Admin tam yetkilidir.</strong> Yeni bir
+                      permission eklendiğinde otomatik olarak erişir; tek tek
+                      işaretleme gerekmez.
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {groupedPermissions.map(([module, items]) => (
+                      <div
+                        key={module}
+                        className="rounded-2xl border border-slate-200 overflow-hidden"
+                      >
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 font-black">
+                          {MODULE_LABELS[module] || module}
+                        </div>
+
+                        <div className="divide-y divide-slate-100">
+                          {items.map((permission) => {
+                            const checked =
+                              roleCode === "super_admin" ||
+                              selectedPermissions.has(permission.code);
+
+                            return (
+                              <label
+                                key={permission.code}
+                                className={`px-4 py-3 flex items-start gap-3 ${
+                                  roleCode === "super_admin"
+                                    ? "cursor-default"
+                                    : "cursor-pointer hover:bg-slate-50"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={roleCode === "super_admin"}
+                                  onChange={() =>
+                                    togglePermission(permission.code)
+                                  }
+                                  className="mt-1"
+                                />
+                                <div>
+                                  <div className="font-bold text-sm">
+                                    {permission.name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 mt-0.5">
+                                    {permission.code}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="p-6 lg:p-7 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-3">
+            <div className="p-6 lg:p-7 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-3 sticky bottom-0 bg-white">
               <button
-                onClick={() => setFormOpen(false)}
+                onClick={closeModals}
                 disabled={saving}
                 className="h-12 px-6 rounded-xl border border-slate-200 font-black hover:bg-slate-50"
               >
@@ -732,11 +962,15 @@ export default function SuperAdminUsersPage() {
               </button>
 
               <button
-                onClick={createUser}
+                onClick={isEditing ? saveEdit : createUser}
                 disabled={saving}
                 className="h-12 px-7 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-600/20 disabled:opacity-50"
               >
-                {saving ? "Oluşturuluyor..." : "Kullanıcıyı Oluştur"}
+                {saving
+                  ? "Kaydediliyor..."
+                  : isEditing
+                  ? "Değişiklikleri Kaydet"
+                  : "Kullanıcıyı Oluştur"}
               </button>
             </div>
           </div>
