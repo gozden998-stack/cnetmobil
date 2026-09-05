@@ -416,8 +416,8 @@ function AdminDynamicSheetEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[250] bg-slate-950/65 backdrop-blur-sm p-3 sm:p-6 print:hidden">
-      <div className="mx-auto flex h-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[250] overflow-hidden bg-slate-950/65 backdrop-blur-sm p-2 sm:p-4 print:hidden">
+      <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-[22px] bg-white shadow-2xl">
         <div className="flex shrink-0 flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
@@ -466,23 +466,23 @@ function AdminDynamicSheetEditor({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-5 custom-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 custom-scrollbar">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm font-black text-slate-400">
               Liste yükleniyor...
             </div>
           ) : (
-            <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
+            <table className="w-full table-fixed border-separate border-spacing-0 text-[10px] sm:text-[11px]">
               <thead className="sticky top-0 z-20">
                 <tr>
-                  <th className="sticky left-0 z-30 min-w-[70px] border-b border-r border-slate-700 bg-slate-900 px-3 py-3 text-left text-[10px] font-black text-white">
+                  <th className="w-[52px] border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white">
                     SATIR
                   </th>
 
                   {headers.map((header, index) => (
                     <th
                       key={`${header}-${index}`}
-                      className="min-w-[170px] max-w-[260px] border-b border-r border-slate-700 bg-slate-900 px-3 py-3 text-left text-[10px] font-black text-white"
+                      className="border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white break-words"
                     >
                       <div className="truncate" title={header}>
                         {header}
@@ -493,7 +493,7 @@ function AdminDynamicSheetEditor({
                     </th>
                   ))}
 
-                  <th className="sticky right-0 z-30 min-w-[145px] border-b border-l border-slate-700 bg-slate-900 px-3 py-3 text-right text-[10px] font-black text-white">
+                  <th className="w-[118px] border-b border-l border-slate-700 bg-slate-900 px-2 py-2 text-right text-[9px] font-black text-white">
                     İŞLEM
                   </th>
                 </tr>
@@ -506,14 +506,14 @@ function AdminDynamicSheetEditor({
 
                   return (
                     <tr key={row.row_number}>
-                      <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 font-black text-slate-500">
+                      <td className="border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center font-black text-slate-500">
                         {row.row_number}
                       </td>
 
                       {headers.map((_, index) => (
                         <td
                           key={`${row.row_number}-${index}`}
-                          className="border-b border-r border-slate-200 bg-white p-2"
+                          className="border-b border-r border-slate-200 bg-white p-1.5 align-top break-words"
                         >
                           {isEditing ? (
                             <input
@@ -525,17 +525,17 @@ function AdminDynamicSheetEditor({
                                   return next;
                                 })
                               }
-                              className="h-9 w-full min-w-[150px] rounded-lg border border-blue-200 px-3 font-bold outline-none focus:border-blue-500"
+                              className="h-9 w-full min-w-0 rounded-lg border border-blue-200 px-2 text-[10px] font-bold outline-none focus:border-blue-500"
                             />
                           ) : (
-                            <div className="max-w-[250px] whitespace-pre-wrap break-words font-semibold text-slate-700">
+                            <div className="w-full whitespace-pre-wrap break-words font-semibold leading-4 text-slate-700">
                               {String(rowData[index] ?? '') || '-'}
                             </div>
                           )}
                         </td>
                       ))}
 
-                      <td className="sticky right-0 z-10 border-b border-l border-slate-200 bg-white p-2 text-right">
+                      <td className="border-b border-l border-slate-200 bg-white p-1.5 text-right">
                         {isEditing ? (
                           <div className="flex justify-end gap-2">
                             <button
@@ -547,7 +547,7 @@ function AdminDynamicSheetEditor({
                                 }
                               }}
                               disabled={saving}
-                              className="h-9 rounded-lg border border-slate-200 px-3 text-[10px] font-black"
+                              className="h-8 rounded-lg border border-slate-200 px-2 text-[9px] font-black"
                             >
                               İPTAL
                             </button>
@@ -556,7 +556,7 @@ function AdminDynamicSheetEditor({
                               type="button"
                               onClick={saveRow}
                               disabled={saving}
-                              className="h-9 rounded-lg bg-emerald-600 px-4 text-[10px] font-black text-white disabled:opacity-50"
+                              className="h-8 rounded-lg bg-emerald-600 px-2 text-[9px] font-black text-white disabled:opacity-50"
                             >
                               {saving ? 'KAYDEDİLİYOR...' : 'KAYDET'}
                             </button>
@@ -566,7 +566,7 @@ function AdminDynamicSheetEditor({
                             type="button"
                             onClick={() => startEdit(row)}
                             disabled={editingRow !== null}
-                            className="h-9 rounded-lg bg-blue-600 px-4 text-[10px] font-black text-white disabled:opacity-30"
+                            className="h-8 w-full rounded-lg bg-blue-600 px-2 text-[9px] font-black text-white disabled:opacity-30"
                           >
                             DÜZENLE
                           </button>
@@ -3022,9 +3022,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     </h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El {isApple ? 'Apple' : 'Android'} Cihaz Fiyatları</p>
                   </div>
-                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className={`h-10 w-full rounded-xl text-[11px] font-black tracking-wider text-white shadow-sm transition active:scale-[0.99] ${isApple ? 'bg-slate-800 hover:bg-slate-900' : 'bg-green-600 hover:bg-green-700'}`}
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -3064,9 +3075,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
                   </div>
-                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className="h-10 w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -3115,9 +3137,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className="h-10 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -3188,9 +3221,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className="h-10 w-full rounded-xl bg-purple-600 hover:bg-purple-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -4630,18 +4674,6 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
         </div>
       )}
-
-      {isSuperAdminUser &&
-        currentAdminEditableSheet &&
-        !adminSheetEditor && (
-          <button
-            type="button"
-            onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
-            className="fixed bottom-6 right-6 z-[180] rounded-2xl bg-blue-600 px-6 py-4 text-xs font-black uppercase tracking-wider text-white shadow-2xl shadow-blue-500/30 hover:bg-blue-700 active:scale-95 print:hidden"
-          >
-            DÜZENLE
-          </button>
-        )}
 
       {adminSheetEditor && (
         <AdminDynamicSheetEditor
