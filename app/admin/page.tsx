@@ -20,11 +20,11 @@ const items: AdminItem[] = [
   { title: "Cihaz Alım", href: "/admin/prices", active: true },
   { title: "Teknik Servis", active: false },
   { title: "THH Takip", active: false },
-  { title: "Cep + Tablet", active: false },
-  { title: "YNA List", active: false },
-  { title: "Dış Kanal", active: false },
+  { title: "Cep + Tablet", href: "/?view=normal&mode=cep_tablet", active: true },
+  { title: "YNA List", href: "/?view=normal&mode=yna_list", active: true },
+  { title: "Dış Kanal", href: "/?view=normal&mode=dis_kanal", active: true },
   { title: "Kampanyalı Sıfır Liste", active: false },
-  { title: "2. El Listesi", active: false },
+  { title: "2. El Listesi", href: "/?view=normal&mode=ikinci_el_apple", active: true },
   { title: "Cihaz Talep", active: false },
 ];
 
@@ -73,7 +73,11 @@ export default function SuperAdminDashboardPage() {
     }
 
     if (item.active && item.href) {
-      router.push(item.href);
+      if (item.href.startsWith('/?view=normal')) {
+        window.open(item.href, '_blank', 'noopener,noreferrer');
+      } else {
+        router.push(item.href);
+      }
       return;
     }
 
