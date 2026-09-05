@@ -621,6 +621,7 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [topQuickSearch, setTopQuickSearch] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
@@ -2071,6 +2072,125 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   ];
 
+  const topActiveRequestCount = cihazTalepData
+    .slice(1)
+    .filter((row: any[]) => {
+      const branch = String(row?.[9] || '').trim();
+      const statusText = String(row?.[11] || '')
+        .trim()
+        .toLocaleUpperCase('tr-TR');
+
+      return (
+        branch !== '' &&
+        statusText !== 'GÖNDERİLDİ' &&
+        statusText !== 'GONDERILDI' &&
+        statusText !== 'RED EDİLDİ' &&
+        statusText !== 'REDDEDİLDİ'
+      );
+    }).length;
+
+  const branchInitials = String(selectedBranch || 'CMR')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join('')
+    .toLocaleUpperCase('tr-TR')
+    .slice(0, 2);
+
+  const handleTopQuickSearch = () => {
+    const q = topQuickSearch.trim();
+    if (!q) return;
+
+    if (appMode === 'cihaz_talep') {
+      setCihazTalepSearch(q);
+      setCihazTalepPage(1);
+      return;
+    }
+
+    setSearchQuery(q);
+  };
+
+  const navIcon = (id: string) => {
+    const common = "h-4 w-4";
+
+    switch (id) {
+      case 'ana_sayfa':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9z" />
+          </svg>
+        );
+      case 'alim':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16v12H4zM8 3h8v4H8zM8 11h8" />
+          </svg>
+        );
+      case 'servis':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 005-5l-3 3-3-3 3-3z" />
+          </svg>
+        );
+      case 'thh':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
+          </svg>
+        );
+      case 'cep_tablet':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="7" y="2" width="10" height="20" rx="2" strokeWidth="2" />
+            <path strokeLinecap="round" strokeWidth="2" d="M11 18h2" />
+          </svg>
+        );
+      case 'yna_list':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+          </svg>
+        );
+      case 'dis_kanal':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18l-2 12H5L3 7zM8 7V5a4 4 0 018 0v2" />
+          </svg>
+        );
+      case 'kampanya_sifir':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.4 7.2 18l.9-5.4-3.9-3.8 5.4-.8L12 3z" />
+          </svg>
+        );
+      case 'ikinci_el':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 0114-5M20 12a8 8 0 01-14 5M18 3v4h-4M6 21v-4h4" />
+          </svg>
+        );
+      case 'cihaz_talep':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        );
+      case 'imei_list':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h8" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="7" strokeWidth="2" />
+          </svg>
+        );
+    }
+  };
+
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
   const canProceed = allSelected;
@@ -2544,140 +2664,361 @@ export default function CnetmobilCmrFinalUltimate() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* TOPBAR */}
-      <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
-        <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
-          <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">
-              {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-medium">mobil</span></>}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
-            {!isZumay && step < 99 && (
-              <>
-                <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                  Taksit Hesapla
-                </button>
-                <button onClick={() => setIsKaskoModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                  Kasko Hesapla
-                </button>
-              </>
-            )}
-
-            <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
-                {isMasterAccess ? 'C' : 'NI'}
-              </div>
-              <div className="hidden md:flex flex-col text-white">
-                {isMasterAccess ? (
-                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-300 transition-colors">
-                    {branches.map(b => <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>)}
-                  </select>
-                ) : (
-                  <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
-                )}
-                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">
-                  {isSuperAdminUser ? 'SUPER ADMIN' : isMasterAccess ? 'CnetMobil Yönetici' : 'Bayi Personeli'}
+      {/* TOPBAR V2 */}
+      <header
+        className={`sticky top-0 z-[100] w-full print:hidden ${
+          isZumay
+            ? 'bg-gradient-to-r from-[#241719] via-[#301c20] to-[#241719]'
+            : 'bg-gradient-to-r from-[#10233f] via-[#15345d] to-[#10233f]'
+        } shadow-[0_10px_30px_rgba(15,23,42,0.22)]`}
+      >
+        {/* ÜST SATIR */}
+        <div className="border-b border-white/10">
+          <div className="mx-auto flex min-h-[64px] max-w-[1920px] items-center justify-between gap-4 px-4 lg:px-6">
+            <button
+              type="button"
+              onClick={() => {
+                resetAll();
+                setAppMode('ana_sayfa');
+              }}
+              className="group flex shrink-0 items-center gap-3 text-left"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15">
+                <span className="text-sm font-black text-white">
+                  {isZumay ? 'Z' : 'CM'}
                 </span>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2 pl-2">
+              <div className="hidden sm:block">
+                <div className="text-[22px] font-black leading-none tracking-tight text-white">
+                  {isZumay ? (
+                    'ZUMAY'
+                  ) : (
+                    <>
+                      Cnet
+                      <span className="text-blue-400">mobil</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-1 text-[7px] font-black uppercase tracking-[0.38em] text-blue-200/70">
+                  Teknoloji Her Yerde
+                </div>
+              </div>
+            </button>
+
+            {!isZumay && step < 99 && (
+              <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+                <div className="flex h-10 w-full max-w-[330px] items-center rounded-full border border-white/10 bg-white/10 px-4 shadow-inner transition focus-within:border-blue-300/40 focus-within:bg-white/15">
+                  <svg
+                    className="h-4 w-4 shrink-0 text-blue-100/70"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+
+                  <input
+                    value={topQuickSearch}
+                    onChange={(e) => setTopQuickSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleTopQuickSearch();
+                      }
+                    }}
+                    placeholder="Hızlı ara..."
+                    className="min-w-0 flex-1 bg-transparent px-3 text-[11px] font-bold text-white outline-none placeholder:text-blue-100/50"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleTopQuickSearch}
+                    className="rounded-full bg-white/10 px-2.5 py-1 text-[8px] font-black text-blue-100 hover:bg-white/20"
+                  >
+                    ARA
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex shrink-0 items-center gap-2">
+              {!isZumay && step < 99 && (
+                <>
+                  <button
+                    onClick={() => setIsInstallmentModalOpen(true)}
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-amber-950/10 transition hover:bg-amber-400 md:flex"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Taksit Hesapla
+                  </button>
+
+                  <button
+                    onClick={() => setIsKaskoModalOpen(true)}
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-violet-950/10 transition hover:bg-violet-500 md:flex"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Kasko Hesapla
+                  </button>
+
+                  <div className="relative hidden sm:block">
+                    <button
+                      type="button"
+                      title="Aktif Talepler"
+                      onClick={() => {
+                        if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                          setAktifTaleplerModalOpen(true);
+                        }
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m2 0v1a1 1 0 002 0v-1" />
+                      </svg>
+                    </button>
+
+                    {topActiveRequestCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[8px] font-black text-white">
+                        {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="hidden h-8 w-px bg-white/10 lg:block" />
+
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 pr-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black text-white shadow-lg shadow-blue-950/20">
+                  {branchInitials || 'CM'}
+                </div>
+
+                <div className="hidden min-w-[120px] md:block">
+                  {isMasterAccess ? (
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="w-full cursor-pointer bg-transparent text-[10px] font-black text-white outline-none"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.name} value={b.name} className="text-slate-900">
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="truncate text-[10px] font-black text-white">
+                      {selectedBranch}
+                    </div>
+                  )}
+
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-200/60">
+                    {isSuperAdminUser
+                      ? 'Super Admin'
+                      : isMasterAccess
+                      ? 'CnetMobil Yönetici'
+                      : 'Bayi Personeli'}
+                  </div>
+                </div>
+
+                <svg className="hidden h-3 w-3 text-white/50 md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
               {isSuperAdminUser && (
                 <button
-                  onClick={() => { window.location.href = '/admin/users'; }}
+                  onClick={() => {
+                    window.location.href = '/admin/users';
+                  }}
                   title="Kullanıcılar & Yetkiler"
-                  className="text-violet-300 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-violet-500/20"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-violet-200 transition hover:bg-violet-500/20 hover:text-white"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H2v-2a4 4 0 014-4h3m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 1a3 3 0 10-4.5-2.6" />
                   </svg>
                 </button>
               )}
+
               {isAdmin && step < 99 && (
-                <button onClick={() => setStep(99)} title="Yönetici Paneli" className="text-white/50 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <button
+                  onClick={() => setStep(99)}
+                  title="Yönetici Paneli"
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white sm:flex"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.3 4.3a1.7 1.7 0 013.4 0 1.7 1.7 0 002.6 1.1 1.7 1.7 0 012.4 2.4 1.7 1.7 0 001.1 2.6 1.7 1.7 0 010 3.4 1.7 1.7 0 00-1.1 2.6 1.7 1.7 0 01-2.4 2.4 1.7 1.7 0 00-2.6 1.1 1.7 1.7 0 01-3.4 0 1.7 1.7 0 00-2.6-1.1 1.7 1.7 0 01-2.4-2.4 1.7 1.7 0 00-1.1-2.6 1.7 1.7 0 010-3.4 1.7 1.7 0 001.1-2.6 1.7 1.7 0 012.4-2.4 1.7 1.7 0 002.6-1.1zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                 </button>
               )}
-              <button onClick={handleLogout} title="Çıkış Yap" className="text-white/50 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+
+              <button
+                onClick={handleLogout}
+                title="Çıkış Yap"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/55 transition hover:bg-rose-500/20 hover:text-rose-200"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center overflow-x-auto lg:overflow-visible no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
-          {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
-            const isActive = appMode === item.id || (item.subItems && item.subItems.some(sub => sub.id === appMode));
-            const isLast = idx === arr.length - 1;
-            return (
-              <div key={item.id} className={`flex items-center h-full relative group ${!isLast ? 'border-r border-white/10' : ''}`}>
-                {item.subItems ? (
-                  <>
-                    <button 
-                      onClick={() => setMobileSubMenuOpen(!mobileSubMenuOpen)}
-                      onBlur={() => setTimeout(() => setMobileSubMenuOpen(false), 200)}
-                      className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center gap-1 outline-none ${isActive ? 'text-white' : ''}`}
+        {/* MODÜL NAVBAR */}
+        <div className="border-b border-white/5 bg-black/5">
+          <div className="mx-auto flex max-w-[1920px] items-stretch overflow-x-auto px-2 no-scrollbar lg:px-5">
+            {step < 99 &&
+              menuGroups
+                .flatMap((g) => g.items)
+                .filter((i) => i.visible)
+                .map((item) => {
+                  const isActive =
+                    appMode === item.id ||
+                    (item.subItems &&
+                      item.subItems.some((sub) => sub.id === appMode));
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="group relative flex min-w-fit items-stretch"
                     >
-                      {item.label}
-                      <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
-                    </button>
-
-                    <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] hidden lg:flex flex-col">
-                      {item.subItems.map(sub => (
-                        <button
-                          key={sub.id}
-                          onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
-                          className={`px-4 py-3 text-left hover:bg-white/10 transition-colors ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white/70 hover:text-white'}`}
-                        >
-                          {sub.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {mobileSubMenuOpen && (
-                      <div className="fixed top-[105px] left-4 right-4 bg-[#2B2D31] border border-white/10 shadow-2xl rounded-2xl z-[9999] lg:hidden flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
-                        {item.subItems.map(sub => (
+                      {item.subItems ? (
+                        <>
                           <button
-                            key={sub.id}
-                            onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
-                            className={`px-5 py-4 text-left border-b last:border-0 border-white/5 hover:bg-white/10 transition-colors text-[13px] font-black tracking-wider uppercase ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white hover:text-[#f39c12]'}`}
+                            onClick={() => setMobileSubMenuOpen(!mobileSubMenuOpen)}
+                            onBlur={() =>
+                              setTimeout(() => setMobileSubMenuOpen(false), 200)
+                            }
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                              isActive
+                                ? 'bg-blue-500/20 text-white'
+                                : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                            }`}
                           >
-                            {sub.label}
+                            <span
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                                isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                              }`}
+                            >
+                              {navIcon(item.id)}
+                            </span>
+
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              2. El Listesi
+                              <svg className="h-2.5 w-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </span>
+
+                            {isActive && (
+                              <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                            )}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <button
-                    onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                    className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
-                  >
-                    {item.label}
-                    {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
-                  </button>
-                )}
+
+                          <div className="invisible absolute left-0 top-full z-[999] hidden w-44 overflow-hidden rounded-b-2xl border border-white/10 bg-[#10233f] opacity-0 shadow-2xl transition group-hover:visible group-hover:opacity-100 lg:flex lg:flex-col">
+                            {item.subItems.map((sub) => (
+                              <button
+                                key={sub.id}
+                                onClick={() => {
+                                  setAppMode(sub.id as any);
+                                  setStep(1);
+                                  resetSelection();
+                                  setMobileSubMenuOpen(false);
+                                }}
+                                className={`px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                  appMode === sub.id
+                                    ? 'bg-blue-500/20 text-blue-200'
+                                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                                }`}
+                              >
+                                {sub.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {mobileSubMenuOpen && (
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
+                              {item.subItems.map((sub) => (
+                                <button
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`border-b border-white/5 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white'
+                                  }`}
+                                >
+                                  {sub.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAppMode(item.id as any);
+                            setStep(1);
+                            resetSelection();
+                          }}
+                          className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                            isActive
+                              ? 'bg-blue-500/20 text-white'
+                              : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                              isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                            }`}
+                          >
+                            {navIcon(item.id)}
+                          </span>
+
+                          <span className="whitespace-nowrap">{item.label}</span>
+
+                          {isActive && (
+                            <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+            {step === 99 && (
+              <div className="flex min-h-[52px] items-center px-4 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200">
+                Yönetici Paneli
               </div>
-            );
-          })}
-          {step === 99 && (
-              <div className="flex items-center h-full">
-                 <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
-                   Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
-                 </span>
-              </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
       {/* ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
-        <main className="max-w-[1600px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
+        <main
+          className={`mx-auto w-full print:hidden ${
+            appMode === 'cihaz_talep' && step < 99
+              ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
+              : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
+          }`}
+        >
  
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
@@ -3511,8 +3852,13 @@ export default function CnetmobilCmrFinalUltimate() {
               setCihazTalepPage(1);
             };
 
+            const recentRequestItems = cihazTalepRows
+              .filter(({ row }) => String(row?.[9] || '').trim() !== '')
+              .slice(-5)
+              .reverse();
+
             return (
-              <div className="w-full max-w-[1540px] mx-auto animate-in fade-in duration-500 space-y-4 sm:space-y-5">
+              <div className="w-full max-w-[1880px] mx-auto animate-in fade-in duration-500 space-y-4 sm:space-y-5">
 
                 {/* HERO */}
                 <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/70 shadow-sm">
@@ -3776,10 +4122,83 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                 </section>
 
+
+                {/* MASAÜSTÜ ANA İÇERİK */}
+                <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[190px_minmax(0,1fr)_245px]">
+                  {/* SOL MİNİ PANEL */}
+                  <aside className="hidden overflow-hidden rounded-[24px] border border-blue-100 bg-gradient-to-b from-white to-blue-50/60 shadow-sm 2xl:block">
+                    <div className="border-b border-blue-100 px-4 py-5 text-center">
+                      <div className="text-lg font-black tracking-tight text-slate-900">
+                        CNET<span className="text-blue-600">MOBİL</span>
+                      </div>
+                      <div className="mt-1 text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">
+                        V2 Panel
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 p-3">
+                      {[
+                        ['Hızlı & Kolay', 'Cihaz Talepleri'],
+                        ['Güncel Stok', 'Tüm Mağazalar'],
+                        ['Daha Güçlü', 'Mağaza Ağı'],
+                        ['Verimli Operasyon', 'Daha Fazla Satış'],
+                      ].map(([title, subtitle], index) => (
+                        <div
+                          key={title}
+                          className="flex items-center gap-2.5 rounded-2xl border border-transparent px-2.5 py-3 transition hover:border-blue-100 hover:bg-white"
+                        >
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                              index === 0
+                                ? 'bg-blue-50 text-blue-600'
+                                : index === 1
+                                ? 'bg-cyan-50 text-cyan-600'
+                                : index === 2
+                                ? 'bg-violet-50 text-violet-600'
+                                : 'bg-emerald-50 text-emerald-600'
+                            }`}
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                          </div>
+
+                          <div>
+                            <div className="text-[9px] font-black text-slate-700">
+                              {title}
+                            </div>
+                            <div className="mt-0.5 text-[8px] font-bold text-slate-400">
+                              {subtitle}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mx-3 mb-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 text-white shadow-lg shadow-blue-500/20">
+                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-100">
+                        CNETMOBİL
+                      </div>
+                      <div className="mt-2 text-base font-black leading-tight">
+                        Teknoloji
+                        <br />
+                        Her Yerde
+                      </div>
+
+                      <div className="mt-4 flex gap-1">
+                        <div className="h-12 w-7 rotate-[-8deg] rounded-lg border border-white/30 bg-white/15" />
+                        <div className="h-14 w-8 rounded-lg border border-white/40 bg-white/20" />
+                        <div className="h-12 w-7 rotate-[8deg] rounded-lg border border-white/30 bg-white/15" />
+                      </div>
+                    </div>
+                  </aside>
+
+                  {/* ORTA TABLO */}
+                  <div className="min-w-0">
                 {/* TABLO */}
                 <section className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
                   <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full min-w-[1220px] border-collapse text-left">
+                    <table className="w-full min-w-[1080px] border-collapse text-left">
                       <thead>
                         <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50/30">
                           <th className="w-[56px] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">#</th>
@@ -3915,7 +4334,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 {displayIndex}
                               </td>
 
-                              <td className="px-4 py-3.5">
+                              <td className="px-3 py-3">
                                 <div className="font-black text-slate-900">
                                   {markaModel}
                                 </div>
@@ -3928,7 +4347,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 {hafiza || '-'}
                               </td>
 
-                              <td className="px-4 py-3.5">
+                              <td className="px-3 py-3">
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/5 shadow-inner"
@@ -4184,6 +4603,135 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                   </div>
                 </section>
+
+
+                  </div>
+
+                  {/* SAĞ PANEL */}
+                  <aside className="hidden space-y-4 2xl:block">
+                    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                        <div className="text-xs font-black text-slate-900">
+                          Son İşlemler
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                              setAktifTaleplerModalOpen(true);
+                            }
+                          }}
+                          className="text-[8px] font-black uppercase tracking-wide text-blue-600"
+                        >
+                          Tümünü Gör
+                        </button>
+                      </div>
+
+                      <div className="p-2">
+                        {recentRequestItems.length > 0 ? (
+                          recentRequestItems.map(({ row, rowIndex }) => {
+                            const device = String(row?.[0] || '-');
+                            const branch = String(row?.[9] || '-');
+                            const status = getCihazTalepStatus(row);
+                            const dateText = String(row?.[12] || row?.[10] || '').trim();
+
+                            return (
+                              <div
+                                key={`recent-${rowIndex}`}
+                                className="flex items-start gap-2.5 rounded-2xl px-2.5 py-3 transition hover:bg-slate-50"
+                              >
+                                <div
+                                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                                    status === 'GÖNDERİLDİ'
+                                      ? 'bg-emerald-50 text-emerald-600'
+                                      : status === 'REDDEDİLDİ'
+                                      ? 'bg-rose-50 text-rose-600'
+                                      : 'bg-blue-50 text-blue-600'
+                                  }`}
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[9px] font-black text-slate-800">
+                                    {device}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-[8px] font-bold text-slate-400">
+                                    {branch}
+                                  </div>
+                                  <div
+                                    className={`mt-1 text-[8px] font-black ${
+                                      status === 'GÖNDERİLDİ'
+                                        ? 'text-emerald-600'
+                                        : status === 'REDDEDİLDİ'
+                                        ? 'text-rose-600'
+                                        : 'text-blue-600'
+                                    }`}
+                                  >
+                                    {status}
+                                  </div>
+                                  {dateText && (
+                                    <div className="mt-0.5 truncate text-[7px] font-semibold text-slate-300">
+                                      {dateText}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-8 text-center text-[9px] font-bold text-slate-400">
+                            Henüz işlem bulunmuyor.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-100 px-4 py-4">
+                        <div className="text-xs font-black text-slate-900">
+                          Duyurular
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 p-2">
+                        {[
+                          ['Stok güncellemeleri', 'Liste verileri senkronize ediliyor.', 'blue'],
+                          ['Talep sistemi', 'Mağaza talepleri anlık takip edilir.', 'violet'],
+                          ['CNETMOBİL V2', 'Yeni panel geliştirmeleri aktif.', 'emerald'],
+                        ].map(([title, detail, tone]) => (
+                          <div
+                            key={title}
+                            className="flex items-start gap-2.5 rounded-2xl px-2.5 py-3 hover:bg-slate-50"
+                          >
+                            <div
+                              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                                tone === 'blue'
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : tone === 'violet'
+                                  ? 'bg-violet-50 text-violet-600'
+                                  : 'bg-emerald-50 text-emerald-600'
+                              }`}
+                            >
+                              <span className="text-[10px] font-black">i</span>
+                            </div>
+
+                            <div>
+                              <div className="text-[9px] font-black text-slate-800">
+                                {title}
+                              </div>
+                              <div className="mt-0.5 text-[8px] font-semibold leading-4 text-slate-400">
+                                {detail}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </aside>
+                </div>
 
                 {/* BİLGİLENDİRME */}
                 <section className="flex flex-col gap-4 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
