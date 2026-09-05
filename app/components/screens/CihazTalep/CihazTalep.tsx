@@ -15,6 +15,7 @@ type CihazTalepProps = {
   cihazTalepPage: number;
   setCihazTalepPage: React.Dispatch<React.SetStateAction<number>>;
   openActiveRequestsSignal: number;
+  stockSourceBranch?: 'CNET' | 'CMR' | 'CADDE' | 'KAPAKLI' | 'SARAY';
   selectedBranch: string;
   isAdmin: boolean;
   isMasterAccess: boolean;
@@ -32,6 +33,7 @@ export default function CihazTalep({
   cihazTalepPage,
   setCihazTalepPage,
   openActiveRequestsSignal,
+  stockSourceBranch,
   selectedBranch,
   isAdmin,
   isMasterAccess,
@@ -45,6 +47,175 @@ const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | nu
 const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
 const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
 const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+
+// POSTGRESQL IMEI STOK MODU
+// Mevcut Cihaz Talep görünümü korunur; yalnızca veri kaynağı seçilen mağazaya döner.
+const [pgCihazTalepData, setPgCihazTalepData] = useState<any[][]>([]);
+const [pgCanManage, setPgCanManage] = useState(false);
+const [pgLoading, setPgLoading] = useState(false);
+
+const isPostgresStockMode = Boolean(stockSourceBranch);
+
+const loadPostgresStock = async () => {
+  if (!stockSourceBranch) return;
+
+  setPgLoading(true);
+
+  try {
+    const [stockResponse, requestResponse] = await Promise.all([
+      fetch(`/api/stock/devices?branch=${encodeURIComponent(stockSourceBranch)}`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      }),
+      fetch('/api/stock/requests', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      }),
+    ]);
+
+    const stockResult = await stockResponse.json().catch(() => ({}));
+    const requestResult = await requestResponse.json().catch(() => ({}));
+
+    if (!stockResponse.ok || !stockResult?.success) {
+      throw new Error(stockResult?.error || 'Mağaza stoğu alınamadı.');
+    }
+
+    if (!requestResponse.ok || !requestResult?.success) {
+      throw new Error(requestResult?.error || 'Talep kayıtları alınamadı.');
+    }
+
+    setPgCanManage(Boolean(stockResult?.canManage));
+
+    const devices = Array.isArray(stockResult?.devices)
+      ? stockResult.devices
+      : [];
+
+    const requests = Array.isArray(requestResult?.requests)
+      ? requestResult.requests
+      : [];
+
+    const requestByDevice = new Map<number, any>();
+
+    requests.forEach((request: any) => {
+      const deviceId = Number(request?.device_id);
+      if (!deviceId || requestByDevice.has(deviceId)) return;
+      requestByDevice.set(deviceId, request);
+    });
+
+    const header = [
+      'MARKA MODEL',
+      'HAFIZA',
+      'RENK',
+      'PİL',
+      'GRADE',
+      'GARANTİ',
+      'DEĞİŞEN PARÇA',
+      'KUTU / FATURA',
+      'STOK',
+      'TALEPLER',
+      'TALEP TARİHİ',
+      'DURUM',
+      'KARAR TARİHİ',
+      'RED NEDENİ',
+      'TALEP ADET',
+      'DEVICE ID',
+      'REQUEST ID',
+      'DEVICE STATUS',
+      'IMEI',
+    ];
+
+    const rows = devices.map((device: any) => {
+      const deviceId = Number(device?.id);
+      const request = requestByDevice.get(deviceId);
+      const requestStatus = String(request?.request_status || '').toUpperCase();
+      const deviceStatus = String(device?.status || '').toUpperCase();
+
+      let durum = '';
+
+      if (requestStatus === 'REJECTED') {
+        durum = 'REDDEDİLDİ';
+      } else if (
+        requestStatus === 'SENT' ||
+        requestStatus === 'TRANSFER_WAITING' ||
+        requestStatus === 'COMPLETED' ||
+        deviceStatus === 'TRANSFER_WAITING'
+      ) {
+        durum = 'GÖNDERİLDİ';
+      }
+
+      let talepMagaza = String(request?.requester_branch_code || '').trim();
+
+      if (!talepMagaza && deviceStatus === 'REQUESTED') {
+        talepMagaza = 'TALEP VAR';
+      }
+
+      const battery =
+        device?.battery_percent === null ||
+        typeof device?.battery_percent === 'undefined'
+          ? ''
+          : `%${device.battery_percent}`;
+
+      const brand = String(device?.brand || '').trim();
+      const model = String(device?.model || '').trim();
+      const markaModel =
+        brand && model
+          ? `${brand} ${model}`.trim()
+          : model || brand || '-';
+
+      return [
+        markaModel,
+        String(device?.memory || ''),
+        String(device?.color || ''),
+        battery,
+        String(device?.grade || ''),
+        String(device?.warranty || ''),
+        String(device?.changed_parts || ''),
+        String(device?.box_invoice || ''),
+        ['DETAILS_PENDING', 'AVAILABLE', 'REQUESTED', 'TRANSFER_WAITING'].includes(deviceStatus) ? 1 : 0,
+        talepMagaza,
+        String(request?.requested_at || ''),
+        durum,
+        String(request?.decision_at || request?.sent_at || request?.completed_at || ''),
+        String(request?.reject_reason || ''),
+        request ? 1 : 0,
+        deviceId,
+        Number(request?.request_id || 0),
+        deviceStatus,
+        String(device?.imei || ''),
+      ];
+    });
+
+    setPgCihazTalepData([header, ...rows]);
+  } catch (error: any) {
+    console.error('PostgreSQL Cihaz Talep yükleme hatası:', error);
+    setPgCihazTalepData([]);
+    setPgCanManage(false);
+  } finally {
+    setPgLoading(false);
+  }
+};
+
+useEffect(() => {
+  if (!stockSourceBranch) return;
+
+  setCihazTalepPage(1);
+  setCihazTalepSearch('');
+  void loadPostgresStock();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [stockSourceBranch]);
+
+const effectiveCihazTalepData =
+  isPostgresStockMode ? pgCihazTalepData : cihazTalepData;
+
+const canManageSelectedStock =
+  isPostgresStockMode
+    ? pgCanManage
+    : Boolean(isMasterAccess || isAdmin || isSuperAdminUser);
+
+const getEffectiveRowByIndex = (rowIndex: number) =>
+  effectiveCihazTalepData?.[rowIndex - 1] || null;
 
 useEffect(() => {
   if (openActiveRequestsSignal > 0) {
@@ -63,6 +234,7 @@ const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
 type CihazTalepDialog =
   | null
   | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
+  | { type: 'pg_talep'; rowIndex: number; deviceId: number; modelName: string }
   | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
   | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
   | { type: 'cihaz_ekle' }
@@ -79,7 +251,7 @@ const [bulkCihazError, setBulkCihazError] = useState('');
 const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
 const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
 const [cihazEkleForm, setCihazEkleForm] = useState({
-  markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+  imei: '', markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
   garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
 });
 
@@ -89,19 +261,39 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
 
 
 const openCihazEkleModal = () => {
-  if (!isAdmin && !isMasterAccess) {
-    showTalepMessage('YETKİ GEREKLİ', 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.', 'error');
+  if (
+    (isPostgresStockMode && !pgCanManage) ||
+    (!isPostgresStockMode && !isAdmin && !isMasterAccess)
+  ) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      isPostgresStockMode
+        ? 'Yalnızca kendi mağazanızın stoğuna cihaz ekleyebilirsiniz.'
+        : 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.',
+      'error'
+    );
     return;
   }
+
   setCihazEkleForm({
-    markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+    imei: '', markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
     garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
   });
+
   setCihazTalepDialog({ type: 'cihaz_ekle' });
 };
 
 
 const openTopluCihazEkleModal = () => {
+  if (isPostgresStockMode) {
+    showTalepMessage(
+      'TOPLU EXCEL',
+      'Toplu Excel ekranını aynı görünümle IMEI alanı ekleyerek PostgreSQL sistemine bağlayacağız. Şimdilik tekli cihaz ekleme aktiftir.',
+      'info'
+    );
+    return;
+  }
+
   if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
     showTalepMessage(
       'YETKİ GEREKLİ',
@@ -230,20 +422,127 @@ const submitTopluCihazEkle = async () => {
 };
 
 const submitCihazEkle = async () => {
-  if (!isAdmin && !isMasterAccess) return;
   const markaModel = cihazEkleForm.markaModel.trim();
   const hafiza = cihazEkleForm.hafiza.trim();
-  const renk = (cihazEkleForm.renk === 'DİĞER' ? cihazEkleForm.renkDiger : cihazEkleForm.renk).trim();
+  const renk = (
+    cihazEkleForm.renk === 'DİĞER'
+      ? cihazEkleForm.renkDiger
+      : cihazEkleForm.renk
+  ).trim();
+
+  if (isPostgresStockMode) {
+    if (!pgCanManage || !stockSourceBranch) {
+      return showTalepMessage(
+        'YETKİ GEREKLİ',
+        'Yalnızca kendi mağazanızın stoğuna cihaz ekleyebilirsiniz.',
+        'error'
+      );
+    }
+
+    const imei = cihazEkleForm.imei.replace(/\D/g, '').trim();
+
+    if (!/^[0-9]{14,16}$/.test(imei)) {
+      return showTalepMessage(
+        'IMEI HATALI',
+        'IMEI 14-16 haneli yalnızca rakamlardan oluşmalıdır.',
+        'error'
+      );
+    }
+
+    if (!markaModel || !hafiza || !renk) {
+      return showTalepMessage(
+        'EKSİK BİLGİ',
+        'Marka / Model, Hafıza ve Renk alanları zorunludur.',
+        'error'
+      );
+    }
+
+    const upper = markaModel.toLocaleUpperCase('tr-TR');
+    const brand =
+      upper.startsWith('IPH') || upper.startsWith('IPHONE') || upper.startsWith('APPLE')
+        ? 'Apple'
+        : upper.startsWith('SAM') || upper.startsWith('SAMSUNG')
+        ? 'Samsung'
+        : upper.startsWith('XIAOMI') || upper.startsWith('REDMI') || upper.startsWith('POCO')
+        ? 'Xiaomi'
+        : upper.startsWith('HUAWEI')
+        ? 'Huawei'
+        : upper.startsWith('HONOR')
+        ? 'Honor'
+        : upper.startsWith('OPPO')
+        ? 'Oppo'
+        : upper.startsWith('REALME')
+        ? 'Realme'
+        : upper.startsWith('VIVO')
+        ? 'Vivo'
+        : markaModel.split(/\s+/)[0] || 'Diğer';
+
+    const pilRaw = cihazEkleForm.pil.replace('%', '').trim();
+    const batteryPercent = pilRaw ? Number(pilRaw) : null;
+
+    setCihazEkleSaving(true);
+
+    try {
+      const response = await fetch('/api/stock/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          branchCode: stockSourceBranch,
+          imei,
+          brand,
+          model: markaModel,
+          memory: hafiza,
+          color: renk,
+          batteryPercent,
+          grade: cihazEkleForm.grade.trim(),
+          warranty: cihazEkleForm.garanti.trim(),
+          changedParts: cihazEkleForm.degisenParca.trim(),
+          boxInvoice: cihazEkleForm.kutuFatura.trim(),
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Cihaz eklenemedi.');
+      }
+
+      setCihazTalepDialog(null);
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'CİHAZ EKLENDİ',
+        `${markaModel} · ${imei} IMEI ${stockSourceBranch} stoğuna eklendi.`,
+        'success'
+      );
+    } catch (error: any) {
+      showTalepMessage(
+        'CİHAZ EKLENEMEDİ',
+        error?.message || 'Cihaz eklenemedi.',
+        'error'
+      );
+    } finally {
+      setCihazEkleSaving(false);
+    }
+
+    return;
+  }
+
+  if (!isAdmin && !isMasterAccess) return;
+
   const stokAdet = Number(cihazEkleForm.stokAdet);
 
   if (!markaModel || !hafiza || !renk) {
     return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
   }
+
   if (!Number.isInteger(stokAdet) || stokAdet < 1) {
     return showTalepMessage('GEÇERSİZ STOK', 'Stok adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
   }
 
   setCihazEkleSaving(true);
+
   try {
     const response = await fetch('/api/panel-action', {
       method: 'POST',
@@ -261,11 +560,14 @@ const submitCihazEkle = async () => {
         stokAdet
       })
     });
+
     const result = await response.json();
+
     if (result.result !== 'success') {
       showTalepMessage('CİHAZ EKLENEMEDİ', result.message || 'Cihaz eklenemedi.', 'error');
       return;
     }
+
     setCihazTalepDialog(null);
     showTalepMessage('CİHAZ EKLENDİ', `${markaModel} (${hafiza} - ${renk}) ${stokAdet} adet stok ile eklendi.`, 'success');
   } catch (e) {
@@ -277,7 +579,7 @@ const submitCihazEkle = async () => {
 };
 
 const aktifTalepleriExcelIndir = () => {
-  const rows = cihazTalepData.slice(1).filter((row) => {
+  const rows = effectiveCihazTalepData.slice(1).filter((row) => {
     const magaza = String(row[9] || '').trim();
     const durum = String(row[11] || '').trim().toUpperCase();
     return magaza && !['RED EDİLDİ', 'REDDEDİLDİ', 'GÖNDERİLDİ', 'GONDERILDI'].includes(durum);
@@ -297,11 +599,40 @@ const aktifTalepleriExcelIndir = () => {
   URL.revokeObjectURL(url);
 };
 
-const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
+const handleTalepGonder = (
+  rowIndex: number,
+  modelName: string,
+  stokAdedi: number
+) => {
   const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
 
   if (guvenliStok <= 0) {
-    showTalepMessage('STOK YOK', 'Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.', 'error');
+    showTalepMessage('STOK YOK', 'Bu cihaz şu anda talep edilebilir durumda değil.', 'error');
+    return;
+  }
+
+  if (isPostgresStockMode) {
+    const row = getEffectiveRowByIndex(rowIndex);
+    const deviceId = Number(row?.[15] || 0);
+    const deviceStatus = String(row?.[17] || '').toUpperCase();
+
+    if (!deviceId) {
+      showTalepMessage('CİHAZ BULUNAMADI', 'Listeyi yenileyip tekrar deneyin.', 'error');
+      return;
+    }
+
+    if (deviceStatus !== 'AVAILABLE') {
+      showTalepMessage('TALEP EDİLEMİYOR', 'Bu cihaz başka bir işlemde veya aktif talepte.', 'error');
+      return;
+    }
+
+    setCihazTalepDialog({
+      type: 'pg_talep',
+      rowIndex,
+      deviceId,
+      modelName,
+    });
+
     return;
   }
 
@@ -310,7 +641,48 @@ const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: numbe
 };
 
 const submitTalep = async () => {
-  if (!cihazTalepDialog || cihazTalepDialog.type !== 'adet') return;
+  if (!cihazTalepDialog) return;
+
+  if (cihazTalepDialog.type === 'pg_talep') {
+    const { deviceId, modelName } = cihazTalepDialog;
+    setTalepSaving(true);
+
+    try {
+      const response = await fetch('/api/stock/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ deviceId }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Talep oluşturulamadı.');
+      }
+
+      setCihazTalepDialog(null);
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'TALEP OLUŞTURULDU',
+        `${modelName} için cihaz talebiniz oluşturuldu.`,
+        'success'
+      );
+    } catch (error: any) {
+      showTalepMessage(
+        'TALEP OLUŞTURULAMADI',
+        error?.message || 'Talep oluşturulamadı.',
+        'error'
+      );
+    } finally {
+      setTalepSaving(false);
+    }
+
+    return;
+  }
+
+  if (cihazTalepDialog.type !== 'adet') return;
 
   const { rowIndex, modelName, stokAdedi } = cihazTalepDialog;
   const talepAdedi = Number(talepAdetInput);
@@ -357,7 +729,10 @@ const submitTalep = async () => {
 };
 
 const handleGonderildi = (rowIndex: number, cihazAdi: string, magaza: string) => {
-  if (!isAdmin && !isMasterAccess) {
+  if (
+    (isPostgresStockMode && !pgCanManage) ||
+    (!isPostgresStockMode && !isAdmin && !isMasterAccess)
+  ) {
     showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
     return;
   }
@@ -372,6 +747,42 @@ const submitGonderildi = async () => {
   setGonderildiLoadingIndex(rowIndex);
 
   try {
+    if (isPostgresStockMode) {
+      const row = getEffectiveRowByIndex(rowIndex);
+      const requestId = Number(row?.[16] || 0);
+
+      if (!requestId) {
+        throw new Error('Aktif talep kaydı bulunamadı. Listeyi yenileyip tekrar deneyin.');
+      }
+
+      const response = await fetch('/api/stock/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          requestId,
+          action: 'SEND',
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Gönderildi işlemi gerçekleştirilemedi.');
+      }
+
+      setCihazTalepDialog(null);
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'GÖNDERİLDİ',
+        `${magaza} mağazasının talebi gönderildi. WingSM transferi bekleniyor.`,
+        'success'
+      );
+
+      return;
+    }
+
     const response = await fetch('/api/panel-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -387,16 +798,19 @@ const submitGonderildi = async () => {
 
     await refreshDataCache();
     showTalepMessage('GÖNDERİLDİ', `${magaza} mağazasının talebi gönderildi olarak işaretlendi. Mağaza durumu anlık görecek.`, 'success');
-  } catch (e) {
-    console.error(e);
-    showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
+  } catch (error: any) {
+    console.error(error);
+    showTalepMessage('İŞLEM HATASI', error?.message || 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
   } finally {
     setGonderildiLoadingIndex(null);
   }
 };
 
 const handleTalepReddet = (rowIndex: number, cihazAdi: string, magaza: string) => {
-  if (!isAdmin && !isMasterAccess) {
+  if (
+    (isPostgresStockMode && !pgCanManage) ||
+    (!isPostgresStockMode && !isAdmin && !isMasterAccess)
+  ) {
     showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
     return;
   }
@@ -419,6 +833,43 @@ const submitTalepRed = async () => {
   setRedLoadingIndex(rowIndex);
 
   try {
+    if (isPostgresStockMode) {
+      const row = getEffectiveRowByIndex(rowIndex);
+      const requestId = Number(row?.[16] || 0);
+
+      if (!requestId) {
+        throw new Error('Aktif talep kaydı bulunamadı. Listeyi yenileyip tekrar deneyin.');
+      }
+
+      const response = await fetch('/api/stock/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          requestId,
+          action: 'REJECT',
+          reason: temizNeden,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Talep reddedilemedi.');
+      }
+
+      setCihazTalepDialog(null);
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'TALEP REDDEDİLDİ',
+        `${magaza} mağazasına red nedeni ile birlikte iletildi.`,
+        'success'
+      );
+
+      return;
+    }
+
     const response = await fetch('/api/panel-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -438,15 +889,24 @@ const submitTalepRed = async () => {
 
     await refreshDataCache();
     showTalepMessage('TALEP REDDEDİLDİ', `${magaza} mağazasına red nedeni ile birlikte iletildi.`, 'success');
-  } catch (e) {
-    console.error('Talep reddetme hatası:', e);
-    showTalepMessage('İŞLEM HATASI', 'Talep reddedilirken hata oluştu.', 'error');
+  } catch (error: any) {
+    console.error('Talep reddetme hatası:', error);
+    showTalepMessage('İŞLEM HATASI', error?.message || 'Talep reddedilirken hata oluştu.', 'error');
   } finally {
     setRedLoadingIndex(null);
   }
 };
 
 const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+  if (isPostgresStockMode) {
+    showTalepMessage(
+      'GEÇMİŞ KORUNUYOR',
+      'Yeni PostgreSQL stok sisteminde cihaz ve talep geçmişi tamamen silinmez.',
+      'info'
+    );
+    return;
+  }
+
   if (!isAdmin && !isMasterAccess) {
     alert("Bu kaydı yalnızca yönetici silebilir!");
     return;
@@ -495,7 +955,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
   return (
     <>
       {(() => {
-            const cihazTalepRows = cihazTalepData
+            const cihazTalepRows = effectiveCihazTalepData
               .slice(1)
               .map((row, i) => ({
                 row,
@@ -807,12 +1267,12 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   <button
                     type="button"
                     onClick={() => {
-                      if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                      if (canManageSelectedStock) {
                         setAktifTaleplerModalOpen(true);
                       }
                     }}
                     className={`rounded-[22px] border border-slate-100 bg-white p-4 text-left shadow-sm transition sm:p-5 ${
-                      isMasterAccess || isAdmin || isSuperAdminUser
+                      canManageSelectedStock
                         ? 'hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
                         : ''
                     }`}
@@ -964,7 +1424,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       Temizle
                     </button>
 
-                    {(isMasterAccess || isAdmin || isSuperAdminUser) && (
+                    {canManageSelectedStock && (
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                           type="button"
@@ -1102,7 +1562,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                             .toLocaleUpperCase('tr-TR');
                           const kararTarihi = String(row[12] || '').trim();
                           const redNedeni = String(row[13] || '').trim();
-                          const stokAdedi = Math.max(0, Number(row[8]) || 0);
+                          const deviceStatus = String(row?.[17] || '').toUpperCase();
+                          const stokAdedi =
+                            isPostgresStockMode && deviceStatus === 'DETAILS_PENDING'
+                              ? 0
+                              : Math.max(0, Number(row[8]) || 0);
                           const talepAdedi = Math.max(0, Number(row[14]) || 0);
 
                           const isRejected =
@@ -1295,6 +1759,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                       </div>
 
                                       {isSent &&
+                                        !isPostgresStockMode &&
                                         (isMasterAccess || isAdmin || isSuperAdminUser) && (
                                           <button
                                             disabled={deleteTalepLoadingIndex === rowIndex}
@@ -1344,7 +1809,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                     }
                                     className="min-w-[112px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
                                   >
-                                    {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
+                                    {stokAdedi > 0
+                                      ? 'TALEP OL'
+                                      : isPostgresStockMode && deviceStatus === 'DETAILS_PENDING'
+                                      ? 'BİLGİ EKSİK'
+                                      : 'STOK YOK'}
                                   </button>
                                 )}
                               </td>
@@ -1487,7 +1956,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         <button
                           type="button"
                           onClick={() => {
-                            if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                            if (canManageSelectedStock) {
                               setAktifTaleplerModalOpen(true);
                             }
                           }}
@@ -1640,6 +2109,52 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
         ? 'max-w-5xl'
         : 'max-w-md'
     }`}>
+      {cihazTalepDialog.type === 'pg_talep' && (
+        <>
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-black tracking-tight">CİHAZ TALEBİ</h3>
+                <p className="mt-1 text-xs font-bold text-blue-100">Talebi onaylamadan önce cihazı kontrol edin</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-7">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">CİHAZ</div>
+              <div className="mt-1 font-black text-slate-900">{cihazTalepDialog.modelName}</div>
+              <div className="mt-4 flex items-center justify-between rounded-xl border border-blue-100 bg-white px-4 py-3">
+                <span className="text-xs font-bold text-slate-500">Talep edilecek</span>
+                <span className="text-sm font-black text-blue-600">1 CİHAZ</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setCihazTalepDialog(null)}
+                disabled={talepSaving}
+                className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+              >
+                İPTAL
+              </button>
+              <button
+                onClick={submitTalep}
+                disabled={talepSaving}
+                className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50"
+              >
+                {talepSaving ? 'GÖNDERİLİYOR...' : 'TALEBİ OLUŞTUR'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {cihazTalepDialog.type === 'adet' && (
         <>
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
@@ -1738,6 +2253,26 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
           </div>
           <div className="p-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {isPostgresStockMode && (
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">IMEI *</label>
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    maxLength={16}
+                    value={cihazEkleForm.imei}
+                    onChange={(e: any) =>
+                      setCihazEkleForm((p) => ({
+                        ...p,
+                        imei: e.target.value.replace(/\D/g, '').slice(0, 16),
+                      }))
+                    }
+                    placeholder="14-16 haneli IMEI"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm font-black tracking-wider outline-none focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+              )}
+
               <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={(e: any) =>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div>
                 <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label>
@@ -1772,7 +2307,16 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={(e: any) =>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={(e: any) =>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={(e: any) =>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              {!isPostgresStockMode ? (
+                <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              ) : (
+                <div className="flex items-end">
+                  <div className="w-full rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-blue-500">STOK MANTIĞI</div>
+                    <div className="mt-1 text-xs font-black text-blue-800">1 IMEI = 1 CİHAZ</div>
+                  </div>
+                </div>
+              )}
               <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={(e: any) =>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={(e: any) =>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
             </div>
@@ -2060,7 +2604,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
           </div>
 
           <div className="flex flex-col mt-2">
-            {cihazTalepData.map((row, originalIndex) => {
+            {effectiveCihazTalepData.map((row, originalIndex) => {
               if (originalIndex === 0) return null; // Header atla
               const magazaAdi = (row[9] || '').toString().trim();
               const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
@@ -2108,7 +2652,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               );
             })}
 
-            {cihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
+            {effectiveCihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length === 0 && (
               <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs">
                 Aktif talep bulunmuyor.
               </div>
