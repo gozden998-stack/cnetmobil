@@ -6192,7 +6192,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       </p>
 
                       <a
-                        href="/cihaz_talep_toplu_sablon.xlsx"
+                        href="/api/cihaz-talep-template"
                         download
                         className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
                       >
