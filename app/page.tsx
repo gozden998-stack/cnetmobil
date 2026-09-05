@@ -193,9 +193,17 @@ export default function CnetmobilCmrFinalUltimate() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordAgain, setNewPasswordAgain] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
   
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
@@ -318,6 +326,16 @@ export default function CnetmobilCmrFinalUltimate() {
   };
 
   const isZumay = selectedBranch === 'ZUMAY KANALI';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const token = new URLSearchParams(window.location.search).get('reset_token');
+    if (token) {
+      setResetToken(token);
+      setAuthView('reset');
+    }
+  }, []);
 
   useEffect(() => {
     const verifySession = async () => {
@@ -496,15 +514,99 @@ export default function CnetmobilCmrFinalUltimate() {
     setAuthView('login');
   };
 
-  const handleForgotPassword = () => {
+  const handleForgotPassword = async () => {
     const email = forgotEmail.trim().toLowerCase();
     if (!email) {
       setForgotMessage('Lütfen e-posta adresinizi girin.');
       return;
     }
 
-    // Arayüz hazır. E-posta gönderim endpoint'i sonraki adımda bağlanacak.
-    setForgotMessage('Şifre sıfırlama e-posta servisi henüz etkinleştirilmedi.');
+    setForgotLoading(true);
+    setForgotMessage('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      setForgotMessage(
+        data.message ||
+          'E-posta adresi sistemde kayıtlıysa şifre sıfırlama bağlantısı gönderildi.'
+      );
+    } catch (error) {
+      console.error('Şifre sıfırlama maili hatası:', error);
+      setForgotMessage('İstek alınamadı. Lütfen kısa süre sonra tekrar deneyin.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetMessage('');
+    setResetSuccess(false);
+
+    if (!resetToken) {
+      setResetMessage('Şifre sıfırlama bağlantısı geçersiz.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setResetMessage('Yeni şifre en az 8 karakter olmalıdır.');
+      return;
+    }
+
+    if (!/[A-ZÇĞİÖŞÜ]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir büyük harf içermelidir.');
+      return;
+    }
+
+    if (!/[a-zçğıöşü]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir küçük harf içermelidir.');
+      return;
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir rakam içermelidir.');
+      return;
+    }
+
+    if (newPassword !== newPasswordAgain) {
+      setResetMessage('Yeni şifreler birbiriyle aynı değil.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password: newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        setResetMessage(data.message || 'Şifre değiştirilemedi.');
+        return;
+      }
+
+      setResetSuccess(true);
+      setResetMessage(data.message || 'Şifreniz başarıyla değiştirildi.');
+      setEntryPass('');
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (error) {
+      console.error('Yeni şifre oluşturma hatası:', error);
+      setResetMessage('Bağlantı hatası oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const resetAll = () => {
@@ -1764,7 +1866,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     CNETMOBİL Partner Yönetim Sistemi
                   </div>
                 </>
-              ) : (
+              ) : authView === 'forgot' ? (
                 <>
                   <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                     <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
@@ -1812,10 +1914,17 @@ export default function CnetmobilCmrFinalUltimate() {
                   <button
                     type="button"
                     onClick={handleForgotPassword}
-                    disabled={!forgotEmail.trim()}
-                    className="h-[52px] w-full rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!forgotEmail.trim() || forgotLoading}
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    SIFIRLAMA LİNKİ GÖNDER
+                    {forgotLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        GÖNDERİLİYOR...
+                      </>
+                    ) : (
+                      'SIFIRLAMA LİNKİ GÖNDER'
+                    )}
                   </button>
 
                   <button
@@ -1830,6 +1939,118 @@ export default function CnetmobilCmrFinalUltimate() {
                   </button>
 
                   <div className="mt-12 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <rect x="5" y="10" width="14" height="10" rx="2" />
+                      <path strokeLinecap="round" d="M8 10V7a4 4 0 018 0v3" />
+                    </svg>
+                  </div>
+
+                  <div className="mb-7 text-center">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Yeni Şifre Belirle</h1>
+                    <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-slate-500">
+                      Lütfen yeni şifrenizi belirleyin.
+                    </p>
+                  </div>
+
+                  {!resetSuccess && (
+                    <>
+                      <div className="mb-4">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre</label>
+                        <div className="relative">
+                          <input
+                            type={showNewPassword ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              setResetMessage('');
+                            }}
+                            autoComplete="new-password"
+                            placeholder="••••••••••"
+                            className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-blue-600"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z" />
+                              <circle cx="12" cy="12" r="2.5" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mb-5">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre Tekrar</label>
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPasswordAgain}
+                          onChange={(e) => {
+                            setNewPasswordAgain(e.target.value);
+                            setResetMessage('');
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}
+                          autoComplete="new-password"
+                          placeholder="••••••••••"
+                          className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        />
+                      </div>
+
+                      <div className="mb-5 space-y-2 text-[12px]">
+                        <div className={newPassword.length >= 8 ? 'text-emerald-600' : 'text-slate-400'}>✓ En az 8 karakter olmalı</div>
+                        <div className={/[A-ZÇĞİÖŞÜ]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Büyük harf içermeli</div>
+                        <div className={/[a-zçğıöşü]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Küçük harf içermeli</div>
+                        <div className={/[0-9]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Rakam içermeli</div>
+                      </div>
+                    </>
+                  )}
+
+                  {resetMessage && (
+                    <div className={`mb-5 rounded-xl border px-4 py-3 text-[13px] leading-5 ${resetSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                      {resetMessage}
+                    </div>
+                  )}
+
+                  {!resetSuccess ? (
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={resetLoading || !newPassword || !newPasswordAgain}
+                      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {resetLoading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          DEĞİŞTİRİLİYOR...
+                        </>
+                      ) : (
+                        'ŞİFREYİ DEĞİŞTİR'
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthView('login');
+                        setNewPassword('');
+                        setNewPasswordAgain('');
+                        setResetMessage('');
+                        setResetSuccess(false);
+                      }}
+                      className="h-[52px] w-full rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700"
+                    >
+                      GİRİŞ SAYFASINA DÖN
+                    </button>
+                  )}
+
+                  <div className="mt-10 text-center text-[11px] font-medium tracking-wide text-slate-400">
                     CNETMOBİL Partner Yönetim Sistemi
                   </div>
                 </>
