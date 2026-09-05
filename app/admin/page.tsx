@@ -12,7 +12,7 @@ type MeResponse = {
 
 const modules = [
   { title: "Kullanıcılar & Yetkiler", description: "Personel, yönetici, Super Admin, şube ve işlem yetkileri.", href: "/admin/users", permission: "users.view", icon: "👥", ready: true },
-  { title: "Fiyat Yönetimi", description: "Cihaz fiyatlarını panelden görüntüle, değiştir ve logla.", href: "/admin/prices", permission: "prices.view", icon: "₺", ready: false },
+  { title: "Fiyat Yönetimi", description: "Cihaz fiyatlarını panelden görüntüle, değiştir ve logla.", href: "/admin/prices", permission: "prices.view", icon: "₺", ready: true },
   { title: "Stok Yönetimi", description: "Merkez ve mağaza stoklarını yönet, transfer oluştur.", href: "/admin/stock", permission: "stock.view", icon: "📦", ready: false },
   { title: "Cihaz Yönetimi", description: "Cihaz ekle, düzenle ve ürün bilgilerini yönet.", href: "/admin/devices", permission: "devices.view", icon: "📱", ready: false },
   { title: "Cihaz Talepleri", description: "Mağaza taleplerini onayla, reddet ve gönderildi yap.", href: "/admin/requests", permission: "requests.view", icon: "🚚", ready: false },
