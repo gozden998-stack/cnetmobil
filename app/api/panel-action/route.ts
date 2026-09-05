@@ -94,6 +94,10 @@ const ACTION_RULES: Record<string, ActionRule> = {
   USE_IMEI: {
     permission: 'stock.edit',
   },
+
+  UPDATE_LIST_CELLS: {
+    permission: 'prices.edit',
+  },
 };
 
 // DB'ye henüz taşınmamış personel hesapları için geçiş izinleri.
@@ -492,6 +496,92 @@ export async function POST(request: NextRequest) {
         },
         400
       );
+    }
+
+    if (actionType === 'UPDATE_LIST_CELLS') {
+      const allowedSheets = new Set([
+        'CEP + TABLET+IOT SAAT LIST',
+        'YNA LİST',
+        'DIŞ KANAL SATIN ALMA',
+        '2.EL FİYAT LİSTESİ',
+      ]);
+
+      const sheetName =
+        typeof payload.sheetName === 'string'
+          ? payload.sheetName.trim()
+          : '';
+
+      const rowNumber = Number(payload.rowNumber);
+      const rawChanges = Array.isArray(payload.changes)
+        ? payload.changes
+        : [];
+
+      if (!allowedSheets.has(sheetName)) {
+        return jsonResponse(
+          { result: 'error', message: 'Bu liste panelden düzenlenemez.' },
+          400
+        );
+      }
+
+      if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > 10000) {
+        return jsonResponse(
+          { result: 'error', message: 'Geçersiz satır.' },
+          400
+        );
+      }
+
+      if (rawChanges.length < 1 || rawChanges.length > 50) {
+        return jsonResponse(
+          { result: 'error', message: 'Geçersiz değişiklik sayısı.' },
+          400
+        );
+      }
+
+      const safeChanges: Array<{ columnNumber: number; value: string }> = [];
+
+      for (const item of rawChanges) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return jsonResponse(
+            { result: 'error', message: 'Geçersiz hücre değişikliği.' },
+            400
+          );
+        }
+
+        const record = item as Record<string, unknown>;
+        const columnNumber = Number(record.columnNumber);
+        const value = String(record.value ?? '');
+
+        if (
+          !Number.isInteger(columnNumber) ||
+          columnNumber < 1 ||
+          columnNumber > 200
+        ) {
+          return jsonResponse(
+            { result: 'error', message: 'Geçersiz sütun.' },
+            400
+          );
+        }
+
+        if (value.length > 5000) {
+          return jsonResponse(
+            { result: 'error', message: 'Hücre değeri çok uzun.' },
+            400
+          );
+        }
+
+        if (/^[=+@]/.test(value.trim())) {
+          return jsonResponse(
+            { result: 'error', message: 'Formül girişi panelden yapılamaz.' },
+            400
+          );
+        }
+
+        safeChanges.push({ columnNumber, value });
+      }
+
+      payload.sheetName = sheetName;
+      payload.rowNumber = rowNumber;
+      payload.changes = safeChanges;
     }
 
     // =====================================================
