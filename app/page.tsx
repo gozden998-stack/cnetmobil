@@ -1,40 +1,609 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
+import CepTablet from './components/screens/CepTablet';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
 // ======================================================
-// SUPABASE - TARAYICIDAN DOĞRUDAN VERİ OKUMA
-// Vercel /api/sheets artık kullanılmıyor.
-// Service Role KULLANMA! Sadece publishable/anon key kullanılır.
+// POSTGRESQL - TARAYICI SADECE KENDİ NEXT.JS API'MİZE BAĞLANIR
+// PostgreSQL bilgileri yalnızca sunucudaki DATABASE_URL içinde kalır.
 // ======================================================
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-type SupabaseSheetRow = {
+type SheetRow = {
   id?: number;
   sheet_name: string;
   row_number: number;
   data: any[];
   updated_at?: string;
 };
+
+type CihazTalepBulkRow = {
+  markaModel: string;
+  hafiza: string;
+  renk: string;
+  pil: string;
+  grade: string;
+  garanti: string;
+  degisenParca: string;
+  kutuFatura: string;
+  stokAdet: number;
+};
+
+const CIHAZ_TALEP_TEMPLATE_BASE64 = `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`;
+
+function downloadCihazTalepTemplate() {
+  const binary = atob(CIHAZ_TALEP_TEMPLATE_BASE64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cihaz_talep_toplu_sablon.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const BULK_CIHAZ_HEADERS = [
+  'MARKA MODEL',
+  'HAFIZA',
+  'RENK',
+  'PIL',
+  'GRADE',
+  'GARANTI',
+  'DEGISEN PARCA',
+  'KUTU FATURA',
+  'STOK ADET',
+] as const;
+
+function normalizeBulkHeader(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C')
+    .replace(/▼/g, '')
+    .replace(/[\/_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function xlsxColumnIndex(cellRef: string) {
+  const letters = String(cellRef || '').match(/^[A-Z]+/i)?.[0] || 'A';
+  let result = 0;
+
+  for (const char of letters.toUpperCase()) {
+    result = result * 26 + (char.charCodeAt(0) - 64);
+  }
+
+  return Math.max(0, result - 1);
+}
+
+async function inflateXlsxDeflateRaw(data: Uint8Array) {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error(
+      'Tarayıcınız Excel dosyasını açmayı desteklemiyor. Güncel Chrome veya Edge kullanın.'
+    );
+  }
+
+  // TypeScript / Next.js BlobPart uyumluluğu:
+  // Uint8Array buffer'ı SharedArrayBuffer olabileceği için
+  // veriyi kesin ArrayBuffer içine kopyalıyoruz.
+  const safeBuffer = new ArrayBuffer(data.byteLength);
+  new Uint8Array(safeBuffer).set(data);
+
+  const stream = new Blob([safeBuffer])
+    .stream()
+    .pipeThrough(new DecompressionStream('deflate-raw'));
+
+  return new Uint8Array(
+    await new Response(stream).arrayBuffer()
+  );
+}
+
+async function unzipSimpleXlsx(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+
+  let eocd = -1;
+  const minOffset = Math.max(0, bytes.length - 65557);
+
+  for (let i = bytes.length - 22; i >= minOffset; i--) {
+    if (
+      view.getUint32(i, true) === 0x06054b50
+    ) {
+      eocd = i;
+      break;
+    }
+  }
+
+  if (eocd < 0) {
+    throw new Error('Geçerli bir .xlsx dosyası değil.');
+  }
+
+  const totalEntries =
+    view.getUint16(eocd + 10, true);
+
+  let centralOffset =
+    view.getUint32(eocd + 16, true);
+
+  const decoder = new TextDecoder('utf-8');
+  const files = new Map<string, Uint8Array>();
+
+  for (let entry = 0; entry < totalEntries; entry++) {
+    if (
+      view.getUint32(centralOffset, true) !==
+      0x02014b50
+    ) {
+      throw new Error('Excel ZIP yapısı okunamadı.');
+    }
+
+    const method =
+      view.getUint16(centralOffset + 10, true);
+
+    const compressedSize =
+      view.getUint32(centralOffset + 20, true);
+
+    const fileNameLength =
+      view.getUint16(centralOffset + 28, true);
+
+    const extraLength =
+      view.getUint16(centralOffset + 30, true);
+
+    const commentLength =
+      view.getUint16(centralOffset + 32, true);
+
+    const localOffset =
+      view.getUint32(centralOffset + 42, true);
+
+    const fileName = decoder.decode(
+      bytes.slice(
+        centralOffset + 46,
+        centralOffset + 46 + fileNameLength
+      )
+    );
+
+    if (
+      view.getUint32(localOffset, true) !==
+      0x04034b50
+    ) {
+      throw new Error('Excel dosya başlığı okunamadı.');
+    }
+
+    const localNameLength =
+      view.getUint16(localOffset + 26, true);
+
+    const localExtraLength =
+      view.getUint16(localOffset + 28, true);
+
+    const dataStart =
+      localOffset +
+      30 +
+      localNameLength +
+      localExtraLength;
+
+    const compressed = bytes.slice(
+      dataStart,
+      dataStart + compressedSize
+    );
+
+    let content: Uint8Array;
+
+    if (method === 0) {
+      content = compressed;
+    } else if (method === 8) {
+      content =
+        await inflateXlsxDeflateRaw(compressed);
+    } else {
+      throw new Error(
+        `Desteklenmeyen Excel sıkıştırma tipi: ${method}`
+      );
+    }
+
+    files.set(fileName, content);
+
+    centralOffset +=
+      46 +
+      fileNameLength +
+      extraLength +
+      commentLength;
+  }
+
+  return files;
+}
+
+function readXlsxSharedStrings(
+  files: Map<string, Uint8Array>
+) {
+  const bytes =
+    files.get('xl/sharedStrings.xml');
+
+  if (!bytes) return [] as string[];
+
+  const xml = new TextDecoder('utf-8').decode(bytes);
+  const doc = new DOMParser().parseFromString(
+    xml,
+    'application/xml'
+  );
+
+  return Array.from(
+    doc.getElementsByTagNameNS('*', 'si')
+  ).map((item) =>
+    Array.from(
+      item.getElementsByTagNameNS('*', 't')
+    )
+      .map((node) => node.textContent || '')
+      .join('')
+  );
+}
+
+function parseXlsxWorksheet(
+  sheetBytes: Uint8Array,
+  sharedStrings: string[]
+) {
+  const xml =
+    new TextDecoder('utf-8').decode(sheetBytes);
+
+  const doc =
+    new DOMParser().parseFromString(
+      xml,
+      'application/xml'
+    );
+
+  if (
+    doc.getElementsByTagName('parsererror').length
+  ) {
+    throw new Error(
+      'Excel çalışma sayfası okunamadı.'
+    );
+  }
+
+  const parsedRows: string[][] = [];
+
+  const xmlRows = Array.from(
+    doc.getElementsByTagNameNS('*', 'row')
+  );
+
+  for (const xmlRow of xmlRows) {
+    const rowNumber =
+      Math.max(
+        1,
+        Number(xmlRow.getAttribute('r')) || 1
+      );
+
+    while (parsedRows.length < rowNumber) {
+      parsedRows.push([]);
+    }
+
+    const output =
+      parsedRows[rowNumber - 1];
+
+    const cells = Array.from(
+      xmlRow.getElementsByTagNameNS('*', 'c')
+    );
+
+    for (const cell of cells) {
+      const cellRef =
+        cell.getAttribute('r') || 'A1';
+
+      const colIndex =
+        xlsxColumnIndex(cellRef);
+
+      const type =
+        cell.getAttribute('t') || '';
+
+      const valueNode =
+        cell.getElementsByTagNameNS('*', 'v')[0];
+
+      let value = '';
+
+      if (type === 'inlineStr') {
+        value = Array.from(
+          cell.getElementsByTagNameNS('*', 't')
+        )
+          .map((node) => node.textContent || '')
+          .join('');
+      } else {
+        const raw =
+          valueNode?.textContent || '';
+
+        if (type === 's') {
+          value =
+            sharedStrings[
+              Number(raw)
+            ] ?? '';
+        } else {
+          value = raw;
+        }
+      }
+
+      output[colIndex] =
+        String(value ?? '').trim();
+    }
+  }
+
+  return parsedRows;
+}
+
+async function parseCihazTalepBulkXlsx(
+  file: File
+): Promise<CihazTalepBulkRow[]> {
+  if (
+    !file.name
+      .toLocaleLowerCase('tr-TR')
+      .endsWith('.xlsx')
+  ) {
+    throw new Error(
+      'Sadece .xlsx Excel dosyası yükleyebilirsiniz.'
+    );
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error(
+      'Excel dosyası en fazla 8 MB olabilir.'
+    );
+  }
+
+  const files =
+    await unzipSimpleXlsx(
+      await file.arrayBuffer()
+    );
+
+  const worksheetPaths =
+    Array.from(files.keys())
+      .filter((name) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)
+      )
+      .sort((a, b) => {
+        const aNo =
+          Number(a.match(/sheet(\d+)/i)?.[1] || 0);
+        const bNo =
+          Number(b.match(/sheet(\d+)/i)?.[1] || 0);
+
+        return aNo - bNo;
+      });
+
+  if (!worksheetPaths.length) {
+    throw new Error(
+      'Excel dosyasında çalışma sayfası bulunamadı.'
+    );
+  }
+
+  const sharedStrings =
+    readXlsxSharedStrings(files);
+
+  let rows: string[][] = [];
+  let headerIndexes =
+    new Map<string, number>();
+  let foundTemplateSheet = false;
+
+  // Excel bazen sayfa XML sırasını değiştirebilir.
+  // Bu yüzden sheet1 varsaymak yerine, başlıkları gerçekten
+  // "Marka / Model, Hafıza, Renk..." olan sayfayı buluyoruz.
+  for (const worksheetPath of worksheetPaths) {
+    const candidateRows =
+      parseXlsxWorksheet(
+        files.get(worksheetPath)!,
+        sharedStrings
+      );
+
+    if (!candidateRows.length) {
+      continue;
+    }
+
+    // Başlık satırını ilk 10 satır içinde ara.
+    // Böylece Excel dosyası farklı bir programda kaydedilse bile
+    // şablon daha dayanıklı olur.
+    for (
+      let headerRowIndex = 0;
+      headerRowIndex < Math.min(candidateRows.length, 10);
+      headerRowIndex++
+    ) {
+      const candidateHeader =
+        (candidateRows[headerRowIndex] || [])
+          .map(normalizeBulkHeader);
+
+      const candidateIndexes =
+        new Map<string, number>();
+
+      candidateHeader.forEach(
+        (header, index) => {
+          candidateIndexes.set(
+            header,
+            index
+          );
+        }
+      );
+
+      const hasAllHeaders =
+        BULK_CIHAZ_HEADERS.every(
+          (header) =>
+            candidateIndexes.has(header)
+        );
+
+      if (hasAllHeaders) {
+        rows =
+          candidateRows.slice(
+            headerRowIndex
+          );
+
+        headerIndexes =
+          candidateIndexes;
+
+        foundTemplateSheet = true;
+        break;
+      }
+    }
+
+    if (foundTemplateSheet) {
+      break;
+    }
+  }
+
+  if (!foundTemplateSheet) {
+    throw new Error(
+      'Cihazlar sayfası bulunamadı. Lütfen panelden indirdiğiniz Excel şablonunu kullanın ve başlıkları değiştirmeyin.'
+    );
+  }
+
+  const getValue = (
+    row: string[],
+    header: typeof BULK_CIHAZ_HEADERS[number]
+  ) => {
+    const index =
+      headerIndexes.get(header);
+
+    return String(
+      index === undefined
+        ? ''
+        : row[index] ?? ''
+    ).trim();
+  };
+
+  const devices: CihazTalepBulkRow[] = [];
+  const errors: string[] = [];
+
+  for (
+    let rowIndex = 1;
+    rowIndex < rows.length;
+    rowIndex++
+  ) {
+    const row = rows[rowIndex] || [];
+
+    const allEmpty =
+      BULK_CIHAZ_HEADERS.every(
+        (header) =>
+          getValue(row, header) === ''
+      );
+
+    if (allEmpty) continue;
+
+    const markaModel =
+      getValue(row, 'MARKA MODEL');
+
+    const hafiza =
+      getValue(row, 'HAFIZA');
+
+    const renk =
+      getValue(row, 'RENK');
+
+    const pil =
+      getValue(row, 'PIL');
+
+    const grade =
+      getValue(row, 'GRADE')
+        .toLocaleUpperCase('tr-TR');
+
+    const garanti =
+      getValue(row, 'GARANTI');
+
+    const degisenParca =
+      getValue(row, 'DEGISEN PARCA') ||
+      'Orijinal / Yok';
+
+    const kutuFatura =
+      getValue(row, 'KUTU FATURA');
+
+    const stokRaw =
+      getValue(row, 'STOK ADET');
+
+    const stokAdet =
+      Number(stokRaw);
+
+    const excelLine = rowIndex + 1;
+
+    if (!markaModel) {
+      errors.push(
+        `${excelLine}. satır: Marka / Model boş.`
+      );
+    }
+
+    if (!hafiza) {
+      errors.push(
+        `${excelLine}. satır: Hafıza boş.`
+      );
+    }
+
+    if (!renk) {
+      errors.push(
+        `${excelLine}. satır: Renk boş.`
+      );
+    }
+
+    if (
+      !Number.isInteger(stokAdet) ||
+      stokAdet < 1
+    ) {
+      errors.push(
+        `${excelLine}. satır: Stok Adet 1 veya daha büyük tam sayı olmalı.`
+      );
+    }
+
+    if (
+      grade &&
+      ![
+        'MÜKEMMEL',
+        'ÇOK İYİ',
+        'İYİ',
+        'OUTLET',
+      ].includes(grade)
+    ) {
+      errors.push(
+        `${excelLine}. satır: Grade geçersiz.`
+      );
+    }
+
+    devices.push({
+      markaModel,
+      hafiza,
+      renk,
+      pil,
+      grade,
+      garanti,
+      degisenParca,
+      kutuFatura,
+      stokAdet,
+    });
+  }
+
+  if (errors.length) {
+    throw new Error(
+      errors.slice(0, 8).join('\n') +
+        (errors.length > 8
+          ? `\n+${errors.length - 8} hata daha`
+          : '')
+    );
+  }
+
+  if (!devices.length) {
+    throw new Error(
+      'Yüklenecek cihaz bulunamadı. Excel içinde “Cihazlar” sayfasında, başlık satırının altına en az 1 cihaz girin.'
+    );
+  }
+
+  if (devices.length > 500) {
+    throw new Error(
+      'Tek seferde en fazla 500 cihaz yükleyebilirsiniz.'
+    );
+  }
+
+  return devices;
+}
 
 function trimTrailingEmptyCells(row: any[]): any[] {
   const result = [...row];
@@ -49,8 +618,8 @@ function trimTrailingEmptyCells(row: any[]): any[] {
   return result;
 }
 
-function getRangeFromSupabaseRows(
-  rows: SupabaseSheetRow[],
+function getRangeFromSheetRows(
+  rows: SheetRow[],
   startRow: number,
   endRow: number,
   startCol: number,
@@ -71,8 +640,8 @@ function getRangeFromSupabaseRows(
   return result;
 }
 
-function buildPanelData(rows: SupabaseSheetRow[]) {
-  const sheets: Record<string, SupabaseSheetRow[]> = {};
+function buildPanelData(rows: SheetRow[]) {
+  const sheets: Record<string, SheetRow[]> = {};
 
   rows.forEach((row) => {
     if (!sheets[row.sheet_name]) sheets[row.sheet_name] = [];
@@ -80,23 +649,23 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
   });
 
   return {
-    Devices: getRangeFromSupabaseRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
-    Ayarlar: getRangeFromSupabaseRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
-    Alimlar: getRangeFromSupabaseRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
-    Markalar: getRangeFromSupabaseRows(sheets['Markalar'] || [], 2, 50, 0, 2),
-    CepTablet: getRangeFromSupabaseRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
-    YNA: getRangeFromSupabaseRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
-    DisKanal: getRangeFromSupabaseRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
-    Servis: getRangeFromSupabaseRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
-    IkinciEl: getRangeFromSupabaseRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
-    Depo: getRangeFromSupabaseRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
-    Hedefler: getRangeFromSupabaseRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
-    MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
-    PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
-    THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
-    CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
-    CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
+    Devices: getRangeFromSheetRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
+    Ayarlar: getRangeFromSheetRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
+    Alimlar: getRangeFromSheetRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
+    Markalar: getRangeFromSheetRows(sheets['Markalar'] || [], 2, 50, 0, 2),
+    CepTablet: getRangeFromSheetRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
+    YNA: getRangeFromSheetRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
+    DisKanal: getRangeFromSheetRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
+    Servis: getRangeFromSheetRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
+    IkinciEl: getRangeFromSheetRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
+    Depo: getRangeFromSheetRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
+    Hedefler: getRangeFromSheetRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
+    MagazaGidisat: getRangeFromSheetRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
+    PersonelGidisat: getRangeFromSheetRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
+    THH: getRangeFromSheetRows(sheets['THH'] || [], 1, 1000, 0, 18),
+    CihazTalep: getRangeFromSheetRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
+    CustomerDevices: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
+    CustomerConfig: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
 }
 
@@ -105,8 +674,8 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
 // Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
 // Diğer ekranlar: 20 dakika cache
 // ======================================================
-const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v6';
-const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v6';
+const SHEET_CACHE_KEY = 'cnet_pg_sheet_rows_cache_v7';
+const SHEET_CACHE_META_KEY = 'cnet_pg_sheet_rows_cache_meta_v7';
 const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
 
 const REALTIME_SHEETS = [
@@ -132,8 +701,8 @@ const MODE_SHEETS: Record<string, string[]> = {
 };
 
 function replaceSheetsInRows(
-  base: SupabaseSheetRow[],
-  incoming: SupabaseSheetRow[],
+  base: SheetRow[],
+  incoming: SheetRow[],
   sheetNames: string[]
 ) {
   const names = new Set(sheetNames);
@@ -146,57 +715,465 @@ function replaceSheetsInRows(
   });
 }
 
-function saveSheetCache(rows: SupabaseSheetRow[], sheetFetchedAt?: Record<string, number>) {
+function saveSheetCache(rows: SheetRow[], sheetFetchedAt?: Record<string, number>) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(SUPABASE_CACHE_KEY, JSON.stringify(rows));
+    localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify(rows));
     if (sheetFetchedAt) {
       localStorage.setItem(
-        SUPABASE_CACHE_META_KEY,
+        SHEET_CACHE_META_KEY,
         JSON.stringify({ sheetFetchedAt })
       );
     }
   } catch (e) {
-    console.warn('Supabase cache yazılamadı:', e);
+    console.warn('Panel cache yazılamadı:', e);
   }
 }
 
-async function fetchSheetsDirect(sheetNames: string[]): Promise<SupabaseSheetRow[]> {
+async function fetchSheetsDirect(sheetNames: string[]): Promise<SheetRow[]> {
   if (!sheetNames.length) return [];
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error('Supabase public environment variables eksik.');
-  }
 
-  const pageSize = 1000;
-  let from = 0;
-  let allRows: SupabaseSheetRow[] = [];
   const startedAt = performance.now();
+  const params = new URLSearchParams();
+  sheetNames.forEach((name) => params.append('sheet', name));
 
-  while (true) {
-    const { data, error } = await supabase
-      .from('sheet_rows')
-      .select('id,sheet_name,row_number,data,updated_at')
-      .in('sheet_name', sheetNames)
-      .order('sheet_name', { ascending: true })
-      .order('row_number', { ascending: true })
-      .range(from, from + pageSize - 1);
+  const response = await fetch(`/api/sheet-rows?${params.toString()}`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  });
 
-    if (error) throw new Error(`Supabase veri okuma hatası: ${error.message}`);
+  const result = await response.json().catch(() => ({}));
 
-    const page = (data || []) as SupabaseSheetRow[];
-    allRows = allRows.concat(page);
-    if (page.length < pageSize) break;
-    from += pageSize;
+  if (!response.ok) {
+    throw new Error(result?.error || `PostgreSQL API hatası (${response.status})`);
   }
+
+  const allRows = Array.isArray(result?.rows) ? (result.rows as SheetRow[]) : [];
 
   try {
     const approxBytes = new Blob([JSON.stringify(allRows)]).size;
     console.info(
-      `[SUPABASE V6] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
+      `[POSTGRES V7] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
     );
   } catch (_) {}
 
   return allRows;
+}
+
+
+type AdminEditableSheetTarget = {
+  title: string;
+  sheetName: string;
+};
+
+const ADMIN_EDITABLE_SHEETS: Record<string, AdminEditableSheetTarget> = {
+  cep_tablet: {
+    title: 'Cep + Tablet',
+    sheetName: 'CEP + TABLET+IOT SAAT LIST',
+  },
+  yna_list: {
+    title: 'YNA List',
+    sheetName: 'YNA LİST',
+  },
+  dis_kanal: {
+    title: 'Dış Kanal',
+    sheetName: 'DIŞ KANAL SATIN ALMA',
+  },
+  ikinci_el_apple: {
+    title: '2. El Listesi',
+    sheetName: '2.EL FİYAT LİSTESİ',
+  },
+  ikinci_el_android: {
+    title: '2. El Listesi',
+    sheetName: '2.EL FİYAT LİSTESİ',
+  },
+};
+
+function excelColumnName(indexZeroBased: number) {
+  let n = indexZeroBased + 1;
+  let result = '';
+
+  while (n > 0) {
+    const mod = (n - 1) % 26;
+    result = String.fromCharCode(65 + mod) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return result;
+}
+
+function AdminDynamicSheetEditor({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: AdminEditableSheetTarget;
+  onClose: () => void;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [rows, setRows] = useState<SheetRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [draft, setDraft] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const loadRows = async () => {
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const freshRows = await fetchSheetsDirect([target.sheetName]);
+
+      setRows(
+        freshRows
+          .filter((row) => row.sheet_name === target.sheetName)
+          .sort((a, b) => a.row_number - b.row_number)
+      );
+    } catch (error: any) {
+      setMessage(error?.message || 'Liste alınamadı.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setEditingRow(null);
+    setDraft([]);
+    setSearch('');
+    loadRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.sheetName]);
+
+  const headerRow =
+    rows.find((row) => row.row_number === 1) ||
+    rows[0];
+
+  const maxColumns = Math.max(
+    headerRow && Array.isArray(headerRow.data)
+      ? headerRow.data.length
+      : 0,
+    ...rows.map((row) =>
+      Array.isArray(row.data) ? row.data.length : 0
+    ),
+    1
+  );
+
+  const headers = Array.from(
+    { length: maxColumns },
+    (_, index) => {
+      const value =
+        headerRow && Array.isArray(headerRow.data)
+          ? headerRow.data[index]
+          : '';
+
+      const text = String(value ?? '').trim();
+
+      return text || `SÜTUN ${excelColumnName(index)}`;
+    }
+  );
+
+  const dataRows = rows
+    .filter((row) => row.row_number > 1)
+    .filter((row) => {
+      const values = Array.isArray(row.data) ? row.data : [];
+
+      if (
+        values.every(
+          (value) => String(value ?? '').trim() === ''
+        )
+      ) {
+        return false;
+      }
+
+      const q = search.trim().toLocaleLowerCase('tr-TR');
+      if (!q) return true;
+
+      return values.some((value) =>
+        String(value ?? '')
+          .toLocaleLowerCase('tr-TR')
+          .includes(q)
+      );
+    });
+
+  const startEdit = (row: SheetRow) => {
+    const values = Array.isArray(row.data) ? row.data : [];
+
+    setDraft(
+      Array.from(
+        { length: maxColumns },
+        (_, index) => String(values[index] ?? '')
+      )
+    );
+
+    setEditingRow(row.row_number);
+    setMessage('');
+  };
+
+  const saveRow = async () => {
+    if (editingRow === null) return;
+
+    const row = rows.find(
+      (item) => item.row_number === editingRow
+    );
+
+    if (!row) return;
+
+    const original = Array.isArray(row.data) ? row.data : [];
+
+    const changes = Array.from(
+      { length: maxColumns },
+      (_, index) => {
+        const oldValue = String(original[index] ?? '');
+        const newValue = String(draft[index] ?? '');
+
+        if (oldValue === newValue) return null;
+
+        return {
+          columnNumber: index + 1,
+          value: newValue,
+        };
+      }
+    ).filter(
+      (
+        item
+      ): item is { columnNumber: number; value: string } =>
+        item !== null
+    );
+
+    if (!changes.length) {
+      setEditingRow(null);
+      setDraft([]);
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('/api/panel-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'UPDATE_LIST_CELLS',
+          sheetName: target.sheetName,
+          rowNumber: editingRow,
+          changes,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || result?.result !== 'success') {
+        throw new Error(
+          result?.message || 'Kayıt yapılamadı.'
+        );
+      }
+
+      setRows((current) =>
+        current.map((item) => {
+          if (item.row_number !== editingRow) return item;
+
+          return {
+            ...item,
+            data: Array.from(
+              { length: maxColumns },
+              (_, index) => String(draft[index] ?? '')
+            ),
+            updated_at: new Date().toISOString(),
+          };
+        })
+      );
+
+      setEditingRow(null);
+      setDraft([]);
+      setMessage('Kaydedildi.');
+
+      await onSaved();
+
+      window.setTimeout(() => setMessage(''), 2200);
+    } catch (error: any) {
+      setMessage(error?.message || 'Kayıt yapılamadı.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] overflow-hidden bg-slate-950/65 backdrop-blur-sm p-2 sm:p-4 print:hidden">
+      <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-[22px] bg-white shadow-2xl">
+        <div className="flex shrink-0 flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+              SUPER ADMIN DÜZENLE
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              {target.title}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Listede ara..."
+              className="h-10 min-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-blue-500"
+            />
+
+            <button
+              type="button"
+              onClick={loadRows}
+              disabled={loading || saving}
+              className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-black text-slate-600 disabled:opacity-50"
+            >
+              YENİLE
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="h-10 rounded-xl bg-slate-900 px-4 text-xs font-black text-white disabled:opacity-50"
+            >
+              KAPAT
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <div className={`mx-5 mt-4 rounded-xl border px-4 py-3 text-sm font-black ${
+            message === 'Kaydedildi.'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 custom-scrollbar">
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-sm font-black text-slate-400">
+              Liste yükleniyor...
+            </div>
+          ) : (
+            <table className="w-full table-fixed border-separate border-spacing-0 text-[10px] sm:text-[11px]">
+              <thead className="sticky top-0 z-20">
+                <tr>
+                  <th className="w-[52px] border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white">
+                    SATIR
+                  </th>
+
+                  {headers.map((header, index) => (
+                    <th
+                      key={`${header}-${index}`}
+                      className="border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white break-words"
+                    >
+                      <div className="truncate" title={header}>
+                        {header}
+                      </div>
+                      <div className="mt-1 text-[9px] text-slate-400">
+                        {excelColumnName(index)}
+                      </div>
+                    </th>
+                  ))}
+
+                  <th className="w-[118px] border-b border-l border-slate-700 bg-slate-900 px-2 py-2 text-right text-[9px] font-black text-white">
+                    İŞLEM
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {dataRows.map((row) => {
+                  const isEditing = editingRow === row.row_number;
+                  const rowData = Array.isArray(row.data) ? row.data : [];
+
+                  return (
+                    <tr key={row.row_number}>
+                      <td className="border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center font-black text-slate-500">
+                        {row.row_number}
+                      </td>
+
+                      {headers.map((_, index) => (
+                        <td
+                          key={`${row.row_number}-${index}`}
+                          className="border-b border-r border-slate-200 bg-white p-1.5 align-top break-words"
+                        >
+                          {isEditing ? (
+                            <input
+                              value={draft[index] ?? ''}
+                              onChange={(e) =>
+                                setDraft((current) => {
+                                  const next = [...current];
+                                  next[index] = e.target.value;
+                                  return next;
+                                })
+                              }
+                              className="h-9 w-full min-w-0 rounded-lg border border-blue-200 px-2 text-[10px] font-bold outline-none focus:border-blue-500"
+                            />
+                          ) : (
+                            <div className="w-full whitespace-pre-wrap break-words font-semibold leading-4 text-slate-700">
+                              {String(rowData[index] ?? '') || '-'}
+                            </div>
+                          )}
+                        </td>
+                      ))}
+
+                      <td className="border-b border-l border-slate-200 bg-white p-1.5 text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!saving) {
+                                  setEditingRow(null);
+                                  setDraft([]);
+                                }
+                              }}
+                              disabled={saving}
+                              className="h-8 rounded-lg border border-slate-200 px-2 text-[9px] font-black"
+                            >
+                              İPTAL
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={saveRow}
+                              disabled={saving}
+                              className="h-8 rounded-lg bg-emerald-600 px-2 text-[9px] font-black text-white disabled:opacity-50"
+                            >
+                              {saving ? 'KAYDEDİLİYOR...' : 'KAYDET'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(row)}
+                            disabled={editingRow !== null}
+                            className="h-8 w-full rounded-lg bg-blue-600 px-2 text-[9px] font-black text-white disabled:opacity-30"
+                          >
+                            DÜZENLE
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-500">
+          Yeni başlıklı sütun Google Sheets'ten PostgreSQL'e senkronlandıktan sonra burada otomatik çıkar.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const IP_HARITASI: any = {
@@ -215,12 +1192,58 @@ export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordAgain, setNewPasswordAgain] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
   
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [topQuickSearch, setTopQuickSearch] = useState('');
+  const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+
+  // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
+  // /?view=normal&mode=dis_kanal
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const requestedMode =
+      new URLSearchParams(window.location.search).get('mode');
+
+    const allowedModes = [
+      'ana_sayfa',
+      'alim',
+      'servis',
+      'cep_tablet',
+      'yna_list',
+      'dis_kanal',
+      'ikinci_el_apple',
+      'ikinci_el_android',
+      'imei_list',
+      'kampanya_sifir',
+      'thh',
+      'cihaz_talep',
+    ];
+
+    if (requestedMode && allowedModes.includes(requestedMode)) {
+      setAppMode(requestedMode as any);
+      setStep(1);
+    }
+  }, []);
+
+  const currentAdminEditableSheet = ADMIN_EDITABLE_SHEETS[appMode] || null;
 
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
@@ -241,6 +1264,14 @@ export default function CnetmobilCmrFinalUltimate() {
   const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
   const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+  // --- CİHAZ TALEP V2 GÖRÜNÜM STATE'LERİ ---
+  const [cihazTalepSearch, setCihazTalepSearch] = useState('');
+  const [cihazTalepMarkaFilter, setCihazTalepMarkaFilter] = useState('TÜMÜ');
+  const [cihazTalepHafizaFilter, setCihazTalepHafizaFilter] = useState('TÜMÜ');
+  const [cihazTalepRenkFilter, setCihazTalepRenkFilter] = useState('TÜMÜ');
+  const [cihazTalepDurumFilter, setCihazTalepDurumFilter] = useState('TÜMÜ');
+  const [cihazTalepPage, setCihazTalepPage] = useState(1);
+  const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
 
   type CihazTalepDialog =
     | null
@@ -248,12 +1279,18 @@ export default function CnetmobilCmrFinalUltimate() {
     | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'cihaz_ekle' }
+    | { type: 'cihaz_toplu_ekle' }
     | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
 
   const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
   const [talepAdetInput, setTalepAdetInput] = useState('1');
   const [redNedeniInput, setRedNedeniInput] = useState('');
   const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+  const [bulkCihazFileName, setBulkCihazFileName] = useState('');
+  const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
+  const [bulkCihazError, setBulkCihazError] = useState('');
+  const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
+  const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
   const [cihazEkleForm, setCihazEkleForm] = useState({
     markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
     garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
@@ -284,6 +1321,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSubMenuOpen, setMobileSubMenuOpen] = useState(false);
+  const secondHandMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [secondHandMenuPos, setSecondHandMenuPos] = useState({
+    left: 0,
+    top: 0,
+    width: 192,
+  });
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
   const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
@@ -315,7 +1358,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
-  const sheetRowsRef = useRef<SupabaseSheetRow[]>([]);
+  const sheetRowsRef = useRef<SheetRow[]>([]);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -340,50 +1383,104 @@ export default function CnetmobilCmrFinalUltimate() {
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const token = new URLSearchParams(window.location.search).get('reset_token');
+    if (token) {
+      setResetToken(token);
+      setAuthView('reset');
+    }
+  }, []);
+
+  useEffect(() => {
     const verifySession = async () => {
-      if (typeof window === 'undefined') return;
-      
-      const sessionStr = localStorage.getItem('cnet_session');
-      if (!sessionStr) {
-        setAuthLoading(false);
-        return;
-      }
-
       try {
-        const session = JSON.parse(sessionStr);
+        const res = await fetch('/api/auth', {
+          method: 'GET',
+          cache: 'no-store',
+        });
 
-        if (session.mode === 'yonetici') {
-          setIsMasterAccess(true);
-          setIsAdmin(true); 
-          setSelectedBranch(session.branch || 'CMR MERKEZ');
-          setIsLoggedIn(true);
+        if (!res.ok) {
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
           setAuthLoading(false);
           return;
         }
 
-        if (session.mode === 'personel') {
-          if (session.branch === 'VODAFONE KANALI' || session.branch === 'ZUMAY KANALI') {
-            setSelectedBranch(session.branch);
+        const session = await res.json();
+
+        if (!session?.success) {
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (session.role === 'yonetici') {
+          setIsMasterAccess(true);
+          setIsAdmin(true);
+          setSelectedBranch(session.branch || 'CMR MERKEZ');
+          setIsLoggedIn(true);
+
+          try {
+            const meRes = await fetch('/api/me', {
+              method: 'GET',
+              cache: 'no-store',
+            });
+            const meData = await meRes.json().catch(() => ({}));
+            const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
+            setIsSuperAdminUser(superAdmin);
+          } catch (error) {
+            console.error('Super Admin kontrol hatası:', error);
+            setIsSuperAdminUser(false);
+          }
+
+          setAuthLoading(false);
+          return;
+        }
+
+        if (session.role === 'personel') {
+          const branch = String(session.branch || '');
+
+          if (branch === 'VODAFONE KANALI' || branch === 'ZUMAY KANALI') {
+            setSelectedBranch(branch);
+            setIsMasterAccess(false);
+            setIsAdmin(false);
+            setIsSuperAdminUser(false);
             setIsLoggedIn(true);
             setAuthLoading(false);
             return;
           }
 
-          const res = await fetch('https://api.ipify.org?format=json');
-          const data = await res.json();
-          const currentIp = data.ip;
+          const ipRes = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipRes.json();
+          const currentIp = ipData.ip;
 
-          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
-            setSelectedBranch(session.branch);
+          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === branch) {
+            setSelectedBranch(branch);
+            setIsMasterAccess(false);
+            setIsAdmin(false);
+            setIsSuperAdminUser(false);
             setIsLoggedIn(true);
             setAuthLoading(false);
-          } else {
-            localStorage.removeItem('cnet_session');
+            return;
           }
+
+          // Yetkisiz mağaza ağı: sunucu tarafındaki HttpOnly oturumu da kapat.
+          await fetch('/api/auth', { method: 'DELETE' });
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
         }
-      } catch (e) {
-          localStorage.removeItem('cnet_session');
+      } catch (error) {
+        console.error('Session kontrol hatası:', error);
+        setIsLoggedIn(false);
+        setIsMasterAccess(false);
+        setIsAdmin(false);
       }
+
       setAuthLoading(false);
     };
 
@@ -391,41 +1488,79 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
   const handleLogin = async () => {
-    if(!entryPass) return;
+    if (!loginEmail.trim()) {
+      alert('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+
+    if (!entryPass) {
+      alert('Lütfen şifrenizi girin.');
+      return;
+    }
+
     setLoginLoading(true);
 
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: entryPass, mode: loginMode })
+        body: JSON.stringify({
+          email: loginEmail.trim().toLowerCase(),
+          password: entryPass,
+        }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        alert(data.message || "Hatalı Şifre!");
+        alert(data.message || 'E-posta veya şifre hatalı.');
         setLoginLoading(false);
         return;
       }
 
-      const matchedBranch = data.branch;
+      const matchedBranch = String(data.branch || '');
 
-      if (loginMode === 'yonetici') {
-         setIsMasterAccess(true);
-         setIsAdmin(true);
-         setSelectedBranch('CMR MERKEZ'); 
-         setIsLoggedIn(true);
-         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-         setLoginLoading(false);
-         return;
+      if (data.role === 'yonetici') {
+        setIsMasterAccess(true);
+        setIsAdmin(true);
+        setSelectedBranch(matchedBranch || 'CMR MERKEZ');
+        setIsLoggedIn(true);
+        setEntryPass('');
+
+        try {
+          const meRes = await fetch('/api/me', {
+            method: 'GET',
+            cache: 'no-store',
+          });
+          const meData = await meRes.json().catch(() => ({}));
+          const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
+          setIsSuperAdminUser(superAdmin);
+        } catch (error) {
+          console.error('Super Admin kontrol hatası:', error);
+          setIsSuperAdminUser(false);
+        }
+
+        setLoginLoading(false);
+        return;
       }
 
-      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+      if (data.role !== 'personel' || !matchedBranch) {
+        await fetch('/api/auth', { method: 'DELETE' });
+        alert('Kullanıcı yetkisi doğrulanamadı.');
+        setLoginLoading(false);
+        return;
+      }
+
+      if (
+        matchedBranch === 'VODAFONE KANALI' ||
+        matchedBranch === 'ZUMAY KANALI'
+      ) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
+        setIsAdmin(false);
+        setIsSuperAdminUser(false);
         setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setEntryPass('');
         setLoginLoading(false);
         return;
       }
@@ -434,29 +1569,139 @@ export default function CnetmobilCmrFinalUltimate() {
       const ipData = await ipRes.json();
       const currentIp = ipData.ip;
 
-      if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
+      if (
+        MASTER_IPLER.includes(currentIp) ||
+        IP_HARITASI[currentIp] === matchedBranch
+      ) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
+        setIsAdmin(false);
+        setIsSuperAdminUser(false);
         setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setEntryPass('');
       } else {
-        alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
+        await fetch('/api/auth', { method: 'DELETE' });
+        alert(
+          `GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`
+        );
       }
-
     } catch (error) {
-      alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
+      console.error('Login hatası:', error);
+      alert('Bağlantı Hatası: Lütfen internetinizi kontrol edin.');
     }
-    
+
     setLoginLoading(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('cnet_session');
-    setIsLoggedIn(false); 
-    setEntryPass(''); 
-    setIsMasterAccess(false); 
-    setIsAdmin(false); 
-    setLoginMode('personel');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+    } catch (error) {
+      console.error('Çıkış hatası:', error);
+    }
+
+    setIsLoggedIn(false);
+    setEntryPass('');
+    setLoginEmail('');
+    setIsMasterAccess(false);
+    setIsAdmin(false);
+    setIsSuperAdminUser(false);
+    setAuthView('login');
+  };
+
+  const handleForgotPassword = async () => {
+    const email = forgotEmail.trim().toLowerCase();
+    if (!email) {
+      setForgotMessage('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotMessage('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      setForgotMessage(
+        data.message ||
+          'E-posta adresi sistemde kayıtlıysa şifre sıfırlama bağlantısı gönderildi.'
+      );
+    } catch (error) {
+      console.error('Şifre sıfırlama maili hatası:', error);
+      setForgotMessage('İstek alınamadı. Lütfen kısa süre sonra tekrar deneyin.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetMessage('');
+    setResetSuccess(false);
+
+    if (!resetToken) {
+      setResetMessage('Şifre sıfırlama bağlantısı geçersiz.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setResetMessage('Yeni şifre en az 8 karakter olmalıdır.');
+      return;
+    }
+
+    if (!/[A-ZÇĞİÖŞÜ]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir büyük harf içermelidir.');
+      return;
+    }
+
+    if (!/[a-zçğıöşü]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir küçük harf içermelidir.');
+      return;
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir rakam içermelidir.');
+      return;
+    }
+
+    if (newPassword !== newPasswordAgain) {
+      setResetMessage('Yeni şifreler birbiriyle aynı değil.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password: newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        setResetMessage(data.message || 'Şifre değiştirilemedi.');
+        return;
+      }
+
+      setResetSuccess(true);
+      setResetMessage(data.message || 'Şifreniz başarıyla değiştirildi.');
+      setEntryPass('');
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (error) {
+      console.error('Yeni şifre oluşturma hatası:', error);
+      setResetMessage('Bağlantı hatası oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const resetAll = () => {
@@ -489,7 +1734,7 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const applySheetRowsToPanel = (directRows: SupabaseSheetRow[]) => {
+  const applySheetRowsToPanel = (directRows: SheetRow[]) => {
     try {
       const allData = buildPanelData(directRows);
 
@@ -637,8 +1882,8 @@ export default function CnetmobilCmrFinalUltimate() {
       if (!cacheBootstrappedRef.current && typeof window !== 'undefined') {
         cacheBootstrappedRef.current = true;
         try {
-          const cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]') as SupabaseSheetRow[];
-          const meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
+          const cachedRows = JSON.parse(localStorage.getItem(SHEET_CACHE_KEY) || '[]') as SheetRow[];
+          const meta = JSON.parse(localStorage.getItem(SHEET_CACHE_META_KEY) || '{}');
           sheetFetchedAtRef.current = meta?.sheetFetchedAt || {};
 
           if (cachedRows.length) {
@@ -688,16 +1933,22 @@ export default function CnetmobilCmrFinalUltimate() {
       applySheetRowsToPanel(nextRows);
       saveSheetCache(nextRows, sheetFetchedAtRef.current);
     } catch (e) {
-      console.error('Supabase ekran veri yükleme hatası:', e);
+      console.error('PostgreSQL ekran veri yükleme hatası:', e);
       setLoading(false);
     }
   };
 
-  const refreshDataCache = async () => {
-    // Eski işlem akışlarını bozmamak için tutuldu.
-    // Yazma sonrası Realtime/local state ekranı güncelliyor.
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  };
+ const refreshDataCache = async () => {
+  try {
+    // Apps Script → Sheets → PostgreSQL senkronunun tamamlanması için kısa bekleme
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Açık ekranın verisini PostgreSQL'den ZORLA yeniden çek
+    await loadSheetsForCurrentScreen(true);
+  } catch (e) {
+    console.error('Yazma sonrası PostgreSQL yenileme hatası:', e);
+  }
+};
 
   // Ekran değiştiğinde yalnızca o ekranın ihtiyaç duyduğu sheet(ler)i kontrol et.
   useEffect(() => {
@@ -705,8 +1956,9 @@ export default function CnetmobilCmrFinalUltimate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
 
-  // Realtime yalnızca kullanıcı ANLIK bir ekrandayken açık.
-  // Böylece tüm sheet_rows tablosunu sürekli dinlemiyoruz.
+  // V7: Supabase Realtime yerine kendi sunucumuzdan hafif polling.
+  // Yalnızca kullanıcı anlık ekranlardan birindeyken çalışır.
+  // Şimdilik 3 saniye; daha sonra WebSocket/SSE'ye çevrilebilir.
   useEffect(() => {
     if (step === 99) return;
 
@@ -716,66 +1968,43 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (!activeRealtimeSheets.length) return;
 
-    let mounted = true;
+    let cancelled = false;
+    let busy = false;
 
-    const upsertLocalRow = (row: SupabaseSheetRow) => {
-      if (!row || !row.sheet_name || !row.row_number) return;
-      if (!activeRealtimeSheets.includes(row.sheet_name)) return;
+    const poll = async () => {
+      if (cancelled || busy || document.visibilityState === 'hidden') return;
+      busy = true;
 
-      const next = [...sheetRowsRef.current];
-      const index = next.findIndex((item) =>
-        item.sheet_name === row.sheet_name && item.row_number === row.row_number
-      );
+      try {
+        const freshRows = await fetchSheetsDirect(activeRealtimeSheets);
+        if (cancelled) return;
 
-      if (index >= 0) next[index] = row;
-      else next.push(row);
+        const nextRows = replaceSheetsInRows(
+          sheetRowsRef.current,
+          freshRows,
+          activeRealtimeSheets
+        );
 
-      next.sort((a, b) => {
-        const sheetCompare = a.sheet_name.localeCompare(b.sheet_name, 'tr');
-        return sheetCompare !== 0 ? sheetCompare : a.row_number - b.row_number;
-      });
+        const now = Date.now();
+        activeRealtimeSheets.forEach((sheetName) => {
+          sheetFetchedAtRef.current[sheetName] = now;
+        });
 
-      sheetRowsRef.current = next;
-      sheetFetchedAtRef.current[row.sheet_name] = Date.now();
-      saveSheetCache(next, sheetFetchedAtRef.current);
-      if (mounted) applySheetRowsToPanel(next);
+        sheetRowsRef.current = nextRows;
+        saveSheetCache(nextRows, sheetFetchedAtRef.current);
+        applySheetRowsToPanel(nextRows);
+      } catch (e) {
+        console.error('PostgreSQL anlık veri yenileme hatası:', e);
+      } finally {
+        busy = false;
+      }
     };
 
-    let channel = supabase.channel(`cnetmobil-live-v6-${appMode}`);
-
-    activeRealtimeSheets.forEach((sheetName) => {
-      channel = channel
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        );
-    });
-
-    channel.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.error('Supabase Realtime kanal hatası:', appMode);
-      }
-    });
+    const timer = window.setInterval(poll, 3000);
 
     return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
@@ -917,9 +2146,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
-          await fetch(SCRIPT_URL, {
+          await fetch('/api/panel-action', {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: "SAVE_ALIM",
               branch: selectedBranch,
@@ -969,6 +2198,135 @@ export default function CnetmobilCmrFinalUltimate() {
     setCihazTalepDialog({ type: 'cihaz_ekle' });
   };
 
+
+  const openTopluCihazEkleModal = () => {
+    if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
+      showTalepMessage(
+        'YETKİ GEREKLİ',
+        'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
+        'error'
+      );
+      return;
+    }
+
+    setBulkCihazFileName('');
+    setBulkCihazRows([]);
+    setBulkCihazError('');
+    setBulkCihazParsing(false);
+    setBulkCihazSaving(false);
+    setCihazTalepDialog({
+      type: 'cihaz_toplu_ekle',
+    });
+  };
+
+  const handleTopluCihazExcelSec = async (
+    file: File | null
+  ) => {
+    setBulkCihazRows([]);
+    setBulkCihazError('');
+    setBulkCihazFileName(
+      file?.name || ''
+    );
+
+    if (!file) return;
+
+    setBulkCihazParsing(true);
+
+    try {
+      const rows =
+        await parseCihazTalepBulkXlsx(file);
+
+      setBulkCihazRows(rows);
+    } catch (error: any) {
+      setBulkCihazError(
+        error?.message ||
+        'Excel dosyası okunamadı.'
+      );
+    } finally {
+      setBulkCihazParsing(false);
+    }
+  };
+
+  const submitTopluCihazEkle = async () => {
+    if (
+      !isAdmin &&
+      !isMasterAccess &&
+      !isSuperAdminUser
+    ) {
+      return;
+    }
+
+    if (!bulkCihazRows.length) {
+      setBulkCihazError(
+        'Önce doldurulmuş Excel şablonunu seçin.'
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `${bulkCihazRows.length} cihaz Cihaz Talep listesine toplu eklenecek. Onaylıyor musunuz?`
+      )
+    ) {
+      return;
+    }
+
+    setBulkCihazSaving(true);
+    setBulkCihazError('');
+
+    try {
+      const response = await fetch(
+        '/api/panel-action',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            type: 'ADD_CIHAZ_TALEP_BULK',
+            devices: bulkCihazRows,
+          }),
+        }
+      );
+
+      const result =
+        await response.json().catch(
+          () => ({})
+        );
+
+      if (
+        !response.ok ||
+        result?.result !== 'success'
+      ) {
+        throw new Error(
+          result?.message ||
+          'Toplu cihaz yükleme başarısız.'
+        );
+      }
+
+      setCihazTalepDialog(null);
+      setBulkCihazFileName('');
+      setBulkCihazRows([]);
+      setBulkCihazError('');
+
+      await refreshDataCache();
+
+      showTalepMessage(
+        'TOPLU YÜKLEME TAMAMLANDI',
+        `${Number(result?.addedCount || 0) || bulkCihazRows.length} cihaz başarıyla eklendi.`,
+        'success'
+      );
+    } catch (error: any) {
+      setBulkCihazError(
+        error?.message ||
+        'Toplu cihaz yükleme sırasında hata oluştu.'
+      );
+    } finally {
+      setBulkCihazSaving(false);
+    }
+  };
+
   const submitCihazEkle = async () => {
     if (!isAdmin && !isMasterAccess) return;
     const markaModel = cihazEkleForm.markaModel.trim();
@@ -985,9 +2343,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     setCihazEkleSaving(true);
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'ADD_CIHAZ_TALEP_DEVICE',
           markaModel,
@@ -1068,9 +2426,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setTalepSaving(true);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'SAVE_TALEP',
           rowIndex,
@@ -1112,9 +2470,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setGonderildiLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
       });
 
@@ -1159,9 +2517,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setRedLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'RED_TALEP',
           rowIndex,
@@ -1192,15 +2550,15 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Supabase ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
+    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Yeni sunucu veritabanı ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
 
     setDeleteTalepLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           type: "DELETE_CIHAZ_ROW_FULL_V5",
@@ -1219,7 +2577,7 @@ export default function CnetmobilCmrFinalUltimate() {
       setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
 
       // V6: bütün panel cache'ini silme. Sadece CihazTalep sheet'ini zorla yenile.
-      // Böylece diğer ekranlar gereksiz yere Supabase'den tekrar çekilmez.
+      // Böylece diğer ekranlar gereksiz yere PostgreSQL'den tekrar çekilmez.
       sheetFetchedAtRef.current['CihazTalep'] = 0;
       await loadSheetsForCurrentScreen(true);
 
@@ -1238,9 +2596,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi zorunludur!");
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "SAVE_THH", data: thhForm })
       });
       alert("THH Kaydı Başarıyla Eklendi!");
@@ -1254,9 +2612,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.rowIndex) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "UPDATE_THH", row: thhForm.rowIndex, data: thhForm })
       });
       alert("Kayıt Başarıyla Güncellendi!");
@@ -1271,9 +2629,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!confirm("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "DELETE_THH", row: thhForm.rowIndex })
       });
       alert("Kayıt Başarıyla Silindi!");
@@ -1287,9 +2645,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
     setAlimlar(prev => prev.filter(item => item.sheetIndex !== sheetIdx));
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
       setTimeout(refreshDataCache, 2000);
@@ -1299,9 +2657,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const deleteAllAlimlar = async () => {
     if(!confirm("DİKKAT! Tüm alım geçmişi silinecek. Onaylıyor musunuz?")) return;
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
       });
       alert("Tüm geçmiş temizlendi.");
@@ -1311,9 +2669,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const updateConfig = async (key: string, val: string) => {
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
       });
       alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
@@ -1328,9 +2686,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) 
       });
       alert("Cihaz başarıyla eklendi!");
@@ -1360,9 +2718,9 @@ export default function CnetmobilCmrFinalUltimate() {
     });
 
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           type: "USE_IMEI", 
           imei: imei, 
@@ -1442,6 +2800,125 @@ export default function CnetmobilCmrFinalUltimate() {
       ]
     }
   ];
+
+  const topActiveRequestCount = cihazTalepData
+    .slice(1)
+    .filter((row: any[]) => {
+      const branch = String(row?.[9] || '').trim();
+      const statusText = String(row?.[11] || '')
+        .trim()
+        .toLocaleUpperCase('tr-TR');
+
+      return (
+        branch !== '' &&
+        statusText !== 'GÖNDERİLDİ' &&
+        statusText !== 'GONDERILDI' &&
+        statusText !== 'RED EDİLDİ' &&
+        statusText !== 'REDDEDİLDİ'
+      );
+    }).length;
+
+  const branchInitials = String(selectedBranch || 'CMR')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join('')
+    .toLocaleUpperCase('tr-TR')
+    .slice(0, 2);
+
+  const handleTopQuickSearch = () => {
+    const q = topQuickSearch.trim();
+    if (!q) return;
+
+    if (appMode === 'cihaz_talep') {
+      setCihazTalepSearch(q);
+      setCihazTalepPage(1);
+      return;
+    }
+
+    setSearchQuery(q);
+  };
+
+  const navIcon = (id: string) => {
+    const common = "h-4 w-4";
+
+    switch (id) {
+      case 'ana_sayfa':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9z" />
+          </svg>
+        );
+      case 'alim':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16v12H4zM8 3h8v4H8zM8 11h8" />
+          </svg>
+        );
+      case 'servis':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 005-5l-3 3-3-3 3-3z" />
+          </svg>
+        );
+      case 'thh':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4" />
+          </svg>
+        );
+      case 'cep_tablet':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="7" y="2" width="10" height="20" rx="2" strokeWidth="2" />
+            <path strokeLinecap="round" strokeWidth="2" d="M11 18h2" />
+          </svg>
+        );
+      case 'yna_list':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+          </svg>
+        );
+      case 'dis_kanal':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18l-2 12H5L3 7zM8 7V5a4 4 0 018 0v2" />
+          </svg>
+        );
+      case 'kampanya_sifir':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.4 7.2 18l.9-5.4-3.9-3.8 5.4-.8L12 3z" />
+          </svg>
+        );
+      case 'ikinci_el':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 0114-5M20 12a8 8 0 01-14 5M18 3v4h-4M6 21v-4h4" />
+          </svg>
+        );
+      case 'cihaz_talep':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        );
+      case 'imei_list':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h8" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="7" strokeWidth="2" />
+          </svg>
+        );
+    }
+  };
 
   const isYd = status.sim === 'Fiziksel + eSIM (YD)';
   const allSelected = Object.values(status).every(v => v !== null) && selectedCapacity;
@@ -1542,193 +3019,358 @@ export default function CnetmobilCmrFinalUltimate() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
-        <div>
-          <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
-            <div className="flex items-center h-[40px]">
-               <img 
-                 src={"/cnet.png" as string} 
-                 alt="Cnetmobil Logo" 
-                 className="h-[32px] w-auto object-contain brightness-0 invert" 
-               />
-            </div>
-            <div className="text-white text-[18px]">☎</div>
-          </header>
+      <div className="min-h-screen bg-[#edf2f7] px-4 py-6 sm:px-6 lg:px-8 flex items-center justify-center font-sans">
+        <div className="w-full max-w-[1180px] min-h-[690px] overflow-hidden rounded-[28px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] border border-slate-200 grid lg:grid-cols-[0.9fr_1.1fr]">
+          {/* SOL MARKA ALANI */}
+          <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-[#07192d] px-12 py-12 text-white">
+            <div className="absolute inset-0 opacity-100" style={{ background: 'radial-gradient(circle at 18% 18%, rgba(59,130,246,0.24), transparent 34%), radial-gradient(circle at 80% 72%, rgba(30,64,175,0.22), transparent 38%), linear-gradient(145deg, #07192d 0%, #0b223d 55%, #061426 100%)' }} />
+            <div className="absolute -right-20 top-16 h-80 w-44 rotate-[22deg] rounded-[42px] border border-white/10 bg-white/[0.035] shadow-2xl" />
+            <div className="absolute right-20 top-48 h-72 w-40 -rotate-[17deg] rounded-[38px] border border-white/10 bg-white/[0.025]" />
+            <div className="absolute -left-16 bottom-28 h-64 w-36 rotate-[20deg] rounded-[34px] border border-white/10 bg-white/[0.025]" />
 
-          <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
-            
-            <div className="text-center pt-7 pb-5 xl:hidden">
-              <h1 className="text-[20px] font-bold text-white">
-                İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
-              </h1>
+            <div className="relative z-10">
+              <img
+                src={'/cnet.png' as string}
+                alt="CNETMOBİL"
+                className="h-[48px] w-auto object-contain brightness-0 invert"
+              />
+              <div className="mt-3 text-[15px] tracking-[0.02em] text-white/75">Partner Yönetim Sistemi</div>
             </div>
 
-            <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
-              
-              <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
-                
-                <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
-                  <button 
-                    type="button"
-                    onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
-                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'personel' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    Mağaza Girişi
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
-                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'yonetici' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    Yönetici Girişi
-                  </button>
-                </div>
+            <div className="relative z-10 max-w-[340px] pb-3">
+              <div className="mb-6 h-px w-16 bg-blue-400/80" />
+              <h2 className="text-[34px] font-semibold leading-[1.5] tracking-[-0.02em]">
+                Daha Güçlü<br />
+                Daha Kârlı<br />
+                Birlikte Büyüyoruz
+              </h2>
+              <p className="mt-5 text-sm leading-6 text-white/55">
+                CNETMOBİL operasyonlarını güvenli ve merkezi bir panelden yönetin.
+              </p>
+            </div>
+          </aside>
 
-                <div className="p-7 flex flex-col flex-1">
-                  
-                  <div className="mb-6 flex-1">
-                    <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5 mt-4">
-                      {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
-                    </label>
+          {/* SAĞ GİRİŞ ALANI */}
+          <main className="flex items-center justify-center bg-white px-6 py-10 sm:px-10 lg:px-16">
+            <div className="w-full max-w-[500px]">
+              <div className="mb-9 lg:hidden">
+                <img
+                  src={'/cnet.png' as string}
+                  alt="CNETMOBİL"
+                  className="h-[40px] w-auto object-contain"
+                />
+                <div className="mt-2 text-xs font-medium tracking-wide text-slate-500">Partner Yönetim Sistemi</div>
+              </div>
 
+              {authView === 'login' ? (
+                <>
+                  <div className="mb-8">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Hoş Geldiniz</h1>
+                    <p className="mt-2 text-[14px] text-slate-500">
+                      CNETMOBİL hesabınızın e-posta ve şifresiyle güvenli giriş yapın.
+                    </p>
+                  </div>
+
+                  <div className="mb-5">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
                     <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
+                        </svg>
+                      </div>
                       <input
-                        type="password"
+                        type="email"
+                        autoComplete="email"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        disabled={loginLoading}
+                        placeholder="ornek@cnetmobil.com.tr"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">
+                      Şifreniz
+                    </label>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <rect x="5" y="10" width="14" height="10" rx="2" />
+                          <path strokeLinecap="round" d="M8 10V7a4 4 0 018 0v3" />
+                        </svg>
+                      </div>
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
                         value={entryPass}
                         onChange={(e) => setEntryPass(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                         disabled={loginLoading}
-                        placeholder="•••••"
-                        className="w-full h-[42px] border border-gray-300 rounded-lg px-3 outline-none text-xl tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all shadow-inner"
+                        placeholder="••••••••••"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
                       />
-                      <div className="absolute right-3 top-[10px] text-gray-400 select-none">👁</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((v) => !v)}
+                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-blue-600"
+                        aria-label={showLoginPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                      >
+                        {showLoginPassword ? (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.7A2 2 0 0013.3 13.4M9.9 4.2A10.6 10.6 0 0112 4c5.2 0 8.7 4.1 9 8a10.6 10.6 0 01-2.2 4.8M6.1 6.1C4.2 7.5 3.2 9.6 3 12c.3 3.9 3.8 8 9 8 1.3 0 2.5-.3 3.5-.7" />
+                          </svg>
+                        ) : (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z" />
+                            <circle cx="12" cy="12" r="2.5" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="mt-auto">
-                    <button 
-                      onClick={handleLogin}
-                      disabled={loginLoading || !entryPass}
-                      className="w-full h-[38px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-lg uppercase tracking-wide text-[14px] disabled:opacity-50 shadow-md mb-6"
+                  <div className="mb-6 flex min-h-7 items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotEmail(loginEmail);
+                        setForgotMessage('');
+                        setAuthView('forgot');
+                      }}
+                      className="text-[13px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
                     >
-                      {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
+                      Şifremi Unuttum?
                     </button>
-
-                    <div className="flex gap-4">
-                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                        🍏 App Store
-                      </button>
-                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                        ▶ Google Play
-                      </button>
-                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="w-full xl:w-[850px] flex flex-col justify-center">
-                
-                <div className="hidden xl:block mb-10 text-left">
-                  <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
-                    İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
-                    <span className="text-[#ff8a00]">Güçlendirin</span>
-                  </h1>
-                </div>
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    disabled={loginLoading || !entryPass || !loginEmail.trim()}
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loginLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Kontrol Ediliyor...
+                      </>
+                    ) : (
+                      <>
+                        GİRİŞ YAP
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-5-5l5 5-5 5" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
 
-                <div className="flex flex-wrap gap-4">
-                  {[
-                    {
-                      title: "Cihaz Değerlendirme",
-                      icon: (
-                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                          <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                          <path d="M9 10l2 2 4-4"></path>
+                  <div className="mt-10 flex items-center gap-4 text-[11px] text-slate-300">
+                    <div className="h-px flex-1 bg-slate-100" />
+                    <span>güvenli bağlantı</span>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+
+                  <div className="mt-7 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              ) : authView === 'forgot' ? (
+                <>
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
+                    </svg>
+                  </div>
+
+                  <div className="mb-8 text-center">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Şifremi Unuttum</h1>
+                    <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-slate-500">
+                      Hesabınıza ait e-posta adresini girin. Şifre sıfırlama bağlantısı e-posta adresinize gönderilecek.
+                    </p>
+                  </div>
+
+                  <div className="mb-5">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
                         </svg>
-                      )
-                    },
-                    {
-                      title: "Teknik Servis Merkezi",
-                      icon: (
-                        <svg className="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Güncel Fiyat Listeleri",
-                      icon: (
-                        <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                          <polyline points="14 2 14 8 20 8"></polyline>
-                          <line x1="16" y1="13" x2="8" y2="13"></line>
-                          <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Dış Kanal Satın Alma",
-                      icon: (
-                        <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        </svg>
-                      )
-                    }
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="w-full xl:w-[405px] h-[74px] rounded-2xl bg-white px-6 flex items-center shadow-lg hover:shadow-xl transition-shadow gap-4"
-                    >
-                      {item.icon}
-                      <div className="font-bold text-[16px] text-gray-800">
-                        {item.title}
                       </div>
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => {
+                          setForgotEmail(e.target.value);
+                          setForgotMessage('');
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleForgotPassword()}
+                        placeholder="ornek@cnetmobil.com.tr"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      />
                     </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-4 mt-6">
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
-                    <div className="text-[13px] font-bold text-gray-500">Aktif Şube</div>
                   </div>
 
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">CANLI</div>
-                    <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
+                  {forgotMessage && (
+                    <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-800">
+                      {forgotMessage}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={!forgotEmail.trim() || forgotLoading}
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {forgotLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        GÖNDERİLİYOR...
+                      </>
+                    ) : (
+                      'SIFIRLAMA LİNKİ GÖNDER'
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthView('login');
+                      setForgotMessage('');
+                    }}
+                    className="mt-7 flex items-center gap-2 text-[13px] font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    <span>←</span> Giriş sayfasına dön
+                  </button>
+
+                  <div className="mt-12 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <rect x="5" y="10" width="14" height="10" rx="2" />
+                      <path strokeLinecap="round" d="M8 10V7a4 4 0 018 0v3" />
+                    </svg>
                   </div>
 
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">%100</div>
-                    <div className="text-[13px] font-bold text-gray-500">Güvenli Veri</div>
+                  <div className="mb-7 text-center">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Yeni Şifre Belirle</h1>
+                    <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-slate-500">
+                      Lütfen yeni şifrenizi belirleyin.
+                    </p>
                   </div>
-                </div>
 
-              </div>
+                  {!resetSuccess && (
+                    <>
+                      <div className="mb-4">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre</label>
+                        <div className="relative">
+                          <input
+                            type={showNewPassword ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              setResetMessage('');
+                            }}
+                            autoComplete="new-password"
+                            placeholder="••••••••••"
+                            className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-blue-600"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z" />
+                              <circle cx="12" cy="12" r="2.5" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mb-5">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre Tekrar</label>
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPasswordAgain}
+                          onChange={(e) => {
+                            setNewPasswordAgain(e.target.value);
+                            setResetMessage('');
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}
+                          autoComplete="new-password"
+                          placeholder="••••••••••"
+                          className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        />
+                      </div>
+
+                      <div className="mb-5 space-y-2 text-[12px]">
+                        <div className={newPassword.length >= 8 ? 'text-emerald-600' : 'text-slate-400'}>✓ En az 8 karakter olmalı</div>
+                        <div className={/[A-ZÇĞİÖŞÜ]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Büyük harf içermeli</div>
+                        <div className={/[a-zçğıöşü]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Küçük harf içermeli</div>
+                        <div className={/[0-9]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Rakam içermeli</div>
+                      </div>
+                    </>
+                  )}
+
+                  {resetMessage && (
+                    <div className={`mb-5 rounded-xl border px-4 py-3 text-[13px] leading-5 ${resetSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                      {resetMessage}
+                    </div>
+                  )}
+
+                  {!resetSuccess ? (
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={resetLoading || !newPassword || !newPasswordAgain}
+                      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {resetLoading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          DEĞİŞTİRİLİYOR...
+                        </>
+                      ) : (
+                        'ŞİFREYİ DEĞİŞTİR'
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthView('login');
+                        setNewPassword('');
+                        setNewPasswordAgain('');
+                        setResetMessage('');
+                        setResetSuccess(false);
+                      }}
+                      className="h-[52px] w-full rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700"
+                    >
+                      GİRİŞ SAYFASINA DÖN
+                    </button>
+                  )}
+
+                  <div className="mt-10 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              )}
             </div>
-          </section>
+          </main>
         </div>
-
-        <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
-          <div className="text-[26px] font-bold mb-6 text-gray-800">
-            Bizi Takip Edin
-          </div>
-          <div className="flex justify-center">
-            <a 
-              href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-              </svg>
-            </a>
-          </div>
-        </footer>
       </div>
     );
   }
@@ -1751,127 +3393,402 @@ export default function CnetmobilCmrFinalUltimate() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* TOPBAR */}
-      <header className={`sticky top-0 z-[100] w-full shadow-lg print:hidden flex flex-col ${isZumay ? 'bg-[#1e1414]' : 'bg-[#2B2D31]'}`}>
-        <div className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-white/10">
-          <div onClick={() => { resetAll(); setAppMode('ana_sayfa'); }} className="flex items-center gap-2 cursor-pointer shrink-0">
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">
-              {isZumay ? 'ZUMAY' : <>Cnet<span className="text-[#3b82f6] font-medium">mobil</span></>}
-            </h1>
-          </div>
+      {/* TOPBAR V2 */}
+      <header
+        className={`sticky top-0 z-[100] w-full print:hidden ${
+          isZumay
+            ? 'bg-gradient-to-r from-[#241719] via-[#301c20] to-[#241719]'
+            : 'bg-gradient-to-r from-[#10233f] via-[#15345d] to-[#10233f]'
+        } shadow-[0_10px_30px_rgba(15,23,42,0.22)]`}
+      >
+        {/* ÜST SATIR */}
+        <div className="border-b border-white/10">
+          <div className="mx-auto flex min-h-[64px] max-w-[1920px] items-center justify-between gap-4 px-4 lg:px-6">
+            <button
+              type="button"
+              onClick={() => {
+                resetAll();
+                setAppMode('ana_sayfa');
+              }}
+              className="group flex shrink-0 items-center gap-3 text-left"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15">
+                <span className="text-sm font-black text-white">
+                  {isZumay ? 'Z' : 'CM'}
+                </span>
+              </div>
 
-          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
+              <div className="hidden sm:block">
+                <div className="text-[22px] font-black leading-none tracking-tight text-white">
+                  {isZumay ? (
+                    'ZUMAY'
+                  ) : (
+                    <>
+                      Cnet
+                      <span className="text-blue-400">mobil</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-1 text-[7px] font-black uppercase tracking-[0.38em] text-blue-200/70">
+                  Teknoloji Her Yerde
+                </div>
+              </div>
+            </button>
+
             {!isZumay && step < 99 && (
-              <>
-                <button onClick={() => setIsInstallmentModalOpen(true)} className="bg-[#f39c12] hover:bg-[#e67e22] text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-                  Taksit Hesapla
-                </button>
-                <button onClick={() => setIsKaskoModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] lg:text-[11px] font-bold px-3 py-1.5 lg:px-4 lg:py-2 rounded uppercase shadow-sm transition-colors tracking-wide flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                  Kasko Hesapla
-                </button>
-              </>
+              <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+                <div className="flex h-10 w-full max-w-[330px] items-center rounded-full border border-white/10 bg-white/10 px-4 shadow-inner transition focus-within:border-blue-300/40 focus-within:bg-white/15">
+                  <svg
+                    className="h-4 w-4 shrink-0 text-blue-100/70"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+
+                  <input
+                    value={topQuickSearch}
+                    onChange={(e) => setTopQuickSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleTopQuickSearch();
+                      }
+                    }}
+                    placeholder="Hızlı ara..."
+                    className="min-w-0 flex-1 bg-transparent px-3 text-[11px] font-bold text-white outline-none placeholder:text-blue-100/50"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleTopQuickSearch}
+                    className="rounded-full bg-white/10 px-2.5 py-1 text-[8px] font-black text-blue-100 hover:bg-white/20"
+                  >
+                    ARA
+                  </button>
+                </div>
+              </div>
             )}
 
-            <div className="flex items-center gap-3 pl-2 lg:pl-6 border-l border-white/10">
-              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-xs shrink-0">
-                {isMasterAccess ? 'C' : 'NI'}
-              </div>
-              <div className="hidden md:flex flex-col text-white">
-                {isMasterAccess ? (
-                  <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold outline-none cursor-pointer text-white hover:text-blue-300 transition-colors">
-                    {branches.map(b => <option key={b.name} value={b.name} className="text-slate-900">{b.name}</option>)}
-                  </select>
-                ) : (
-                  <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
-                )}
-                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'CnetMobil' : 'Bayi Personeli'}</span>
-              </div>
-            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {!isZumay && step < 99 && (
+                <>
+                  <button
+                    onClick={() => setIsInstallmentModalOpen(true)}
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-amber-950/10 transition hover:bg-amber-400 md:flex"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Taksit Hesapla
+                  </button>
 
-            <div className="flex items-center gap-2 pl-2">
-              {isAdmin && step < 99 && (
-                <button onClick={() => setStep(99)} title="Yönetici Paneli" className="text-white/50 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  <button
+                    onClick={() => setIsKaskoModalOpen(true)}
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-violet-950/10 transition hover:bg-violet-500 md:flex"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Kasko Hesapla
+                  </button>
+
+                  <div className="relative hidden sm:block">
+                    <button
+                      type="button"
+                      title="Aktif Talepler"
+                      onClick={() => {
+                        if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                          setAktifTaleplerModalOpen(true);
+                        }
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m2 0v1a1 1 0 002 0v-1" />
+                      </svg>
+                    </button>
+
+                    {topActiveRequestCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[8px] font-black text-white">
+                        {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="hidden h-8 w-px bg-white/10 lg:block" />
+
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 pr-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black text-white shadow-lg shadow-blue-950/20">
+                  {branchInitials || 'CM'}
+                </div>
+
+                <div className="hidden min-w-[120px] md:block">
+                  {isMasterAccess ? (
+                    <select
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="w-full cursor-pointer bg-transparent text-[10px] font-black text-white outline-none"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.name} value={b.name} className="text-slate-900">
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="truncate text-[10px] font-black text-white">
+                      {selectedBranch}
+                    </div>
+                  )}
+
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-200/60">
+                    {isSuperAdminUser
+                      ? 'Super Admin'
+                      : isMasterAccess
+                      ? 'CnetMobil Yönetici'
+                      : 'Bayi Personeli'}
+                  </div>
+                </div>
+
+                <svg className="hidden h-3 w-3 text-white/50 md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              {isSuperAdminUser && (
+                <button
+                  onClick={() => {
+                    window.location.href = '/admin/users';
+                  }}
+                  title="Kullanıcılar & Yetkiler"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-violet-200 transition hover:bg-violet-500/20 hover:text-white"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H2v-2a4 4 0 014-4h3m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 1a3 3 0 10-4.5-2.6" />
+                  </svg>
                 </button>
               )}
-              <button onClick={handleLogout} title="Çıkış Yap" className="text-white/50 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-white/5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+
+              {isAdmin && step < 99 && (
+                <button
+                  onClick={() => setStep(99)}
+                  title="Yönetici Paneli"
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white sm:flex"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.3 4.3a1.7 1.7 0 013.4 0 1.7 1.7 0 002.6 1.1 1.7 1.7 0 012.4 2.4 1.7 1.7 0 001.1 2.6 1.7 1.7 0 010 3.4 1.7 1.7 0 00-1.1 2.6 1.7 1.7 0 01-2.4 2.4 1.7 1.7 0 00-2.6 1.1 1.7 1.7 0 01-3.4 0 1.7 1.7 0 00-2.6-1.1 1.7 1.7 0 01-2.4-2.4 1.7 1.7 0 00-1.1-2.6 1.7 1.7 0 010-3.4 1.7 1.7 0 001.1-2.6 1.7 1.7 0 012.4-2.4 1.7 1.7 0 002.6-1.1zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              )}
+
+              <button
+                onClick={handleLogout}
+                title="Çıkış Yap"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/55 transition hover:bg-rose-500/20 hover:text-rose-200"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center overflow-x-auto lg:overflow-visible no-scrollbar px-4 lg:px-8 text-[11px] font-semibold text-white/70 h-[46px]">
-          {step < 99 && menuGroups.flatMap(g => g.items).filter(i => i.visible).map((item, idx, arr) => {
-            const isActive = appMode === item.id || (item.subItems && item.subItems.some(sub => sub.id === appMode));
-            const isLast = idx === arr.length - 1;
-            return (
-              <div key={item.id} className={`flex items-center h-full relative group ${!isLast ? 'border-r border-white/10' : ''}`}>
-                {item.subItems ? (
-                  <>
-                    <button 
-                      onClick={() => setMobileSubMenuOpen(!mobileSubMenuOpen)}
-                      onBlur={() => setTimeout(() => setMobileSubMenuOpen(false), 200)}
-                      className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center gap-1 outline-none ${isActive ? 'text-white' : ''}`}
+        {/* MODÜL NAVBAR */}
+        <div className="border-b border-white/5 bg-black/5">
+          <div className="mx-auto flex max-w-[1920px] items-stretch overflow-x-auto px-2 no-scrollbar lg:px-5">
+            {step < 99 &&
+              menuGroups
+                .flatMap((g) => g.items)
+                .filter((i) => i.visible)
+                .map((item) => {
+                  const isActive =
+                    appMode === item.id ||
+                    (item.subItems &&
+                      item.subItems.some((sub) => sub.id === appMode));
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="group relative flex min-w-fit items-stretch"
                     >
-                      {item.label}
-                      <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
-                    </button>
-
-                    <div className="absolute top-[46px] left-0 w-40 bg-[#2B2D31] border border-white/10 shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[999] hidden lg:flex flex-col">
-                      {item.subItems.map(sub => (
-                        <button
-                          key={sub.id}
-                          onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
-                          className={`px-4 py-3 text-left hover:bg-white/10 transition-colors ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white/70 hover:text-white'}`}
-                        >
-                          {sub.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {mobileSubMenuOpen && (
-                      <div className="fixed top-[105px] left-4 right-4 bg-[#2B2D31] border border-white/10 shadow-2xl rounded-2xl z-[9999] lg:hidden flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
-                        {item.subItems.map(sub => (
+                      {item.subItems ? (
+                        <>
                           <button
-                            key={sub.id}
-                            onClick={() => { setAppMode(sub.id as any); setStep(1); resetSelection(); setMobileSubMenuOpen(false); }}
-                            className={`px-5 py-4 text-left border-b last:border-0 border-white/5 hover:bg-white/10 transition-colors text-[13px] font-black tracking-wider uppercase ${appMode === sub.id ? 'text-[#f39c12] bg-white/5' : 'text-white hover:text-[#f39c12]'}`}
+                            ref={secondHandMenuButtonRef}
+                            type="button"
+                            onClick={() => {
+                              const rect =
+                                secondHandMenuButtonRef.current?.getBoundingClientRect();
+
+                              if (rect) {
+                                setSecondHandMenuPos({
+                                  left: Math.max(
+                                    12,
+                                    Math.min(
+                                      window.innerWidth - 204,
+                                      rect.left
+                                    )
+                                  ),
+                                  top: rect.bottom + 6,
+                                  width: Math.max(192, rect.width),
+                                });
+                              }
+
+                              setMobileSubMenuOpen((open) => !open);
+                            }}
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                              isActive
+                                ? 'bg-blue-500/20 text-white'
+                                : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                            }`}
                           >
-                            {sub.label}
+                            <span
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                                isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                              }`}
+                            >
+                              {navIcon(item.id)}
+                            </span>
+
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              2. El Listesi
+                              <svg className="h-2.5 w-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </span>
+
+                            {isActive && (
+                              <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                            )}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <button
-                    onClick={() => { setAppMode(item.id as any); setStep(1); resetSelection(); }}
-                    className={`relative h-full px-4 lg:px-5 whitespace-nowrap hover:text-white transition-colors flex items-center ${isActive ? 'text-white' : ''}`}
-                  >
-                    {item.label}
-                    {isActive && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>}
-                  </button>
-                )}
+
+                          {mobileSubMenuOpen && (
+                            <div
+                              className="fixed z-[99999] hidden overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl ring-1 ring-black/10 lg:flex lg:flex-col"
+                              style={{
+                                left: secondHandMenuPos.left,
+                                top: secondHandMenuPos.top,
+                                width: secondHandMenuPos.width,
+                              }}
+                            >
+                              <div className="border-b border-white/10 px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/60">
+                                2. El Fiyat Listesi
+                              </div>
+
+                              {item.subItems.map((sub) => (
+                                <button
+                                  type="button"
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`flex items-center justify-between px-4 py-4 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                  }`}
+                                >
+                                  <span>{sub.label}</span>
+                                  <span className="text-blue-300">→</span>
+                                </button>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={() => setMobileSubMenuOpen(false)}
+                                className="border-t border-white/10 px-4 py-2.5 text-left text-[8px] font-black uppercase tracking-wide text-white/40 hover:bg-white/5 hover:text-white/70"
+                              >
+                                Kapat
+                              </button>
+                            </div>
+                          )}
+
+                          {mobileSubMenuOpen && (
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
+                              {item.subItems.map((sub) => (
+                                <button
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`border-b border-white/5 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white'
+                                  }`}
+                                >
+                                  {sub.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAppMode(item.id as any);
+                            setStep(1);
+                            resetSelection();
+                          }}
+                          className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                            isActive
+                              ? 'bg-blue-500/20 text-white'
+                              : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                              isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                            }`}
+                          >
+                            {navIcon(item.id)}
+                          </span>
+
+                          <span className="whitespace-nowrap">{item.label}</span>
+
+                          {isActive && (
+                            <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+            {step === 99 && (
+              <div className="flex min-h-[52px] items-center px-4 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200">
+                Yönetici Paneli
               </div>
-            );
-          })}
-          {step === 99 && (
-              <div className="flex items-center h-full">
-                 <span className="text-[#f39c12] font-black uppercase px-4 lg:px-5 flex items-center h-full relative tracking-widest">
-                   Yönetici Paneli<div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#f39c12]"></div>
-                 </span>
-              </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
       {/* ANA İÇERİK ALANI */}
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
-        <main className="max-w-[1600px] mx-auto w-full p-4 sm:p-6 lg:p-10 print:hidden">
+        <main
+          className={`mx-auto w-full print:hidden ${
+            appMode === 'cihaz_talep' && step < 99
+              ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
+              : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
+          }`}
+        >
  
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
@@ -2224,9 +4141,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     </h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El {isApple ? 'Apple' : 'Android'} Cihaz Fiyatları</p>
                   </div>
-                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className={`h-10 w-full rounded-xl text-[11px] font-black tracking-wider text-white shadow-sm transition active:scale-[0.99] ${isApple ? 'bg-slate-800 hover:bg-slate-900' : 'bg-green-600 hover:bg-green-700'}`}
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -2266,9 +4194,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
                   </div>
-                  <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className="h-10 w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -2311,78 +4250,17 @@ export default function CnetmobilCmrFinalUltimate() {
           ) :
 
           appMode === 'cep_tablet' && step < 99 ? (
-            <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                  </div>
-              </div>
-              
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-blue-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-blue-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[0] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[0]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[3] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-green-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-green-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[5] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[5]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[8] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : 
-          
+            <CepTablet
+              data={cepTabletData}
+              canEdit={Boolean(isSuperAdminUser && currentAdminEditableSheet)}
+              onEdit={() => {
+                if (currentAdminEditableSheet) {
+                  setAdminSheetEditor(currentAdminEditableSheet);
+                }
+              }}
+            />
+          ) :
+
           appMode === 'yna_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
@@ -2390,9 +4268,20 @@ export default function CnetmobilCmrFinalUltimate() {
                     <h2 className="text-3xl font-black italic tracking-tighter text-purple-600">YENİ NESİL AKSESUAR</h2>
                     <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Watch, Kulaklık ve Diğer Aksesuarlar (YNA List)</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                  <div className="w-full md:w-80 flex flex-col gap-2">
+                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:border-purple-400 focus-within:bg-white transition-all shadow-sm">
+                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <input type="text" placeholder="Aksesuar Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                    </div>
+                    {isSuperAdminUser && currentAdminEditableSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+                        className="h-10 w-full rounded-xl bg-purple-600 hover:bg-purple-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
+                      >
+                        DÜZENLE
+                      </button>
+                    )}
                   </div>
               </div>
               
@@ -2446,255 +4335,1144 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          appMode === 'cihaz_talep' && step < 99 ? (
-            <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
-              
-              {/* ÜST BİLGİ VE TIKLANABİLİR İSTATİSTİK KARTLARI */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-                    <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
-                  </div>
-                </div>
+          appMode === 'cihaz_talep' && step < 99 ? (() => {
+            const cihazTalepRows = cihazTalepData
+              .slice(1)
+              .map((row, i) => ({
+                row,
+                rowIndex: i + 2,
+              }))
+              .filter(({ row }) =>
+                !Array.from(
+                  { length: 15 },
+                  (_, c) => String(row?.[c] ?? '').trim()
+                ).every((value) => value === '')
+              );
 
-                <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
-                  {/* TOPLAM KAYIT KARTI */}
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[180px]">
-                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            const getCihazTalepBrand = (value: string) => {
+              const raw = String(value || '').trim();
+              const upper = raw.toLocaleUpperCase('tr-TR');
+
+              if (
+                upper.startsWith('IPH') ||
+                upper.startsWith('IPHONE') ||
+                upper.startsWith('APPLE')
+              ) return 'Apple';
+
+              if (
+                upper.startsWith('SAM') ||
+                upper.startsWith('SAMSUNG')
+              ) return 'Samsung';
+
+              if (
+                upper.startsWith('XIAOMI') ||
+                upper.startsWith('REDMI') ||
+                upper.startsWith('POCO')
+              ) return 'Xiaomi';
+
+              if (upper.startsWith('HONOR')) return 'Honor';
+              if (upper.startsWith('HUAWEI')) return 'Huawei';
+              if (upper.startsWith('REALME')) return 'Realme';
+              if (upper.startsWith('OPPO')) return 'Oppo';
+              if (upper.startsWith('VIVO')) return 'Vivo';
+              if (upper.startsWith('NUBIA')) return 'Nubia';
+
+              return raw.split(/\s+/)[0] || 'Diğer';
+            };
+
+            const getCihazTalepStatus = (row: any[]) => {
+              const talepler = String(row?.[9] || '').trim();
+              const durum = String(row?.[11] || '')
+                .trim()
+                .toLocaleUpperCase('tr-TR');
+              const stok = Math.max(0, Number(row?.[8]) || 0);
+
+              if (
+                durum === 'RED EDİLDİ' ||
+                durum === 'REDDEDİLDİ'
+              ) return 'REDDEDİLDİ';
+
+              if (
+                durum === 'GÖNDERİLDİ' ||
+                durum === 'GONDERILDI'
+              ) return 'GÖNDERİLDİ';
+
+              if (talepler) return 'AKTİF TALEP';
+              if (stok <= 0) return 'STOK YOK';
+
+              return 'TALEP EDİLEBİLİR';
+            };
+
+            const brands: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows.map(({ row }) =>
+                  getCihazTalepBrand(row?.[0])
+                )
+              )
+            ).sort((a, b) =>
+              a.localeCompare(b, 'tr')
+            );
+
+            const hafizalar: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows
+                  .map(({ row }) => String(row?.[1] || '').trim())
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+            const renkler: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows
+                  .map(({ row }) => String(row?.[2] || '').trim())
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+            const normalizedSearch =
+              cihazTalepSearch
+                .trim()
+                .toLocaleLowerCase('tr-TR');
+
+            const filteredRows =
+              cihazTalepRows.filter(({ row }) => {
+                const markaModel = String(row?.[0] || '');
+                const hafiza = String(row?.[1] || '');
+                const renk = String(row?.[2] || '');
+                const pil = String(row?.[3] || '');
+                const grade = String(row?.[4] || '');
+                const garanti = String(row?.[5] || '');
+                const degisen = String(row?.[6] || '');
+                const kutu = String(row?.[7] || '');
+                const brand = getCihazTalepBrand(markaModel);
+                const status = getCihazTalepStatus(row);
+
+                const searchOk =
+                  !normalizedSearch ||
+                  [
+                    markaModel,
+                    hafiza,
+                    renk,
+                    pil,
+                    grade,
+                    garanti,
+                    degisen,
+                    kutu,
+                    brand,
+                  ].some((value) =>
+                    String(value)
+                      .toLocaleLowerCase('tr-TR')
+                      .includes(normalizedSearch)
+                  );
+
+                const brandOk =
+                  cihazTalepMarkaFilter === 'TÜMÜ' ||
+                  brand === cihazTalepMarkaFilter;
+
+                const hafizaOk =
+                  cihazTalepHafizaFilter === 'TÜMÜ' ||
+                  hafiza === cihazTalepHafizaFilter;
+
+                const renkOk =
+                  cihazTalepRenkFilter === 'TÜMÜ' ||
+                  renk === cihazTalepRenkFilter;
+
+                const durumOk =
+                  cihazTalepDurumFilter === 'TÜMÜ' ||
+                  status === cihazTalepDurumFilter;
+
+                return (
+                  searchOk &&
+                  brandOk &&
+                  hafizaOk &&
+                  renkOk &&
+                  durumOk
+                );
+              });
+
+            const activeRequests = cihazTalepRows.filter(
+              ({ row }) =>
+                getCihazTalepStatus(row) === 'AKTİF TALEP'
+            ).length;
+
+            const sentRequests = cihazTalepRows.filter(
+              ({ row }) =>
+                getCihazTalepStatus(row) === 'GÖNDERİLDİ'
+            ).length;
+
+            const requestingBranches = new Set(
+              cihazTalepRows
+                .map(({ row }) => String(row?.[9] || '').trim())
+                .filter(Boolean)
+            ).size;
+
+            const totalPages = Math.max(
+              1,
+              Math.ceil(
+                filteredRows.length /
+                Math.max(1, cihazTalepPerPage)
+              )
+            );
+
+            const safePage = Math.min(
+              Math.max(1, cihazTalepPage),
+              totalPages
+            );
+
+            const pageStart =
+              (safePage - 1) * cihazTalepPerPage;
+
+            const pageRows =
+              filteredRows.slice(
+                pageStart,
+                pageStart + cihazTalepPerPage
+              );
+
+            const todayText =
+              new Date().toLocaleDateString('tr-TR', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              });
+
+            const timeText =
+              new Date().toLocaleTimeString('tr-TR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+            const clearFilters = () => {
+              setCihazTalepSearch('');
+              setCihazTalepMarkaFilter('TÜMÜ');
+              setCihazTalepHafizaFilter('TÜMÜ');
+              setCihazTalepRenkFilter('TÜMÜ');
+              setCihazTalepDurumFilter('TÜMÜ');
+              setCihazTalepPage(1);
+            };
+
+            const recentRequestItems = cihazTalepRows
+              .filter(({ row }) => String(row?.[9] || '').trim() !== '')
+              .slice(-5)
+              .reverse();
+
+            return (
+              <div className="w-full max-w-[1880px] mx-auto animate-in fade-in duration-500 space-y-4 sm:space-y-5">
+
+                {/* HERO */}
+                <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/70 shadow-sm">
+                  <div className="flex flex-col gap-5 px-5 py-5 sm:px-7 sm:py-6 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                        <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                          CNETMOBİL V2
+                        </div>
+
+                        <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                          CİHAZ TALEP LİSTESİ
+                        </h2>
+
+                        <p className="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                          Mağazaların talep edebileceği mevcut cihazları görüntüleyin.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM KAYIT</p>
-                      <p className="text-xl font-black text-slate-800">
-                        {Math.max(0, cihazTalepData.length - 1)} <span className="text-sm font-bold text-slate-400">Adet</span>
-                      </p>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                      <div className="hidden min-w-[240px] items-center justify-center px-6 text-center xl:flex">
+                        <div className="-rotate-2 text-xl font-black italic tracking-tight text-blue-600">
+                          Doğru Stok
+                          <br />
+                          <span className="text-2xl">Güçlü Mağazalar</span>
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-[190px] items-center gap-3 rounded-2xl border border-slate-100 bg-white/90 px-4 py-3 shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M5 11h14M5 7h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-black text-slate-800">{todayText}</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">{timeText}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-[190px] items-center gap-3 rounded-2xl border border-slate-100 bg-white/90 px-4 py-3 shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-black text-slate-800">
+                            {selectedBranch}
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-bold text-blue-500">
+                            {isSuperAdminUser ? 'Super Admin' : isMasterAccess || isAdmin ? 'Yönetici' : 'Personel'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* AKTİF TALEPLER KARTI (YÖNETİCİYE ÖZEL TIKLANABİLİR) */}
-                  <div 
+                </section>
+
+                {/* İSTATİSTİKLER */}
+                <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                        CANLI
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Toplam Cihaz</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {cihazTalepRows.length}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Listede bulunan ürün
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
                     onClick={() => {
-                      if (isMasterAccess || isAdmin) {
+                      if (isMasterAccess || isAdmin || isSuperAdminUser) {
                         setAktifTaleplerModalOpen(true);
-                      } else {
-                        alert("Aktif talepler detayını yalnızca yöneticiler görüntüleyebilir.");
                       }
                     }}
-                    className={`flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[190px] transition-all ${isMasterAccess || isAdmin ? 'cursor-pointer hover:bg-emerald-100 hover:shadow-md btn-click' : 'opacity-80 cursor-not-allowed'}`}
-                    title={isMasterAccess || isAdmin ? "Aktif talepleri görüntülemek için tıklayın" : "Yalnızca yöneticiler erişebilir"}
+                    className={`rounded-[22px] border border-slate-100 bg-white p-4 text-left shadow-sm transition sm:p-5 ${
+                      isMasterAccess || isAdmin || isSuperAdminUser
+                        ? 'hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
+                        : ''
+                    }`}
                   >
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h6l4 4v10a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
+                        AKTİF
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest flex items-center gap-1">
-                        AKTİF TALEPLER
-                        {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
-                      </p>
-                      <p className="text-xl font-black text-emerald-700">
-                        {cihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
-                      </p>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Aktif Talepler</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {activeRequests}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      İşlem bekleyen talep
+                    </div>
+                  </button>
+
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V9l7-5 7 5v12M9 13h6m-6 4h6" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">
+                        MAĞAZA
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Talep Yapan Mağaza</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {requestingBranches}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Talep kaydı bulunan mağaza
                     </div>
                   </div>
 
-                  {(isMasterAccess || isAdmin) && (
-                    <button
-                      type="button"
-                      onClick={openCihazEkleModal}
-                      className="flex items-center gap-4 bg-blue-600 px-6 py-4 rounded-2xl border border-blue-600 min-w-[190px] text-left text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5 btn-click"
-                      title="Cihaz Talep listesine yeni cihaz ekle"
-                    >
-                      <div className="w-10 h-10 bg-white/15 text-white rounded-xl flex items-center justify-center shrink-0 ring-1 ring-white/20">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m5-1a9 9 0 11-6.219-8.56" />
+                        </svg>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest">YÖNETİCİ İŞLEMİ</p>
-                        <p className="text-base font-black tracking-tight">+ CİHAZ EKLE</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                        TAMAMLANDI
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Karşılanan Talepler</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {sentRequests}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Gönderildi durumundaki kayıt
+                    </div>
+                  </div>
+                </section>
 
-              {/* ANA TABLO */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar">
-                  <div className="min-w-[1100px]">
-                    
-                    <div className="grid grid-cols-13 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                      <div className="col-span-2">MARKA MODEL</div>
-                      <div className="col-span-1">HAFIZA</div>
-                      <div className="col-span-1">RENK</div>
-                      <div className="col-span-1 text-center">PİL</div>
-                      <div className="col-span-1 text-center">GRADE</div>
-                      <div className="col-span-1 text-center">GARANTİ</div>
-                      <div className="col-span-2">DEĞİŞEN PARÇA</div>
-                      <div className="col-span-1 text-center">KUTU FATURA</div>
-                      <div className="col-span-1 text-center">STOK</div>
-                      <div className="col-span-2 text-right pr-2">İŞLEM</div>
+                {/* FİLTRELER */}
+                <section className="rounded-[24px] border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="relative min-w-0 flex-1">
+                      <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+
+                      <input
+                        value={cihazTalepSearch}
+                        onChange={(e) => {
+                          setCihazTalepSearch(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        placeholder="Model, marka veya özellik ara..."
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                      />
                     </div>
 
-                    <div className="flex flex-col">
-                      {cihazTalepData.slice(1).map((row, i) => {
-                        const rowIndex = i + 2;
-                        // Supabase/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
-                        // rowIndex korunur; böylece işlem yapılan satır Sheets ile birebir aynı kalır.
-                        const satirTamamenBos = Array.from({ length: 15 }, (_, c) => String(row?.[c] ?? '').trim()).every(v => v === '');
-                        if (satirTamamenBos) return null;
-                        const markaModel = row[0] || '';
-                        const hafiza = row[1] || '';
-                        const renk = row[2] || '';
-                        const pil = row[3] || '';
-                        const grade = (row[4] || '').toUpperCase();
-                        const garanti = row[5] || '';
-                        const degisenParca = row[6] || '';
-                        const kutuFatura = row[7] || '';
-                        
-                        const mevcutTalepler = (row[9] || '').toString().trim();
-                        const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
-                        const kararTarihi = (row[12] || '').toString().trim();
-                        const redNedeni = (row[13] || '').toString().trim();
-                        const stokAdedi = Math.max(0, Number(row[8]) || 0);
-                        const talepAdedi = Math.max(0, Number(row[14]) || 0);
-                        const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                        const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
-                        const isRequested = mevcutTalepler !== ''; // Bekleyen/red/gönderildi bilgisi bulunan cihaz kilitli kalır.
-                        let gradeStyle = "bg-slate-100 text-slate-600";
-                        if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
-                        if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
-                        if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
-                        if(grade === 'OUTLET') gradeStyle = "bg-rose-100 text-rose-600";
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:shrink-0">
+                      <select
+                        value={cihazTalepMarkaFilter}
+                        onChange={(e) => {
+                          setCihazTalepMarkaFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Markalar</option>
+                        {brands.map((brand) => (
+                          <option key={brand} value={brand}>{brand}</option>
+                        ))}
+                      </select>
 
-                        const renkLower = renk.toLocaleLowerCase('tr-TR');
-                        const colorCode = renkLower.includes('siyah') || renkLower.includes('black') ? '#111827'
-                          : renkLower.includes('beyaz') || renkLower.includes('white') ? '#f8fafc'
-                          : renkLower.includes('lacivert') || renkLower.includes('navy') ? '#1e3a8a'
-                          : renkLower.includes('mavi') || renkLower.includes('blue') ? '#3b82f6'
-                          : renkLower.includes('kırmızı') || renkLower.includes('kirmizi') || renkLower.includes('red') ? '#ef4444'
-                          : renkLower.includes('mor') || renkLower.includes('purple') ? '#a855f7'
-                          : renkLower.includes('yeşil') || renkLower.includes('yesil') || renkLower.includes('green') ? '#22c55e'
-                          : renkLower.includes('gri') || renkLower.includes('gray') || renkLower.includes('grey') ? '#94a3b8'
-                          : renkLower.includes('pembe') || renkLower.includes('pink') ? '#ec4899'
-                          : renkLower.includes('sarı') || renkLower.includes('sari') || renkLower.includes('yellow') ? '#eab308'
-                          : renkLower.includes('turuncu') || renkLower.includes('orange') ? '#f97316'
-                          : renkLower.includes('altın') || renkLower.includes('altin') || renkLower.includes('gold') ? '#d4a017'
-                          : renkLower.includes('gümüş') || renkLower.includes('gumus') || renkLower.includes('silver') ? '#cbd5e1'
-                          : renkLower.includes('titanyum') || renkLower.includes('titanium') ? '#78716c'
-                          : '#cbd5e1';
+                      <select
+                        value={cihazTalepHafizaFilter}
+                        onChange={(e) => {
+                          setCihazTalepHafizaFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Hafızalar</option>
+                        {hafizalar.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
 
-                        return (
-                          <div key={i} className="grid grid-cols-13 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                            
-                            <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
-                              {markaModel}
-                            </div>
-                            
-                            <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
-                              {hafiza}
-                            </div>
-                            
-                            <div className="col-span-1 flex items-center gap-1.5 pr-2">
-                              <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                              <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
-                              <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center">
-                              <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {garanti || '-'}
-                            </div>
+                      <select
+                        value={cihazTalepRenkFilter}
+                        onChange={(e) => {
+                          setCihazTalepRenkFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Renkler</option>
+                        {renkler.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
 
-                            <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
-                              {degisenParca || 'Orijinal / Yok'}
-                            </div>
+                      <select
+                        value={cihazTalepDurumFilter}
+                        onChange={(e) => {
+                          setCihazTalepDurumFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Durumlar</option>
+                        <option value="TALEP EDİLEBİLİR">Talep Edilebilir</option>
+                        <option value="AKTİF TALEP">Aktif Talep</option>
+                        <option value="GÖNDERİLDİ">Gönderildi</option>
+                        <option value="REDDEDİLDİ">Reddedildi</option>
+                        <option value="STOK YOK">Stok Yok</option>
+                      </select>
+                    </div>
 
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {kutuFatura || '-'}
-                            </div>
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-5 text-[10px] font-black uppercase tracking-wider text-slate-600 transition hover:bg-slate-100"
+                    >
+                      Temizle
+                    </button>
 
-                            <div className="col-span-1 text-center">
-                              <span className={`inline-flex min-w-[42px] justify-center px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi > 0 ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                                {stokAdedi} ADET
-                              </span>
+                    {(isMasterAccess || isAdmin || isSuperAdminUser) && (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={openTopluCihazEkleModal}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 text-[10px] font-black uppercase tracking-wider text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.99]"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5" />
+                          </svg>
+                          Toplu Cihaz Ekle
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={openCihazEkleModal}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.99]"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Cihaz Ekle
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+
+                {/* MASAÜSTÜ ANA İÇERİK */}
+                <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[190px_minmax(0,1fr)_245px]">
+                  {/* SOL MİNİ PANEL */}
+                  <aside className="hidden overflow-hidden rounded-[24px] border border-blue-100 bg-gradient-to-b from-white to-blue-50/60 shadow-sm 2xl:block">
+                    <div className="border-b border-blue-100 px-4 py-5 text-center">
+                      <div className="text-lg font-black tracking-tight text-slate-900">
+                        CNET<span className="text-blue-600">MOBİL</span>
+                      </div>
+                      <div className="mt-1 text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">
+                        V2 Panel
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 p-3">
+                      {[
+                        ['Hızlı & Kolay', 'Cihaz Talepleri'],
+                        ['Güncel Stok', 'Tüm Mağazalar'],
+                        ['Daha Güçlü', 'Mağaza Ağı'],
+                        ['Verimli Operasyon', 'Daha Fazla Satış'],
+                      ].map(([title, subtitle], index) => (
+                        <div
+                          key={title}
+                          className="flex items-center gap-2.5 rounded-2xl border border-transparent px-2.5 py-3 transition hover:border-blue-100 hover:bg-white"
+                        >
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                              index === 0
+                                ? 'bg-blue-50 text-blue-600'
+                                : index === 1
+                                ? 'bg-cyan-50 text-cyan-600'
+                                : index === 2
+                                ? 'bg-violet-50 text-violet-600'
+                                : 'bg-emerald-50 text-emerald-600'
+                            }`}
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                          </div>
+
+                          <div>
+                            <div className="text-[9px] font-black text-slate-700">
+                              {title}
                             </div>
-                            
-                            <div className="col-span-2 text-right">
-                              {isRequested ? (
-                                <div className="flex flex-col items-end gap-1.5">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${
-                                      isRejected
-                                        ? 'bg-red-50 text-red-600 border-red-200'
-                                        : isSent
-                                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                    }`}>
-                                      {isRejected ? `✕ ${talepAdedi || 1} ADET TALEP RED EDİLDİ` : isSent ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ` : `✓ ${talepAdedi || 1} ADET TALEP EDİLDİ`}
+                            <div className="mt-0.5 text-[8px] font-bold text-slate-400">
+                              {subtitle}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mx-3 mb-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 text-white shadow-lg shadow-blue-500/20">
+                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-100">
+                        CNETMOBİL
+                      </div>
+                      <div className="mt-2 text-base font-black leading-tight">
+                        Teknoloji
+                        <br />
+                        Her Yerde
+                      </div>
+
+                      <div className="mt-4 flex gap-1">
+                        <div className="h-12 w-7 rotate-[-8deg] rounded-lg border border-white/30 bg-white/15" />
+                        <div className="h-14 w-8 rounded-lg border border-white/40 bg-white/20" />
+                        <div className="h-12 w-7 rotate-[8deg] rounded-lg border border-white/30 bg-white/15" />
+                      </div>
+                    </div>
+                  </aside>
+
+                  {/* ORTA TABLO */}
+                  <div className="min-w-0">
+                {/* TABLO */}
+                <section className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full min-w-[1080px] border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50/30">
+                          <th className="w-[56px] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">#</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Marka / Model</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Hafıza</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Renk</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Pil</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Grade</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Garanti</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Değişen Parça</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="px-4 py-4 text-right text-[9px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {pageRows.map(({ row, rowIndex }, pageIndex) => {
+                          const markaModel = row[0] || '';
+                          const hafiza = row[1] || '';
+                          const renk = row[2] || '';
+                          const pil = row[3] || '';
+                          const grade = String(row[4] || '').toLocaleUpperCase('tr-TR');
+                          const garanti = row[5] || '';
+                          const degisenParca = row[6] || '';
+                          const kutuFatura = row[7] || '';
+
+                          const mevcutTalepler = String(row[9] || '').trim();
+                          const talepDurumu = String(row[11] || '')
+                            .trim()
+                            .toLocaleUpperCase('tr-TR');
+                          const kararTarihi = String(row[12] || '').trim();
+                          const redNedeni = String(row[13] || '').trim();
+                          const stokAdedi = Math.max(0, Number(row[8]) || 0);
+                          const talepAdedi = Math.max(0, Number(row[14]) || 0);
+
+                          const isRejected =
+                            talepDurumu === 'RED EDİLDİ' ||
+                            talepDurumu === 'REDDEDİLDİ';
+
+                          const isSent =
+                            talepDurumu === 'GÖNDERİLDİ' ||
+                            talepDurumu === 'GONDERILDI';
+
+                          const isRequested = mevcutTalepler !== '';
+
+                          let gradeStyle =
+                            'bg-slate-100 text-slate-600 border-slate-200';
+
+                          if (grade === 'MÜKEMMEL') {
+                            gradeStyle =
+                              'bg-emerald-50 text-emerald-700 border-emerald-100';
+                          }
+
+                          if (grade === 'ÇOK İYİ') {
+                            gradeStyle =
+                              'bg-blue-50 text-blue-700 border-blue-100';
+                          }
+
+                          if (grade === 'İYİ') {
+                            gradeStyle =
+                              'bg-amber-50 text-amber-700 border-amber-100';
+                          }
+
+                          if (grade === 'OUTLET') {
+                            gradeStyle =
+                              'bg-rose-50 text-rose-700 border-rose-100';
+                          }
+
+                          const renkLower =
+                            String(renk).toLocaleLowerCase('tr-TR');
+
+                          const colorCode =
+                            renkLower.includes('siyah') ||
+                            renkLower.includes('black')
+                              ? '#111827'
+                              : renkLower.includes('beyaz') ||
+                                renkLower.includes('white')
+                              ? '#f8fafc'
+                              : renkLower.includes('lacivert') ||
+                                renkLower.includes('navy')
+                              ? '#1e3a8a'
+                              : renkLower.includes('mavi') ||
+                                renkLower.includes('blue')
+                              ? '#2563eb'
+                              : renkLower.includes('kırmızı') ||
+                                renkLower.includes('kirmizi') ||
+                                renkLower.includes('red')
+                              ? '#ef4444'
+                              : renkLower.includes('mor') ||
+                                renkLower.includes('purple')
+                              ? '#9333ea'
+                              : renkLower.includes('yeşil') ||
+                                renkLower.includes('yesil') ||
+                                renkLower.includes('green')
+                              ? '#16a34a'
+                              : renkLower.includes('gri') ||
+                                renkLower.includes('gray') ||
+                                renkLower.includes('grey')
+                              ? '#64748b'
+                              : renkLower.includes('pembe') ||
+                                renkLower.includes('pink')
+                              ? '#ec4899'
+                              : renkLower.includes('sarı') ||
+                                renkLower.includes('sari') ||
+                                renkLower.includes('yellow')
+                              ? '#eab308'
+                              : renkLower.includes('turuncu') ||
+                                renkLower.includes('orange')
+                              ? '#f97316'
+                              : renkLower.includes('altın') ||
+                                renkLower.includes('altin') ||
+                                renkLower.includes('gold')
+                              ? '#d4a017'
+                              : renkLower.includes('gümüş') ||
+                                renkLower.includes('gumus') ||
+                                renkLower.includes('silver')
+                              ? '#cbd5e1'
+                              : renkLower.includes('titanyum') ||
+                                renkLower.includes('titanium')
+                              ? '#78716c'
+                              : '#94a3b8';
+
+                          const displayIndex =
+                            pageStart + pageIndex + 1;
+
+                          return (
+                            <tr
+                              key={rowIndex}
+                              className="border-b border-slate-100 transition hover:bg-blue-50/30"
+                            >
+                              <td className="px-4 py-3.5 text-center text-[11px] font-black text-slate-400">
+                                {displayIndex}
+                              </td>
+
+                              <td className="px-3 py-3">
+                                <div className="font-black text-slate-900">
+                                  {markaModel}
+                                </div>
+                                <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                  {getCihazTalepBrand(markaModel)}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs font-bold text-slate-700">
+                                {hafiza || '-'}
+                              </td>
+
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/5 shadow-inner"
+                                    style={{ backgroundColor: colorCode }}
+                                  />
+                                  <span className="text-[11px] font-semibold text-slate-600">
+                                    {renk || '-'}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span className="inline-flex min-w-[38px] justify-center rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700">
+                                  {pil || '-'}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span
+                                  className={`inline-flex rounded-lg border px-2.5 py-1 text-[9px] font-black tracking-wide ${gradeStyle}`}
+                                >
+                                  {grade || '-'}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
+                                {garanti || '-'}
+                              </td>
+
+                              <td
+                                className="max-w-[180px] px-4 py-3.5 text-[11px] font-semibold text-slate-600"
+                                title={degisenParca}
+                              >
+                                <div className="truncate">
+                                  {degisenParca || 'Yok'}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
+                                {kutuFatura || '-'}
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span
+                                  className={`inline-flex min-w-[66px] justify-center rounded-xl border px-2.5 py-1.5 text-[9px] font-black ${
+                                    stokAdedi >= 3
+                                      ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                                      : stokAdedi > 0
+                                      ? 'border-amber-100 bg-amber-50 text-amber-700'
+                                      : 'border-rose-100 bg-rose-50 text-rose-700'
+                                  }`}
+                                >
+                                  {stokAdedi} ADET
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-right">
+                                {isRequested ? (
+                                  <div className="flex flex-col items-end gap-1.5">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <div
+                                        className={`rounded-xl border px-3 py-1.5 text-[9px] font-black whitespace-nowrap ${
+                                          isRejected
+                                            ? 'border-red-200 bg-red-50 text-red-600'
+                                            : isSent
+                                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        }`}
+                                      >
+                                        {isRejected
+                                          ? `✕ ${talepAdedi || 1} ADET RED`
+                                          : isSent
+                                          ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ`
+                                          : `✓ ${talepAdedi || 1} ADET TALEP`}
+                                      </div>
+
+                                      {isSent &&
+                                        (isMasterAccess || isAdmin || isSuperAdminUser) && (
+                                          <button
+                                            disabled={deleteTalepLoadingIndex === rowIndex}
+                                            onClick={() =>
+                                              handleTalepKaydiSil(
+                                                rowIndex,
+                                                `${markaModel} (${hafiza})`,
+                                                mevcutTalepler
+                                              )
+                                            }
+                                            title="Cihaz satırını tamamen sil"
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-500 transition hover:bg-red-600 hover:text-white disabled:opacity-50"
+                                          >
+                                            {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
+                                          </button>
+                                        )}
                                     </div>
 
-                                    {isSent && (isMasterAccess || isAdmin) && (
-                                      <button
-                                        disabled={deleteTalepLoadingIndex === rowIndex}
-                                        onClick={() => handleTalepKaydiSil(rowIndex, `${markaModel} (${hafiza})`, mevcutTalepler)}
-                                        title="Cihaz satırını tamamen sil ve alttakileri yukarı kaydır"
-                                        className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all disabled:opacity-50"
+                                    <div className="max-w-[190px] truncate text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                      {mevcutTalepler}
+                                    </div>
+
+                                    {isRejected && redNedeni && (
+                                      <div
+                                        className="max-w-[200px] rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-right text-[8px] font-bold leading-tight text-red-600"
+                                        title={redNedeni}
                                       >
-                                        {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
-                                      </button>
+                                        {redNedeni}
+                                      </div>
+                                    )}
+
+                                    {(isRejected || isSent) && kararTarihi && (
+                                      <div className="text-[8px] font-semibold text-slate-400">
+                                        {kararTarihi}
+                                      </div>
                                     )}
                                   </div>
+                                ) : (
+                                  <button
+                                    disabled={stokAdedi <= 0 || talepSaving}
+                                    onClick={() =>
+                                      handleTalepGonder(
+                                        rowIndex,
+                                        `${markaModel} (${hafiza} - ${renk})`,
+                                        stokAdedi
+                                      )
+                                    }
+                                    className="min-w-[112px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                                  >
+                                    {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
 
-                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : isSent ? 'text-blue-600' : 'text-slate-500'}`}>
-                                    {mevcutTalepler}
+                        {pageRows.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={11}
+                              className="px-6 py-16 text-center"
+                            >
+                              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="mt-3 text-sm font-black text-slate-700">
+                                Kayıt bulunamadı
+                              </div>
+                              <div className="mt-1 text-xs font-semibold text-slate-400">
+                                Arama veya filtreleri temizleyip tekrar deneyin.
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* SAYFALAMA */}
+                  <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div className="text-[10px] font-bold text-slate-500">
+                      Toplam <span className="font-black text-slate-800">{filteredRows.length}</span> kayıttan{' '}
+                      <span className="font-black text-slate-800">
+                        {filteredRows.length === 0 ? 0 : pageStart + 1}
+                      </span>
+                      {' - '}
+                      <span className="font-black text-slate-800">
+                        {Math.min(pageStart + cihazTalepPerPage, filteredRows.length)}
+                      </span>
+                      {' arası gösteriliyor.'}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCihazTalepPage((current) =>
+                            Math.max(1, current - 1)
+                          )
+                        }
+                        disabled={safePage <= 1}
+                        className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 disabled:opacity-30"
+                      >
+                        ‹
+                      </button>
+
+                      {Array.from(
+                        { length: Math.min(totalPages, 5) },
+                        (_, index) => {
+                          let pageNumber = index + 1;
+
+                          if (totalPages > 5 && safePage > 3) {
+                            pageNumber = Math.min(
+                              totalPages - 4 + index,
+                              safePage - 2 + index
+                            );
+                          }
+
+                          pageNumber = Math.max(
+                            1,
+                            Math.min(totalPages, pageNumber)
+                          );
+
+                          return pageNumber;
+                        }
+                      )
+                        .filter(
+                          (value, index, array) =>
+                            array.indexOf(value) === index
+                        )
+                        .map((pageNumber) => (
+                          <button
+                            key={pageNumber}
+                            type="button"
+                            onClick={() =>
+                              setCihazTalepPage(pageNumber)
+                            }
+                            className={`h-9 min-w-[36px] rounded-xl border px-2 text-[10px] font-black transition ${
+                              safePage === pageNumber
+                                ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600'
+                            }`}
+                          >
+                            {pageNumber}
+                          </button>
+                        ))}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCihazTalepPage((current) =>
+                            Math.min(totalPages, current + 1)
+                          )
+                        }
+                        disabled={safePage >= totalPages}
+                        className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 disabled:opacity-30"
+                      >
+                        ›
+                      </button>
+
+                      <select
+                        value={cihazTalepPerPage}
+                        onChange={(e) => {
+                          setCihazTalepPerPage(Number(e.target.value));
+                          setCihazTalepPage(1);
+                        }}
+                        className="ml-1 h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 outline-none"
+                      >
+                        <option value={10}>10 / sayfa</option>
+                        <option value={25}>25 / sayfa</option>
+                        <option value={50}>50 / sayfa</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+
+                  </div>
+
+                  {/* SAĞ PANEL */}
+                  <aside className="hidden space-y-4 2xl:block">
+                    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                        <div className="text-xs font-black text-slate-900">
+                          Son İşlemler
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                              setAktifTaleplerModalOpen(true);
+                            }
+                          }}
+                          className="text-[8px] font-black uppercase tracking-wide text-blue-600"
+                        >
+                          Tümünü Gör
+                        </button>
+                      </div>
+
+                      <div className="p-2">
+                        {recentRequestItems.length > 0 ? (
+                          recentRequestItems.map(({ row, rowIndex }) => {
+                            const device = String(row?.[0] || '-');
+                            const branch = String(row?.[9] || '-');
+                            const status = getCihazTalepStatus(row);
+                            const dateText = String(row?.[12] || row?.[10] || '').trim();
+
+                            return (
+                              <div
+                                key={`recent-${rowIndex}`}
+                                className="flex items-start gap-2.5 rounded-2xl px-2.5 py-3 transition hover:bg-slate-50"
+                              >
+                                <div
+                                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                                    status === 'GÖNDERİLDİ'
+                                      ? 'bg-emerald-50 text-emerald-600'
+                                      : status === 'REDDEDİLDİ'
+                                      ? 'bg-rose-50 text-rose-600'
+                                      : 'bg-blue-50 text-blue-600'
+                                  }`}
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[9px] font-black text-slate-800">
+                                    {device}
                                   </div>
-
-                                  {isRejected && redNedeni && (
-                                    <div className="max-w-[210px] text-right text-[9px] font-bold normal-case leading-tight text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1" title={redNedeni}>
-                                      Neden: {redNedeni}
-                                    </div>
-                                  )}
-
-                                  {(isRejected || isSent) && kararTarihi && (
-                                    <div className="text-[8px] font-semibold text-slate-400">
-                                      {kararTarihi}
+                                  <div className="mt-0.5 truncate text-[8px] font-bold text-slate-400">
+                                    {branch}
+                                  </div>
+                                  <div
+                                    className={`mt-1 text-[8px] font-black ${
+                                      status === 'GÖNDERİLDİ'
+                                        ? 'text-emerald-600'
+                                        : status === 'REDDEDİLDİ'
+                                        ? 'text-rose-600'
+                                        : 'text-blue-600'
+                                    }`}
+                                  >
+                                    {status}
+                                  </div>
+                                  {dateText && (
+                                    <div className="mt-0.5 truncate text-[7px] font-semibold text-slate-300">
+                                      {dateText}
                                     </div>
                                   )}
                                 </div>
-                              ) : (
-                                 <button 
-                                   disabled={stokAdedi <= 0 || talepSaving}
-                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`, stokAdedi)}
-                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600"
-                                 >
-                                   {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
-                                 </button>
-                              )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-8 text-center text-[9px] font-bold text-slate-400">
+                            Henüz işlem bulunmuyor.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-100 px-4 py-4">
+                        <div className="text-xs font-black text-slate-900">
+                          Duyurular
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 p-2">
+                        {[
+                          ['Stok güncellemeleri', 'Liste verileri senkronize ediliyor.', 'blue'],
+                          ['Talep sistemi', 'Mağaza talepleri anlık takip edilir.', 'violet'],
+                          ['CNETMOBİL V2', 'Yeni panel geliştirmeleri aktif.', 'emerald'],
+                        ].map(([title, detail, tone]) => (
+                          <div
+                            key={title}
+                            className="flex items-start gap-2.5 rounded-2xl px-2.5 py-3 hover:bg-slate-50"
+                          >
+                            <div
+                              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                                tone === 'blue'
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : tone === 'violet'
+                                  ? 'bg-violet-50 text-violet-600'
+                                  : 'bg-emerald-50 text-emerald-600'
+                              }`}
+                            >
+                              <span className="text-[10px] font-black">i</span>
+                            </div>
+
+                            <div>
+                              <div className="text-[9px] font-black text-slate-800">
+                                {title}
+                              </div>
+                              <div className="mt-0.5 text-[8px] font-semibold leading-4 text-slate-400">
+                                {detail}
+                              </div>
                             </div>
                           </div>
-                        )
-                      })}
-                      
-                      {cihazTalepData.length <= 1 && (
-                         <div className="text-center py-12 text-slate-400 text-sm font-bold">Listelenecek cihaz bulunamadı.</div>
-                      )}
+                        ))}
+                      </div>
+                    </section>
+                  </aside>
+                </div>
+
+                {/* BİLGİLENDİRME */}
+                <section className="flex flex-col gap-4 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                      <span className="font-black">i</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-800">
+                        Bilgilendirme
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-semibold text-slate-500 sm:text-[11px]">
+                        Talep ettiğiniz cihazlar mağaza stok durumuna göre değerlendirilir. Sonuçlar panel üzerinden görüntülenir.
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-            </div>
-          ) :
-          
+                  <div className="text-right">
+                    <div className="text-xs font-black tracking-[0.14em] text-blue-700">
+                      CNETMOBİL V2
+                    </div>
+                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                      Teknoloji Her Yerde
+                    </div>
+                  </div>
+                </section>
+              </div>
+            );
+          })() :
+
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {isAdmin && (
@@ -3213,7 +5991,11 @@ export default function CnetmobilCmrFinalUltimate() {
       {/* CİHAZ TALEP PROFESYONEL İŞLEM MODALI */}
       {cihazTalepDialog && (
         <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 backdrop-blur-md p-4 print:hidden">
-          <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className={`w-full overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
+            cihazTalepDialog.type === 'cihaz_toplu_ekle'
+              ? 'max-w-5xl'
+              : 'max-w-md'
+          }`}>
             {cihazTalepDialog.type === 'adet' && (
               <>
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
@@ -3353,6 +6135,229 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="mt-6 flex gap-3">
                     <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
                     <button onClick={submitCihazEkle} disabled={cihazEkleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazEkleSaving ? 'EKLENİYOR...' : 'CİHAZI EKLE'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+
+            {cihazTalepDialog.type === 'cihaz_toplu_ekle' && (
+              <>
+                <div className="bg-gradient-to-r from-[#15345d] via-blue-700 to-indigo-700 px-6 py-5 text-white sm:px-8 sm:py-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.3} d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5" />
+                        </svg>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-black sm:text-2xl">
+                          TOPLU CİHAZ EKLE
+                        </h3>
+                        <p className="mt-1 text-xs font-bold text-blue-100">
+                          Excel şablonunu indir, doldur ve tek seferde yükle
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!bulkCihazSaving) {
+                          setCihazTalepDialog(null);
+                        }
+                      }}
+                      disabled={bulkCihazSaving}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-lg font-black text-white transition hover:bg-white/20 disabled:opacity-50"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[76vh] overflow-y-auto p-5 custom-scrollbar sm:p-7">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <section className="rounded-[24px] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                        <span className="text-sm font-black">1</span>
+                      </div>
+
+                      <h4 className="mt-4 text-base font-black text-slate-900">
+                        Excel Şablonunu İndir
+                      </h4>
+
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Başlıkları değiştirmeden cihazları satır satır doldurun.
+                        Marka / Model, Hafıza, Renk ve Stok Adet zorunludur.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={downloadCihazTalepTemplate}
+                        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                        </svg>
+                        Şablonu İndir
+                      </button>
+                    </section>
+
+                    <section className="rounded-[24px] border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white">
+                        <span className="text-sm font-black">2</span>
+                      </div>
+
+                      <h4 className="mt-4 text-base font-black text-slate-900">
+                        Doldurulmuş Excel'i Yükle
+                      </h4>
+
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Dosyanızı .xlsx olarak kaydedin. Sistem satırları kontrol eder,
+                        hata varsa yüklemeden önce size gösterir.
+                      </p>
+
+                      <label className="mt-5 flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-white px-5 text-xs font-black text-violet-700 transition hover:border-violet-400 hover:bg-violet-50">
+                        <input
+                          type="file"
+                          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          className="hidden"
+                          disabled={bulkCihazSaving || bulkCihazParsing}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            handleTopluCihazExcelSec(file);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14" />
+                        </svg>
+
+                        {bulkCihazParsing
+                          ? 'EXCEL OKUNUYOR...'
+                          : 'EXCEL DOSYASI SEÇ'}
+                      </label>
+
+                      {bulkCihazFileName && (
+                        <div className="mt-3 truncate rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-slate-500 ring-1 ring-slate-100">
+                          {bulkCihazFileName}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  {bulkCihazError && (
+                    <div className="mt-4 whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
+                      {bulkCihazError}
+                    </div>
+                  )}
+
+                  {bulkCihazRows.length > 0 && !bulkCihazError && (
+                    <section className="mt-5 overflow-hidden rounded-[24px] border border-emerald-100 bg-white">
+                      <div className="flex flex-col gap-3 border-b border-slate-100 bg-emerald-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-sm font-black text-emerald-800">
+                            Excel Hazır
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-bold text-emerald-600">
+                            {bulkCihazRows.length} cihaz doğrulandı ve yüklemeye hazır.
+                          </div>
+                        </div>
+
+                        <span className="w-fit rounded-full bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white">
+                          {bulkCihazRows.length} KAYIT
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[900px] text-left text-[10px]">
+                          <thead>
+                            <tr className="border-b border-slate-100 bg-slate-50">
+                              <th className="px-4 py-3 font-black text-slate-500">#</th>
+                              <th className="px-4 py-3 font-black text-slate-500">MARKA / MODEL</th>
+                              <th className="px-4 py-3 font-black text-slate-500">HAFIZA</th>
+                              <th className="px-4 py-3 font-black text-slate-500">RENK</th>
+                              <th className="px-4 py-3 font-black text-slate-500">PİL</th>
+                              <th className="px-4 py-3 font-black text-slate-500">GRADE</th>
+                              <th className="px-4 py-3 font-black text-slate-500">GARANTİ</th>
+                              <th className="px-4 py-3 font-black text-slate-500">STOK</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {bulkCihazRows.slice(0, 8).map((item, index) => (
+                              <tr
+                                key={`${item.markaModel}-${index}`}
+                                className="border-b border-slate-50"
+                              >
+                                <td className="px-4 py-3 font-black text-slate-400">
+                                  {index + 1}
+                                </td>
+                                <td className="px-4 py-3 font-black text-slate-900">
+                                  {item.markaModel}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.hafiza}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.renk}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.pil || '-'}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.grade || '-'}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.garanti || '-'}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-700">
+                                    {item.stokAdet} ADET
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {bulkCihazRows.length > 8 && (
+                        <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-center text-[9px] font-bold text-slate-400">
+                          Önizlemede ilk 8 kayıt gösteriliyor. Toplam {bulkCihazRows.length} cihaz yüklenecek.
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setCihazTalepDialog(null)}
+                      disabled={bulkCihazSaving}
+                      className="h-12 rounded-2xl border border-slate-200 px-6 text-xs font-black uppercase tracking-wider text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Vazgeç
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={submitTopluCihazEkle}
+                      disabled={
+                        bulkCihazSaving ||
+                        bulkCihazParsing ||
+                        !bulkCihazRows.length ||
+                        !!bulkCihazError
+                      }
+                      className="h-12 rounded-2xl bg-emerald-600 px-7 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {bulkCihazSaving
+                        ? `${bulkCihazRows.length} CİHAZ YÜKLENİYOR...`
+                        : `${bulkCihazRows.length || 0} CİHAZI TOPLU YÜKLE`}
+                    </button>
                   </div>
                 </div>
               </>
@@ -3831,6 +6836,16 @@ export default function CnetmobilCmrFinalUltimate() {
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>{isZumay ? 'ZUMAY YETKİLİ' : 'CNETMOBIL YETKİLİ'}</div>
             </div>
         </div>
+      )}
+
+      {adminSheetEditor && (
+        <AdminDynamicSheetEditor
+          target={adminSheetEditor}
+          onClose={() => setAdminSheetEditor(null)}
+          onSaved={async () => {
+            await refreshDataCache();
+          }}
+        />
       )}
     </div>
   );
