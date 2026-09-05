@@ -675,6 +675,14 @@ export default function CnetmobilCmrFinalUltimate() {
   const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
   const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
   const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+  // --- CİHAZ TALEP V2 GÖRÜNÜM STATE'LERİ ---
+  const [cihazTalepSearch, setCihazTalepSearch] = useState('');
+  const [cihazTalepMarkaFilter, setCihazTalepMarkaFilter] = useState('TÜMÜ');
+  const [cihazTalepHafizaFilter, setCihazTalepHafizaFilter] = useState('TÜMÜ');
+  const [cihazTalepRenkFilter, setCihazTalepRenkFilter] = useState('TÜMÜ');
+  const [cihazTalepDurumFilter, setCihazTalepDurumFilter] = useState('TÜMÜ');
+  const [cihazTalepPage, setCihazTalepPage] = useState(1);
+  const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
 
   type CihazTalepDialog =
     | null
@@ -3288,255 +3296,924 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          appMode === 'cihaz_talep' && step < 99 ? (
-            <div className="w-full max-w-[1450px] mx-auto animate-in fade-in duration-500">
-              
-              {/* ÜST BİLGİ VE TIKLANABİLİR İSTATİSTİK KARTLARI */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">CİHAZ TALEP LİSTESİ</h2>
-                    <p className="text-xs font-bold text-slate-500 tracking-widest mt-1">Mevcut cihaz listesini görüntüleyin ve talep oluşturun.</p>
-                  </div>
-                </div>
+          appMode === 'cihaz_talep' && step < 99 ? (() => {
+            const cihazTalepRows = cihazTalepData
+              .slice(1)
+              .map((row, i) => ({
+                row,
+                rowIndex: i + 2,
+              }))
+              .filter(({ row }) =>
+                !Array.from(
+                  { length: 15 },
+                  (_, c) => String(row?.[c] ?? '').trim()
+                ).every((value) => value === '')
+              );
 
-                <div className="flex gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
-                  {/* TOPLAM KAYIT KARTI */}
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 min-w-[180px]">
-                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            const getCihazTalepBrand = (value: string) => {
+              const raw = String(value || '').trim();
+              const upper = raw.toLocaleUpperCase('tr-TR');
+
+              if (
+                upper.startsWith('IPH') ||
+                upper.startsWith('IPHONE') ||
+                upper.startsWith('APPLE')
+              ) return 'Apple';
+
+              if (
+                upper.startsWith('SAM') ||
+                upper.startsWith('SAMSUNG')
+              ) return 'Samsung';
+
+              if (
+                upper.startsWith('XIAOMI') ||
+                upper.startsWith('REDMI') ||
+                upper.startsWith('POCO')
+              ) return 'Xiaomi';
+
+              if (upper.startsWith('HONOR')) return 'Honor';
+              if (upper.startsWith('HUAWEI')) return 'Huawei';
+              if (upper.startsWith('REALME')) return 'Realme';
+              if (upper.startsWith('OPPO')) return 'Oppo';
+              if (upper.startsWith('VIVO')) return 'Vivo';
+              if (upper.startsWith('NUBIA')) return 'Nubia';
+
+              return raw.split(/\s+/)[0] || 'Diğer';
+            };
+
+            const getCihazTalepStatus = (row: any[]) => {
+              const talepler = String(row?.[9] || '').trim();
+              const durum = String(row?.[11] || '')
+                .trim()
+                .toLocaleUpperCase('tr-TR');
+              const stok = Math.max(0, Number(row?.[8]) || 0);
+
+              if (
+                durum === 'RED EDİLDİ' ||
+                durum === 'REDDEDİLDİ'
+              ) return 'REDDEDİLDİ';
+
+              if (
+                durum === 'GÖNDERİLDİ' ||
+                durum === 'GONDERILDI'
+              ) return 'GÖNDERİLDİ';
+
+              if (talepler) return 'AKTİF TALEP';
+              if (stok <= 0) return 'STOK YOK';
+
+              return 'TALEP EDİLEBİLİR';
+            };
+
+            const brands: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows.map(({ row }) =>
+                  getCihazTalepBrand(row?.[0])
+                )
+              )
+            ).sort((a, b) =>
+              a.localeCompare(b, 'tr')
+            );
+
+            const hafizalar: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows
+                  .map(({ row }) => String(row?.[1] || '').trim())
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+            const renkler: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows
+                  .map(({ row }) => String(row?.[2] || '').trim())
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b, 'tr'));
+
+            const normalizedSearch =
+              cihazTalepSearch
+                .trim()
+                .toLocaleLowerCase('tr-TR');
+
+            const filteredRows =
+              cihazTalepRows.filter(({ row }) => {
+                const markaModel = String(row?.[0] || '');
+                const hafiza = String(row?.[1] || '');
+                const renk = String(row?.[2] || '');
+                const pil = String(row?.[3] || '');
+                const grade = String(row?.[4] || '');
+                const garanti = String(row?.[5] || '');
+                const degisen = String(row?.[6] || '');
+                const kutu = String(row?.[7] || '');
+                const brand = getCihazTalepBrand(markaModel);
+                const status = getCihazTalepStatus(row);
+
+                const searchOk =
+                  !normalizedSearch ||
+                  [
+                    markaModel,
+                    hafiza,
+                    renk,
+                    pil,
+                    grade,
+                    garanti,
+                    degisen,
+                    kutu,
+                    brand,
+                  ].some((value) =>
+                    String(value)
+                      .toLocaleLowerCase('tr-TR')
+                      .includes(normalizedSearch)
+                  );
+
+                const brandOk =
+                  cihazTalepMarkaFilter === 'TÜMÜ' ||
+                  brand === cihazTalepMarkaFilter;
+
+                const hafizaOk =
+                  cihazTalepHafizaFilter === 'TÜMÜ' ||
+                  hafiza === cihazTalepHafizaFilter;
+
+                const renkOk =
+                  cihazTalepRenkFilter === 'TÜMÜ' ||
+                  renk === cihazTalepRenkFilter;
+
+                const durumOk =
+                  cihazTalepDurumFilter === 'TÜMÜ' ||
+                  status === cihazTalepDurumFilter;
+
+                return (
+                  searchOk &&
+                  brandOk &&
+                  hafizaOk &&
+                  renkOk &&
+                  durumOk
+                );
+              });
+
+            const activeRequests = cihazTalepRows.filter(
+              ({ row }) =>
+                getCihazTalepStatus(row) === 'AKTİF TALEP'
+            ).length;
+
+            const sentRequests = cihazTalepRows.filter(
+              ({ row }) =>
+                getCihazTalepStatus(row) === 'GÖNDERİLDİ'
+            ).length;
+
+            const requestingBranches = new Set(
+              cihazTalepRows
+                .map(({ row }) => String(row?.[9] || '').trim())
+                .filter(Boolean)
+            ).size;
+
+            const totalPages = Math.max(
+              1,
+              Math.ceil(
+                filteredRows.length /
+                Math.max(1, cihazTalepPerPage)
+              )
+            );
+
+            const safePage = Math.min(
+              Math.max(1, cihazTalepPage),
+              totalPages
+            );
+
+            const pageStart =
+              (safePage - 1) * cihazTalepPerPage;
+
+            const pageRows =
+              filteredRows.slice(
+                pageStart,
+                pageStart + cihazTalepPerPage
+              );
+
+            const todayText =
+              new Date().toLocaleDateString('tr-TR', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              });
+
+            const timeText =
+              new Date().toLocaleTimeString('tr-TR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+            const clearFilters = () => {
+              setCihazTalepSearch('');
+              setCihazTalepMarkaFilter('TÜMÜ');
+              setCihazTalepHafizaFilter('TÜMÜ');
+              setCihazTalepRenkFilter('TÜMÜ');
+              setCihazTalepDurumFilter('TÜMÜ');
+              setCihazTalepPage(1);
+            };
+
+            return (
+              <div className="w-full max-w-[1540px] mx-auto animate-in fade-in duration-500 space-y-4 sm:space-y-5">
+
+                {/* HERO */}
+                <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/70 shadow-sm">
+                  <div className="flex flex-col gap-5 px-5 py-5 sm:px-7 sm:py-6 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                        <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                          CNETMOBİL V2
+                        </div>
+
+                        <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                          CİHAZ TALEP LİSTESİ
+                        </h2>
+
+                        <p className="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+                          Mağazaların talep edebileceği mevcut cihazları görüntüleyin.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOPLAM KAYIT</p>
-                      <p className="text-xl font-black text-slate-800">
-                        {Math.max(0, cihazTalepData.length - 1)} <span className="text-sm font-bold text-slate-400">Adet</span>
-                      </p>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                      <div className="hidden min-w-[240px] items-center justify-center px-6 text-center xl:flex">
+                        <div className="-rotate-2 text-xl font-black italic tracking-tight text-blue-600">
+                          Doğru Stok
+                          <br />
+                          <span className="text-2xl">Güçlü Mağazalar</span>
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-[190px] items-center gap-3 rounded-2xl border border-slate-100 bg-white/90 px-4 py-3 shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M5 11h14M5 7h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-black text-slate-800">{todayText}</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">{timeText}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex min-w-[190px] items-center gap-3 rounded-2xl border border-slate-100 bg-white/90 px-4 py-3 shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-black text-slate-800">
+                            {selectedBranch}
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-bold text-blue-500">
+                            {isSuperAdminUser ? 'Super Admin' : isMasterAccess || isAdmin ? 'Yönetici' : 'Personel'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* AKTİF TALEPLER KARTI (YÖNETİCİYE ÖZEL TIKLANABİLİR) */}
-                  <div 
+                </section>
+
+                {/* İSTATİSTİKLER */}
+                <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                        CANLI
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Toplam Cihaz</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {cihazTalepRows.length}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Listede bulunan ürün
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
                     onClick={() => {
-                      if (isMasterAccess || isAdmin) {
+                      if (isMasterAccess || isAdmin || isSuperAdminUser) {
                         setAktifTaleplerModalOpen(true);
-                      } else {
-                        alert("Aktif talepler detayını yalnızca yöneticiler görüntüleyebilir.");
                       }
                     }}
-                    className={`flex items-center gap-4 bg-emerald-50 px-6 py-4 rounded-2xl border border-emerald-100 min-w-[190px] transition-all ${isMasterAccess || isAdmin ? 'cursor-pointer hover:bg-emerald-100 hover:shadow-md btn-click' : 'opacity-80 cursor-not-allowed'}`}
-                    title={isMasterAccess || isAdmin ? "Aktif talepleri görüntülemek için tıklayın" : "Yalnızca yöneticiler erişebilir"}
+                    className={`rounded-[22px] border border-slate-100 bg-white p-4 text-left shadow-sm transition sm:p-5 ${
+                      isMasterAccess || isAdmin || isSuperAdminUser
+                        ? 'hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
+                        : ''
+                    }`}
                   >
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h6l4 4v10a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
+                        AKTİF
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest flex items-center gap-1">
-                        AKTİF TALEPLER
-                        {(isMasterAccess || isAdmin) && <span className="text-[9px] text-emerald-700 font-black">🔍</span>}
-                      </p>
-                      <p className="text-xl font-black text-emerald-700">
-                        {cihazTalepData.slice(1).filter(r => { const b=(r[9] || '').toString().trim(); const d=(r[11] || '').toString().trim().toUpperCase(); return b !== '' && d !== 'RED EDİLDİ' && d !== 'REDDEDİLDİ' && d !== 'GÖNDERİLDİ' && d !== 'GONDERILDI'; }).length} <span className="text-sm font-bold text-emerald-500">Kayıt</span>
-                      </p>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Aktif Talepler</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {activeRequests}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      İşlem bekleyen talep
+                    </div>
+                  </button>
+
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V9l7-5 7 5v12M9 13h6m-6 4h6" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">
+                        MAĞAZA
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Talep Yapan Mağaza</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {requestingBranches}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Talep kaydı bulunan mağaza
                     </div>
                   </div>
 
-                  {(isMasterAccess || isAdmin) && (
+                  <div className="rounded-[22px] border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m5-1a9 9 0 11-6.219-8.56" />
+                        </svg>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                        TAMAMLANDI
+                      </span>
+                    </div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Karşılanan Talepler</div>
+                    <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      {sentRequests}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Gönderildi durumundaki kayıt
+                    </div>
+                  </div>
+                </section>
+
+                {/* FİLTRELER */}
+                <section className="rounded-[24px] border border-slate-100 bg-white p-3 shadow-sm sm:p-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="relative min-w-0 flex-1">
+                      <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+
+                      <input
+                        value={cihazTalepSearch}
+                        onChange={(e) => {
+                          setCihazTalepSearch(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        placeholder="Model, marka veya özellik ara..."
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:shrink-0">
+                      <select
+                        value={cihazTalepMarkaFilter}
+                        onChange={(e) => {
+                          setCihazTalepMarkaFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Markalar</option>
+                        {brands.map((brand) => (
+                          <option key={brand} value={brand}>{brand}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={cihazTalepHafizaFilter}
+                        onChange={(e) => {
+                          setCihazTalepHafizaFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Hafızalar</option>
+                        {hafizalar.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={cihazTalepRenkFilter}
+                        onChange={(e) => {
+                          setCihazTalepRenkFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Renkler</option>
+                        {renkler.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={cihazTalepDurumFilter}
+                        onChange={(e) => {
+                          setCihazTalepDurumFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Durumlar</option>
+                        <option value="TALEP EDİLEBİLİR">Talep Edilebilir</option>
+                        <option value="AKTİF TALEP">Aktif Talep</option>
+                        <option value="GÖNDERİLDİ">Gönderildi</option>
+                        <option value="REDDEDİLDİ">Reddedildi</option>
+                        <option value="STOK YOK">Stok Yok</option>
+                      </select>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={openCihazEkleModal}
-                      className="flex items-center gap-4 bg-blue-600 px-6 py-4 rounded-2xl border border-blue-600 min-w-[190px] text-left text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5 btn-click"
-                      title="Cihaz Talep listesine yeni cihaz ekle"
+                      onClick={clearFilters}
+                      className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-5 text-[10px] font-black uppercase tracking-wider text-slate-600 transition hover:bg-slate-100"
                     >
-                      <div className="w-10 h-10 bg-white/15 text-white rounded-xl flex items-center justify-center shrink-0 ring-1 ring-white/20">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest">YÖNETİCİ İŞLEMİ</p>
-                        <p className="text-base font-black tracking-tight">+ CİHAZ EKLE</p>
-                      </div>
+                      Temizle
                     </button>
-                  )}
-                </div>
-              </div>
 
-              {/* ANA TABLO */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar">
-                  <div className="min-w-[1100px]">
-                    
-                    <div className="grid grid-cols-13 items-center px-6 py-5 border-b border-slate-100 text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                      <div className="col-span-2">MARKA MODEL</div>
-                      <div className="col-span-1">HAFIZA</div>
-                      <div className="col-span-1">RENK</div>
-                      <div className="col-span-1 text-center">PİL</div>
-                      <div className="col-span-1 text-center">GRADE</div>
-                      <div className="col-span-1 text-center">GARANTİ</div>
-                      <div className="col-span-2">DEĞİŞEN PARÇA</div>
-                      <div className="col-span-1 text-center">KUTU FATURA</div>
-                      <div className="col-span-1 text-center">STOK</div>
-                      <div className="col-span-2 text-right pr-2">İŞLEM</div>
-                    </div>
+                    {(isMasterAccess || isAdmin || isSuperAdminUser) && (
+                      <button
+                        type="button"
+                        onClick={openCihazEkleModal}
+                        className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.99]"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Cihaz Ekle
+                      </button>
+                    )}
+                  </div>
+                </section>
 
-                    <div className="flex flex-col">
-                      {cihazTalepData.slice(1).map((row, i) => {
-                        const rowIndex = i + 2;
-                        // Veritabanı/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
-                        // rowIndex korunur; böylece işlem yapılan satır Sheets ile birebir aynı kalır.
-                        const satirTamamenBos = Array.from({ length: 15 }, (_, c) => String(row?.[c] ?? '').trim()).every(v => v === '');
-                        if (satirTamamenBos) return null;
-                        const markaModel = row[0] || '';
-                        const hafiza = row[1] || '';
-                        const renk = row[2] || '';
-                        const pil = row[3] || '';
-                        const grade = (row[4] || '').toUpperCase();
-                        const garanti = row[5] || '';
-                        const degisenParca = row[6] || '';
-                        const kutuFatura = row[7] || '';
-                        
-                        const mevcutTalepler = (row[9] || '').toString().trim();
-                        const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
-                        const kararTarihi = (row[12] || '').toString().trim();
-                        const redNedeni = (row[13] || '').toString().trim();
-                        const stokAdedi = Math.max(0, Number(row[8]) || 0);
-                        const talepAdedi = Math.max(0, Number(row[14]) || 0);
-                        const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
-                        const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
-                        const isRequested = mevcutTalepler !== ''; // Bekleyen/red/gönderildi bilgisi bulunan cihaz kilitli kalır.
-                        let gradeStyle = "bg-slate-100 text-slate-600";
-                        if(grade === 'MÜKEMMEL') gradeStyle = "bg-emerald-100 text-emerald-600";
-                        if(grade === 'ÇOK İYİ') gradeStyle = "bg-blue-100 text-blue-600";
-                        if(grade === 'İYİ') gradeStyle = "bg-amber-100 text-amber-600";
-                        if(grade === 'OUTLET') gradeStyle = "bg-rose-100 text-rose-600";
+                {/* TABLO */}
+                <section className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full min-w-[1220px] border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50/30">
+                          <th className="w-[56px] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">#</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Marka / Model</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Hafıza</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Renk</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Pil</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Grade</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Garanti</th>
+                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Değişen Parça</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
+                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="px-4 py-4 text-right text-[9px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
+                        </tr>
+                      </thead>
 
-                        const renkLower = renk.toLocaleLowerCase('tr-TR');
-                        const colorCode = renkLower.includes('siyah') || renkLower.includes('black') ? '#111827'
-                          : renkLower.includes('beyaz') || renkLower.includes('white') ? '#f8fafc'
-                          : renkLower.includes('lacivert') || renkLower.includes('navy') ? '#1e3a8a'
-                          : renkLower.includes('mavi') || renkLower.includes('blue') ? '#3b82f6'
-                          : renkLower.includes('kırmızı') || renkLower.includes('kirmizi') || renkLower.includes('red') ? '#ef4444'
-                          : renkLower.includes('mor') || renkLower.includes('purple') ? '#a855f7'
-                          : renkLower.includes('yeşil') || renkLower.includes('yesil') || renkLower.includes('green') ? '#22c55e'
-                          : renkLower.includes('gri') || renkLower.includes('gray') || renkLower.includes('grey') ? '#94a3b8'
-                          : renkLower.includes('pembe') || renkLower.includes('pink') ? '#ec4899'
-                          : renkLower.includes('sarı') || renkLower.includes('sari') || renkLower.includes('yellow') ? '#eab308'
-                          : renkLower.includes('turuncu') || renkLower.includes('orange') ? '#f97316'
-                          : renkLower.includes('altın') || renkLower.includes('altin') || renkLower.includes('gold') ? '#d4a017'
-                          : renkLower.includes('gümüş') || renkLower.includes('gumus') || renkLower.includes('silver') ? '#cbd5e1'
-                          : renkLower.includes('titanyum') || renkLower.includes('titanium') ? '#78716c'
-                          : '#cbd5e1';
+                      <tbody>
+                        {pageRows.map(({ row, rowIndex }, pageIndex) => {
+                          const markaModel = row[0] || '';
+                          const hafiza = row[1] || '';
+                          const renk = row[2] || '';
+                          const pil = row[3] || '';
+                          const grade = String(row[4] || '').toLocaleUpperCase('tr-TR');
+                          const garanti = row[5] || '';
+                          const degisenParca = row[6] || '';
+                          const kutuFatura = row[7] || '';
 
-                        return (
-                          <div key={i} className="grid grid-cols-13 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                            
-                            <div className="col-span-2 font-black text-slate-800 text-xs pr-2">
-                              {markaModel}
-                            </div>
-                            
-                            <div className="col-span-1 font-bold text-slate-700 text-xs pr-2">
-                              {hafiza}
-                            </div>
-                            
-                            <div className="col-span-1 flex items-center gap-1.5 pr-2">
-                              <div className="w-2.5 h-2.5 rounded-full shadow-inner shrink-0" style={{backgroundColor: colorCode}}></div>
-                              <span className="text-[11px] font-medium text-slate-500 truncate">{renk}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-700 text-xs">
-                              <span className="bg-slate-100 px-2 py-1 rounded-md">{pil}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center">
-                              <span className={`px-2 py-1 rounded-lg text-[9px] font-black tracking-widest ${gradeStyle}`}>{grade || '-'}</span>
-                            </div>
-                            
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {garanti || '-'}
-                            </div>
+                          const mevcutTalepler = String(row[9] || '').trim();
+                          const talepDurumu = String(row[11] || '')
+                            .trim()
+                            .toLocaleUpperCase('tr-TR');
+                          const kararTarihi = String(row[12] || '').trim();
+                          const redNedeni = String(row[13] || '').trim();
+                          const stokAdedi = Math.max(0, Number(row[8]) || 0);
+                          const talepAdedi = Math.max(0, Number(row[14]) || 0);
 
-                            <div className="col-span-2 font-medium text-slate-600 text-xs truncate pr-2" title={degisenParca}>
-                              {degisenParca || 'Orijinal / Yok'}
-                            </div>
+                          const isRejected =
+                            talepDurumu === 'RED EDİLDİ' ||
+                            talepDurumu === 'REDDEDİLDİ';
 
-                            <div className="col-span-1 text-center font-bold text-slate-600 text-xs">
-                              {kutuFatura || '-'}
-                            </div>
+                          const isSent =
+                            talepDurumu === 'GÖNDERİLDİ' ||
+                            talepDurumu === 'GONDERILDI';
 
-                            <div className="col-span-1 text-center">
-                              <span className={`inline-flex min-w-[42px] justify-center px-2.5 py-1.5 rounded-lg text-[10px] font-black ${stokAdedi > 0 ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                                {stokAdedi} ADET
-                              </span>
-                            </div>
-                            
-                            <div className="col-span-2 text-right">
-                              {isRequested ? (
-                                <div className="flex flex-col items-end gap-1.5">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest whitespace-nowrap border ${
-                                      isRejected
-                                        ? 'bg-red-50 text-red-600 border-red-200'
-                                        : isSent
-                                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                    }`}>
-                                      {isRejected ? `✕ ${talepAdedi || 1} ADET TALEP RED EDİLDİ` : isSent ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ` : `✓ ${talepAdedi || 1} ADET TALEP EDİLDİ`}
+                          const isRequested = mevcutTalepler !== '';
+
+                          let gradeStyle =
+                            'bg-slate-100 text-slate-600 border-slate-200';
+
+                          if (grade === 'MÜKEMMEL') {
+                            gradeStyle =
+                              'bg-emerald-50 text-emerald-700 border-emerald-100';
+                          }
+
+                          if (grade === 'ÇOK İYİ') {
+                            gradeStyle =
+                              'bg-blue-50 text-blue-700 border-blue-100';
+                          }
+
+                          if (grade === 'İYİ') {
+                            gradeStyle =
+                              'bg-amber-50 text-amber-700 border-amber-100';
+                          }
+
+                          if (grade === 'OUTLET') {
+                            gradeStyle =
+                              'bg-rose-50 text-rose-700 border-rose-100';
+                          }
+
+                          const renkLower =
+                            String(renk).toLocaleLowerCase('tr-TR');
+
+                          const colorCode =
+                            renkLower.includes('siyah') ||
+                            renkLower.includes('black')
+                              ? '#111827'
+                              : renkLower.includes('beyaz') ||
+                                renkLower.includes('white')
+                              ? '#f8fafc'
+                              : renkLower.includes('lacivert') ||
+                                renkLower.includes('navy')
+                              ? '#1e3a8a'
+                              : renkLower.includes('mavi') ||
+                                renkLower.includes('blue')
+                              ? '#2563eb'
+                              : renkLower.includes('kırmızı') ||
+                                renkLower.includes('kirmizi') ||
+                                renkLower.includes('red')
+                              ? '#ef4444'
+                              : renkLower.includes('mor') ||
+                                renkLower.includes('purple')
+                              ? '#9333ea'
+                              : renkLower.includes('yeşil') ||
+                                renkLower.includes('yesil') ||
+                                renkLower.includes('green')
+                              ? '#16a34a'
+                              : renkLower.includes('gri') ||
+                                renkLower.includes('gray') ||
+                                renkLower.includes('grey')
+                              ? '#64748b'
+                              : renkLower.includes('pembe') ||
+                                renkLower.includes('pink')
+                              ? '#ec4899'
+                              : renkLower.includes('sarı') ||
+                                renkLower.includes('sari') ||
+                                renkLower.includes('yellow')
+                              ? '#eab308'
+                              : renkLower.includes('turuncu') ||
+                                renkLower.includes('orange')
+                              ? '#f97316'
+                              : renkLower.includes('altın') ||
+                                renkLower.includes('altin') ||
+                                renkLower.includes('gold')
+                              ? '#d4a017'
+                              : renkLower.includes('gümüş') ||
+                                renkLower.includes('gumus') ||
+                                renkLower.includes('silver')
+                              ? '#cbd5e1'
+                              : renkLower.includes('titanyum') ||
+                                renkLower.includes('titanium')
+                              ? '#78716c'
+                              : '#94a3b8';
+
+                          const displayIndex =
+                            pageStart + pageIndex + 1;
+
+                          return (
+                            <tr
+                              key={rowIndex}
+                              className="border-b border-slate-100 transition hover:bg-blue-50/30"
+                            >
+                              <td className="px-4 py-3.5 text-center text-[11px] font-black text-slate-400">
+                                {displayIndex}
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <div className="font-black text-slate-900">
+                                  {markaModel}
+                                </div>
+                                <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                  {getCihazTalepBrand(markaModel)}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-xs font-bold text-slate-700">
+                                {hafiza || '-'}
+                              </td>
+
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/5 shadow-inner"
+                                    style={{ backgroundColor: colorCode }}
+                                  />
+                                  <span className="text-[11px] font-semibold text-slate-600">
+                                    {renk || '-'}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span className="inline-flex min-w-[38px] justify-center rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700">
+                                  {pil || '-'}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span
+                                  className={`inline-flex rounded-lg border px-2.5 py-1 text-[9px] font-black tracking-wide ${gradeStyle}`}
+                                >
+                                  {grade || '-'}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
+                                {garanti || '-'}
+                              </td>
+
+                              <td
+                                className="max-w-[180px] px-4 py-3.5 text-[11px] font-semibold text-slate-600"
+                                title={degisenParca}
+                              >
+                                <div className="truncate">
+                                  {degisenParca || 'Yok'}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
+                                {kutuFatura || '-'}
+                              </td>
+
+                              <td className="px-4 py-3.5 text-center">
+                                <span
+                                  className={`inline-flex min-w-[66px] justify-center rounded-xl border px-2.5 py-1.5 text-[9px] font-black ${
+                                    stokAdedi >= 3
+                                      ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                                      : stokAdedi > 0
+                                      ? 'border-amber-100 bg-amber-50 text-amber-700'
+                                      : 'border-rose-100 bg-rose-50 text-rose-700'
+                                  }`}
+                                >
+                                  {stokAdedi} ADET
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3.5 text-right">
+                                {isRequested ? (
+                                  <div className="flex flex-col items-end gap-1.5">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <div
+                                        className={`rounded-xl border px-3 py-1.5 text-[9px] font-black whitespace-nowrap ${
+                                          isRejected
+                                            ? 'border-red-200 bg-red-50 text-red-600'
+                                            : isSent
+                                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        }`}
+                                      >
+                                        {isRejected
+                                          ? `✕ ${talepAdedi || 1} ADET RED`
+                                          : isSent
+                                          ? `✓ ${talepAdedi || 1} ADET GÖNDERİLDİ`
+                                          : `✓ ${talepAdedi || 1} ADET TALEP`}
+                                      </div>
+
+                                      {isSent &&
+                                        (isMasterAccess || isAdmin || isSuperAdminUser) && (
+                                          <button
+                                            disabled={deleteTalepLoadingIndex === rowIndex}
+                                            onClick={() =>
+                                              handleTalepKaydiSil(
+                                                rowIndex,
+                                                `${markaModel} (${hafiza})`,
+                                                mevcutTalepler
+                                              )
+                                            }
+                                            title="Cihaz satırını tamamen sil"
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-500 transition hover:bg-red-600 hover:text-white disabled:opacity-50"
+                                          >
+                                            {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
+                                          </button>
+                                        )}
                                     </div>
 
-                                    {isSent && (isMasterAccess || isAdmin) && (
-                                      <button
-                                        disabled={deleteTalepLoadingIndex === rowIndex}
-                                        onClick={() => handleTalepKaydiSil(rowIndex, `${markaModel} (${hafiza})`, mevcutTalepler)}
-                                        title="Cihaz satırını tamamen sil ve alttakileri yukarı kaydır"
-                                        className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all disabled:opacity-50"
+                                    <div className="max-w-[190px] truncate text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                      {mevcutTalepler}
+                                    </div>
+
+                                    {isRejected && redNedeni && (
+                                      <div
+                                        className="max-w-[200px] rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-right text-[8px] font-bold leading-tight text-red-600"
+                                        title={redNedeni}
                                       >
-                                        {deleteTalepLoadingIndex === rowIndex ? '…' : '×'}
-                                      </button>
+                                        {redNedeni}
+                                      </div>
+                                    )}
+
+                                    {(isRejected || isSent) && kararTarihi && (
+                                      <div className="text-[8px] font-semibold text-slate-400">
+                                        {kararTarihi}
+                                      </div>
                                     )}
                                   </div>
+                                ) : (
+                                  <button
+                                    disabled={stokAdedi <= 0 || talepSaving}
+                                    onClick={() =>
+                                      handleTalepGonder(
+                                        rowIndex,
+                                        `${markaModel} (${hafiza} - ${renk})`,
+                                        stokAdedi
+                                      )
+                                    }
+                                    className="min-w-[112px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                                  >
+                                    {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
 
-                                  <div className={`text-[8px] font-black uppercase tracking-wide ${isRejected ? 'text-red-500' : isSent ? 'text-blue-600' : 'text-slate-500'}`}>
-                                    {mevcutTalepler}
-                                  </div>
+                        {pageRows.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={11}
+                              className="px-6 py-16 text-center"
+                            >
+                              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="mt-3 text-sm font-black text-slate-700">
+                                Kayıt bulunamadı
+                              </div>
+                              <div className="mt-1 text-xs font-semibold text-slate-400">
+                                Arama veya filtreleri temizleyip tekrar deneyin.
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-                                  {isRejected && redNedeni && (
-                                    <div className="max-w-[210px] text-right text-[9px] font-bold normal-case leading-tight text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1" title={redNedeni}>
-                                      Neden: {redNedeni}
-                                    </div>
-                                  )}
+                  {/* SAYFALAMA */}
+                  <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div className="text-[10px] font-bold text-slate-500">
+                      Toplam <span className="font-black text-slate-800">{filteredRows.length}</span> kayıttan{' '}
+                      <span className="font-black text-slate-800">
+                        {filteredRows.length === 0 ? 0 : pageStart + 1}
+                      </span>
+                      {' - '}
+                      <span className="font-black text-slate-800">
+                        {Math.min(pageStart + cihazTalepPerPage, filteredRows.length)}
+                      </span>
+                      {' arası gösteriliyor.'}
+                    </div>
 
-                                  {(isRejected || isSent) && kararTarihi && (
-                                    <div className="text-[8px] font-semibold text-slate-400">
-                                      {kararTarihi}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                 <button 
-                                   disabled={stokAdedi <= 0 || talepSaving}
-                                   onClick={() => handleTalepGonder(rowIndex, `${markaModel} (${hafiza} - ${renk})`, stokAdedi)}
-                                   className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-[9px] font-black tracking-widest transition-all btn-click whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-blue-600"
-                                 >
-                                   {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
-                                 </button>
-                              )}
-                            </div>
-                          </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCihazTalepPage((current) =>
+                            Math.max(1, current - 1)
+                          )
+                        }
+                        disabled={safePage <= 1}
+                        className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 disabled:opacity-30"
+                      >
+                        ‹
+                      </button>
+
+                      {Array.from(
+                        { length: Math.min(totalPages, 5) },
+                        (_, index) => {
+                          let pageNumber = index + 1;
+
+                          if (totalPages > 5 && safePage > 3) {
+                            pageNumber = Math.min(
+                              totalPages - 4 + index,
+                              safePage - 2 + index
+                            );
+                          }
+
+                          pageNumber = Math.max(
+                            1,
+                            Math.min(totalPages, pageNumber)
+                          );
+
+                          return pageNumber;
+                        }
+                      )
+                        .filter(
+                          (value, index, array) =>
+                            array.indexOf(value) === index
                         )
-                      })}
-                      
-                      {cihazTalepData.length <= 1 && (
-                         <div className="text-center py-12 text-slate-400 text-sm font-bold">Listelenecek cihaz bulunamadı.</div>
-                      )}
+                        .map((pageNumber) => (
+                          <button
+                            key={pageNumber}
+                            type="button"
+                            onClick={() =>
+                              setCihazTalepPage(pageNumber)
+                            }
+                            className={`h-9 min-w-[36px] rounded-xl border px-2 text-[10px] font-black transition ${
+                              safePage === pageNumber
+                                ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600'
+                            }`}
+                          >
+                            {pageNumber}
+                          </button>
+                        ))}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCihazTalepPage((current) =>
+                            Math.min(totalPages, current + 1)
+                          )
+                        }
+                        disabled={safePage >= totalPages}
+                        className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 disabled:opacity-30"
+                      >
+                        ›
+                      </button>
+
+                      <select
+                        value={cihazTalepPerPage}
+                        onChange={(e) => {
+                          setCihazTalepPerPage(Number(e.target.value));
+                          setCihazTalepPage(1);
+                        }}
+                        className="ml-1 h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-600 outline-none"
+                      >
+                        <option value={10}>10 / sayfa</option>
+                        <option value={25}>25 / sayfa</option>
+                        <option value={50}>50 / sayfa</option>
+                      </select>
                     </div>
                   </div>
-                </div>
-              </div>
+                </section>
 
-            </div>
-          ) :
-          
+                {/* BİLGİLENDİRME */}
+                <section className="flex flex-col gap-4 rounded-[22px] border border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                      <span className="font-black">i</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-800">
+                        Bilgilendirme
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-semibold text-slate-500 sm:text-[11px]">
+                        Talep ettiğiniz cihazlar mağaza stok durumuna göre değerlendirilir. Sonuçlar panel üzerinden görüntülenir.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-xs font-black tracking-[0.14em] text-blue-700">
+                      CNETMOBİL V2
+                    </div>
+                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                      Teknoloji Her Yerde
+                    </div>
+                  </div>
+                </section>
+              </div>
+            );
+          })() :
+
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {isAdmin && (
