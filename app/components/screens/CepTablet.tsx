@@ -128,87 +128,6 @@ function AndroidIcon() {
   );
 }
 
-
-function BrandLogo({ brand }: { brand: (typeof BRAND_OPTIONS)[number] }) {
-  if (brand === "Tümü" || brand === "Diğer") {
-    return (
-      <span className="grid h-5 w-5 grid-cols-2 gap-[2px] rounded-md bg-blue-50 p-[4px] text-blue-600">
-        <span className="rounded-[1px] bg-current" />
-        <span className="rounded-[1px] bg-current" />
-        <span className="rounded-[1px] bg-current" />
-        <span className="rounded-[1px] bg-current" />
-      </span>
-    );
-  }
-
-  if (brand === "Apple") {
-    return (
-      <span className="flex h-5 w-5 items-center justify-center text-slate-950">
-        <AppleIcon />
-      </span>
-    );
-  }
-
-  if (brand === "Samsung") {
-    return (
-      <span className="inline-flex min-w-[54px] items-center justify-center rounded-full bg-blue-600 px-2 py-[3px] text-[7px] font-black italic tracking-[0.08em] text-white">
-        SAMSUNG
-      </span>
-    );
-  }
-
-  if (brand === "Xiaomi") {
-    return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] bg-[#ff6900] text-[8px] font-black lowercase text-white">
-        mi
-      </span>
-    );
-  }
-
-  if (brand === "Oppo") {
-    return (
-      <span className="text-[10px] font-black tracking-[-0.06em] text-emerald-600">
-        OPPO
-      </span>
-    );
-  }
-
-  if (brand === "Vivo") {
-    return (
-      <span className="text-[11px] font-black lowercase tracking-[-0.04em] text-blue-600">
-        vivo
-      </span>
-    );
-  }
-
-  if (brand === "Realme") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-black lowercase tracking-[-0.03em] text-slate-950">
-        <span className="h-2 w-1 rounded-full bg-yellow-400" />
-        realme
-      </span>
-    );
-  }
-
-  if (brand === "Tecno") {
-    return (
-      <span className="text-[9px] font-black tracking-[0.05em] text-blue-600">
-        TECNO
-      </span>
-    );
-  }
-
-  if (brand === "Infinix") {
-    return (
-      <span className="text-[10px] font-black tracking-[-0.03em] text-slate-900">
-        Infinix
-      </span>
-    );
-  }
-
-  return null;
-}
-
 function SearchIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -833,16 +752,13 @@ export default function CepTablet({
                 key={item}
                 onClick={() => setBrand(item)}
                 className={[
-                  "flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-[9px] font-black transition",
+                  "shrink-0 rounded-xl border px-4 py-2 text-[9px] font-black transition",
                   active
                     ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/15"
                     : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600",
                 ].join(" ")}
               >
-                <span className={active && item !== "Apple" && item !== "Samsung" && item !== "Xiaomi" && item !== "Oppo" && item !== "Vivo" && item !== "Realme" && item !== "Tecno" && item !== "Infinix" ? "text-white" : ""}>
-                  <BrandLogo brand={item} />
-                </span>
-                <span>{item}</span>
+                {item}
               </button>
             );
           })}
