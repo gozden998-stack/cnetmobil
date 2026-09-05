@@ -679,7 +679,12 @@ export default function CnetmobilCmrFinalUltimate() {
   const [thhSaving, setThhSaving] = useState(false);
 
   // --- CİHAZ TALEP STATE'LERİ ---
+  // --- CİHAZ TALEP ---
+  // Veri + üst navbar hızlı arama köprüsü parent'ta kalır.
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
+  const [cihazTalepSearch, setCihazTalepSearch] = useState('');
+  const [cihazTalepPage, setCihazTalepPage] = useState(1);
+
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
@@ -3132,6 +3137,10 @@ export default function CnetmobilCmrFinalUltimate() {
             <CihazTalep
               cihazTalepData={cihazTalepData}
               setCihazTalepData={setCihazTalepData}
+              cihazTalepSearch={cihazTalepSearch}
+              setCihazTalepSearch={setCihazTalepSearch}
+              cihazTalepPage={cihazTalepPage}
+              setCihazTalepPage={setCihazTalepPage}
               selectedBranch={selectedBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
