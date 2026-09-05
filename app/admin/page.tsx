@@ -1,39 +1,48 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type MeResponse = {
   success: boolean;
   isSuperAdmin?: boolean;
   user?: { email?: string | null };
-  permissions?: string[];
 };
 
-const modules = [
-  { title: "Kullanıcılar & Yetkiler", description: "Personel, yönetici, Super Admin, şube ve işlem yetkileri.", href: "/admin/users", permission: "users.view", icon: "👥", ready: true },
-  { title: "Fiyat Yönetimi", description: "Cihaz fiyatlarını panelden görüntüle, değiştir ve logla.", href: "/admin/prices", permission: "prices.view", icon: "₺", ready: true },
-  { title: "Stok Yönetimi", description: "Merkez ve mağaza stoklarını yönet, transfer oluştur.", href: "/admin/stock", permission: "stock.view", icon: "📦", ready: false },
-  { title: "Cihaz Yönetimi", description: "Cihaz ekle, düzenle ve ürün bilgilerini yönet.", href: "/admin/devices", permission: "devices.view", icon: "📱", ready: false },
-  { title: "Cihaz Talepleri", description: "Mağaza taleplerini onayla, reddet ve gönderildi yap.", href: "/admin/requests", permission: "requests.view", icon: "🚚", ready: false },
-  { title: "Alımlar", description: "Cihaz alım kayıtlarını ve geçmiş işlemleri yönet.", href: "/admin/purchases", permission: "purchases.view", icon: "🧾", ready: false },
-  { title: "THH", description: "THH kayıtlarını görüntüle, düzenle ve takip et.", href: "/admin/thh", permission: "thh.view", icon: "⚖️", ready: false },
-  { title: "Raporlar", description: "Mağaza, personel, satış, stok ve performans raporları.", href: "/admin/reports", permission: "reports.view", icon: "📊", ready: false },
-  { title: "İşlem Geçmişi", description: "Kim, neyi, ne zaman değiştirdi? Audit kayıtları.", href: "/admin/audit", permission: "audit.view", icon: "🕘", ready: false },
-  { title: "Sistem Ayarları", description: "Panel kuralları, baremler ve genel sistem ayarları.", href: "/admin/settings", permission: "settings.view", icon: "⚙️", ready: false },
+type AdminItem = {
+  title: string;
+  href?: string;
+  active: boolean;
+};
+
+const items: AdminItem[] = [
+  { title: "Ana Sayfa", active: true },
+  { title: "Cihaz Alım", href: "/admin/prices", active: true },
+  { title: "Teknik Servis", active: false },
+  { title: "THH Takip", active: false },
+  { title: "Cep + Tablet", active: false },
+  { title: "YNA List", active: false },
+  { title: "Dış Kanal", active: false },
+  { title: "Kampanyalı Sıfır Liste", active: false },
+  { title: "2. El Listesi", active: false },
+  { title: "Cihaz Talep", active: false },
 ];
 
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [permissions, setPermissions] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const boot = async () => {
       try {
-        const res = await fetch("/api/me", { method: "GET", cache: "no-store" });
+        const res = await fetch("/api/me", {
+          method: "GET",
+          cache: "no-store",
+        });
+
         const data: MeResponse = await res.json();
 
         if (!res.ok || !data.success || !data.isSuperAdmin) {
@@ -42,7 +51,6 @@ export default function SuperAdminDashboardPage() {
         }
 
         setEmail(data.user?.email || "");
-        setPermissions(Array.isArray(data.permissions) ? data.permissions : []);
       } catch {
         router.replace("/");
         return;
@@ -54,105 +62,125 @@ export default function SuperAdminDashboardPage() {
     boot();
   }, [router]);
 
-  const visibleModules = useMemo(
-    () => modules.filter((item) => permissions.includes(item.permission) || permissions.length === 0),
-    [permissions]
-  );
-
-  const logout = async () => {
-    try { await fetch("/api/auth", { method: "DELETE" }); } catch {}
-    window.location.href = "/";
+  const openNormalPanel = () => {
+    window.open("/?view=normal", "_blank", "noopener,noreferrer");
   };
 
-  const openModule = (item: (typeof modules)[number]) => {
-    if (item.ready) {
+  const openItem = (item: AdminItem) => {
+    if (item.title === "Ana Sayfa") {
+      openNormalPanel();
+      return;
+    }
+
+    if (item.active && item.href) {
       router.push(item.href);
       return;
     }
 
-    setNotice(`${item.title} sıradaki aşamada aktif olacak. İlk olarak Fiyat Yönetimi'ni bağlayacağız.`);
-    window.setTimeout(() => setNotice(""), 4000);
+    setNotice(`${item.title} için yönetim alanı henüz eklenmedi.`);
+    window.setTimeout(() => setNotice(""), 3000);
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth", { method: "DELETE" });
+    } catch {}
+
+    window.location.href = "/";
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-11 h-11 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin" />
-          <div className="text-sm font-bold text-slate-500">Super Admin paneli hazırlanıyor...</div>
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="text-sm font-bold text-slate-500">
+          Yönetim paneli açılıyor...
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
-      <header className="sticky top-0 z-40 bg-[#172033] text-white shadow-lg">
-        <div className="max-w-[1500px] mx-auto min-h-[72px] px-5 lg:px-8 flex items-center justify-between gap-5">
+    <div className="min-h-screen bg-[#f3f6fa] text-slate-900">
+      <header className="bg-[#2d3035] text-white shadow-sm">
+        <div className="max-w-[1450px] mx-auto min-h-[70px] px-5 lg:px-8 flex items-center justify-between gap-4">
           <div>
-            <div className="text-[22px] font-black tracking-tight">CNETMOBİL</div>
-            <div className="text-[11px] text-slate-300">Super Admin Yönetim Merkezi</div>
+            <div className="text-xl font-black">CNETMOBİL</div>
+            <div className="text-[11px] text-slate-300">Super Admin</div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:block text-right">
-              <div className="text-[11px] text-slate-400">Super Admin</div>
-              <div className="text-sm font-semibold">{email}</div>
-            </div>
-            <button onClick={logout} className="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-bold transition">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openNormalPanel}
+              className="h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-black"
+            >
+              Normal Paneli Aç
+            </button>
+
+            <button
+              onClick={() => router.push("/admin/users")}
+              className="h-10 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-bold"
+            >
+              Kullanıcı & Yetki
+            </button>
+
+            <button
+              onClick={logout}
+              className="h-10 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-bold"
+            >
               Çıkış
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1500px] mx-auto p-5 lg:p-8">
-        <section className="rounded-[30px] bg-gradient-to-br from-[#172033] via-[#22304b] to-[#0f62d7] text-white p-7 lg:p-10 shadow-xl mb-7">
-          <div className="max-w-4xl">
-            <div className="inline-flex rounded-full bg-white/10 border border-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-wider">
-              CNETMOBİL PANEL V2
-            </div>
-            <h1 className="mt-5 text-3xl lg:text-5xl font-black tracking-tight">Yönetim tek merkezde.</h1>
-            <p className="mt-4 text-slate-200 max-w-3xl leading-relaxed">
-              Kullanıcı, yetki, fiyat, stok, cihaz, talep ve rapor işlemlerini bu panelden yöneteceğiz.
+      <main className="max-w-[1450px] mx-auto px-5 lg:px-8 py-7">
+        <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black">Yönetim İşlemleri</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Sadece değiştirmek istediğin ekranları burada yöneteceğiz.
             </p>
           </div>
-        </section>
+
+          <div className="text-xs text-slate-400">{email}</div>
+        </div>
 
         {notice && (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-blue-800 font-semibold">
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
             {notice}
           </div>
         )}
 
-        <div className="mb-5">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Modüller</div>
-          <h2 className="mt-1 text-2xl font-black">Super Admin İşlemleri</h2>
-        </div>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {visibleModules.map((item) => (
+        <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          {items.map((item) => (
             <button
               key={item.title}
               type="button"
-              onClick={() => openModule(item)}
-              className="text-left rounded-3xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all group"
+              onClick={() => openItem(item)}
+              className={`min-h-[112px] rounded-2xl border bg-white p-4 text-left shadow-sm transition ${
+                item.active
+                  ? "border-slate-200 hover:border-blue-300 hover:shadow-md"
+                  : "border-slate-200 opacity-65"
+              }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl group-hover:bg-blue-50 transition">
-                  {item.icon}
-                </div>
-                <div className={`text-[10px] font-black uppercase tracking-wider rounded-full px-2.5 py-1 ${
-                  item.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                }`}>
-                  {item.ready ? "Aktif" : "Sırada"}
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  {item.active ? "Aktif" : "Sırada"}
+                </span>
+
+                {item.active && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                )}
               </div>
 
-              <div className="mt-5 text-lg font-black">{item.title}</div>
-              <div className="mt-2 text-sm text-slate-500 leading-relaxed">{item.description}</div>
-              <div className="mt-5 text-sm font-black text-blue-600">
-                {item.ready ? "Modülü Aç →" : "Yakında aktif →"}
+              <div className="mt-5 text-[16px] font-black">{item.title}</div>
+
+              <div className="mt-2 text-xs font-bold text-blue-600">
+                {item.active
+                  ? item.title === "Ana Sayfa"
+                    ? "Normal paneli aç →"
+                    : "Düzenle →"
+                  : "Henüz aktif değil"}
               </div>
             </button>
           ))}
