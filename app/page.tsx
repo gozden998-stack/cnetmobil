@@ -74,7 +74,13 @@ async function inflateXlsxDeflateRaw(data: Uint8Array) {
     );
   }
 
-  const stream = new Blob([data])
+  // TypeScript / Next.js BlobPart uyumluluğu:
+  // Uint8Array buffer'ı SharedArrayBuffer olabileceği için
+  // veriyi kesin ArrayBuffer içine kopyalıyoruz.
+  const safeBuffer = new ArrayBuffer(data.byteLength);
+  new Uint8Array(safeBuffer).set(data);
+
+  const stream = new Blob([safeBuffer])
     .stream()
     .pipeThrough(new DecompressionStream('deflate-raw'));
 
