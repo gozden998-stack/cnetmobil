@@ -1,34 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
 // ======================================================
-// SUPABASE - TARAYICIDAN DOĞRUDAN VERİ OKUMA
-// Vercel /api/sheets artık kullanılmıyor.
-// Service Role KULLANMA! Sadece publishable/anon key kullanılır.
+// POSTGRESQL - TARAYICI SADECE KENDİ NEXT.JS API'MİZE BAĞLANIR
+// PostgreSQL bilgileri yalnızca sunucudaki DATABASE_URL içinde kalır.
 // ======================================================
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-type SupabaseSheetRow = {
+type SheetRow = {
   id?: number;
   sheet_name: string;
   row_number: number;
@@ -49,8 +30,8 @@ function trimTrailingEmptyCells(row: any[]): any[] {
   return result;
 }
 
-function getRangeFromSupabaseRows(
-  rows: SupabaseSheetRow[],
+function getRangeFromSheetRows(
+  rows: SheetRow[],
   startRow: number,
   endRow: number,
   startCol: number,
@@ -71,8 +52,8 @@ function getRangeFromSupabaseRows(
   return result;
 }
 
-function buildPanelData(rows: SupabaseSheetRow[]) {
-  const sheets: Record<string, SupabaseSheetRow[]> = {};
+function buildPanelData(rows: SheetRow[]) {
+  const sheets: Record<string, SheetRow[]> = {};
 
   rows.forEach((row) => {
     if (!sheets[row.sheet_name]) sheets[row.sheet_name] = [];
@@ -80,23 +61,23 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
   });
 
   return {
-    Devices: getRangeFromSupabaseRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
-    Ayarlar: getRangeFromSupabaseRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
-    Alimlar: getRangeFromSupabaseRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
-    Markalar: getRangeFromSupabaseRows(sheets['Markalar'] || [], 2, 50, 0, 2),
-    CepTablet: getRangeFromSupabaseRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
-    YNA: getRangeFromSupabaseRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
-    DisKanal: getRangeFromSupabaseRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
-    Servis: getRangeFromSupabaseRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
-    IkinciEl: getRangeFromSupabaseRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
-    Depo: getRangeFromSupabaseRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
-    Hedefler: getRangeFromSupabaseRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
-    MagazaGidisat: getRangeFromSupabaseRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
-    PersonelGidisat: getRangeFromSupabaseRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
-    THH: getRangeFromSupabaseRows(sheets['THH'] || [], 1, 1000, 0, 18),
-    CihazTalep: getRangeFromSupabaseRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
-    CustomerDevices: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
-    CustomerConfig: getRangeFromSupabaseRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
+    Devices: getRangeFromSheetRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
+    Ayarlar: getRangeFromSheetRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
+    Alimlar: getRangeFromSheetRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
+    Markalar: getRangeFromSheetRows(sheets['Markalar'] || [], 2, 50, 0, 2),
+    CepTablet: getRangeFromSheetRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
+    YNA: getRangeFromSheetRows(sheets['YNA LİST'] || [], 1, 1000, 0, 6),
+    DisKanal: getRangeFromSheetRows(sheets['DIŞ KANAL SATIN ALMA'] || [], 1, 1000, 0, 3),
+    Servis: getRangeFromSheetRows(sheets['Servis_Fiyatlari'] || [], 2, 1000, 0, 7),
+    IkinciEl: getRangeFromSheetRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
+    Depo: getRangeFromSheetRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
+    Hedefler: getRangeFromSheetRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
+    MagazaGidisat: getRangeFromSheetRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
+    PersonelGidisat: getRangeFromSheetRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
+    THH: getRangeFromSheetRows(sheets['THH'] || [], 1, 1000, 0, 18),
+    CihazTalep: getRangeFromSheetRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
+    CustomerDevices: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 1000, 0, 6),
+    CustomerConfig: getRangeFromSheetRows(sheets['CİHAZ SAT'] || [], 2, 50, 13, 15),
   };
 }
 
@@ -105,8 +86,8 @@ function buildPanelData(rows: SupabaseSheetRow[]) {
 // Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
 // Diğer ekranlar: 20 dakika cache
 // ======================================================
-const SUPABASE_CACHE_KEY = 'cnet_sheet_rows_cache_v6';
-const SUPABASE_CACHE_META_KEY = 'cnet_sheet_rows_cache_meta_v6';
+const SHEET_CACHE_KEY = 'cnet_pg_sheet_rows_cache_v7';
+const SHEET_CACHE_META_KEY = 'cnet_pg_sheet_rows_cache_meta_v7';
 const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
 
 const REALTIME_SHEETS = [
@@ -132,8 +113,8 @@ const MODE_SHEETS: Record<string, string[]> = {
 };
 
 function replaceSheetsInRows(
-  base: SupabaseSheetRow[],
-  incoming: SupabaseSheetRow[],
+  base: SheetRow[],
+  incoming: SheetRow[],
   sheetNames: string[]
 ) {
   const names = new Set(sheetNames);
@@ -146,53 +127,46 @@ function replaceSheetsInRows(
   });
 }
 
-function saveSheetCache(rows: SupabaseSheetRow[], sheetFetchedAt?: Record<string, number>) {
+function saveSheetCache(rows: SheetRow[], sheetFetchedAt?: Record<string, number>) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(SUPABASE_CACHE_KEY, JSON.stringify(rows));
+    localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify(rows));
     if (sheetFetchedAt) {
       localStorage.setItem(
-        SUPABASE_CACHE_META_KEY,
+        SHEET_CACHE_META_KEY,
         JSON.stringify({ sheetFetchedAt })
       );
     }
   } catch (e) {
-    console.warn('Supabase cache yazılamadı:', e);
+    console.warn('Panel cache yazılamadı:', e);
   }
 }
 
-async function fetchSheetsDirect(sheetNames: string[]): Promise<SupabaseSheetRow[]> {
+async function fetchSheetsDirect(sheetNames: string[]): Promise<SheetRow[]> {
   if (!sheetNames.length) return [];
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error('Supabase public environment variables eksik.');
-  }
 
-  const pageSize = 1000;
-  let from = 0;
-  let allRows: SupabaseSheetRow[] = [];
   const startedAt = performance.now();
+  const params = new URLSearchParams();
+  sheetNames.forEach((name) => params.append('sheet', name));
 
-  while (true) {
-    const { data, error } = await supabase
-      .from('sheet_rows')
-      .select('id,sheet_name,row_number,data,updated_at')
-      .in('sheet_name', sheetNames)
-      .order('sheet_name', { ascending: true })
-      .order('row_number', { ascending: true })
-      .range(from, from + pageSize - 1);
+  const response = await fetch(`/api/sheet-rows?${params.toString()}`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  });
 
-    if (error) throw new Error(`Supabase veri okuma hatası: ${error.message}`);
+  const result = await response.json().catch(() => ({}));
 
-    const page = (data || []) as SupabaseSheetRow[];
-    allRows = allRows.concat(page);
-    if (page.length < pageSize) break;
-    from += pageSize;
+  if (!response.ok) {
+    throw new Error(result?.error || `PostgreSQL API hatası (${response.status})`);
   }
+
+  const allRows = Array.isArray(result?.rows) ? (result.rows as SheetRow[]) : [];
 
   try {
     const approxBytes = new Blob([JSON.stringify(allRows)]).size;
     console.info(
-      `[SUPABASE V6] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
+      `[POSTGRES V7] ${sheetNames.join(' + ')}: ${allRows.length} satır, ${(approxBytes / 1024).toFixed(1)} KB, ${(performance.now() - startedAt).toFixed(0)} ms`
     );
   } catch (_) {}
 
@@ -215,7 +189,20 @@ export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [entryPass, setEntryPass] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordAgain, setNewPasswordAgain] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
   
   const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
@@ -315,7 +302,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
-  const sheetRowsRef = useRef<SupabaseSheetRow[]>([]);
+  const sheetRowsRef = useRef<SheetRow[]>([]);
 
   const branches = [
     { name: "CMR CADDE", phone: "905443214534" },
@@ -340,50 +327,88 @@ export default function CnetmobilCmrFinalUltimate() {
   const isZumay = selectedBranch === 'ZUMAY KANALI';
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const token = new URLSearchParams(window.location.search).get('reset_token');
+    if (token) {
+      setResetToken(token);
+      setAuthView('reset');
+    }
+  }, []);
+
+  useEffect(() => {
     const verifySession = async () => {
-      if (typeof window === 'undefined') return;
-      
-      const sessionStr = localStorage.getItem('cnet_session');
-      if (!sessionStr) {
-        setAuthLoading(false);
-        return;
-      }
-
       try {
-        const session = JSON.parse(sessionStr);
+        const res = await fetch('/api/auth', {
+          method: 'GET',
+          cache: 'no-store',
+        });
 
-        if (session.mode === 'yonetici') {
+        if (!res.ok) {
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
+          setAuthLoading(false);
+          return;
+        }
+
+        const session = await res.json();
+
+        if (!session?.success) {
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (session.role === 'yonetici') {
           setIsMasterAccess(true);
-          setIsAdmin(true); 
+          setIsAdmin(true);
           setSelectedBranch(session.branch || 'CMR MERKEZ');
           setIsLoggedIn(true);
           setAuthLoading(false);
           return;
         }
 
-        if (session.mode === 'personel') {
-          if (session.branch === 'VODAFONE KANALI' || session.branch === 'ZUMAY KANALI') {
-            setSelectedBranch(session.branch);
+        if (session.role === 'personel') {
+          const branch = String(session.branch || '');
+
+          if (branch === 'VODAFONE KANALI' || branch === 'ZUMAY KANALI') {
+            setSelectedBranch(branch);
+            setIsMasterAccess(false);
+            setIsAdmin(false);
             setIsLoggedIn(true);
             setAuthLoading(false);
             return;
           }
 
-          const res = await fetch('https://api.ipify.org?format=json');
-          const data = await res.json();
-          const currentIp = data.ip;
+          const ipRes = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipRes.json();
+          const currentIp = ipData.ip;
 
-          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === session.branch) {
-            setSelectedBranch(session.branch);
+          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === branch) {
+            setSelectedBranch(branch);
+            setIsMasterAccess(false);
+            setIsAdmin(false);
             setIsLoggedIn(true);
             setAuthLoading(false);
-          } else {
-            localStorage.removeItem('cnet_session');
+            return;
           }
+
+          // Yetkisiz mağaza ağı: sunucu tarafındaki HttpOnly oturumu da kapat.
+          await fetch('/api/auth', { method: 'DELETE' });
+          setIsLoggedIn(false);
+          setIsMasterAccess(false);
+          setIsAdmin(false);
         }
-      } catch (e) {
-          localStorage.removeItem('cnet_session');
+      } catch (error) {
+        console.error('Session kontrol hatası:', error);
+        setIsLoggedIn(false);
+        setIsMasterAccess(false);
+        setIsAdmin(false);
       }
+
       setAuthLoading(false);
     };
 
@@ -391,41 +416,60 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
   const handleLogin = async () => {
-    if(!entryPass) return;
+    if (!entryPass) return;
+
+    if (loginMode === 'yonetici' && !loginEmail.trim()) {
+      alert('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+
     setLoginLoading(true);
 
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: entryPass, mode: loginMode })
+        body: JSON.stringify({
+          email: loginEmail.trim().toLowerCase(),
+          password: entryPass,
+          mode: loginMode,
+        }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        alert(data.message || "Hatalı Şifre!");
+        alert(data.message || 'Giriş bilgileri hatalı.');
         setLoginLoading(false);
         return;
       }
 
-      const matchedBranch = data.branch;
+      const matchedBranch = String(data.branch || '');
 
-      if (loginMode === 'yonetici') {
-         setIsMasterAccess(true);
-         setIsAdmin(true);
-         setSelectedBranch('CMR MERKEZ'); 
-         setIsLoggedIn(true);
-         localStorage.setItem('cnet_session', JSON.stringify({ mode: 'yonetici', branch: 'CMR MERKEZ' }));
-         setLoginLoading(false);
-         return;
+      // Rolü tarayıcıdaki seçimden değil, sunucunun doğruladığı cevaptan al.
+      if (data.role === 'yonetici') {
+        setIsMasterAccess(true);
+        setIsAdmin(true);
+        setSelectedBranch(matchedBranch || 'CMR MERKEZ');
+        setIsLoggedIn(true);
+        setEntryPass('');
+        setLoginLoading(false);
+        return;
+      }
+
+      if (data.role !== 'personel' || !matchedBranch) {
+        await fetch('/api/auth', { method: 'DELETE' });
+        alert('Kullanıcı yetkisi doğrulanamadı.');
+        setLoginLoading(false);
+        return;
       }
 
       if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
+        setIsAdmin(false);
         setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setEntryPass('');
         setLoginLoading(false);
         return;
       }
@@ -437,26 +481,131 @@ export default function CnetmobilCmrFinalUltimate() {
       if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
+        setIsAdmin(false);
         setIsLoggedIn(true);
-        localStorage.setItem('cnet_session', JSON.stringify({ mode: 'personel', branch: matchedBranch }));
+        setEntryPass('');
       } else {
+        // Şifre doğru olsa bile mağaza ağı yanlışsa cookie açık bırakılmaz.
+        await fetch('/api/auth', { method: 'DELETE' });
         alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
       }
-
     } catch (error) {
-      alert("Bağlantı Hatası: Lütfen internetinizi kontrol edin.");
+      console.error('Login hatası:', error);
+      alert('Bağlantı Hatası: Lütfen internetinizi kontrol edin.');
     }
-    
+
     setLoginLoading(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('cnet_session');
-    setIsLoggedIn(false); 
-    setEntryPass(''); 
-    setIsMasterAccess(false); 
-    setIsAdmin(false); 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+    } catch (error) {
+      console.error('Çıkış hatası:', error);
+    }
+
+    setIsLoggedIn(false);
+    setEntryPass('');
+    setLoginEmail('');
+    setIsMasterAccess(false);
+    setIsAdmin(false);
     setLoginMode('personel');
+    setAuthView('login');
+  };
+
+  const handleForgotPassword = async () => {
+    const email = forgotEmail.trim().toLowerCase();
+    if (!email) {
+      setForgotMessage('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotMessage('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      setForgotMessage(
+        data.message ||
+          'E-posta adresi sistemde kayıtlıysa şifre sıfırlama bağlantısı gönderildi.'
+      );
+    } catch (error) {
+      console.error('Şifre sıfırlama maili hatası:', error);
+      setForgotMessage('İstek alınamadı. Lütfen kısa süre sonra tekrar deneyin.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetMessage('');
+    setResetSuccess(false);
+
+    if (!resetToken) {
+      setResetMessage('Şifre sıfırlama bağlantısı geçersiz.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setResetMessage('Yeni şifre en az 8 karakter olmalıdır.');
+      return;
+    }
+
+    if (!/[A-ZÇĞİÖŞÜ]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir büyük harf içermelidir.');
+      return;
+    }
+
+    if (!/[a-zçğıöşü]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir küçük harf içermelidir.');
+      return;
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      setResetMessage('Yeni şifre en az bir rakam içermelidir.');
+      return;
+    }
+
+    if (newPassword !== newPasswordAgain) {
+      setResetMessage('Yeni şifreler birbiriyle aynı değil.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password: newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        setResetMessage(data.message || 'Şifre değiştirilemedi.');
+        return;
+      }
+
+      setResetSuccess(true);
+      setResetMessage(data.message || 'Şifreniz başarıyla değiştirildi.');
+      setEntryPass('');
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (error) {
+      console.error('Yeni şifre oluşturma hatası:', error);
+      setResetMessage('Bağlantı hatası oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const resetAll = () => {
@@ -489,7 +638,7 @@ export default function CnetmobilCmrFinalUltimate() {
     if(typeof window !== 'undefined') window.scrollTo(0,0);
   };
 
-  const applySheetRowsToPanel = (directRows: SupabaseSheetRow[]) => {
+  const applySheetRowsToPanel = (directRows: SheetRow[]) => {
     try {
       const allData = buildPanelData(directRows);
 
@@ -637,8 +786,8 @@ export default function CnetmobilCmrFinalUltimate() {
       if (!cacheBootstrappedRef.current && typeof window !== 'undefined') {
         cacheBootstrappedRef.current = true;
         try {
-          const cachedRows = JSON.parse(localStorage.getItem(SUPABASE_CACHE_KEY) || '[]') as SupabaseSheetRow[];
-          const meta = JSON.parse(localStorage.getItem(SUPABASE_CACHE_META_KEY) || '{}');
+          const cachedRows = JSON.parse(localStorage.getItem(SHEET_CACHE_KEY) || '[]') as SheetRow[];
+          const meta = JSON.parse(localStorage.getItem(SHEET_CACHE_META_KEY) || '{}');
           sheetFetchedAtRef.current = meta?.sheetFetchedAt || {};
 
           if (cachedRows.length) {
@@ -688,16 +837,22 @@ export default function CnetmobilCmrFinalUltimate() {
       applySheetRowsToPanel(nextRows);
       saveSheetCache(nextRows, sheetFetchedAtRef.current);
     } catch (e) {
-      console.error('Supabase ekran veri yükleme hatası:', e);
+      console.error('PostgreSQL ekran veri yükleme hatası:', e);
       setLoading(false);
     }
   };
 
-  const refreshDataCache = async () => {
-    // Eski işlem akışlarını bozmamak için tutuldu.
-    // Yazma sonrası Realtime/local state ekranı güncelliyor.
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  };
+ const refreshDataCache = async () => {
+  try {
+    // Apps Script → Sheets → PostgreSQL senkronunun tamamlanması için kısa bekleme
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Açık ekranın verisini PostgreSQL'den ZORLA yeniden çek
+    await loadSheetsForCurrentScreen(true);
+  } catch (e) {
+    console.error('Yazma sonrası PostgreSQL yenileme hatası:', e);
+  }
+};
 
   // Ekran değiştiğinde yalnızca o ekranın ihtiyaç duyduğu sheet(ler)i kontrol et.
   useEffect(() => {
@@ -705,8 +860,9 @@ export default function CnetmobilCmrFinalUltimate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
 
-  // Realtime yalnızca kullanıcı ANLIK bir ekrandayken açık.
-  // Böylece tüm sheet_rows tablosunu sürekli dinlemiyoruz.
+  // V7: Supabase Realtime yerine kendi sunucumuzdan hafif polling.
+  // Yalnızca kullanıcı anlık ekranlardan birindeyken çalışır.
+  // Şimdilik 3 saniye; daha sonra WebSocket/SSE'ye çevrilebilir.
   useEffect(() => {
     if (step === 99) return;
 
@@ -716,66 +872,43 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (!activeRealtimeSheets.length) return;
 
-    let mounted = true;
+    let cancelled = false;
+    let busy = false;
 
-    const upsertLocalRow = (row: SupabaseSheetRow) => {
-      if (!row || !row.sheet_name || !row.row_number) return;
-      if (!activeRealtimeSheets.includes(row.sheet_name)) return;
+    const poll = async () => {
+      if (cancelled || busy || document.visibilityState === 'hidden') return;
+      busy = true;
 
-      const next = [...sheetRowsRef.current];
-      const index = next.findIndex((item) =>
-        item.sheet_name === row.sheet_name && item.row_number === row.row_number
-      );
+      try {
+        const freshRows = await fetchSheetsDirect(activeRealtimeSheets);
+        if (cancelled) return;
 
-      if (index >= 0) next[index] = row;
-      else next.push(row);
+        const nextRows = replaceSheetsInRows(
+          sheetRowsRef.current,
+          freshRows,
+          activeRealtimeSheets
+        );
 
-      next.sort((a, b) => {
-        const sheetCompare = a.sheet_name.localeCompare(b.sheet_name, 'tr');
-        return sheetCompare !== 0 ? sheetCompare : a.row_number - b.row_number;
-      });
+        const now = Date.now();
+        activeRealtimeSheets.forEach((sheetName) => {
+          sheetFetchedAtRef.current[sheetName] = now;
+        });
 
-      sheetRowsRef.current = next;
-      sheetFetchedAtRef.current[row.sheet_name] = Date.now();
-      saveSheetCache(next, sheetFetchedAtRef.current);
-      if (mounted) applySheetRowsToPanel(next);
+        sheetRowsRef.current = nextRows;
+        saveSheetCache(nextRows, sheetFetchedAtRef.current);
+        applySheetRowsToPanel(nextRows);
+      } catch (e) {
+        console.error('PostgreSQL anlık veri yenileme hatası:', e);
+      } finally {
+        busy = false;
+      }
     };
 
-    let channel = supabase.channel(`cnetmobil-live-v6-${appMode}`);
-
-    activeRealtimeSheets.forEach((sheetName) => {
-      channel = channel
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'sheet_rows',
-            filter: `sheet_name=eq.${sheetName}`,
-          },
-          (payload: any) => upsertLocalRow(payload.new as SupabaseSheetRow)
-        );
-    });
-
-    channel.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.error('Supabase Realtime kanal hatası:', appMode);
-      }
-    });
+    const timer = window.setInterval(poll, 3000);
 
     return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMode, step]);
@@ -917,9 +1050,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
-          await fetch(SCRIPT_URL, {
+          await fetch('/api/panel-action', {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: "SAVE_ALIM",
               branch: selectedBranch,
@@ -985,9 +1118,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     setCihazEkleSaving(true);
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'ADD_CIHAZ_TALEP_DEVICE',
           markaModel,
@@ -1068,9 +1201,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setTalepSaving(true);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'SAVE_TALEP',
           rowIndex,
@@ -1112,9 +1245,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setGonderildiLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
       });
 
@@ -1159,9 +1292,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setRedLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'RED_TALEP',
           rowIndex,
@@ -1192,15 +1325,15 @@ export default function CnetmobilCmrFinalUltimate() {
       return;
     }
 
-    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Supabase ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
+    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Yeni sunucu veritabanı ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
 
     setDeleteTalepLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           type: "DELETE_CIHAZ_ROW_FULL_V5",
@@ -1219,7 +1352,7 @@ export default function CnetmobilCmrFinalUltimate() {
       setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
 
       // V6: bütün panel cache'ini silme. Sadece CihazTalep sheet'ini zorla yenile.
-      // Böylece diğer ekranlar gereksiz yere Supabase'den tekrar çekilmez.
+      // Böylece diğer ekranlar gereksiz yere PostgreSQL'den tekrar çekilmez.
       sheetFetchedAtRef.current['CihazTalep'] = 0;
       await loadSheetsForCurrentScreen(true);
 
@@ -1238,9 +1371,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi zorunludur!");
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "SAVE_THH", data: thhForm })
       });
       alert("THH Kaydı Başarıyla Eklendi!");
@@ -1254,9 +1387,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.rowIndex) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "UPDATE_THH", row: thhForm.rowIndex, data: thhForm })
       });
       alert("Kayıt Başarıyla Güncellendi!");
@@ -1271,9 +1404,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!confirm("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "DELETE_THH", row: thhForm.rowIndex })
       });
       alert("Kayıt Başarıyla Silindi!");
@@ -1287,9 +1420,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
     setAlimlar(prev => prev.filter(item => item.sheetIndex !== sheetIdx));
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
       setTimeout(refreshDataCache, 2000);
@@ -1299,9 +1432,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const deleteAllAlimlar = async () => {
     if(!confirm("DİKKAT! Tüm alım geçmişi silinecek. Onaylıyor musunuz?")) return;
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
       });
       alert("Tüm geçmiş temizlendi.");
@@ -1311,9 +1444,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const updateConfig = async (key: string, val: string) => {
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
       });
       alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
@@ -1328,9 +1461,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) 
       });
       alert("Cihaz başarıyla eklendi!");
@@ -1360,9 +1493,9 @@ export default function CnetmobilCmrFinalUltimate() {
     });
 
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           type: "USE_IMEI", 
           imei: imei, 
@@ -1542,193 +1675,388 @@ export default function CnetmobilCmrFinalUltimate() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#efefef] overflow-x-hidden flex flex-col justify-between">
-        <div>
-          <header className="bg-[#2f313d] border-b border-black/30 h-[62px] flex items-center justify-between px-4">
-            <div className="flex items-center h-[40px]">
-               <img 
-                 src={"/cnet.png" as string} 
-                 alt="Cnetmobil Logo" 
-                 className="h-[32px] w-auto object-contain brightness-0 invert" 
-               />
-            </div>
-            <div className="text-white text-[18px]">☎</div>
-          </header>
+      <div className="min-h-screen bg-[#edf2f7] px-4 py-6 sm:px-6 lg:px-8 flex items-center justify-center font-sans">
+        <div className="w-full max-w-[1180px] min-h-[690px] overflow-hidden rounded-[28px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] border border-slate-200 grid lg:grid-cols-[0.9fr_1.1fr]">
+          {/* SOL MARKA ALANI */}
+          <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-[#07192d] px-12 py-12 text-white">
+            <div className="absolute inset-0 opacity-100" style={{ background: 'radial-gradient(circle at 18% 18%, rgba(59,130,246,0.24), transparent 34%), radial-gradient(circle at 80% 72%, rgba(30,64,175,0.22), transparent 38%), linear-gradient(145deg, #07192d 0%, #0b223d 55%, #061426 100%)' }} />
+            <div className="absolute -right-20 top-16 h-80 w-44 rotate-[22deg] rounded-[42px] border border-white/10 bg-white/[0.035] shadow-2xl" />
+            <div className="absolute right-20 top-48 h-72 w-40 -rotate-[17deg] rounded-[38px] border border-white/10 bg-white/[0.025]" />
+            <div className="absolute -left-16 bottom-28 h-64 w-36 rotate-[20deg] rounded-[34px] border border-white/10 bg-white/[0.025]" />
 
-          <section className="bg-gradient-to-b from-[#3c3534] via-[#66361b] to-[#ff5b00] px-4 pb-12">
-            
-            <div className="text-center pt-7 pb-5 xl:hidden">
-              <h1 className="text-[20px] font-bold text-white">
-                İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <span className="text-[#ff8a00]">Güçlendirin</span>
-              </h1>
+            <div className="relative z-10">
+              <img
+                src={'/cnet.png' as string}
+                alt="CNETMOBİL"
+                className="h-[48px] w-auto object-contain brightness-0 invert"
+              />
+              <div className="mt-3 text-[15px] tracking-[0.02em] text-white/75">Partner Yönetim Sistemi</div>
             </div>
 
-            <div className="max-w-[1750px] mx-auto flex flex-col xl:flex-row justify-center items-center xl:items-start gap-8 lg:gap-12 pt-2 xl:pt-16">
-              
-              <div className="w-full xl:w-[845px] xl:h-[465px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
-                
-                <div className="flex items-center justify-center h-12 bg-[#f8f3ef] border-b px-2 gap-2 shrink-0">
-                  <button 
-                    type="button"
-                    onClick={() => { setLoginMode('personel'); setEntryPass(''); }}
-                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'personel' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    Mağaza Girişi
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setLoginMode('yonetici'); setEntryPass(''); }}
-                    className={`w-full xl:w-[390px] h-9 text-[14px] font-bold transition-all flex items-center justify-center ${loginMode === 'yonetici' ? 'bg-white rounded-md text-[#ff5b00] shadow-sm font-extrabold' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    Yönetici Girişi
-                  </button>
-                </div>
+            <div className="relative z-10 max-w-[340px] pb-3">
+              <div className="mb-6 h-px w-16 bg-blue-400/80" />
+              <h2 className="text-[34px] font-semibold leading-[1.5] tracking-[-0.02em]">
+                Daha Güçlü<br />
+                Daha Kârlı<br />
+                Birlikte Büyüyoruz
+              </h2>
+              <p className="mt-5 text-sm leading-6 text-white/55">
+                CNETMOBİL operasyonlarını güvenli ve merkezi bir panelden yönetin.
+              </p>
+            </div>
+          </aside>
 
-                <div className="p-7 flex flex-col flex-1">
-                  
-                  <div className="mb-6 flex-1">
-                    <label className="block text-[14px] font-bold uppercase tracking-wider text-gray-500 mb-2 pl-0.5 mt-4">
-                      {loginMode === 'personel' ? 'Mağaza Giriş Şifresi' : 'Yönetici Giriş Şifresi'}
+          {/* SAĞ GİRİŞ ALANI */}
+          <main className="flex items-center justify-center bg-white px-6 py-10 sm:px-10 lg:px-16">
+            <div className="w-full max-w-[500px]">
+              <div className="mb-9 lg:hidden">
+                <img
+                  src={'/cnet.png' as string}
+                  alt="CNETMOBİL"
+                  className="h-[40px] w-auto object-contain"
+                />
+                <div className="mt-2 text-xs font-medium tracking-wide text-slate-500">Partner Yönetim Sistemi</div>
+              </div>
+
+              {authView === 'login' ? (
+                <>
+                  <div className="mb-8">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Hoş Geldiniz</h1>
+                    <p className="mt-2 text-[14px] text-slate-500">
+                      {loginMode === 'yonetici'
+                        ? 'Yönetici hesabınızla güvenli giriş yapın.'
+                        : 'Mağazanıza ait giriş şifresi ile devam edin.'}
+                    </p>
+                  </div>
+
+                  <div className="mb-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode('personel');
+                        setEntryPass('');
+                        setLoginEmail('');
+                      }}
+                      className={`h-10 rounded-lg text-sm font-semibold transition ${loginMode === 'personel' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Mağaza Girişi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode('yonetici');
+                        setEntryPass('');
+                      }}
+                      className={`h-10 rounded-lg text-sm font-semibold transition ${loginMode === 'yonetici' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Yönetici Girişi
+                    </button>
+                  </div>
+
+                  {loginMode === 'yonetici' && (
+                    <div className="mb-5">
+                      <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
+                      <div className="relative">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
+                          </svg>
+                        </div>
+                        <input
+                          type="email"
+                          autoComplete="email"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                          disabled={loginLoading}
+                          placeholder="ornek@cnetmobil.com.tr"
+                          className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">
+                      {loginMode === 'yonetici' ? 'Şifreniz' : 'Mağaza şifreniz'}
                     </label>
-
                     <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <rect x="5" y="10" width="14" height="10" rx="2" />
+                          <path strokeLinecap="round" d="M8 10V7a4 4 0 018 0v3" />
+                        </svg>
+                      </div>
                       <input
-                        type="password"
+                        type={showLoginPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
                         value={entryPass}
                         onChange={(e) => setEntryPass(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                         disabled={loginLoading}
-                        placeholder="•••••"
-                        className="w-full h-[42px] border border-gray-300 rounded-lg px-3 outline-none text-xl tracking-[0.3em] font-black bg-gray-50 focus:bg-white focus:border-[#ff7a00] transition-all shadow-inner"
+                        placeholder="••••••••••"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-12 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
                       />
-                      <div className="absolute right-3 top-[10px] text-gray-400 select-none">👁</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto">
-                    <button 
-                      onClick={handleLogin}
-                      disabled={loginLoading || !entryPass}
-                      className="w-full h-[38px] bg-[#ff7a00] hover:bg-[#eb6f00] transition text-white font-bold rounded-lg uppercase tracking-wide text-[14px] disabled:opacity-50 shadow-md mb-6"
-                    >
-                      {loginLoading ? 'Kontrol Ediliyor...' : 'SİSTEMİ AÇ'}
-                    </button>
-
-                    <div className="flex gap-4">
-                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                        🍏 App Store
-                      </button>
-                      <button className="w-[135px] h-[40px] border border-gray-300 bg-white rounded-lg font-semibold hover:bg-gray-50 transition text-[13px] shadow-sm flex items-center justify-center gap-1">
-                        ▶ Google Play
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((v) => !v)}
+                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-blue-600"
+                        aria-label={showLoginPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                      >
+                        {showLoginPassword ? (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.7A2 2 0 0013.3 13.4M9.9 4.2A10.6 10.6 0 0112 4c5.2 0 8.7 4.1 9 8a10.6 10.6 0 01-2.2 4.8M6.1 6.1C4.2 7.5 3.2 9.6 3 12c.3 3.9 3.8 8 9 8 1.3 0 2.5-.3 3.5-.7" />
+                          </svg>
+                        ) : (
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z" />
+                            <circle cx="12" cy="12" r="2.5" />
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="w-full xl:w-[850px] flex flex-col justify-center">
-                
-                <div className="hidden xl:block mb-10 text-left">
-                  <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">
-                    İşinizi <span className="text-white font-extrabold">Cnetmobil</span> ile <br />
-                    <span className="text-[#ff8a00]">Güçlendirin</span>
-                  </h1>
-                </div>
+                  <div className="mb-6 flex min-h-7 items-center justify-end">
+                    {loginMode === 'yonetici' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(loginEmail);
+                          setForgotMessage('');
+                          setAuthView('forgot');
+                        }}
+                        className="text-[13px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Şifremi Unuttum?
+                      </button>
+                    )}
+                  </div>
 
-                <div className="flex flex-wrap gap-4">
-                  {[
-                    {
-                      title: "Cihaz Değerlendirme",
-                      icon: (
-                        <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                          <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                          <path d="M9 10l2 2 4-4"></path>
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    disabled={loginLoading || !entryPass || (loginMode === 'yonetici' && !loginEmail.trim())}
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loginLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Kontrol Ediliyor...
+                      </>
+                    ) : (
+                      <>
+                        GİRİŞ YAP
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-5-5l5 5-5 5" />
                         </svg>
-                      )
-                    },
-                    {
-                      title: "Teknik Servis Merkezi",
-                      icon: (
-                        <svg className="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="mt-10 flex items-center gap-4 text-[11px] text-slate-300">
+                    <div className="h-px flex-1 bg-slate-100" />
+                    <span>güvenli bağlantı</span>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+
+                  <div className="mt-7 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              ) : authView === 'forgot' ? (
+                <>
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
+                    </svg>
+                  </div>
+
+                  <div className="mb-8 text-center">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Şifremi Unuttum</h1>
+                    <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-slate-500">
+                      Hesabınıza ait e-posta adresini girin. Şifre sıfırlama bağlantısı e-posta adresinize gönderilecek.
+                    </p>
+                  </div>
+
+                  <div className="mb-5">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
                         </svg>
-                      )
-                    },
-                    {
-                      title: "Güncel Fiyat Listeleri",
-                      icon: (
-                        <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                          <polyline points="14 2 14 8 20 8"></polyline>
-                          <line x1="16" y1="13" x2="8" y2="13"></line>
-                          <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
-                      )
-                    },
-                    {
-                      title: "Dış Kanal Satın Alma",
-                      icon: (
-                        <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        </svg>
-                      )
-                    }
-                  ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="w-full xl:w-[405px] h-[74px] rounded-2xl bg-white px-6 flex items-center shadow-lg hover:shadow-xl transition-shadow gap-4"
-                    >
-                      {item.icon}
-                      <div className="font-bold text-[16px] text-gray-800">
-                        {item.title}
                       </div>
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => {
+                          setForgotEmail(e.target.value);
+                          setForgotMessage('');
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleForgotPassword()}
+                        placeholder="ornek@cnetmobil.com.tr"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      />
                     </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-4 mt-6">
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">8+</div>
-                    <div className="text-[13px] font-bold text-gray-500">Aktif Şube</div>
                   </div>
 
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">CANLI</div>
-                    <div className="text-[13px] font-bold text-gray-500">Veri Senkronu</div>
+                  {forgotMessage && (
+                    <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-5 text-amber-800">
+                      {forgotMessage}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={!forgotEmail.trim() || forgotLoading}
+                    className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {forgotLoading ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        GÖNDERİLİYOR...
+                      </>
+                    ) : (
+                      'SIFIRLAMA LİNKİ GÖNDER'
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthView('login');
+                      setForgotMessage('');
+                    }}
+                    className="mt-7 flex items-center gap-2 text-[13px] font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    <span>←</span> Giriş sayfasına dön
+                  </button>
+
+                  <div className="mt-12 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                    <svg className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <rect x="5" y="10" width="14" height="10" rx="2" />
+                      <path strokeLinecap="round" d="M8 10V7a4 4 0 018 0v3" />
+                    </svg>
                   </div>
 
-                  <div className="w-full xl:w-[265px] h-[92px] rounded-3xl bg-white flex flex-col justify-center items-center shadow-lg">
-                    <div className="text-[#ff7a00] text-[28px] font-extrabold leading-none mb-1">%100</div>
-                    <div className="text-[13px] font-bold text-gray-500">Güvenli Veri</div>
+                  <div className="mb-7 text-center">
+                    <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Yeni Şifre Belirle</h1>
+                    <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-slate-500">
+                      Lütfen yeni şifrenizi belirleyin.
+                    </p>
                   </div>
-                </div>
 
-              </div>
+                  {!resetSuccess && (
+                    <>
+                      <div className="mb-4">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre</label>
+                        <div className="relative">
+                          <input
+                            type={showNewPassword ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              setResetMessage('');
+                            }}
+                            autoComplete="new-password"
+                            placeholder="••••••••••"
+                            className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-blue-600"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z" />
+                              <circle cx="12" cy="12" r="2.5" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mb-5">
+                        <label className="mb-2 block text-[12px] font-medium text-slate-500">Yeni Şifre Tekrar</label>
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPasswordAgain}
+                          onChange={(e) => {
+                            setNewPasswordAgain(e.target.value);
+                            setResetMessage('');
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}
+                          autoComplete="new-password"
+                          placeholder="••••••••••"
+                          className="h-[52px] w-full rounded-xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 outline-none transition placeholder:tracking-[0.18em] placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                        />
+                      </div>
+
+                      <div className="mb-5 space-y-2 text-[12px]">
+                        <div className={newPassword.length >= 8 ? 'text-emerald-600' : 'text-slate-400'}>✓ En az 8 karakter olmalı</div>
+                        <div className={/[A-ZÇĞİÖŞÜ]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Büyük harf içermeli</div>
+                        <div className={/[a-zçğıöşü]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Küçük harf içermeli</div>
+                        <div className={/[0-9]/.test(newPassword) ? 'text-emerald-600' : 'text-slate-400'}>✓ Rakam içermeli</div>
+                      </div>
+                    </>
+                  )}
+
+                  {resetMessage && (
+                    <div className={`mb-5 rounded-xl border px-4 py-3 text-[13px] leading-5 ${resetSuccess ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                      {resetMessage}
+                    </div>
+                  )}
+
+                  {!resetSuccess ? (
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={resetLoading || !newPassword || !newPasswordAgain}
+                      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {resetLoading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          DEĞİŞTİRİLİYOR...
+                        </>
+                      ) : (
+                        'ŞİFREYİ DEĞİŞTİR'
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthView('login');
+                        setNewPassword('');
+                        setNewPasswordAgain('');
+                        setResetMessage('');
+                        setResetSuccess(false);
+                      }}
+                      className="h-[52px] w-full rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700"
+                    >
+                      GİRİŞ SAYFASINA DÖN
+                    </button>
+                  )}
+
+                  <div className="mt-10 text-center text-[11px] font-medium tracking-wide text-slate-400">
+                    CNETMOBİL Partner Yönetim Sistemi
+                  </div>
+                </>
+              )}
             </div>
-          </section>
+          </main>
         </div>
-
-        <footer className="bg-[#f3f3f3] text-center pb-12 pt-10 px-4 border-t border-gray-200/50">
-          <div className="text-[26px] font-bold mb-6 text-gray-800">
-            Bizi Takip Edin
-          </div>
-          <div className="flex justify-center">
-            <a 
-              href="https://www.instagram.com/cnetmobil?igsh=dmg2ZXcyZWo4bmph" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="p-5 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow active:scale-95 flex items-center justify-center group"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-[#e1306c] group-hover:scale-110 transition-transform">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-              </svg>
-            </a>
-          </div>
-        </footer>
       </div>
     );
   }
@@ -2541,7 +2869,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     <div className="flex flex-col">
                       {cihazTalepData.slice(1).map((row, i) => {
                         const rowIndex = i + 2;
-                        // Supabase/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
+                        // Veritabanı/Sheets'te geçmişten kalmış tamamen boş satır varsa ekranda gösterme.
                         // rowIndex korunur; böylece işlem yapılan satır Sheets ile birebir aynı kalır.
                         const satirTamamenBos = Array.from({ length: 15 }, (_, c) => String(row?.[c] ?? '').trim()).every(v => v === '');
                         if (satirTamamenBos) return null;
