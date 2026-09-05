@@ -44,7 +44,9 @@ type CihazAlimProps = {
   canProceed: boolean;
   showDocs: boolean;
   isYd: boolean;
-  handleFinalProcess: (action: string) => void;
+  handleFinalProcess: (
+    action: "ALINMADI" | "NAKİT ALINDI" | "TAKAS ALINDI" | "print" | "whatsapp"
+  ) => void;
   servisFiyatlari?: any;
   handleServisWhatsApp?: () => void;
 };
