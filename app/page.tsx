@@ -4,7 +4,6 @@ import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
-const SCRIPT_URL = process.env.NEXT_PUBLIC_SCRIPT_URL as string;
 
 // ======================================================
 // POSTGRESQL - TARAYICI SADECE KENDİ NEXT.JS API'MİZE BAĞLANIR
@@ -1051,9 +1050,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     if (actionType === 'NAKİT ALINDI' || actionType === 'TAKAS ALINDI' || actionType === 'ALINMADI') {
         try {
-          await fetch(SCRIPT_URL, {
+          await fetch('/api/panel-action', {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: "SAVE_ALIM",
               branch: selectedBranch,
@@ -1119,9 +1118,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
     setCihazEkleSaving(true);
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'ADD_CIHAZ_TALEP_DEVICE',
           markaModel,
@@ -1202,9 +1201,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setTalepSaving(true);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'SAVE_TALEP',
           rowIndex,
@@ -1246,9 +1245,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setGonderildiLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
       });
 
@@ -1293,9 +1292,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setRedLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'RED_TALEP',
           rowIndex,
@@ -1331,10 +1330,10 @@ export default function CnetmobilCmrFinalUltimate() {
     setDeleteTalepLoadingIndex(rowIndex);
 
     try {
-      const response = await fetch(SCRIPT_URL, {
+      const response = await fetch('/api/panel-action', {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           type: "DELETE_CIHAZ_ROW_FULL_V5",
@@ -1372,9 +1371,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.adSoyad || !thhForm.basvuruTarihi) return alert("Tüketici Ad-Soyad ve Başvuru Tarihi zorunludur!");
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "SAVE_THH", data: thhForm })
       });
       alert("THH Kaydı Başarıyla Eklendi!");
@@ -1388,9 +1387,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!thhForm.rowIndex) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "UPDATE_THH", row: thhForm.rowIndex, data: thhForm })
       });
       alert("Kayıt Başarıyla Güncellendi!");
@@ -1405,9 +1404,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if (!confirm("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) return;
     setThhSaving(true);
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: "DELETE_THH", row: thhForm.rowIndex })
       });
       alert("Kayıt Başarıyla Silindi!");
@@ -1421,9 +1420,9 @@ export default function CnetmobilCmrFinalUltimate() {
     if(!confirm("Bu işlemi silmek istiyor musunuz?")) return;
     setAlimlar(prev => prev.filter(item => item.sheetIndex !== sheetIdx));
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALIM", index: sheetIdx }) 
       });
       setTimeout(refreshDataCache, 2000);
@@ -1433,9 +1432,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const deleteAllAlimlar = async () => {
     if(!confirm("DİKKAT! Tüm alım geçmişi silinecek. Onaylıyor musunuz?")) return;
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "DELETE_ALL_ALIM" }) 
       });
       alert("Tüm geçmiş temizlendi.");
@@ -1445,9 +1444,9 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const updateConfig = async (key: string, val: string) => {
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "UPDATE_CONFIG", key, val }) 
       });
       alert(`${key === 'Duyuru_Metni' ? 'Duyuru' : key === 'Kampanya_Metni' ? 'Kampanya' : key} başarıyla güncellendi!`);
@@ -1462,9 +1461,9 @@ export default function CnetmobilCmrFinalUltimate() {
   const adminAddDevice = async () => {
     if(!newDevice.name || !newDevice.base) return alert("Eksik bilgi!");
     try {
-      await fetch(SCRIPT_URL, { 
+      await fetch('/api/panel-action', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ type: "ADD_DEVICE", ...newDevice }) 
       });
       alert("Cihaz başarıyla eklendi!");
@@ -1494,9 +1493,9 @@ export default function CnetmobilCmrFinalUltimate() {
     });
 
     try {
-      await fetch(SCRIPT_URL, {
+      await fetch('/api/panel-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           type: "USE_IMEI", 
           imei: imei, 
