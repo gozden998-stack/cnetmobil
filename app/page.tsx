@@ -4,6 +4,7 @@ import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
 import CepTablet from './components/screens/CepTablet';
 import YNAList from './components/screens/YNAList';
+import DisKanal from './components/screens/DisKanal';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -4189,65 +4190,17 @@ export default function CnetmobilCmrFinalUltimate() {
           );})() :
 
           appMode === 'dis_kanal' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className={`text-3xl font-black italic tracking-tighter ${isZumay ? 'text-red-600' : 'text-teal-600'}`}>DIŞ KANAL SATIN ALMA</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Dış Kanal Ürün ve Fiyat Listesi</p>
-                  </div>
-                  <div className="w-full md:w-80 flex flex-col gap-2">
-                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:bg-white transition-all shadow-sm ${isZumay ? 'focus-within:border-red-400' : 'focus-within:border-teal-400'}`}>
-                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                      <input type="text" placeholder="Ürün Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                    </div>
-                    {isSuperAdminUser && currentAdminEditableSheet && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
-                        className="h-10 w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
-                      >
-                        DÜZENLE
-                      </button>
-                    )}
-                  </div>
-              </div>
-              
-              <div className="max-w-4xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[450px]">
-                  <div className={`${isZumay ? 'bg-red-600' : 'bg-teal-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
-                    <div className="flex-[3]">ÜRÜN / CİHAZ ADI</div>
-                    <div className={`flex-[1.5] text-right border-l ${isZumay ? 'border-red-500/50' : 'border-teal-500/50'} pr-4`}>FİYATI (TL)</div>
-                    
-                    {selectedBranch === 'VODAFONE KANALI' && (
-                       <div className="flex-[1.5] text-right border-l border-teal-500/50 pr-4 text-purple-200">
-                          VODAFONE SATIN ALMA
-                       </div>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {disKanalData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[0] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? (isZumay ? 'bg-red-50' : 'bg-teal-50') : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? (isZumay ? 'text-red-700' : 'text-teal-700') : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4 break-words`}>
-                              {isHighlighted && <span className={`w-1.5 h-1.5 rounded-full animate-ping mr-2 shrink-0 ${isZumay ? 'bg-red-500' : 'bg-teal-500'}`}></span>}
-                              {row[0]}
-                          </div>
-                          
-                          <div className={`flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? (isZumay ? 'text-red-600' : 'text-teal-600') : 'text-slate-900'}`}>{row[1] || '-'}</div>
-                          
-                          {selectedBranch === 'VODAFONE KANALI' && (
-                             <div className="flex-[1.5] text-right pr-4 font-black text-sm whitespace-nowrap border-l border-slate-200 text-purple-600 bg-purple-50/50">
-                                {row[2] || '-'}
-                             </div>
-                          )}
-                        </div>
-                    )})}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <DisKanal
+              data={disKanalData}
+              selectedBranch={selectedBranch}
+              isZumay={isZumay}
+              canEdit={Boolean(isSuperAdminUser && currentAdminEditableSheet)}
+              onEdit={() => {
+                if (currentAdminEditableSheet) {
+                  setAdminSheetEditor(currentAdminEditableSheet);
+                }
+              }}
+            />
           ) :
 
           appMode === 'cep_tablet' && step < 99 ? (
