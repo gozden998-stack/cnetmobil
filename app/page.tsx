@@ -173,6 +173,421 @@ async function fetchSheetsDirect(sheetNames: string[]): Promise<SheetRow[]> {
   return allRows;
 }
 
+
+type AdminEditableSheetTarget = {
+  title: string;
+  sheetName: string;
+};
+
+const ADMIN_EDITABLE_SHEETS: Record<string, AdminEditableSheetTarget> = {
+  cep_tablet: {
+    title: 'Cep + Tablet',
+    sheetName: 'CEP + TABLET+IOT SAAT LIST',
+  },
+  yna_list: {
+    title: 'YNA List',
+    sheetName: 'YNA LİST',
+  },
+  dis_kanal: {
+    title: 'Dış Kanal',
+    sheetName: 'DIŞ KANAL SATIN ALMA',
+  },
+  ikinci_el_apple: {
+    title: '2. El Listesi',
+    sheetName: '2.EL FİYAT LİSTESİ',
+  },
+  ikinci_el_android: {
+    title: '2. El Listesi',
+    sheetName: '2.EL FİYAT LİSTESİ',
+  },
+};
+
+function excelColumnName(indexZeroBased: number) {
+  let n = indexZeroBased + 1;
+  let result = '';
+
+  while (n > 0) {
+    const mod = (n - 1) % 26;
+    result = String.fromCharCode(65 + mod) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return result;
+}
+
+function AdminDynamicSheetEditor({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: AdminEditableSheetTarget;
+  onClose: () => void;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [rows, setRows] = useState<SheetRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [draft, setDraft] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const loadRows = async () => {
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const freshRows = await fetchSheetsDirect([target.sheetName]);
+
+      setRows(
+        freshRows
+          .filter((row) => row.sheet_name === target.sheetName)
+          .sort((a, b) => a.row_number - b.row_number)
+      );
+    } catch (error: any) {
+      setMessage(error?.message || 'Liste alınamadı.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setEditingRow(null);
+    setDraft([]);
+    setSearch('');
+    loadRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.sheetName]);
+
+  const headerRow =
+    rows.find((row) => row.row_number === 1) ||
+    rows[0];
+
+  const maxColumns = Math.max(
+    headerRow && Array.isArray(headerRow.data)
+      ? headerRow.data.length
+      : 0,
+    ...rows.map((row) =>
+      Array.isArray(row.data) ? row.data.length : 0
+    ),
+    1
+  );
+
+  const headers = Array.from(
+    { length: maxColumns },
+    (_, index) => {
+      const value =
+        headerRow && Array.isArray(headerRow.data)
+          ? headerRow.data[index]
+          : '';
+
+      const text = String(value ?? '').trim();
+
+      return text || `SÜTUN ${excelColumnName(index)}`;
+    }
+  );
+
+  const dataRows = rows
+    .filter((row) => row.row_number > 1)
+    .filter((row) => {
+      const values = Array.isArray(row.data) ? row.data : [];
+
+      if (
+        values.every(
+          (value) => String(value ?? '').trim() === ''
+        )
+      ) {
+        return false;
+      }
+
+      const q = search.trim().toLocaleLowerCase('tr-TR');
+      if (!q) return true;
+
+      return values.some((value) =>
+        String(value ?? '')
+          .toLocaleLowerCase('tr-TR')
+          .includes(q)
+      );
+    });
+
+  const startEdit = (row: SheetRow) => {
+    const values = Array.isArray(row.data) ? row.data : [];
+
+    setDraft(
+      Array.from(
+        { length: maxColumns },
+        (_, index) => String(values[index] ?? '')
+      )
+    );
+
+    setEditingRow(row.row_number);
+    setMessage('');
+  };
+
+  const saveRow = async () => {
+    if (editingRow === null) return;
+
+    const row = rows.find(
+      (item) => item.row_number === editingRow
+    );
+
+    if (!row) return;
+
+    const original = Array.isArray(row.data) ? row.data : [];
+
+    const changes = Array.from(
+      { length: maxColumns },
+      (_, index) => {
+        const oldValue = String(original[index] ?? '');
+        const newValue = String(draft[index] ?? '');
+
+        if (oldValue === newValue) return null;
+
+        return {
+          columnNumber: index + 1,
+          value: newValue,
+        };
+      }
+    ).filter(
+      (
+        item
+      ): item is { columnNumber: number; value: string } =>
+        item !== null
+    );
+
+    if (!changes.length) {
+      setEditingRow(null);
+      setDraft([]);
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('/api/panel-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'UPDATE_LIST_CELLS',
+          sheetName: target.sheetName,
+          rowNumber: editingRow,
+          changes,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || result?.result !== 'success') {
+        throw new Error(
+          result?.message || 'Kayıt yapılamadı.'
+        );
+      }
+
+      setRows((current) =>
+        current.map((item) => {
+          if (item.row_number !== editingRow) return item;
+
+          return {
+            ...item,
+            data: Array.from(
+              { length: maxColumns },
+              (_, index) => String(draft[index] ?? '')
+            ),
+            updated_at: new Date().toISOString(),
+          };
+        })
+      );
+
+      setEditingRow(null);
+      setDraft([]);
+      setMessage('Kaydedildi.');
+
+      await onSaved();
+
+      window.setTimeout(() => setMessage(''), 2200);
+    } catch (error: any) {
+      setMessage(error?.message || 'Kayıt yapılamadı.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] bg-slate-950/65 backdrop-blur-sm p-3 sm:p-6 print:hidden">
+      <div className="mx-auto flex h-full max-w-[1700px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+        <div className="flex shrink-0 flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+              SUPER ADMIN DÜZENLE
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-slate-900">
+              {target.title}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Listede ara..."
+              className="h-10 min-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-blue-500"
+            />
+
+            <button
+              type="button"
+              onClick={loadRows}
+              disabled={loading || saving}
+              className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-black text-slate-600 disabled:opacity-50"
+            >
+              YENİLE
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="h-10 rounded-xl bg-slate-900 px-4 text-xs font-black text-white disabled:opacity-50"
+            >
+              KAPAT
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <div className={`mx-5 mt-4 rounded-xl border px-4 py-3 text-sm font-black ${
+            message === 'Kaydedildi.'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-auto p-5 custom-scrollbar">
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-sm font-black text-slate-400">
+              Liste yükleniyor...
+            </div>
+          ) : (
+            <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
+              <thead className="sticky top-0 z-20">
+                <tr>
+                  <th className="sticky left-0 z-30 min-w-[70px] border-b border-r border-slate-700 bg-slate-900 px-3 py-3 text-left text-[10px] font-black text-white">
+                    SATIR
+                  </th>
+
+                  {headers.map((header, index) => (
+                    <th
+                      key={`${header}-${index}`}
+                      className="min-w-[170px] max-w-[260px] border-b border-r border-slate-700 bg-slate-900 px-3 py-3 text-left text-[10px] font-black text-white"
+                    >
+                      <div className="truncate" title={header}>
+                        {header}
+                      </div>
+                      <div className="mt-1 text-[9px] text-slate-400">
+                        {excelColumnName(index)}
+                      </div>
+                    </th>
+                  ))}
+
+                  <th className="sticky right-0 z-30 min-w-[145px] border-b border-l border-slate-700 bg-slate-900 px-3 py-3 text-right text-[10px] font-black text-white">
+                    İŞLEM
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {dataRows.map((row) => {
+                  const isEditing = editingRow === row.row_number;
+                  const rowData = Array.isArray(row.data) ? row.data : [];
+
+                  return (
+                    <tr key={row.row_number}>
+                      <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-3 py-2 font-black text-slate-500">
+                        {row.row_number}
+                      </td>
+
+                      {headers.map((_, index) => (
+                        <td
+                          key={`${row.row_number}-${index}`}
+                          className="border-b border-r border-slate-200 bg-white p-2"
+                        >
+                          {isEditing ? (
+                            <input
+                              value={draft[index] ?? ''}
+                              onChange={(e) =>
+                                setDraft((current) => {
+                                  const next = [...current];
+                                  next[index] = e.target.value;
+                                  return next;
+                                })
+                              }
+                              className="h-9 w-full min-w-[150px] rounded-lg border border-blue-200 px-3 font-bold outline-none focus:border-blue-500"
+                            />
+                          ) : (
+                            <div className="max-w-[250px] whitespace-pre-wrap break-words font-semibold text-slate-700">
+                              {String(rowData[index] ?? '') || '-'}
+                            </div>
+                          )}
+                        </td>
+                      ))}
+
+                      <td className="sticky right-0 z-10 border-b border-l border-slate-200 bg-white p-2 text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!saving) {
+                                  setEditingRow(null);
+                                  setDraft([]);
+                                }
+                              }}
+                              disabled={saving}
+                              className="h-9 rounded-lg border border-slate-200 px-3 text-[10px] font-black"
+                            >
+                              İPTAL
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={saveRow}
+                              disabled={saving}
+                              className="h-9 rounded-lg bg-emerald-600 px-4 text-[10px] font-black text-white disabled:opacity-50"
+                            >
+                              {saving ? 'KAYDEDİLİYOR...' : 'KAYDET'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(row)}
+                            disabled={editingRow !== null}
+                            className="h-9 rounded-lg bg-blue-600 px-4 text-[10px] font-black text-white disabled:opacity-30"
+                          >
+                            DÜZENLE
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-500">
+          Yeni başlıklı sütun Google Sheets'ten PostgreSQL'e senkronlandıktan sonra burada otomatik çıkar.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const IP_HARITASI: any = {
   "78.188.91.172": "CMR SARAY",
   "46.196.12.101": "CMR KAPAKLI",
@@ -206,6 +621,7 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
@@ -237,6 +653,8 @@ export default function CnetmobilCmrFinalUltimate() {
       setStep(1);
     }
   }, []);
+
+  const currentAdminEditableSheet = ADMIN_EDITABLE_SHEETS[appMode] || null;
 
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
@@ -4211,6 +4629,28 @@ export default function CnetmobilCmrFinalUltimate() {
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>{isZumay ? 'ZUMAY YETKİLİ' : 'CNETMOBIL YETKİLİ'}</div>
             </div>
         </div>
+      )}
+
+      {isSuperAdminUser &&
+        currentAdminEditableSheet &&
+        !adminSheetEditor && (
+          <button
+            type="button"
+            onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
+            className="fixed bottom-6 right-6 z-[180] rounded-2xl bg-blue-600 px-6 py-4 text-xs font-black uppercase tracking-wider text-white shadow-2xl shadow-blue-500/30 hover:bg-blue-700 active:scale-95 print:hidden"
+          >
+            DÜZENLE
+          </button>
+        )}
+
+      {adminSheetEditor && (
+        <AdminDynamicSheetEditor
+          target={adminSheetEditor}
+          onClose={() => setAdminSheetEditor(null)}
+          onSaved={async () => {
+            await refreshDataCache();
+          }}
+        />
       )}
     </div>
   );
