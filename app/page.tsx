@@ -204,7 +204,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [resetMessage, setResetMessage] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
   
-  const [loginMode, setLoginMode] = useState<'personel' | 'yonetici'>('personel');
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   
@@ -432,10 +431,13 @@ export default function CnetmobilCmrFinalUltimate() {
   }, []);
 
   const handleLogin = async () => {
-    if (!entryPass) return;
-
-    if (loginMode === 'yonetici' && !loginEmail.trim()) {
+    if (!loginEmail.trim()) {
       alert('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+
+    if (!entryPass) {
+      alert('Lütfen şifrenizi girin.');
       return;
     }
 
@@ -448,21 +450,19 @@ export default function CnetmobilCmrFinalUltimate() {
         body: JSON.stringify({
           email: loginEmail.trim().toLowerCase(),
           password: entryPass,
-          mode: loginMode,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        alert(data.message || 'Giriş bilgileri hatalı.');
+        alert(data.message || 'E-posta veya şifre hatalı.');
         setLoginLoading(false);
         return;
       }
 
       const matchedBranch = String(data.branch || '');
 
-      // Rolü tarayıcıdaki seçimden değil, sunucunun doğruladığı cevaptan al.
       if (data.role === 'yonetici') {
         setIsMasterAccess(true);
         setIsAdmin(true);
@@ -493,7 +493,10 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      if (matchedBranch === 'VODAFONE KANALI' || matchedBranch === 'ZUMAY KANALI') {
+      if (
+        matchedBranch === 'VODAFONE KANALI' ||
+        matchedBranch === 'ZUMAY KANALI'
+      ) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsAdmin(false);
@@ -508,7 +511,10 @@ export default function CnetmobilCmrFinalUltimate() {
       const ipData = await ipRes.json();
       const currentIp = ipData.ip;
 
-      if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === matchedBranch) {
+      if (
+        MASTER_IPLER.includes(currentIp) ||
+        IP_HARITASI[currentIp] === matchedBranch
+      ) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsAdmin(false);
@@ -516,9 +522,10 @@ export default function CnetmobilCmrFinalUltimate() {
         setIsLoggedIn(true);
         setEntryPass('');
       } else {
-        // Şifre doğru olsa bile mağaza ağı yanlışsa cookie açık bırakılmaz.
         await fetch('/api/auth', { method: 'DELETE' });
-        alert(`GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`);
+        alert(
+          `GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`
+        );
       }
     } catch (error) {
       console.error('Login hatası:', error);
@@ -541,7 +548,6 @@ export default function CnetmobilCmrFinalUltimate() {
     setIsMasterAccess(false);
     setIsAdmin(false);
     setIsSuperAdminUser(false);
-    setLoginMode('personel');
     setAuthView('login');
   };
 
@@ -1755,63 +1761,35 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="mb-8">
                     <h1 className="text-[30px] font-bold tracking-[-0.03em] text-slate-950">Hoş Geldiniz</h1>
                     <p className="mt-2 text-[14px] text-slate-500">
-                      {loginMode === 'yonetici'
-                        ? 'Yönetici hesabınızla güvenli giriş yapın.'
-                        : 'Mağazanıza ait giriş şifresi ile devam edin.'}
+                      CNETMOBİL hesabınızın e-posta ve şifresiyle güvenli giriş yapın.
                     </p>
                   </div>
 
-                  <div className="mb-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginMode('personel');
-                        setEntryPass('');
-                        setLoginEmail('');
-                      }}
-                      className={`h-10 rounded-lg text-sm font-semibold transition ${loginMode === 'personel' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Mağaza Girişi
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginMode('yonetici');
-                        setEntryPass('');
-                      }}
-                      className={`h-10 rounded-lg text-sm font-semibold transition ${loginMode === 'yonetici' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Yönetici Girişi
-                    </button>
-                  </div>
-
-                  {loginMode === 'yonetici' && (
-                    <div className="mb-5">
-                      <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
-                      <div className="relative">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
-                          </svg>
-                        </div>
-                        <input
-                          type="email"
-                          autoComplete="email"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                          disabled={loginLoading}
-                          placeholder="ornek@cnetmobil.com.tr"
-                          className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
-                        />
+                  <div className="mb-5">
+                    <label className="mb-2 block text-[12px] font-medium text-slate-500">E-posta adresiniz</label>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7l8 6 8-6" />
+                        </svg>
                       </div>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        disabled={loginLoading}
+                        placeholder="ornek@cnetmobil.com.tr"
+                        className="h-[52px] w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                      />
                     </div>
-                  )}
+                  </div>
 
                   <div className="mb-3">
                     <label className="mb-2 block text-[12px] font-medium text-slate-500">
-                      {loginMode === 'yonetici' ? 'Şifreniz' : 'Mağaza şifreniz'}
+                      Şifreniz
                     </label>
                     <div className="relative">
                       <div className="pointer-events-none absolute inset-y-0 left-0 flex w-12 items-center justify-center text-slate-400">
@@ -1851,25 +1829,23 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
 
                   <div className="mb-6 flex min-h-7 items-center justify-end">
-                    {loginMode === 'yonetici' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setForgotEmail(loginEmail);
-                          setForgotMessage('');
-                          setAuthView('forgot');
-                        }}
-                        className="text-[13px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
-                      >
-                        Şifremi Unuttum?
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotEmail(loginEmail);
+                        setForgotMessage('');
+                        setAuthView('forgot');
+                      }}
+                      className="text-[13px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Şifremi Unuttum?
+                    </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleLogin}
-                    disabled={loginLoading || !entryPass || (loginMode === 'yonetici' && !loginEmail.trim())}
+                    disabled={loginLoading || !entryPass || !loginEmail.trim()}
                     className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loginLoading ? (
