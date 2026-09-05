@@ -209,6 +209,35 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
+  // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
+  // /?view=normal&mode=dis_kanal
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const requestedMode =
+      new URLSearchParams(window.location.search).get('mode');
+
+    const allowedModes = [
+      'ana_sayfa',
+      'alim',
+      'servis',
+      'cep_tablet',
+      'yna_list',
+      'dis_kanal',
+      'ikinci_el_apple',
+      'ikinci_el_android',
+      'imei_list',
+      'kampanya_sifir',
+      'thh',
+      'cihaz_talep',
+    ];
+
+    if (requestedMode && allowedModes.includes(requestedMode)) {
+      setAppMode(requestedMode as any);
+      setStep(1);
+    }
+  }, []);
+
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
   const initialThhForm = {
