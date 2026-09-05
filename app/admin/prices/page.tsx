@@ -192,18 +192,29 @@ export default function AdminPricesPage() {
             <div>
               <div className="text-xl font-black">CNETMOBİL</div>
               <div className="text-[11px] text-slate-300">
-                Super Admin • Fiyat Yönetimi
+                Super Admin • Cihaz Alım
               </div>
             </div>
           </div>
 
-          <button
-            onClick={loadPrices}
-            disabled={loading}
-            className="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 font-bold text-sm disabled:opacity-50"
-          >
-            {loading ? "Yükleniyor..." : "Yenile"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                window.open("/?view=normal", "_blank", "noopener,noreferrer")
+              }
+              className="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 font-black text-sm"
+            >
+              Normal Paneli Aç
+            </button>
+
+            <button
+              onClick={loadPrices}
+              disabled={loading}
+              className="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 font-bold text-sm disabled:opacity-50"
+            >
+              {loading ? "Yükleniyor..." : "Yenile"}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -214,7 +225,7 @@ export default function AdminPricesPage() {
               Ana cihaz listesi
             </div>
             <h1 className="mt-1 text-3xl lg:text-4xl font-black">
-              Fiyat Yönetimi
+              Cihaz Alım
             </h1>
             <p className="mt-2 text-slate-500 max-w-3xl">
               Marka, model ve hafızaya göre baz fiyat ile minimum fiyatı
