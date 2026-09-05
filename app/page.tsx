@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
 import YoneticiPaneli from './components/YoneticiPaneli';
+import CepTablet from './components/screens/CepTablet';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -4249,89 +4250,17 @@ export default function CnetmobilCmrFinalUltimate() {
           ) :
 
           appMode === 'cep_tablet' && step < 99 ? (
-            <div className="bg-white p-4 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-blue-600">GÜNCEL FİYATLAR</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Cep + Tablet + IOT Saat Fiyat Listesi</p>
-                  </div>
-                  <div className="w-full md:w-80 flex flex-col gap-2">
-                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
-                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                      <input type="text" placeholder="Model Hızlı Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                    </div>
-                    {isSuperAdminUser && currentAdminEditableSheet && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
-                        className="h-10 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-[11px] font-black tracking-wider text-white shadow-sm transition hover:brightness-95 active:scale-[0.99]"
-                      >
-                        DÜZENLE
-                      </button>
-                    )}
-                  </div>
-              </div>
-              
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-blue-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">CEP TELEFONU (APPLE)</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-blue-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-blue-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[0] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[0]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[1] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[2] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[3] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto custom-scrollbar pb-2">
-                  <div className="min-w-[450px]">
-                    <div className="bg-green-600 px-4 py-3 rounded-t-2xl flex font-black text-[9px] sm:text-[10px] tracking-widest text-white items-center shadow-md">
-                      <div className="flex-[3]">MODEL (ANDROID / DİĞER)</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">KAMPANYA</div>
-                      <div className="flex-1 text-center border-l border-green-500/50 pl-2">SATIŞ</div>
-                      <div className="flex-1 text-right border-l border-green-500/50 pr-2">RESMİ FİYAT</div>
-                    </div>
-                    <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                      {cepTabletData.slice(1).filter(r => r[5] && r[5].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                          const cellName = (row[5] || '').toUpperCase();
-                          const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                          return (
-                            <div key={i} className={`flex px-4 py-2.5 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-2 break-words`}>
-                                  {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                                  {row[5]}
-                                </div>
-                                <div className={`flex-1 text-center font-black border-l border-slate-200 ${isHighlighted ? 'text-amber-600 text-sm' : 'text-red-500'}`}>{row[6] || '-'}</div>
-                                <div className="flex-1 text-center text-slate-800 whitespace-nowrap border-l border-slate-200">{row[7] || '-'}</div>
-                                <div className="flex-1 text-right text-slate-500 whitespace-nowrap pl-2 border-l border-slate-200">{row[8] || '-'}</div>
-                            </div>
-                          )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : 
-          
+            <CepTablet
+              data={cepTabletData}
+              canEdit={Boolean(isSuperAdminUser && currentAdminEditableSheet)}
+              onEdit={() => {
+                if (currentAdminEditableSheet) {
+                  setAdminSheetEditor(currentAdminEditableSheet);
+                }
+              }}
+            />
+          ) :
+
           appMode === 'yna_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
