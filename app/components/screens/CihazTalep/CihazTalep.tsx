@@ -8,510 +8,489 @@ import {
 } from "./cihazTalepExcel";
 
 type CihazTalepProps = {
-  data: any[][];
+  cihazTalepData: any[][];
+  setCihazTalepData: React.Dispatch<React.SetStateAction<any[][]>>;
+  cihazTalepSearch: string;
+  setCihazTalepSearch: React.Dispatch<React.SetStateAction<string>>;
+  cihazTalepPage: number;
+  setCihazTalepPage: React.Dispatch<React.SetStateAction<number>>;
+  openActiveRequestsSignal: number;
   selectedBranch: string;
   isAdmin: boolean;
   isMasterAccess: boolean;
   isSuperAdminUser: boolean;
-  quickSearch?: string;
-  refreshDataCache: () => Promise<any> | any;
-  refreshCihazTalep: () => Promise<any> | any;
-  onDataChange?: (rows: any[][]) => void;
+  refreshDataCache: () => Promise<void>;
+  sheetFetchedAtRef: { current: Record<string, number> };
+  loadSheetsForCurrentScreen: (force?: boolean) => Promise<void>;
 };
 
-type CihazTalepDialog =
-  | null
-  | { type: "adet"; rowIndex: number; modelName: string; stokAdedi: number }
-  | { type: "gonder"; rowIndex: number; cihazAdi: string; magaza: string }
-  | { type: "red"; rowIndex: number; cihazAdi: string; magaza: string }
-  | { type: "cihaz_ekle" }
-  | { type: "cihaz_toplu_ekle" }
-  | {
-      type: "message";
-      title: string;
-      message: string;
-      tone?: "success" | "error" | "info";
-    };
-
 export default function CihazTalep({
-  data,
+  cihazTalepData,
+  setCihazTalepData,
+  cihazTalepSearch,
+  setCihazTalepSearch,
+  cihazTalepPage,
+  setCihazTalepPage,
+  openActiveRequestsSignal,
   selectedBranch,
   isAdmin,
   isMasterAccess,
   isSuperAdminUser,
-  quickSearch = "",
   refreshDataCache,
-  refreshCihazTalep,
-  onDataChange,
+  sheetFetchedAtRef,
+  loadSheetsForCurrentScreen,
 }: CihazTalepProps) {
-  // Parent yalnızca PostgreSQL/Realtime ana verisini tutar.
-  // Cihaz Talep ekranına ait tüm görünüm ve işlem state'leri burada.
-  const [cihazTalepData, setCihazTalepData] = useState<any[][]>(data || []);
-  const [talepSaving, setTalepSaving] = useState(false);
-  const [gonderildiLoadingIndex, setGonderildiLoadingIndex] =
-    useState<number | null>(null);
-  const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
-  const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] =
-    useState<number | null>(null);
-  const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+const [talepSaving, setTalepSaving] = useState(false);
+const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | null>(null);
+const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
+const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
+const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 
-  const [cihazTalepSearch, setCihazTalepSearch] = useState("");
-  const [cihazTalepMarkaFilter, setCihazTalepMarkaFilter] = useState("TÜMÜ");
-  const [cihazTalepHafizaFilter, setCihazTalepHafizaFilter] = useState("TÜMÜ");
-  const [cihazTalepRenkFilter, setCihazTalepRenkFilter] = useState("TÜMÜ");
-  const [cihazTalepDurumFilter, setCihazTalepDurumFilter] = useState("TÜMÜ");
-  const [cihazTalepPage, setCihazTalepPage] = useState(1);
-  const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
+useEffect(() => {
+  if (openActiveRequestsSignal > 0) {
+    setAktifTaleplerModalOpen(true);
+  }
+}, [openActiveRequestsSignal]);
+// --- CİHAZ TALEP V2 GÖRÜNÜM STATE'LERİ ---
 
-  const [cihazTalepDialog, setCihazTalepDialog] =
-    useState<CihazTalepDialog>(null);
-  const [talepAdetInput, setTalepAdetInput] = useState("1");
-  const [redNedeniInput, setRedNedeniInput] = useState("");
-  const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+const [cihazTalepMarkaFilter, setCihazTalepMarkaFilter] = useState('TÜMÜ');
+const [cihazTalepHafizaFilter, setCihazTalepHafizaFilter] = useState('TÜMÜ');
+const [cihazTalepRenkFilter, setCihazTalepRenkFilter] = useState('TÜMÜ');
+const [cihazTalepDurumFilter, setCihazTalepDurumFilter] = useState('TÜMÜ');
 
-  // TOPLU EXCEL tamamen Cihaz Talep component'inin içinde.
-  const [bulkCihazFileName, setBulkCihazFileName] = useState("");
-  const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
-  const [bulkCihazError, setBulkCihazError] = useState("");
-  const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
-  const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
+const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
 
-  const [cihazEkleForm, setCihazEkleForm] = useState({
-    markaModel: "",
-    hafiza: "",
-    renk: "",
-    renkDiger: "",
-    pil: "",
-    grade: "MÜKEMMEL",
-    garanti: "",
-    degisenParca: "Orijinal / Yok",
-    kutuFatura: "",
-    stokAdet: "1",
+type CihazTalepDialog =
+  | null
+  | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
+  | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
+  | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
+  | { type: 'cihaz_ekle' }
+  | { type: 'cihaz_toplu_ekle' }
+  | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
+
+const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
+const [talepAdetInput, setTalepAdetInput] = useState('1');
+const [redNedeniInput, setRedNedeniInput] = useState('');
+const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+const [bulkCihazFileName, setBulkCihazFileName] = useState('');
+const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
+const [bulkCihazError, setBulkCihazError] = useState('');
+const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
+const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
+const [cihazEkleForm, setCihazEkleForm] = useState({
+  markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+  garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
+});
+
+const showTalepMessage = (title: string, message: string, tone: 'success' | 'error' | 'info' = 'info') => {
+  setCihazTalepDialog({ type: 'message', title, message, tone });
+};
+
+
+const openCihazEkleModal = () => {
+  if (!isAdmin && !isMasterAccess) {
+    showTalepMessage('YETKİ GEREKLİ', 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.', 'error');
+    return;
+  }
+  setCihazEkleForm({
+    markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+    garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
   });
-
-  useEffect(() => {
-    setCihazTalepData(Array.isArray(data) ? data : []);
-  }, [data]);
-
-  // Üst navbar'daki hızlı arama Cihaz Talep ekranına yönlendirildiğinde buraya gelir.
-  useEffect(() => {
-    const q = String(quickSearch || "").trim();
-    if (!q) return;
-    setCihazTalepSearch(q);
-    setCihazTalepPage(1);
-  }, [quickSearch]);
-
-  const showTalepMessage = (title: string, message: string, tone: 'success' | 'error' | 'info' = 'info') => {
-    setCihazTalepDialog({ type: 'message', title, message, tone });
-  };
+  setCihazTalepDialog({ type: 'cihaz_ekle' });
+};
 
 
-  const openCihazEkleModal = () => {
-    if (!isAdmin && !isMasterAccess) {
-      showTalepMessage('YETKİ GEREKLİ', 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.', 'error');
-      return;
-    }
-    setCihazEkleForm({
-      markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
-      garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
-    });
-    setCihazTalepDialog({ type: 'cihaz_ekle' });
-  };
+const openTopluCihazEkleModal = () => {
+  if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
+      'error'
+    );
+    return;
+  }
 
+  setBulkCihazFileName('');
+  setBulkCihazRows([]);
+  setBulkCihazError('');
+  setBulkCihazParsing(false);
+  setBulkCihazSaving(false);
+  setCihazTalepDialog({
+    type: 'cihaz_toplu_ekle',
+  });
+};
 
-  const openTopluCihazEkleModal = () => {
-    if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
-      showTalepMessage(
-        'YETKİ GEREKLİ',
-        'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
-        'error'
+const handleTopluCihazExcelSec = async (
+  file: File | null
+) => {
+  setBulkCihazRows([]);
+  setBulkCihazError('');
+  setBulkCihazFileName(
+    file?.name || ''
+  );
+
+  if (!file) return;
+
+  setBulkCihazParsing(true);
+
+  try {
+    const rows =
+      await parseCihazTalepBulkXlsx(file);
+
+    setBulkCihazRows(rows);
+  } catch (error: any) {
+    setBulkCihazError(
+      error?.message ||
+      'Excel dosyası okunamadı.'
+    );
+  } finally {
+    setBulkCihazParsing(false);
+  }
+};
+
+const submitTopluCihazEkle = async () => {
+  if (
+    !isAdmin &&
+    !isMasterAccess &&
+    !isSuperAdminUser
+  ) {
+    return;
+  }
+
+  if (!bulkCihazRows.length) {
+    setBulkCihazError(
+      'Önce doldurulmuş Excel şablonunu seçin.'
+    );
+    return;
+  }
+
+  if (
+    !confirm(
+      `${bulkCihazRows.length} cihaz Cihaz Talep listesine toplu eklenecek. Onaylıyor musunuz?`
+    )
+  ) {
+    return;
+  }
+
+  setBulkCihazSaving(true);
+  setBulkCihazError('');
+
+  try {
+    const response = await fetch(
+      '/api/panel-action',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+        body: JSON.stringify({
+          type: 'ADD_CIHAZ_TALEP_BULK',
+          devices: bulkCihazRows,
+        }),
+      }
+    );
+
+    const result =
+      await response.json().catch(
+        () => ({})
       );
-      return;
+
+    if (
+      !response.ok ||
+      result?.result !== 'success'
+    ) {
+      throw new Error(
+        result?.message ||
+        'Toplu cihaz yükleme başarısız.'
+      );
     }
 
+    setCihazTalepDialog(null);
     setBulkCihazFileName('');
     setBulkCihazRows([]);
     setBulkCihazError('');
-    setBulkCihazParsing(false);
-    setBulkCihazSaving(false);
-    setCihazTalepDialog({
-      type: 'cihaz_toplu_ekle',
-    });
-  };
 
-  const handleTopluCihazExcelSec = async (
-    file: File | null
-  ) => {
-    setBulkCihazRows([]);
-    setBulkCihazError('');
-    setBulkCihazFileName(
-      file?.name || ''
+    await refreshDataCache();
+
+    showTalepMessage(
+      'TOPLU YÜKLEME TAMAMLANDI',
+      `${Number(result?.addedCount || 0) || bulkCihazRows.length} cihaz başarıyla eklendi.`,
+      'success'
     );
+  } catch (error: any) {
+    setBulkCihazError(
+      error?.message ||
+      'Toplu cihaz yükleme sırasında hata oluştu.'
+    );
+  } finally {
+    setBulkCihazSaving(false);
+  }
+};
 
-    if (!file) return;
+const submitCihazEkle = async () => {
+  if (!isAdmin && !isMasterAccess) return;
+  const markaModel = cihazEkleForm.markaModel.trim();
+  const hafiza = cihazEkleForm.hafiza.trim();
+  const renk = (cihazEkleForm.renk === 'DİĞER' ? cihazEkleForm.renkDiger : cihazEkleForm.renk).trim();
+  const stokAdet = Number(cihazEkleForm.stokAdet);
 
-    setBulkCihazParsing(true);
+  if (!markaModel || !hafiza || !renk) {
+    return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
+  }
+  if (!Number.isInteger(stokAdet) || stokAdet < 1) {
+    return showTalepMessage('GEÇERSİZ STOK', 'Stok adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
+  }
 
-    try {
-      const rows =
-        await parseCihazTalepBulkXlsx(file);
-
-      setBulkCihazRows(rows);
-    } catch (error: any) {
-      setBulkCihazError(
-        error?.message ||
-        'Excel dosyası okunamadı.'
-      );
-    } finally {
-      setBulkCihazParsing(false);
-    }
-  };
-
-  const submitTopluCihazEkle = async () => {
-    if (
-      !isAdmin &&
-      !isMasterAccess &&
-      !isSuperAdminUser
-    ) {
+  setCihazEkleSaving(true);
+  try {
+    const response = await fetch('/api/panel-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ADD_CIHAZ_TALEP_DEVICE',
+        markaModel,
+        hafiza,
+        renk,
+        pil: cihazEkleForm.pil.trim(),
+        grade: cihazEkleForm.grade.trim(),
+        garanti: cihazEkleForm.garanti.trim(),
+        degisenParca: cihazEkleForm.degisenParca.trim(),
+        kutuFatura: cihazEkleForm.kutuFatura.trim(),
+        stokAdet
+      })
+    });
+    const result = await response.json();
+    if (result.result !== 'success') {
+      showTalepMessage('CİHAZ EKLENEMEDİ', result.message || 'Cihaz eklenemedi.', 'error');
       return;
     }
+    setCihazTalepDialog(null);
+    showTalepMessage('CİHAZ EKLENDİ', `${markaModel} (${hafiza} - ${renk}) ${stokAdet} adet stok ile eklendi.`, 'success');
+  } catch (e) {
+    console.error('Cihaz ekleme hatası:', e);
+    showTalepMessage('BAĞLANTI HATASI', 'Cihaz eklenirken bağlantı hatası oluştu.', 'error');
+  } finally {
+    setCihazEkleSaving(false);
+  }
+};
 
-    if (!bulkCihazRows.length) {
-      setBulkCihazError(
-        'Önce doldurulmuş Excel şablonunu seçin.'
-      );
-      return;
-    }
+const aktifTalepleriExcelIndir = () => {
+  const rows = cihazTalepData.slice(1).filter((row) => {
+    const magaza = String(row[9] || '').trim();
+    const durum = String(row[11] || '').trim().toUpperCase();
+    return magaza && !['RED EDİLDİ', 'REDDEDİLDİ', 'GÖNDERİLDİ', 'GONDERILDI'].includes(durum);
+  });
 
-    if (
-      !confirm(
-        `${bulkCihazRows.length} cihaz Cihaz Talep listesine toplu eklenecek. Onaylıyor musunuz?`
-      )
-    ) {
-      return;
-    }
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [
+    ['Tarih','Mağaza','Marka Model','Hafıza','Renk','Grade','Stok','Talep Adet','Durum'].map(esc).join(';'),
+    ...rows.map((row) => [row[10],row[9],row[0],row[1],row[2],row[4],row[8],row[14] || 1,row[11] || 'BEKLİYOR'].map(esc).join(';'))
+  ];
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `aktif_talepler_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
-    setBulkCihazSaving(true);
-    setBulkCihazError('');
+const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
+  const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
 
-    try {
-      const response = await fetch(
-        '/api/panel-action',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json',
-          },
-          body: JSON.stringify({
-            type: 'ADD_CIHAZ_TALEP_BULK',
-            devices: bulkCihazRows,
-          }),
-        }
-      );
+  if (guvenliStok <= 0) {
+    showTalepMessage('STOK YOK', 'Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.', 'error');
+    return;
+  }
 
-      const result =
-        await response.json().catch(
-          () => ({})
-        );
+  setTalepAdetInput('1');
+  setCihazTalepDialog({ type: 'adet', rowIndex, modelName, stokAdedi: guvenliStok });
+};
 
-      if (
-        !response.ok ||
-        result?.result !== 'success'
-      ) {
-        throw new Error(
-          result?.message ||
-          'Toplu cihaz yükleme başarısız.'
-        );
-      }
+const submitTalep = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'adet') return;
 
-      setCihazTalepDialog(null);
-      setBulkCihazFileName('');
-      setBulkCihazRows([]);
-      setBulkCihazError('');
+  const { rowIndex, modelName, stokAdedi } = cihazTalepDialog;
+  const talepAdedi = Number(talepAdetInput);
 
-      await refreshDataCache();
+  if (!Number.isInteger(talepAdedi) || talepAdedi < 1) {
+    showTalepMessage('GEÇERSİZ ADET', 'Talep adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
+    return;
+  }
 
-      showTalepMessage(
-        'TOPLU YÜKLEME TAMAMLANDI',
-        `${Number(result?.addedCount || 0) || bulkCihazRows.length} cihaz başarıyla eklendi.`,
-        'success'
-      );
-    } catch (error: any) {
-      setBulkCihazError(
-        error?.message ||
-        'Toplu cihaz yükleme sırasında hata oluştu.'
-      );
-    } finally {
-      setBulkCihazSaving(false);
-    }
-  };
+  if (talepAdedi > stokAdedi) {
+    showTalepMessage('STOK YETERSİZ', `En fazla ${stokAdedi} adet talep edebilirsiniz.`, 'error');
+    return;
+  }
 
-  const submitCihazEkle = async () => {
-    if (!isAdmin && !isMasterAccess) return;
-    const markaModel = cihazEkleForm.markaModel.trim();
-    const hafiza = cihazEkleForm.hafiza.trim();
-    const renk = (cihazEkleForm.renk === 'DİĞER' ? cihazEkleForm.renkDiger : cihazEkleForm.renk).trim();
-    const stokAdet = Number(cihazEkleForm.stokAdet);
+  setTalepSaving(true);
 
-    if (!markaModel || !hafiza || !renk) {
-      return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
-    }
-    if (!Number.isInteger(stokAdet) || stokAdet < 1) {
-      return showTalepMessage('GEÇERSİZ STOK', 'Stok adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
-    }
-
-    setCihazEkleSaving(true);
-    try {
-      const response = await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'ADD_CIHAZ_TALEP_DEVICE',
-          markaModel,
-          hafiza,
-          renk,
-          pil: cihazEkleForm.pil.trim(),
-          grade: cihazEkleForm.grade.trim(),
-          garanti: cihazEkleForm.garanti.trim(),
-          degisenParca: cihazEkleForm.degisenParca.trim(),
-          kutuFatura: cihazEkleForm.kutuFatura.trim(),
-          stokAdet
-        })
-      });
-      const result = await response.json();
-      if (result.result !== 'success') {
-        showTalepMessage('CİHAZ EKLENEMEDİ', result.message || 'Cihaz eklenemedi.', 'error');
-        return;
-      }
-      setCihazTalepDialog(null);
-      showTalepMessage('CİHAZ EKLENDİ', `${markaModel} (${hafiza} - ${renk}) ${stokAdet} adet stok ile eklendi.`, 'success');
-    } catch (e) {
-      console.error('Cihaz ekleme hatası:', e);
-      showTalepMessage('BAĞLANTI HATASI', 'Cihaz eklenirken bağlantı hatası oluştu.', 'error');
-    } finally {
-      setCihazEkleSaving(false);
-    }
-  };
-
-  const aktifTalepleriExcelIndir = () => {
-    const rows = cihazTalepData.slice(1).filter((row) => {
-      const magaza = String(row[9] || '').trim();
-      const durum = String(row[11] || '').trim().toUpperCase();
-      return magaza && !['RED EDİLDİ', 'REDDEDİLDİ', 'GÖNDERİLDİ', 'GONDERILDI'].includes(durum);
+  try {
+    const response = await fetch('/api/panel-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'SAVE_TALEP',
+        rowIndex,
+        branch: selectedBranch,
+        adet: talepAdedi
+      })
     });
 
-    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [
-      ['Tarih','Mağaza','Marka Model','Hafıza','Renk','Grade','Stok','Talep Adet','Durum'].map(esc).join(';'),
-      ...rows.map((row) => [row[10],row[9],row[0],row[1],row[2],row[4],row[8],row[14] || 1,row[11] || 'BEKLİYOR'].map(esc).join(';'))
-    ];
-    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aktif_talepler_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+    const result = await response.json();
 
-  const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
-    const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
-
-    if (guvenliStok <= 0) {
-      showTalepMessage('STOK YOK', 'Bu cihazın mevcut stoğu 0. Talep oluşturulamaz.', 'error');
+    if (result.result !== 'success') {
+      showTalepMessage('TALEP OLUŞTURULAMADI', result.message || 'Talep oluşturulamadı.', 'error');
       return;
     }
 
-    setTalepAdetInput('1');
-    setCihazTalepDialog({ type: 'adet', rowIndex, modelName, stokAdedi: guvenliStok });
-  };
+    await refreshDataCache();
+    showTalepMessage('TALEP OLUŞTURULDU', `${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi.`, 'success');
+  } catch (e) {
+    console.error('Talep gönderme hatası:', e);
+    showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
+  } finally {
+    setTalepSaving(false);
+  }
+};
 
-  const submitTalep = async () => {
-    if (!cihazTalepDialog || cihazTalepDialog.type !== 'adet') return;
+const handleGonderildi = (rowIndex: number, cihazAdi: string, magaza: string) => {
+  if (!isAdmin && !isMasterAccess) {
+    showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
+    return;
+  }
 
-    const { rowIndex, modelName, stokAdedi } = cihazTalepDialog;
-    const talepAdedi = Number(talepAdetInput);
+  setCihazTalepDialog({ type: 'gonder', rowIndex, cihazAdi, magaza });
+};
 
-    if (!Number.isInteger(talepAdedi) || talepAdedi < 1) {
-      showTalepMessage('GEÇERSİZ ADET', 'Talep adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
+const submitGonderildi = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'gonder') return;
+
+  const { rowIndex, magaza } = cihazTalepDialog;
+  setGonderildiLoadingIndex(rowIndex);
+
+  try {
+    const response = await fetch('/api/panel-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
+    });
+
+    const result = await response.json();
+
+    if (result.result !== 'success') {
+      showTalepMessage('İŞLEM BAŞARISIZ', result.message || 'İşlem gerçekleştirilemedi.', 'error');
       return;
     }
 
-    if (talepAdedi > stokAdedi) {
-      showTalepMessage('STOK YETERSİZ', `En fazla ${stokAdedi} adet talep edebilirsiniz.`, 'error');
+    await refreshDataCache();
+    showTalepMessage('GÖNDERİLDİ', `${magaza} mağazasının talebi gönderildi olarak işaretlendi. Mağaza durumu anlık görecek.`, 'success');
+  } catch (e) {
+    console.error(e);
+    showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
+  } finally {
+    setGonderildiLoadingIndex(null);
+  }
+};
+
+const handleTalepReddet = (rowIndex: number, cihazAdi: string, magaza: string) => {
+  if (!isAdmin && !isMasterAccess) {
+    showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
+    return;
+  }
+
+  setRedNedeniInput('');
+  setCihazTalepDialog({ type: 'red', rowIndex, cihazAdi, magaza });
+};
+
+const submitTalepRed = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'red') return;
+
+  const { rowIndex, magaza } = cihazTalepDialog;
+  const temizNeden = redNedeniInput.trim();
+
+  if (!temizNeden) {
+    showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazanın göreceği red nedenini yazın.', 'error');
+    return;
+  }
+
+  setRedLoadingIndex(rowIndex);
+
+  try {
+    const response = await fetch('/api/panel-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'RED_TALEP',
+        rowIndex,
+        reason: temizNeden
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.result !== 'success') {
+      showTalepMessage('TALEP REDDEDİLEMEDİ', result.message || 'Talep reddedilemedi.', 'error');
       return;
     }
 
-    setTalepSaving(true);
+    await refreshDataCache();
+    showTalepMessage('TALEP REDDEDİLDİ', `${magaza} mağazasına red nedeni ile birlikte iletildi.`, 'success');
+  } catch (e) {
+    console.error('Talep reddetme hatası:', e);
+    showTalepMessage('İŞLEM HATASI', 'Talep reddedilirken hata oluştu.', 'error');
+  } finally {
+    setRedLoadingIndex(null);
+  }
+};
 
-    try {
-      const response = await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'SAVE_TALEP',
-          rowIndex,
-          branch: selectedBranch,
-          adet: talepAdedi
-        })
-      });
+const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: string) => {
+  if (!isAdmin && !isMasterAccess) {
+    alert("Bu kaydı yalnızca yönetici silebilir!");
+    return;
+  }
 
-      const result = await response.json();
+  if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Yeni sunucu veritabanı ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
 
-      if (result.result !== 'success') {
-        showTalepMessage('TALEP OLUŞTURULAMADI', result.message || 'Talep oluşturulamadı.', 'error');
-        return;
-      }
+  setDeleteTalepLoadingIndex(rowIndex);
 
-      await refreshDataCache();
-      showTalepMessage('TALEP OLUŞTURULDU', `${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi.`, 'success');
-    } catch (e) {
-      console.error('Talep gönderme hatası:', e);
-      showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
-    } finally {
-      setTalepSaving(false);
-    }
-  };
+  try {
+    const response = await fetch('/api/panel-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        type: "DELETE_CIHAZ_ROW_FULL_V5",
+        rowIndex: rowIndex
+      })
+    });
 
-  const handleGonderildi = (rowIndex: number, cihazAdi: string, magaza: string) => {
-    if (!isAdmin && !isMasterAccess) {
-      showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
+    const result = await response.json();
+
+    if (result.result !== "success") {
+      alert(result.message || "Talep kaydı silinemedi.");
       return;
     }
 
-    setCihazTalepDialog({ type: 'gonder', rowIndex, cihazAdi, magaza });
-  };
+    // Satırı ekrandan da anında kaldır.
+    setCihazTalepData(prev => prev.filter((_, i) => i !== rowIndex - 1));
 
-  const submitGonderildi = async () => {
-    if (!cihazTalepDialog || cihazTalepDialog.type !== 'gonder') return;
+    // V6: bütün panel cache'ini silme. Sadece CihazTalep sheet'ini zorla yenile.
+    // Böylece diğer ekranlar gereksiz yere PostgreSQL'den tekrar çekilmez.
+    sheetFetchedAtRef.current['CihazTalep'] = 0;
+    await loadSheetsForCurrentScreen(true);
 
-    const { rowIndex, magaza } = cihazTalepDialog;
-    setGonderildiLoadingIndex(rowIndex);
-
-    try {
-      const response = await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'GONDER_TALEP', rowIndex })
-      });
-
-      const result = await response.json();
-
-      if (result.result !== 'success') {
-        showTalepMessage('İŞLEM BAŞARISIZ', result.message || 'İşlem gerçekleştirilemedi.', 'error');
-        return;
-      }
-
-      await refreshDataCache();
-      showTalepMessage('GÖNDERİLDİ', `${magaza} mağazasının talebi gönderildi olarak işaretlendi. Mağaza durumu anlık görecek.`, 'success');
-    } catch (e) {
-      console.error(e);
-      showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
-    } finally {
-      setGonderildiLoadingIndex(null);
-    }
-  };
-
-  const handleTalepReddet = (rowIndex: number, cihazAdi: string, magaza: string) => {
-    if (!isAdmin && !isMasterAccess) {
-      showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
-      return;
-    }
-
-    setRedNedeniInput('');
-    setCihazTalepDialog({ type: 'red', rowIndex, cihazAdi, magaza });
-  };
-
-  const submitTalepRed = async () => {
-    if (!cihazTalepDialog || cihazTalepDialog.type !== 'red') return;
-
-    const { rowIndex, magaza } = cihazTalepDialog;
-    const temizNeden = redNedeniInput.trim();
-
-    if (!temizNeden) {
-      showTalepMessage('RED NEDENİ GEREKLİ', 'Lütfen mağazanın göreceği red nedenini yazın.', 'error');
-      return;
-    }
-
-    setRedLoadingIndex(rowIndex);
-
-    try {
-      const response = await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'RED_TALEP',
-          rowIndex,
-          reason: temizNeden
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.result !== 'success') {
-        showTalepMessage('TALEP REDDEDİLEMEDİ', result.message || 'Talep reddedilemedi.', 'error');
-        return;
-      }
-
-      await refreshDataCache();
-      showTalepMessage('TALEP REDDEDİLDİ', `${magaza} mağazasına red nedeni ile birlikte iletildi.`, 'success');
-    } catch (e) {
-      console.error('Talep reddetme hatası:', e);
-      showTalepMessage('İŞLEM HATASI', 'Talep reddedilirken hata oluştu.', 'error');
-    } finally {
-      setRedLoadingIndex(null);
-    }
-  };
-
-  const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: string) => {
-    if (!isAdmin && !isMasterAccess) {
-      alert("Bu kaydı yalnızca yönetici silebilir!");
-      return;
-    }
-
-    if (!confirm(`${magaza} - ${cihazAdi} cihaz satırı TAMAMEN SİLİNECEK.\n\nGoogle Sheets'te bu satır silinecek ve alttaki satırlar otomatik yukarı kayacak. Yeni sunucu veritabanı ve tüm paneller de güncellenecek. Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
-
-    setDeleteTalepLoadingIndex(rowIndex);
-
-    try {
-      const response = await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: "DELETE_CIHAZ_ROW_FULL_V5",
-          rowIndex: rowIndex
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.result !== "success") {
-        alert(result.message || "Talep kaydı silinemedi.");
-        return;
-      }
-
-      // Satırı ekrandan anında kaldır.
-      setCihazTalepData(prev => {
-        const next = prev.filter((_, i) => i !== rowIndex - 1);
-        onDataChange?.(next);
-        return next;
-      });
-
-      // Sadece CihazTalep verisini yeniden çek.
-      await refreshCihazTalep();
-
-      alert("Cihaz satırı tamamen silindi. Alt satırlar güvenli şekilde yukarı kaydırıldı.");
-    } catch (e) {
-      console.error("Talep kaydı silme hatası:", e);
-      alert("Talep kaydı silinirken hata oluştu.");
-    } finally {
-      setDeleteTalepLoadingIndex(null);
-    }
-  };
-
+    alert("Cihaz satırı tamamen silindi. Alt satırlar güvenli şekilde yukarı kaydırıldı.");
+  } catch (e) {
+    console.error("Talep kaydı silme hatası:", e);
+    alert("Talep kaydı silinirken hata oluştu.");
+  } finally {
+    setDeleteTalepLoadingIndex(null);
+  }
+};
 
   return (
     <>
@@ -908,7 +887,7 @@ export default function CihazTalep({
 
                       <input
                         value={cihazTalepSearch}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepSearch(e.target.value);
                           setCihazTalepPage(1);
                         }}
@@ -920,7 +899,7 @@ export default function CihazTalep({
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:shrink-0">
                       <select
                         value={cihazTalepMarkaFilter}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepMarkaFilter(e.target.value);
                           setCihazTalepPage(1);
                         }}
@@ -934,7 +913,7 @@ export default function CihazTalep({
 
                       <select
                         value={cihazTalepHafizaFilter}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepHafizaFilter(e.target.value);
                           setCihazTalepPage(1);
                         }}
@@ -948,7 +927,7 @@ export default function CihazTalep({
 
                       <select
                         value={cihazTalepRenkFilter}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepRenkFilter(e.target.value);
                           setCihazTalepPage(1);
                         }}
@@ -962,7 +941,7 @@ export default function CihazTalep({
 
                       <select
                         value={cihazTalepDurumFilter}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepDurumFilter(e.target.value);
                           setCihazTalepPage(1);
                         }}
@@ -1481,7 +1460,7 @@ export default function CihazTalep({
 
                       <select
                         value={cihazTalepPerPage}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           setCihazTalepPerPage(Number(e.target.value));
                           setCihazTalepPage(1);
                         }}
@@ -1653,7 +1632,7 @@ export default function CihazTalep({
             );
           })()}
 
-      {/* CİHAZ TALEP PROFESYONEL İŞLEM MODALI */}
+{/* CİHAZ TALEP PROFESYONEL İŞLEM MODALI */}
 {cihazTalepDialog && (
   <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 backdrop-blur-md p-4 print:hidden">
     <div className={`w-full overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
@@ -1686,7 +1665,7 @@ export default function CihazTalep({
             <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">TALEP ADEDİ</label>
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => setTalepAdetInput(String(Math.max(1, (Number(talepAdetInput) || 1) - 1)))} className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-2xl font-black text-slate-700 hover:bg-slate-100">−</button>
-              <input autoFocus type="number" min={1} max={cihazTalepDialog.stokAdedi} value={talepAdetInput} onChange={(e) => setTalepAdetInput(e.target.value)} className="h-14 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-center text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
+              <input autoFocus type="number" min={1} max={cihazTalepDialog.stokAdedi} value={talepAdetInput} onChange={(e: any) => setTalepAdetInput(e.target.value)} className="h-14 flex-1 rounded-2xl border-2 border-slate-200 bg-white text-center text-2xl font-black text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" />
               <button type="button" onClick={() => setTalepAdetInput(String(Math.min(cihazTalepDialog.stokAdedi, (Number(talepAdetInput) || 0) + 1)))} className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-2xl font-black text-slate-700 hover:bg-slate-100">+</button>
             </div>
             <div className="mt-6 flex gap-3">
@@ -1737,7 +1716,7 @@ export default function CihazTalep({
               <p className="mt-1"><span className="font-bold text-slate-400">Cihaz:</span> <span className="font-black text-slate-900">{cihazTalepDialog.cihazAdi}</span></p>
             </div>
             <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-500">RED NEDENİ</label>
-            <textarea autoFocus value={redNedeniInput} onChange={(e) => setRedNedeniInput(e.target.value)} rows={4} maxLength={250} placeholder="Örn: Stok fazlası mevcut, cihaz başka işlem için ayrıldı..." className="w-full resize-none rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm font-bold text-slate-800 outline-none placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50" />
+            <textarea autoFocus value={redNedeniInput} onChange={(e: any) => setRedNedeniInput(e.target.value)} rows={4} maxLength={250} placeholder="Örn: Stok fazlası mevcut, cihaz başka işlem için ayrıldı..." className="w-full resize-none rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm font-bold text-slate-800 outline-none placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50" />
             <div className="mt-2 text-right text-[10px] font-bold text-slate-400">{redNedeniInput.length}/250</div>
             <div className="mt-5 flex gap-3">
               <button onClick={() => setCihazTalepDialog(null)} disabled={redLoadingIndex !== null} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
@@ -1759,10 +1738,10 @@ export default function CihazTalep({
           </div>
           <div className="p-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={e=>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={(e: any) =>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div>
                 <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label>
-                <select value={cihazEkleForm.hafiza} onChange={e=>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white">
+                <select value={cihazEkleForm.hafiza} onChange={(e: any) =>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white">
                   <option value="">Hafıza seçin</option>
                   <option value="16GB">16GB</option><option value="32GB">32GB</option><option value="64GB">64GB</option><option value="128GB">128GB</option>
                   <option value="256GB">256GB</option><option value="512GB">512GB</option><option value="1TB">1TB</option><option value="2TB">2TB</option>
@@ -1776,7 +1755,7 @@ export default function CihazTalep({
                       'SİYAH':'#111827','BEYAZ':'#ffffff','MAVİ':'#3b82f6','LACİVERT':'#1e3a8a','GRİ':'#6b7280','GÜMÜŞ':'#cbd5e1','ALTIN':'#d4af37','YEŞİL':'#22c55e','KIRMIZI':'#ef4444','MOR':'#8b5cf6','PEMBE':'#ec4899','SARI':'#eab308','TURUNCU':'#f97316','KAHVERENGİ':'#92400e','BEJ':'#d6c6a5','TİTANYUM':'#8c8c89','NATURAL TİTANYUM':'#a59f91','SİYAH TİTANYUM':'#4a4a47','BEYAZ TİTANYUM':'#e7e5df','MAVİ TİTANYUM':'#536878'
                     } as Record<string,string>)[cihazEkleForm.renk] || '#cbd5e1' }} />
                   )}
-                  <select value={cihazEkleForm.renk} onChange={e=>setCihazEkleForm(p=>({...p,renk:e.target.value,renkDiger:e.target.value==='DİĞER'?p.renkDiger:''}))} className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 text-sm font-black outline-none focus:border-blue-500 focus:bg-white ${cihazEkleForm.renk && cihazEkleForm.renk !== 'DİĞER' ? 'pl-10' : 'px-4'}`}>
+                  <select value={cihazEkleForm.renk} onChange={(e: any) =>setCihazEkleForm(p=>({...p,renk:e.target.value,renkDiger:e.target.value==='DİĞER'?p.renkDiger:''}))} className={`w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-4 text-sm font-black outline-none focus:border-blue-500 focus:bg-white ${cihazEkleForm.renk && cihazEkleForm.renk !== 'DİĞER' ? 'pl-10' : 'px-4'}`}>
                     <option value="">Renk seçin</option>
                     <option value="SİYAH">SİYAH</option><option value="BEYAZ">BEYAZ</option><option value="MAVİ">MAVİ</option><option value="LACİVERT">LACİVERT</option>
                     <option value="GRİ">GRİ</option><option value="GÜMÜŞ">GÜMÜŞ</option><option value="ALTIN">ALTIN</option><option value="YEŞİL">YEŞİL</option>
@@ -1787,15 +1766,15 @@ export default function CihazTalep({
                   </select>
                 </div>
                 {cihazEkleForm.renk === 'DİĞER' && (
-                  <input autoFocus value={cihazEkleForm.renkDiger} onChange={e=>setCihazEkleForm(p=>({...p,renkDiger:e.target.value.toUpperCase()}))} placeholder="Özel rengi yazın" className="mt-2 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
+                  <input autoFocus value={cihazEkleForm.renkDiger} onChange={(e: any) =>setCihazEkleForm(p=>({...p,renkDiger:e.target.value.toUpperCase()}))} placeholder="Özel rengi yazın" className="mt-2 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
                 )}
               </div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={e=>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={e=>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={e=>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={e=>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={e=>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={e=>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={(e: any) =>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={(e: any) =>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
+              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={(e: any) =>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={(e: any) =>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={(e: any) =>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
             </div>
             <div className="mt-6 flex gap-3">
               <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
@@ -1890,7 +1869,7 @@ export default function CihazTalep({
                     accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     className="hidden"
                     disabled={bulkCihazSaving || bulkCihazParsing}
-                    onChange={(e) => {
+                    onChange={(e: any) => {
                       const file = e.target.files?.[0] || null;
                       handleTopluCihazExcelSec(file);
                       e.currentTarget.value = '';
