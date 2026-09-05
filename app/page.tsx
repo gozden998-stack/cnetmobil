@@ -6,6 +6,8 @@ import CepTablet from './components/screens/CepTablet';
 import YNAList from './components/screens/YNAList';
 import DisKanal from './components/screens/DisKanal';
 import KampanyaliSifir from './components/screens/KampanyaliSifir';
+import IkinciElApple from './components/screens/IkinciElApple';
+import IkinciElAndroid from './components/screens/IkinciElAndroid';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -4094,67 +4096,29 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
           ) :
 
-          (appMode === 'ikinci_el_apple' || appMode === 'ikinci_el_android') && step < 99 ? (() => {
-            const isApple = appMode === 'ikinci_el_apple';
-            const idx0 = isApple ? 0 : 6;
-            const idx1 = isApple ? 1 : 7;
-            const idx2 = isApple ? 2 : 8;
-            const idx3 = isApple ? 3 : 9;
+          appMode === 'ikinci_el_apple' && step < 99 ? (
+            <IkinciElApple
+              data={ikinciElData}
+              canEdit={Boolean(isSuperAdminUser && currentAdminEditableSheet)}
+              onEdit={() => {
+                if (currentAdminEditableSheet) {
+                  setAdminSheetEditor(currentAdminEditableSheet);
+                }
+              }}
+            />
+          ) :
 
-            return (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className={`text-3xl font-black italic tracking-tighter ${isApple ? 'text-slate-800' : 'text-green-600'}`}>
-                      2.EL {isApple ? 'APPLE' : 'ANDROID'} FİYAT LİSTESİ
-                    </h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Güncel İkinci El {isApple ? 'Apple' : 'Android'} Cihaz Fiyatları</p>
-                  </div>
-                  <div className="w-full md:w-80 flex flex-col gap-2">
-                    <div className={`bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full transition-all shadow-sm focus-within:bg-white ${isApple ? 'focus-within:border-slate-500' : 'focus-within:border-green-500'}`}>
-                      <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                      <input type="text" placeholder="Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                    </div>
-                    {isSuperAdminUser && currentAdminEditableSheet && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminSheetEditor(currentAdminEditableSheet)}
-                        className={`h-10 w-full rounded-xl text-[11px] font-black tracking-wider text-white shadow-sm transition active:scale-[0.99] ${isApple ? 'bg-slate-800 hover:bg-slate-900' : 'bg-green-600 hover:bg-green-700'}`}
-                      >
-                        DÜZENLE
-                      </button>
-                    )}
-                  </div>
-              </div>
-              
-              <div className="max-w-6xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[650px]">
-                  <div className={`${isApple ? 'bg-slate-800' : 'bg-green-600'} px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md`}>
-                    <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className={`flex-1 text-center border-l pl-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>ÖZELLİK/DURUM</div>
-                    <div className={`flex-1 text-center border-l pl-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>FİYATI (TL)</div>
-                    <div className={`flex-[2] text-right border-l pr-2 ${isApple ? 'border-slate-600' : 'border-green-500'}`}>AÇIKLAMA</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {ikinciElData.slice(1).filter(r => r[idx0] && r[idx0].toLowerCase().includes(searchQuery.toLowerCase())).map((row, i) => {
-                        const cellName = (row[idx0] || '').toUpperCase();
-                        const isHighlighted = cellName.includes('BOMBA') || cellName.includes('KAMPANYA');
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 hover:bg-slate-100 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isHighlighted ? 'bg-amber-50' : i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                          <div className={`flex-[3] flex items-center ${isHighlighted ? 'text-amber-700' : 'text-slate-700'} group-hover:text-slate-900 transition-colors pr-4`}>
-                              {isHighlighted && <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping mr-2 shrink-0"></span>}
-                              {row[idx0]}
-                          </div>
-                          <div className={`flex-1 text-center font-bold text-slate-600 group-hover:text-slate-900 border-l border-slate-200`}>{row[idx1] || '-'}</div>
-                          <div className={`flex-1 text-center font-black text-sm whitespace-nowrap border-l border-slate-200 ${isHighlighted ? 'text-amber-600' : (isApple ? 'text-blue-600' : 'text-green-600')}`}>{row[idx2] || '-'}</div>
-                          <div className={`flex-[2] text-right text-slate-500 break-words pl-2 border-l border-slate-200`}>{row[idx3] || '-'}</div>
-                        </div>
-                    )})}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );})() :
+          appMode === 'ikinci_el_android' && step < 99 ? (
+            <IkinciElAndroid
+              data={ikinciElData}
+              canEdit={Boolean(isSuperAdminUser && currentAdminEditableSheet)}
+              onEdit={() => {
+                if (currentAdminEditableSheet) {
+                  setAdminSheetEditor(currentAdminEditableSheet);
+                }
+              }}
+            />
+          ) :
 
           appMode === 'dis_kanal' && step < 99 ? (
             <DisKanal
