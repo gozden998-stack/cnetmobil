@@ -337,7 +337,7 @@ async function parseCihazTalepBulkXlsx(
       await file.arrayBuffer()
     );
 
-  const worksheetPath =
+  const worksheetPaths =
     Array.from(files.keys())
       .filter((name) =>
         /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)
@@ -349,9 +349,9 @@ async function parseCihazTalepBulkXlsx(
           Number(b.match(/sheet(\d+)/i)?.[1] || 0);
 
         return aNo - bNo;
-      })[0];
+      });
 
-  if (!worksheetPath) {
+  if (!worksheetPaths.length) {
     throw new Error(
       'Excel dosyasında çalışma sayfası bulunamadı.'
     );
@@ -360,34 +360,77 @@ async function parseCihazTalepBulkXlsx(
   const sharedStrings =
     readXlsxSharedStrings(files);
 
-  const rows =
-    parseXlsxWorksheet(
-      files.get(worksheetPath)!,
-      sharedStrings
-    );
+  let rows: string[][] = [];
+  let headerIndexes =
+    new Map<string, number>();
+  let foundTemplateSheet = false;
 
-  if (!rows.length) {
-    throw new Error('Excel dosyası boş.');
+  // Excel bazen sayfa XML sırasını değiştirebilir.
+  // Bu yüzden sheet1 varsaymak yerine, başlıkları gerçekten
+  // "Marka / Model, Hafıza, Renk..." olan sayfayı buluyoruz.
+  for (const worksheetPath of worksheetPaths) {
+    const candidateRows =
+      parseXlsxWorksheet(
+        files.get(worksheetPath)!,
+        sharedStrings
+      );
+
+    if (!candidateRows.length) {
+      continue;
+    }
+
+    // Başlık satırını ilk 10 satır içinde ara.
+    // Böylece Excel dosyası farklı bir programda kaydedilse bile
+    // şablon daha dayanıklı olur.
+    for (
+      let headerRowIndex = 0;
+      headerRowIndex < Math.min(candidateRows.length, 10);
+      headerRowIndex++
+    ) {
+      const candidateHeader =
+        (candidateRows[headerRowIndex] || [])
+          .map(normalizeBulkHeader);
+
+      const candidateIndexes =
+        new Map<string, number>();
+
+      candidateHeader.forEach(
+        (header, index) => {
+          candidateIndexes.set(
+            header,
+            index
+          );
+        }
+      );
+
+      const hasAllHeaders =
+        BULK_CIHAZ_HEADERS.every(
+          (header) =>
+            candidateIndexes.has(header)
+        );
+
+      if (hasAllHeaders) {
+        rows =
+          candidateRows.slice(
+            headerRowIndex
+          );
+
+        headerIndexes =
+          candidateIndexes;
+
+        foundTemplateSheet = true;
+        break;
+      }
+    }
+
+    if (foundTemplateSheet) {
+      break;
+    }
   }
 
-  const headerRow =
-    rows[0].map(normalizeBulkHeader);
-
-  const headerIndexes =
-    new Map<string, number>();
-
-  headerRow.forEach((header, index) => {
-    headerIndexes.set(header, index);
-  });
-
-  const missingHeaders =
-    BULK_CIHAZ_HEADERS.filter(
-      (header) => !headerIndexes.has(header)
-    );
-
-  if (missingHeaders.length) {
+  if (!foundTemplateSheet) {
     throw new Error(
-      `Şablon başlıkları değiştirilmiş. Eksik: ${missingHeaders.join(', ')}`
+      'Cihazlar sayfası bulunamadı. Lütfen panelden indirdiğiniz Excel şablonunu kullanın ve başlıkları değiştirmeyin.'
     );
   }
 
@@ -522,7 +565,7 @@ async function parseCihazTalepBulkXlsx(
 
   if (!devices.length) {
     throw new Error(
-      'Yüklenecek cihaz bulunamadı.'
+      'Yüklenecek cihaz bulunamadı. Excel içinde “Cihazlar” sayfasında, başlık satırının altına en az 1 cihaz girin.'
     );
   }
 
