@@ -1,3 +1,7 @@
+// CNETMOBİL V2
+// Cihaz Talep toplu Excel şablonu ve .xlsx parser.
+// Cihaz Talep modülü ile birlikte page.tsx dışına taşınmıştır.
+
 export type CihazTalepBulkRow = {
   markaModel: string;
   hafiza: string;
