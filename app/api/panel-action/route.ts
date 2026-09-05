@@ -46,6 +46,10 @@ const ACTION_RULES: Record<string, ActionRule> = {
     permission: 'devices.create',
   },
 
+  ADD_CIHAZ_TALEP_BULK: {
+    permission: 'devices.create',
+  },
+
   SAVE_TALEP: {
     permission: 'requests.create',
     branchBound: true,
@@ -496,6 +500,207 @@ export async function POST(request: NextRequest) {
         },
         400
       );
+    }
+
+    if (actionType === 'ADD_CIHAZ_TALEP_BULK') {
+      const rawDevices = Array.isArray(payload.devices)
+        ? payload.devices
+        : [];
+
+      if (
+        rawDevices.length < 1 ||
+        rawDevices.length > 500
+      ) {
+        return jsonResponse(
+          {
+            result: 'error',
+            message:
+              'Toplu yüklemede 1 ile 500 arasında cihaz olmalıdır.',
+          },
+          400
+        );
+      }
+
+      const allowedGrades = new Set([
+        '',
+        'OUTLET',
+        'İYİ',
+        'ÇOK İYİ',
+        'MÜKEMMEL',
+      ]);
+
+      const safeDevices: Array<{
+        markaModel: string;
+        hafiza: string;
+        renk: string;
+        pil: string;
+        grade: string;
+        garanti: string;
+        degisenParca: string;
+        kutuFatura: string;
+        stokAdet: number;
+      }> = [];
+
+      const safeText = (
+        value: unknown,
+        fieldName: string,
+        required = false,
+        maxLength = 300
+      ) => {
+        const text =
+          String(value ?? '').trim();
+
+        if (required && !text) {
+          throw new Error(
+            `${fieldName} zorunludur.`
+          );
+        }
+
+        if (text.length > maxLength) {
+          throw new Error(
+            `${fieldName} çok uzun.`
+          );
+        }
+
+        if (/^[=+@]/.test(text)) {
+          throw new Error(
+            `${fieldName} formül içeremez.`
+          );
+        }
+
+        return text;
+      };
+
+      try {
+        for (
+          let index = 0;
+          index < rawDevices.length;
+          index++
+        ) {
+          const item =
+            rawDevices[index];
+
+          if (
+            !item ||
+            typeof item !== 'object' ||
+            Array.isArray(item)
+          ) {
+            throw new Error(
+              `${index + 2}. satır geçersiz.`
+            );
+          }
+
+          const row =
+            item as Record<string, unknown>;
+
+          const markaModel =
+            safeText(
+              row.markaModel,
+              `${index + 2}. satır Marka / Model`,
+              true
+            );
+
+          const hafiza =
+            safeText(
+              row.hafiza,
+              `${index + 2}. satır Hafıza`,
+              true,
+              80
+            );
+
+          const renk =
+            safeText(
+              row.renk,
+              `${index + 2}. satır Renk`,
+              true,
+              100
+            );
+
+          const pil =
+            safeText(
+              row.pil,
+              `${index + 2}. satır Pil`,
+              false,
+              50
+            );
+
+          const grade =
+            safeText(
+              row.grade,
+              `${index + 2}. satır Grade`,
+              false,
+              50
+            ).toLocaleUpperCase('tr-TR');
+
+          const garanti =
+            safeText(
+              row.garanti,
+              `${index + 2}. satır Garanti`,
+              false,
+              100
+            );
+
+          const degisenParca =
+            safeText(
+              row.degisenParca,
+              `${index + 2}. satır Değişen Parça`,
+              false,
+              300
+            ) || 'Orijinal / Yok';
+
+          const kutuFatura =
+            safeText(
+              row.kutuFatura,
+              `${index + 2}. satır Kutu Fatura`,
+              false,
+              200
+            );
+
+          const stokAdet =
+            Number(row.stokAdet);
+
+          if (
+            !Number.isInteger(stokAdet) ||
+            stokAdet < 1 ||
+            stokAdet > 100000
+          ) {
+            throw new Error(
+              `${index + 2}. satır Stok Adet geçersiz.`
+            );
+          }
+
+          if (!allowedGrades.has(grade)) {
+            throw new Error(
+              `${index + 2}. satır Grade geçersiz.`
+            );
+          }
+
+          safeDevices.push({
+            markaModel,
+            hafiza,
+            renk,
+            pil,
+            grade,
+            garanti,
+            degisenParca,
+            kutuFatura,
+            stokAdet,
+          });
+        }
+      } catch (error) {
+        return jsonResponse(
+          {
+            result: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Toplu cihaz verisi geçersiz.',
+          },
+          400
+        );
+      }
+
+      payload.devices = safeDevices;
     }
 
     if (actionType === 'UPDATE_LIST_CELLS') {
