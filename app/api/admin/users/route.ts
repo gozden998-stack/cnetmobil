@@ -556,12 +556,12 @@ export async function POST(request: NextRequest) {
     const branch = String(body.branch || '').trim();
     const roleCode = String(body.roleCode || '').trim();
 
-    const requestedBranches = Array.isArray(body.branches)
+    const requestedBranches: string[] = Array.isArray(body.branches)
       ? Array.from(
-          new Set(
-            body.branches
+          new Set<string>(
+            (body.branches as unknown[])
               .map((item: unknown) => String(item || '').trim())
-              .filter(Boolean)
+              .filter((item: string) => item.length > 0)
           )
         )
       : [];
@@ -779,16 +779,20 @@ export async function PATCH(request: NextRequest) {
     const roleCode = String(body.roleCode || '').trim();
     const active = body.active === true;
 
-    const desiredPermissions = new Set(
+    const desiredPermissions: Set<string> = new Set<string>(
       Array.isArray(body.permissions)
-        ? body.permissions.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+        ? (body.permissions as unknown[])
+            .map((x: unknown) => String(x || '').trim())
+            .filter((x: string) => x.length > 0)
         : []
     );
 
-    const desiredBranches = Array.from(
-      new Set(
+    const desiredBranches: string[] = Array.from(
+      new Set<string>(
         Array.isArray(body.branches)
-          ? body.branches.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+          ? (body.branches as unknown[])
+              .map((x: unknown) => String(x || '').trim())
+              .filter((x: string) => x.length > 0)
           : []
       )
     );
