@@ -3612,15 +3612,18 @@ export default function CnetmobilCmrFinalUltimate() {
                   return (
                     <div
                       key={item.id}
+                      onMouseLeave={() => {
+                        if (item.subItems) {
+                          setMobileSubMenuOpen(false);
+                        }
+                      }}
                       className="group relative flex min-w-fit items-stretch"
                     >
                       {item.subItems ? (
                         <>
                           <button
-                            onClick={() => setMobileSubMenuOpen(!mobileSubMenuOpen)}
-                            onBlur={() =>
-                              setTimeout(() => setMobileSubMenuOpen(false), 200)
-                            }
+                            type="button"
+                            onClick={() => setMobileSubMenuOpen((open) => !open)}
                             className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
@@ -3647,26 +3650,29 @@ export default function CnetmobilCmrFinalUltimate() {
                             )}
                           </button>
 
-                          <div className="invisible absolute left-0 top-full z-[999] hidden w-44 overflow-hidden rounded-b-2xl border border-white/10 bg-[#10233f] opacity-0 shadow-2xl transition group-hover:visible group-hover:opacity-100 lg:flex lg:flex-col">
-                            {item.subItems.map((sub) => (
-                              <button
-                                key={sub.id}
-                                onClick={() => {
-                                  setAppMode(sub.id as any);
-                                  setStep(1);
-                                  resetSelection();
-                                  setMobileSubMenuOpen(false);
-                                }}
-                                className={`px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition ${
-                                  appMode === sub.id
-                                    ? 'bg-blue-500/20 text-blue-200'
-                                    : 'text-white/70 hover:bg-white/10 hover:text-white'
-                                }`}
-                              >
-                                {sub.label}
-                              </button>
-                            ))}
-                          </div>
+                          {mobileSubMenuOpen && (
+                            <div className="absolute left-0 top-full z-[999] hidden w-48 overflow-hidden rounded-b-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:flex lg:flex-col">
+                              {item.subItems.map((sub) => (
+                                <button
+                                  type="button"
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`px-4 py-3.5 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white/75 hover:bg-white/10 hover:text-white'
+                                  }`}
+                                >
+                                  {sub.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
 
                           {mobileSubMenuOpen && (
                             <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
