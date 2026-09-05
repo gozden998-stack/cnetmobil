@@ -374,7 +374,13 @@ export default function CnetmobilCmrFinalUltimate() {
               cache: 'no-store',
             });
             const meData = await meRes.json().catch(() => ({}));
-            setIsSuperAdminUser(Boolean(meRes.ok && meData?.isSuperAdmin));
+            const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
+            setIsSuperAdminUser(superAdmin);
+
+            if (superAdmin) {
+              window.location.href = '/admin';
+              return;
+            }
           } catch (error) {
             console.error('Super Admin kontrol hatası:', error);
             setIsSuperAdminUser(false);
@@ -476,7 +482,13 @@ export default function CnetmobilCmrFinalUltimate() {
             cache: 'no-store',
           });
           const meData = await meRes.json().catch(() => ({}));
-          setIsSuperAdminUser(Boolean(meRes.ok && meData?.isSuperAdmin));
+          const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
+          setIsSuperAdminUser(superAdmin);
+
+          if (superAdmin) {
+            window.location.href = '/admin';
+            return;
+          }
         } catch (error) {
           console.error('Super Admin kontrol hatası:', error);
           setIsSuperAdminUser(false);
