@@ -684,6 +684,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
   const [cihazTalepSearch, setCihazTalepSearch] = useState('');
   const [cihazTalepPage, setCihazTalepPage] = useState(1);
+  const [cihazTalepOpenActiveSignal, setCihazTalepOpenActiveSignal] = useState(0);
 
   const [cepTabletData, setCepTabletData] = useState<any[][]>([]);
   const [ynaData, setYnaData] = useState<any[][]>([]);
@@ -2485,7 +2486,9 @@ export default function CnetmobilCmrFinalUltimate() {
                       title="Aktif Talepler"
                       onClick={() => {
                         if (isMasterAccess || isAdmin || isSuperAdminUser) {
-                          setAktifTaleplerModalOpen(true);
+                          setAppMode('cihaz_talep');
+                          setStep(1);
+                          setCihazTalepOpenActiveSignal((value) => value + 1);
                         }
                       }}
                       className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
@@ -3141,6 +3144,7 @@ export default function CnetmobilCmrFinalUltimate() {
               setCihazTalepSearch={setCihazTalepSearch}
               cihazTalepPage={cihazTalepPage}
               setCihazTalepPage={setCihazTalepPage}
+              openActiveRequestsSignal={cihazTalepOpenActiveSignal}
               selectedBranch={selectedBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
