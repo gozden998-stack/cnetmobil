@@ -377,7 +377,10 @@ export default function CnetmobilCmrFinalUltimate() {
             const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
             setIsSuperAdminUser(superAdmin);
 
-            if (superAdmin) {
+            const normalPanelRequested =
+              new URLSearchParams(window.location.search).get('view') === 'normal';
+
+            if (superAdmin && !normalPanelRequested) {
               window.location.href = '/admin';
               return;
             }
@@ -485,7 +488,10 @@ export default function CnetmobilCmrFinalUltimate() {
           const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
           setIsSuperAdminUser(superAdmin);
 
-          if (superAdmin) {
+          const normalPanelRequested =
+            new URLSearchParams(window.location.search).get('view') === 'normal';
+
+          if (superAdmin && !normalPanelRequested) {
             window.location.href = '/admin';
             return;
           }
