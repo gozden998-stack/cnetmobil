@@ -2374,59 +2374,54 @@ export default function CnetmobilCmrFinalUltimate() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* TOPBAR V3 - DAHA ORTALI / DAHA TEMİZ */}
+      {/* TOPBAR V2 */}
       <header
         className={`sticky top-0 z-[100] w-full print:hidden ${
           isZumay
             ? 'bg-gradient-to-r from-[#241719] via-[#301c20] to-[#241719]'
-            : 'bg-[linear-gradient(100deg,#0b2343_0%,#123763_48%,#0b2343_100%)]'
-        } shadow-[0_10px_28px_rgba(15,23,42,0.22)]`}
+            : 'bg-gradient-to-r from-[#10233f] via-[#15345d] to-[#10233f]'
+        } shadow-[0_10px_30px_rgba(15,23,42,0.22)]`}
       >
         {/* ÜST SATIR */}
         <div className="border-b border-white/10">
-          <div className="mx-auto grid min-h-[66px] max-w-[1920px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 lg:px-6">
-            {/* LOGO */}
+          <div className="mx-auto flex min-h-[64px] max-w-[1920px] items-center justify-between gap-4 px-4 lg:px-6">
             <button
               type="button"
               onClick={() => {
                 resetAll();
                 setAppMode('ana_sayfa');
               }}
-              className="group flex min-w-[205px] shrink-0 items-center gap-3 text-left"
+              className="group flex shrink-0 items-center gap-3 text-left"
             >
-              {isZumay ? (
-                <>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-600 text-lg font-black italic text-white shadow-lg shadow-red-950/20">
-                    Z
-                  </div>
-                  <div className="hidden sm:block">
-                    <div className="text-[20px] font-black leading-none tracking-tight text-white">
-                      ZUMAY
-                    </div>
-                    <div className="mt-1 text-[7px] font-black uppercase tracking-[0.28em] text-red-200/70">
-                      Bayi Portalı
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex h-11 min-w-[196px] items-center">
-                    <img
-                      src="/logo.png"
-                      alt="Cnetmobil"
-                      className="max-h-10 max-w-[190px] object-contain object-left transition duration-300 group-hover:scale-[1.02]"
-                    />
-                  </div>
-                </>
-              )}
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15">
+                <span className="text-sm font-black text-white">
+                  {isZumay ? 'Z' : 'CM'}
+                </span>
+              </div>
+
+              <div className="hidden sm:block">
+                <div className="text-[22px] font-black leading-none tracking-tight text-white">
+                  {isZumay ? (
+                    'ZUMAY'
+                  ) : (
+                    <>
+                      Cnet
+                      <span className="text-blue-400">mobil</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-1 text-[7px] font-black uppercase tracking-[0.38em] text-blue-200/70">
+                  Teknoloji Her Yerde
+                </div>
+              </div>
             </button>
 
-            {/* TAM ORTALI HIZLI ARAMA */}
-            {!isZumay && step < 99 ? (
-              <div className="flex min-w-0 justify-center">
-                <div className="flex h-11 w-full max-w-[610px] items-center rounded-full border border-white/15 bg-white/10 px-2 pl-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_7px_22px_rgba(0,0,0,0.08)] backdrop-blur transition focus-within:border-blue-300/50 focus-within:bg-white/[0.13]">
+            {!isZumay && step < 99 && (
+              <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+                <div className="flex h-10 w-full max-w-[330px] items-center rounded-full border border-white/10 bg-white/10 px-4 shadow-inner transition focus-within:border-blue-300/40 focus-within:bg-white/15">
                   <svg
-                    className="h-4.5 w-4.5 shrink-0 text-blue-100/75"
+                    className="h-4 w-4 shrink-0 text-blue-100/70"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -2447,31 +2442,27 @@ export default function CnetmobilCmrFinalUltimate() {
                         handleTopQuickSearch();
                       }
                     }}
-                    placeholder="Hızlı ara... cihaz, model, müşteri veya işlem"
-                    className="min-w-0 flex-1 bg-transparent px-3 text-[11px] font-bold text-white outline-none placeholder:text-blue-100/45"
+                    placeholder="Hızlı ara..."
+                    className="min-w-0 flex-1 bg-transparent px-3 text-[11px] font-bold text-white outline-none placeholder:text-blue-100/50"
                   />
 
                   <button
                     type="button"
                     onClick={handleTopQuickSearch}
-                    className="flex h-8 min-w-[66px] items-center justify-center rounded-full bg-blue-500 px-4 text-[8px] font-black uppercase tracking-[0.08em] text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-400 active:scale-95"
+                    className="rounded-full bg-white/10 px-2.5 py-1 text-[8px] font-black text-blue-100 hover:bg-white/20"
                   >
-                    Ara
+                    ARA
                   </button>
                 </div>
               </div>
-            ) : (
-              <div />
             )}
 
-            {/* SAĞ AKSİYONLAR - TOPARLANMIŞ */}
-            <div className="flex shrink-0 items-center justify-end gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {!isZumay && step < 99 && (
                 <>
                   <button
-                    type="button"
                     onClick={() => setIsInstallmentModalOpen(true)}
-                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[8px] font-black uppercase tracking-[0.04em] text-white shadow-lg shadow-amber-950/10 transition hover:-translate-y-0.5 hover:bg-amber-400 md:flex"
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-amber-950/10 transition hover:bg-amber-400 md:flex"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -2480,17 +2471,14 @@ export default function CnetmobilCmrFinalUltimate() {
                   </button>
 
                   <button
-                    type="button"
                     onClick={() => setIsKaskoModalOpen(true)}
-                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[8px] font-black uppercase tracking-[0.04em] text-white shadow-lg shadow-violet-950/10 transition hover:-translate-y-0.5 hover:bg-violet-500 md:flex"
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-violet-950/10 transition hover:bg-violet-500 md:flex"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                     Kasko Hesapla
                   </button>
-
-                  <div className="mx-0.5 hidden h-8 w-px bg-white/10 xl:block" />
 
                   <div className="relative hidden sm:block">
                     <button
@@ -2503,7 +2491,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           setCihazTalepOpenActiveSignal((value) => value + 1);
                         }
                       }}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-white/75 transition hover:bg-white/12 hover:text-white"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m2 0v1a1 1 0 002 0v-1" />
@@ -2511,7 +2499,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </button>
 
                     {topActiveRequestCount > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#123763] bg-rose-500 px-1 text-[8px] font-black text-white">
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[8px] font-black text-white">
                         {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
                       </span>
                     )}
@@ -2519,18 +2507,19 @@ export default function CnetmobilCmrFinalUltimate() {
                 </>
               )}
 
-              {/* ŞUBE / KULLANICI */}
-              <div className="flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] p-1.5 pr-2.5 shadow-inner">
-                <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[9px] font-black text-white shadow-lg shadow-blue-950/20">
+              <div className="hidden h-8 w-px bg-white/10 lg:block" />
+
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 pr-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black text-white shadow-lg shadow-blue-950/20">
                   {branchInitials || 'CM'}
                 </div>
 
-                <div className="hidden min-w-[116px] md:block">
+                <div className="hidden min-w-[120px] md:block">
                   {isMasterAccess ? (
                     <select
                       value={selectedBranch}
                       onChange={(e) => setSelectedBranch(e.target.value)}
-                      className="w-full cursor-pointer bg-transparent text-[9px] font-black text-white outline-none"
+                      className="w-full cursor-pointer bg-transparent text-[10px] font-black text-white outline-none"
                     >
                       {branches.map((b) => (
                         <option key={b.name} value={b.name} className="text-slate-900">
@@ -2539,12 +2528,12 @@ export default function CnetmobilCmrFinalUltimate() {
                       ))}
                     </select>
                   ) : (
-                    <div className="truncate text-[9px] font-black text-white">
+                    <div className="truncate text-[10px] font-black text-white">
                       {selectedBranch}
                     </div>
                   )}
 
-                  <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.08em] text-blue-200/55">
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-200/60">
                     {isSuperAdminUser
                       ? 'Super Admin'
                       : isMasterAccess
@@ -2553,234 +2542,223 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
                 </div>
 
-                <svg className="hidden h-3 w-3 text-white/45 md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="hidden h-3 w-3 text-white/50 md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
 
-              {/* SAĞ İKONLAR TEK GRUP */}
-              <div className="flex items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045]">
-                {isSuperAdminUser && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = '/admin/users';
-                    }}
-                    title="Kullanıcılar & Yetkiler"
-                    className="flex h-10 w-10 items-center justify-center border-r border-white/10 text-white/65 transition hover:bg-violet-500/20 hover:text-violet-100"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H2v-2a4 4 0 014-4h3m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 1a3 3 0 10-4.5-2.6" />
-                    </svg>
-                  </button>
-                )}
-
-                {isAdmin && step < 99 && (
-                  <button
-                    type="button"
-                    onClick={() => setStep(99)}
-                    title="Yönetici Paneli"
-                    className="hidden h-10 w-10 items-center justify-center border-r border-white/10 text-white/60 transition hover:bg-white/10 hover:text-white sm:flex"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.3 4.3a1.7 1.7 0 013.4 0 1.7 1.7 0 002.6 1.1 1.7 1.7 0 012.4 2.4 1.7 1.7 0 001.1 2.6 1.7 1.7 0 010 3.4 1.7 1.7 0 00-1.1 2.6 1.7 1.7 0 01-2.4 2.4 1.7 1.7 0 00-2.6 1.1 1.7 1.7 0 01-3.4 0 1.7 1.7 0 00-2.6-1.1 1.7 1.7 0 01-2.4-2.4 1.7 1.7 0 00-1.1-2.6 1.7 1.7 0 010-3.4 1.7 1.7 0 001.1-2.6 1.7 1.7 0 012.4-2.4 1.7 1.7 0 002.6-1.1zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
-                )}
-
+              {isSuperAdminUser && (
                 <button
-                  type="button"
-                  onClick={handleLogout}
-                  title="Çıkış Yap"
-                  className="flex h-10 w-10 items-center justify-center text-white/55 transition hover:bg-rose-500/20 hover:text-rose-200"
+                  onClick={() => {
+                    window.location.href = '/admin/users';
+                  }}
+                  title="Kullanıcılar & Yetkiler"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-violet-200 transition hover:bg-violet-500/20 hover:text-white"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H2v-2a4 4 0 014-4h3m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 1a3 3 0 10-4.5-2.6" />
                   </svg>
                 </button>
-              </div>
+              )}
+
+              {isAdmin && step < 99 && (
+                <button
+                  onClick={() => setStep(99)}
+                  title="Yönetici Paneli"
+                  className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white sm:flex"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.3 4.3a1.7 1.7 0 013.4 0 1.7 1.7 0 002.6 1.1 1.7 1.7 0 012.4 2.4 1.7 1.7 0 001.1 2.6 1.7 1.7 0 010 3.4 1.7 1.7 0 00-1.1 2.6 1.7 1.7 0 01-2.4 2.4 1.7 1.7 0 00-2.6 1.1 1.7 1.7 0 01-3.4 0 1.7 1.7 0 00-2.6-1.1 1.7 1.7 0 01-2.4-2.4 1.7 1.7 0 00-1.1-2.6 1.7 1.7 0 010-3.4 1.7 1.7 0 001.1-2.6 1.7 1.7 0 012.4-2.4 1.7 1.7 0 002.6-1.1zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              )}
+
+              <button
+                onClick={handleLogout}
+                title="Çıkış Yap"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/55 transition hover:bg-rose-500/20 hover:text-rose-200"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
-        {/* MODÜL NAVBAR - EŞİT SÜTUN / ORTALI */}
-        <div className="border-b border-white/5 bg-black/[0.045]">
-          <div className="mx-auto max-w-[1920px] overflow-x-auto px-2 no-scrollbar lg:px-5">
-            <div className="flex min-w-max items-stretch lg:min-w-0 lg:justify-center">
-              {step < 99 &&
-                menuGroups
-                  .flatMap((g) => g.items)
-                  .filter((i) => i.visible)
-                  .map((item) => {
-                    const isActive =
-                      appMode === item.id ||
-                      (item.subItems &&
-                        item.subItems.some((sub) => sub.id === appMode));
+        {/* MODÜL NAVBAR */}
+        <div className="border-b border-white/5 bg-black/5">
+          <div className="mx-auto flex max-w-[1920px] items-stretch overflow-x-auto px-2 no-scrollbar lg:px-5">
+            {step < 99 &&
+              menuGroups
+                .flatMap((g) => g.items)
+                .filter((i) => i.visible)
+                .map((item) => {
+                  const isActive =
+                    appMode === item.id ||
+                    (item.subItems &&
+                      item.subItems.some((sub) => sub.id === appMode));
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="group relative flex min-w-[112px] flex-1 basis-0 items-stretch justify-center"
-                      >
-                        {item.subItems ? (
-                          <>
-                            <button
-                              ref={secondHandMenuButtonRef}
-                              type="button"
-                              onClick={() => {
-                                const rect =
-                                  secondHandMenuButtonRef.current?.getBoundingClientRect();
-
-                                if (rect) {
-                                  setSecondHandMenuPos({
-                                    left: Math.max(
-                                      12,
-                                      Math.min(window.innerWidth - 204, rect.left)
-                                    ),
-                                    top: rect.bottom + 6,
-                                    width: Math.max(192, rect.width),
-                                  });
-                                }
-
-                                setMobileSubMenuOpen((open) => !open);
-                              }}
-                              className={`relative flex min-h-[72px] w-full flex-col items-center justify-center gap-1.5 px-2 py-2 text-center text-[8px] font-black uppercase tracking-[0.025em] transition ${
-                                isActive
-                                  ? 'bg-blue-500/20 text-white'
-                                  : 'text-blue-100/62 hover:bg-white/5 hover:text-white'
-                              }`}
-                            >
-                              <span
-                                className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
-                                  isActive
-                                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20'
-                                    : 'bg-white/[0.055]'
-                                }`}
-                              >
-                                {navIcon(item.id)}
-                              </span>
-
-                              <span className="flex items-center justify-center gap-1 whitespace-nowrap">
-                                2. El Listesi
-                                <svg className="h-2.5 w-2.5 opacity-55" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </span>
-
-                              {isActive && (
-                                <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400 shadow-[0_0_14px_rgba(56,189,248,0.65)]" />
-                              )}
-                            </button>
-
-                            {mobileSubMenuOpen && (
-                              <div
-                                className="fixed z-[99999] hidden w-52 overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl ring-1 ring-black/10 lg:flex lg:flex-col"
-                                style={{
-                                  left: secondHandMenuPos.left,
-                                  top: secondHandMenuPos.top,
-                                  width: Math.max(208, secondHandMenuPos.width),
-                                }}
-                              >
-                                <div className="border-b border-white/10 px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/60">
-                                  2. El Fiyat Listesi
-                                </div>
-
-                                {item.subItems.map((sub) => (
-                                  <button
-                                    type="button"
-                                    key={sub.id}
-                                    onClick={() => {
-                                      setAppMode(sub.id as any);
-                                      setStep(1);
-                                      resetSelection();
-                                      setMobileSubMenuOpen(false);
-                                    }}
-                                    className={`flex items-center justify-between px-4 py-4 text-left text-[10px] font-black uppercase tracking-wide transition ${
-                                      appMode === sub.id
-                                        ? 'bg-blue-500/20 text-blue-200'
-                                        : 'text-white/80 hover:bg-white/10 hover:text-white'
-                                    }`}
-                                  >
-                                    <span>{sub.label}</span>
-                                    <span className="text-blue-300">→</span>
-                                  </button>
-                                ))}
-
-                                <button
-                                  type="button"
-                                  onClick={() => setMobileSubMenuOpen(false)}
-                                  className="border-t border-white/10 px-4 py-2.5 text-left text-[8px] font-black uppercase tracking-wide text-white/40 hover:bg-white/5 hover:text-white/70"
-                                >
-                                  Kapat
-                                </button>
-                              </div>
-                            )}
-
-                            {mobileSubMenuOpen && (
-                              <div className="fixed left-4 right-4 top-[140px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
-                                {item.subItems.map((sub) => (
-                                  <button
-                                    type="button"
-                                    key={sub.id}
-                                    onClick={() => {
-                                      setAppMode(sub.id as any);
-                                      setStep(1);
-                                      resetSelection();
-                                      setMobileSubMenuOpen(false);
-                                    }}
-                                    className={`border-b border-white/5 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
-                                      appMode === sub.id
-                                        ? 'bg-blue-500/20 text-blue-200'
-                                        : 'text-white'
-                                    }`}
-                                  >
-                                    {sub.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        ) : (
+                  return (
+                    <div
+                      key={item.id}
+                      className="group relative flex min-w-fit items-stretch"
+                    >
+                      {item.subItems ? (
+                        <>
                           <button
+                            ref={secondHandMenuButtonRef}
                             type="button"
                             onClick={() => {
-                              setAppMode(item.id as any);
-                              setStep(1);
-                              resetSelection();
+                              const rect =
+                                secondHandMenuButtonRef.current?.getBoundingClientRect();
+
+                              if (rect) {
+                                setSecondHandMenuPos({
+                                  left: Math.max(
+                                    12,
+                                    Math.min(
+                                      window.innerWidth - 204,
+                                      rect.left
+                                    )
+                                  ),
+                                  top: rect.bottom + 6,
+                                  width: Math.max(192, rect.width),
+                                });
+                              }
+
+                              setMobileSubMenuOpen((open) => !open);
                             }}
-                            className={`relative flex min-h-[72px] w-full flex-col items-center justify-center gap-1.5 px-2 py-2 text-center text-[8px] font-black uppercase tracking-[0.025em] transition ${
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
-                                : 'text-blue-100/62 hover:bg-white/5 hover:text-white'
+                                : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
                             }`}
                           >
                             <span
-                              className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
-                                isActive
-                                  ? 'bg-blue-500 text-white shadow-lg shadow-blue-950/20'
-                                  : 'bg-white/[0.055]'
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                                isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
                               }`}
                             >
                               {navIcon(item.id)}
                             </span>
 
-                            <span className="whitespace-nowrap">{item.label}</span>
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              2. El Listesi
+                              <svg className="h-2.5 w-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </span>
 
                             {isActive && (
-                              <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400 shadow-[0_0_14px_rgba(56,189,248,0.65)]" />
+                              <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
                             )}
                           </button>
-                        )}
-                      </div>
-                    );
-                  })}
 
-              {step === 99 && (
-                <div className="flex min-h-[72px] w-full items-center justify-center px-4 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200">
-                  Yönetici Paneli
-                </div>
-              )}
-            </div>
+                          {mobileSubMenuOpen && (
+                            <div
+                              className="fixed z-[99999] hidden overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl ring-1 ring-black/10 lg:flex lg:flex-col"
+                              style={{
+                                left: secondHandMenuPos.left,
+                                top: secondHandMenuPos.top,
+                                width: secondHandMenuPos.width,
+                              }}
+                            >
+                              <div className="border-b border-white/10 px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/60">
+                                2. El Fiyat Listesi
+                              </div>
+
+                              {item.subItems.map((sub) => (
+                                <button
+                                  type="button"
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`flex items-center justify-between px-4 py-4 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                  }`}
+                                >
+                                  <span>{sub.label}</span>
+                                  <span className="text-blue-300">→</span>
+                                </button>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={() => setMobileSubMenuOpen(false)}
+                                className="border-t border-white/10 px-4 py-2.5 text-left text-[8px] font-black uppercase tracking-wide text-white/40 hover:bg-white/5 hover:text-white/70"
+                              >
+                                Kapat
+                              </button>
+                            </div>
+                          )}
+
+                          {mobileSubMenuOpen && (
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
+                              {item.subItems.map((sub) => (
+                                <button
+                                  key={sub.id}
+                                  onClick={() => {
+                                    setAppMode(sub.id as any);
+                                    setStep(1);
+                                    resetSelection();
+                                    setMobileSubMenuOpen(false);
+                                  }}
+                                  className={`border-b border-white/5 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
+                                    appMode === sub.id
+                                      ? 'bg-blue-500/20 text-blue-200'
+                                      : 'text-white'
+                                  }`}
+                                >
+                                  {sub.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAppMode(item.id as any);
+                            setStep(1);
+                            resetSelection();
+                          }}
+                          className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                            isActive
+                              ? 'bg-blue-500/20 text-white'
+                              : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                              isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                            }`}
+                          >
+                            {navIcon(item.id)}
+                          </span>
+
+                          <span className="whitespace-nowrap">{item.label}</span>
+
+                          {isActive && (
+                            <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+            {step === 99 && (
+              <div className="flex min-h-[52px] items-center px-4 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200">
+                Yönetici Paneli
+              </div>
+            )}
           </div>
         </div>
       </header>
