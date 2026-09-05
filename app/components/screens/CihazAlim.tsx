@@ -70,8 +70,8 @@ export default function CihazAlim(props: any) {
                       <p className="font-bold uppercase tracking-[0.2em] text-xs text-slate-400">Lütfen işlem yapılacak markayı seçin</p>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in zoom-in duration-700 delay-200">
-                    {displayBrands.map(brand => {
-                      const brandInfo = brandDb.find(b => b.name === brand);
+                    {displayBrands.map((brand: string) => {
+                      const brandInfo = brandDb.find((b: any) => b.name === brand);
                       const finalLogo = brandInfo?.logo || brandAssets[brand]?.logo || "";
     
                       return (
@@ -115,7 +115,7 @@ export default function CihazAlim(props: any) {
                         type="text"
                         placeholder="Modellerde ara..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e: any) => setSearchQuery(e.target.value)}
                         className={`w-full p-5 pl-14 bg-white rounded-full text-sm font-black border outline-none focus:ring-4 shadow-sm transition-all placeholder-opacity-50 ${appMode === 'servis' ? 'border-orange-200 focus:border-orange-500 focus:ring-orange-50 text-orange-950 placeholder-orange-300' : (isZumay ? 'border-slate-200 focus:border-red-500 focus:ring-red-50 text-slate-700 placeholder-slate-400' : 'border-slate-200 focus:border-[#0052D4] focus:ring-blue-50 text-slate-700 placeholder-slate-400')}`}
                       />
                       <svg className={`w-6 h-6 absolute left-5 top-1/2 -translate-y-1/2 ${appMode === 'servis' ? 'text-orange-300' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -123,12 +123,12 @@ export default function CihazAlim(props: any) {
                   </div>
     
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                    {Array.from(new Set(db.filter(i => i.brand === selectedBrand).map(i => i.name)))
-                      .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map(name => (
+                    {Array.from(new Set<string>(db.filter((i: any) => i.brand === selectedBrand).map((i: any) => String(i.name || ''))))
+                      .filter((name: string) => name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((name: string) => (
                         <div key={name} onClick={() => {setSelectedModelName(name); setStep(3); resetSelection();}} className={`bg-white p-6 rounded-[32px] shadow-sm cursor-pointer border-2 border-transparent transition-all text-center btn-click group flex flex-col items-center justify-between min-h-[220px] ${appMode === 'servis' ? 'hover:shadow-xl hover:shadow-orange-100 hover:border-orange-400/50' : (isZumay ? 'hover:shadow-xl hover:border-red-500/50' : 'hover:shadow-xl hover:border-[#0052D4]/50')}`}>
                           <div className="h-32 flex items-center justify-center mb-4 transform group-hover:scale-110 transition-transform duration-500">
-                              <img src={db.find(i => i.name === name)?.img} className="max-h-full object-contain drop-shadow-xl" />
+                              <img src={db.find((i: any) => i.name === name)?.img} className="max-h-full object-contain drop-shadow-xl" />
                           </div>
                           
                           <div className="w-full">
@@ -159,7 +159,7 @@ export default function CihazAlim(props: any) {
                         
                         <div className="flex flex-col md:flex-row items-center gap-8 mb-10">
                             <div className="w-40 h-40 shrink-0 bg-orange-50 rounded-3xl p-4 flex items-center justify-center border border-orange-100">
-                              <img src={db.find(i => i.name === selectedModelName)?.img} className="max-h-full object-contain drop-shadow-xl" alt="Device" />
+                              <img src={db.find((i: any) => i.name === selectedModelName)?.img} className="max-h-full object-contain drop-shadow-xl" alt="Device" />
                             </div>
                             <div>
                               <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{selectedBrand}</span>
@@ -243,15 +243,15 @@ export default function CihazAlim(props: any) {
                             <div className="space-y-4">
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">Müşteri Adı Soyadı</label>
-                                <input placeholder="Ad Soyad" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.name} onChange={(e)=>setCustomer({...customer, name: e.target.value})} />
+                                <input placeholder="Ad Soyad" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.name} onChange={(e: any)=>setCustomer({...customer, name: e.target.value})} />
                               </div>
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">İletişim Numarası</label>
-                                <input placeholder="05XX XXX XX XX" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.phone} onChange={(e)=>setCustomer({...customer, phone: e.target.value})} />
+                                <input placeholder="05XX XXX XX XX" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.phone} onChange={(e: any)=>setCustomer({...customer, phone: e.target.value})} />
                               </div>
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">IMEI Numarası (15 Hane)</label>
-                                <input placeholder="IMEI Giriniz" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.imei} maxLength={15} onChange={(e) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
+                                <input placeholder="IMEI Giriniz" className={`w-full p-4 bg-slate-50 rounded-2xl text-xs outline-none border border-slate-100 font-black uppercase focus:bg-white transition-all shadow-sm ${isZumay ? 'focus:border-red-500' : 'focus:border-[#0052D4]'}`} value={customer.imei} maxLength={15} onChange={(e: any) => setCustomer({...customer, imei: e.target.value.replace(/\D/g, '')})} />
                               </div>
                             </div>
     
@@ -282,7 +282,7 @@ export default function CihazAlim(props: any) {
                               Hafıza Kapasitesi
                             </p>
                             <div className="flex flex-wrap gap-2">
-                              {db.filter(i => i.name === selectedModelName).map(c => (
+                              {db.filter((i: any) => i.name === selectedModelName).map((c: any) => (
                                 <button key={c.cap} onClick={() => setSelectedCapacity(c)} className={`px-8 py-4 rounded-xl font-black text-[12px] transition-all btn-click ${selectedCapacity?.cap === c.cap ? (isZumay ? 'bg-red-600 text-white shadow-xl shadow-red-200 ring-4 ring-red-50' : 'bg-[#0052D4] text-white shadow-xl shadow-blue-200 ring-4 ring-blue-50') : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>{c.cap}</button>
                               ))}
                             </div>
@@ -295,7 +295,7 @@ export default function CihazAlim(props: any) {
                                 Renk Seçimi (Beyaz +%5)
                               </p>
                               <div className="flex flex-wrap gap-2">
-                                {['Diğer', 'Beyaz'].map(color => (
+                                {['Diğer', 'Beyaz'].map((color: string) => (
                                   <button key={color} onClick={() => setSelectedColor(color)} className={`px-8 py-4 rounded-xl font-black text-[12px] transition-all btn-click ${selectedColor === color ? 'bg-slate-900 text-white shadow-xl ring-4 ring-slate-100' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>{color}</button>
                                 ))}
                               </div>
@@ -312,11 +312,11 @@ export default function CihazAlim(props: any) {
                               { label: "Ahize / Buzzer", field: "speaker", opts: ['Sağlam', 'Cızırtı var', 'Arızalı'] },
                               { label: "Kayıt Durumu", field: "sim", opts: ['Fiziksel SIM (TR)', 'Fiziksel + eSIM (YD)'] },
                               { label: "Garanti ve Durum", field: "warranty", opts: ['Üretici Garantili', 'Yenilenmiş Cihaz', 'Garanti Yok'] }
-                            ].map(q => (
+                            ].map((q: { label: string; field: string; opts: string[] }) => (
                               <div key={q.field} className="bg-white p-6 rounded-[28px] shadow-sm border border-slate-100">
                                 <p className="text-[10px] font-black mb-3 text-slate-400 uppercase tracking-widest">{q.label}</p>
                                 <div className="flex flex-wrap gap-2">
-                                  {q.opts.map((opt) => (
+                                  {q.opts.map((opt: string) => (
                                     <button key={opt} onClick={() => setStatus({...status, [q.field]: opt})} className={`py-2.5 px-4 rounded-xl text-[11px] font-black border-2 transition-all btn-click ${status[q.field] === opt ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-100 hover:border-slate-300 hover:text-slate-700'}`}>{opt}</button>
                                   ))}
                                 </div>
@@ -344,7 +344,7 @@ export default function CihazAlim(props: any) {
                     ) : (
                       <>
                         <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col items-center">
-                           <img src={db.find(i => i.name === selectedModelName)?.img} className="h-32 object-contain drop-shadow-xl mb-4" />
+                           <img src={db.find((i: any) => i.name === selectedModelName)?.img} className="h-32 object-contain drop-shadow-xl mb-4" />
                            <h3 className="font-black italic text-center text-slate-800 text-lg uppercase leading-tight">
                              {selectedModelName} {selectedCapacity?.cap} {selectedModelName === "iPhone 13" && selectedColor !== 'Diğer' ? `(${selectedColor})` : ''}
                            </h3>
@@ -377,7 +377,7 @@ export default function CihazAlim(props: any) {
                                         <input 
                                           type="number" 
                                           value={customOffer} 
-                                          onChange={(e) => {
+                                          onChange={(e: any) => {
                                             const valStr = e.target.value;
                                             if (valStr === '') { setCustomOffer(''); return; }
                                             const val = parseInt(valStr) || 0;
@@ -419,7 +419,7 @@ export default function CihazAlim(props: any) {
                                         <input 
                                           type="number" 
                                           value={customTradeOffer} 
-                                          onChange={(e) => {
+                                          onChange={(e: any) => {
                                             const valStr = e.target.value;
                                             if (valStr === '') { setCustomTradeOffer(''); return; }
                                             const val = parseInt(valStr) || 0;
