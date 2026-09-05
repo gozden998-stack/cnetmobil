@@ -405,14 +405,6 @@ export default function CnetmobilCmrFinalUltimate() {
             const meData = await meRes.json().catch(() => ({}));
             const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
             setIsSuperAdminUser(superAdmin);
-
-            const normalPanelRequested =
-              new URLSearchParams(window.location.search).get('view') === 'normal';
-
-            if (superAdmin && !normalPanelRequested) {
-              window.location.href = '/admin';
-              return;
-            }
           } catch (error) {
             console.error('Super Admin kontrol hatası:', error);
             setIsSuperAdminUser(false);
@@ -516,14 +508,6 @@ export default function CnetmobilCmrFinalUltimate() {
           const meData = await meRes.json().catch(() => ({}));
           const superAdmin = Boolean(meRes.ok && meData?.isSuperAdmin);
           setIsSuperAdminUser(superAdmin);
-
-          const normalPanelRequested =
-            new URLSearchParams(window.location.search).get('view') === 'normal';
-
-          if (superAdmin && !normalPanelRequested) {
-            window.location.href = '/admin';
-            return;
-          }
         } catch (error) {
           console.error('Super Admin kontrol hatası:', error);
           setIsSuperAdminUser(false);
@@ -2169,7 +2153,9 @@ export default function CnetmobilCmrFinalUltimate() {
                 ) : (
                   <span className="text-xs font-bold leading-tight truncate max-w-[180px]">{selectedBranch}</span>
                 )}
-                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">{isMasterAccess ? 'CnetMobil' : 'Bayi Personeli'}</span>
+                <span className="text-[9px] text-white/50 tracking-wide mt-0.5">
+                  {isSuperAdminUser ? 'SUPER ADMIN' : isMasterAccess ? 'CnetMobil Yönetici' : 'Bayi Personeli'}
+                </span>
               </div>
             </div>
 
@@ -2177,7 +2163,7 @@ export default function CnetmobilCmrFinalUltimate() {
               {isSuperAdminUser && (
                 <button
                   onClick={() => { window.location.href = '/admin/users'; }}
-                  title="Kullanıcı Yönetimi"
+                  title="Kullanıcılar & Yetkiler"
                   className="text-violet-300 hover:text-white p-1.5 transition-colors rounded-lg hover:bg-violet-500/20"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
