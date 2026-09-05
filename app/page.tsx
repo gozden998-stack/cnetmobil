@@ -8,6 +8,7 @@ import DisKanal from './components/screens/DisKanal';
 import KampanyaliSifir from './components/screens/KampanyaliSifir';
 import IkinciElApple from './components/screens/IkinciElApple';
 import IkinciElAndroid from './components/screens/IkinciElAndroid';
+import TeknikServis from './components/screens/TeknikServis';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -5295,6 +5296,18 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             );
           })() :
+
+          appMode === 'servis' && step < 99 ? (
+            <TeknikServis
+              brands={displayBrands}
+              brandDb={brandDb}
+              brandAssets={brandAssets}
+              devices={db}
+              prices={servisFiyatlari}
+              branches={branches}
+              selectedBranch={selectedBranch}
+            />
+          ) :
 
           step === 99 ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
