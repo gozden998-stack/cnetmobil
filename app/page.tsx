@@ -3412,6 +3412,7 @@ export default function CnetmobilCmrFinalUltimate() {
               cihazTalepPage={cihazTalepPage}
               setCihazTalepPage={setCihazTalepPage}
               openActiveRequestsSignal={cihazTalepOpenActiveSignal}
+              stockSourceBranch={cihazTalepSourceBranch}
               selectedBranch={selectedBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
