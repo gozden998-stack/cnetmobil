@@ -17,6 +17,518 @@ type SheetRow = {
   updated_at?: string;
 };
 
+type CihazTalepBulkRow = {
+  markaModel: string;
+  hafiza: string;
+  renk: string;
+  pil: string;
+  grade: string;
+  garanti: string;
+  degisenParca: string;
+  kutuFatura: string;
+  stokAdet: number;
+};
+
+const BULK_CIHAZ_HEADERS = [
+  'MARKA MODEL',
+  'HAFIZA',
+  'RENK',
+  'PIL',
+  'GRADE',
+  'GARANTI',
+  'DEGISEN PARCA',
+  'KUTU FATURA',
+  'STOK ADET',
+] as const;
+
+function normalizeBulkHeader(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C')
+    .replace(/[\/_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function xlsxColumnIndex(cellRef: string) {
+  const letters = String(cellRef || '').match(/^[A-Z]+/i)?.[0] || 'A';
+  let result = 0;
+
+  for (const char of letters.toUpperCase()) {
+    result = result * 26 + (char.charCodeAt(0) - 64);
+  }
+
+  return Math.max(0, result - 1);
+}
+
+async function inflateXlsxDeflateRaw(data: Uint8Array) {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error(
+      'Tarayıcınız Excel dosyasını açmayı desteklemiyor. Güncel Chrome veya Edge kullanın.'
+    );
+  }
+
+  const stream = new Blob([data])
+    .stream()
+    .pipeThrough(new DecompressionStream('deflate-raw'));
+
+  return new Uint8Array(
+    await new Response(stream).arrayBuffer()
+  );
+}
+
+async function unzipSimpleXlsx(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+
+  let eocd = -1;
+  const minOffset = Math.max(0, bytes.length - 65557);
+
+  for (let i = bytes.length - 22; i >= minOffset; i--) {
+    if (
+      view.getUint32(i, true) === 0x06054b50
+    ) {
+      eocd = i;
+      break;
+    }
+  }
+
+  if (eocd < 0) {
+    throw new Error('Geçerli bir .xlsx dosyası değil.');
+  }
+
+  const totalEntries =
+    view.getUint16(eocd + 10, true);
+
+  let centralOffset =
+    view.getUint32(eocd + 16, true);
+
+  const decoder = new TextDecoder('utf-8');
+  const files = new Map<string, Uint8Array>();
+
+  for (let entry = 0; entry < totalEntries; entry++) {
+    if (
+      view.getUint32(centralOffset, true) !==
+      0x02014b50
+    ) {
+      throw new Error('Excel ZIP yapısı okunamadı.');
+    }
+
+    const method =
+      view.getUint16(centralOffset + 10, true);
+
+    const compressedSize =
+      view.getUint32(centralOffset + 20, true);
+
+    const fileNameLength =
+      view.getUint16(centralOffset + 28, true);
+
+    const extraLength =
+      view.getUint16(centralOffset + 30, true);
+
+    const commentLength =
+      view.getUint16(centralOffset + 32, true);
+
+    const localOffset =
+      view.getUint32(centralOffset + 42, true);
+
+    const fileName = decoder.decode(
+      bytes.slice(
+        centralOffset + 46,
+        centralOffset + 46 + fileNameLength
+      )
+    );
+
+    if (
+      view.getUint32(localOffset, true) !==
+      0x04034b50
+    ) {
+      throw new Error('Excel dosya başlığı okunamadı.');
+    }
+
+    const localNameLength =
+      view.getUint16(localOffset + 26, true);
+
+    const localExtraLength =
+      view.getUint16(localOffset + 28, true);
+
+    const dataStart =
+      localOffset +
+      30 +
+      localNameLength +
+      localExtraLength;
+
+    const compressed = bytes.slice(
+      dataStart,
+      dataStart + compressedSize
+    );
+
+    let content: Uint8Array;
+
+    if (method === 0) {
+      content = compressed;
+    } else if (method === 8) {
+      content =
+        await inflateXlsxDeflateRaw(compressed);
+    } else {
+      throw new Error(
+        `Desteklenmeyen Excel sıkıştırma tipi: ${method}`
+      );
+    }
+
+    files.set(fileName, content);
+
+    centralOffset +=
+      46 +
+      fileNameLength +
+      extraLength +
+      commentLength;
+  }
+
+  return files;
+}
+
+function readXlsxSharedStrings(
+  files: Map<string, Uint8Array>
+) {
+  const bytes =
+    files.get('xl/sharedStrings.xml');
+
+  if (!bytes) return [] as string[];
+
+  const xml = new TextDecoder('utf-8').decode(bytes);
+  const doc = new DOMParser().parseFromString(
+    xml,
+    'application/xml'
+  );
+
+  return Array.from(
+    doc.getElementsByTagNameNS('*', 'si')
+  ).map((item) =>
+    Array.from(
+      item.getElementsByTagNameNS('*', 't')
+    )
+      .map((node) => node.textContent || '')
+      .join('')
+  );
+}
+
+function parseXlsxWorksheet(
+  sheetBytes: Uint8Array,
+  sharedStrings: string[]
+) {
+  const xml =
+    new TextDecoder('utf-8').decode(sheetBytes);
+
+  const doc =
+    new DOMParser().parseFromString(
+      xml,
+      'application/xml'
+    );
+
+  if (
+    doc.getElementsByTagName('parsererror').length
+  ) {
+    throw new Error(
+      'Excel çalışma sayfası okunamadı.'
+    );
+  }
+
+  const parsedRows: string[][] = [];
+
+  const xmlRows = Array.from(
+    doc.getElementsByTagNameNS('*', 'row')
+  );
+
+  for (const xmlRow of xmlRows) {
+    const rowNumber =
+      Math.max(
+        1,
+        Number(xmlRow.getAttribute('r')) || 1
+      );
+
+    while (parsedRows.length < rowNumber) {
+      parsedRows.push([]);
+    }
+
+    const output =
+      parsedRows[rowNumber - 1];
+
+    const cells = Array.from(
+      xmlRow.getElementsByTagNameNS('*', 'c')
+    );
+
+    for (const cell of cells) {
+      const cellRef =
+        cell.getAttribute('r') || 'A1';
+
+      const colIndex =
+        xlsxColumnIndex(cellRef);
+
+      const type =
+        cell.getAttribute('t') || '';
+
+      const valueNode =
+        cell.getElementsByTagNameNS('*', 'v')[0];
+
+      let value = '';
+
+      if (type === 'inlineStr') {
+        value = Array.from(
+          cell.getElementsByTagNameNS('*', 't')
+        )
+          .map((node) => node.textContent || '')
+          .join('');
+      } else {
+        const raw =
+          valueNode?.textContent || '';
+
+        if (type === 's') {
+          value =
+            sharedStrings[
+              Number(raw)
+            ] ?? '';
+        } else {
+          value = raw;
+        }
+      }
+
+      output[colIndex] =
+        String(value ?? '').trim();
+    }
+  }
+
+  return parsedRows;
+}
+
+async function parseCihazTalepBulkXlsx(
+  file: File
+): Promise<CihazTalepBulkRow[]> {
+  if (
+    !file.name
+      .toLocaleLowerCase('tr-TR')
+      .endsWith('.xlsx')
+  ) {
+    throw new Error(
+      'Sadece .xlsx Excel dosyası yükleyebilirsiniz.'
+    );
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error(
+      'Excel dosyası en fazla 8 MB olabilir.'
+    );
+  }
+
+  const files =
+    await unzipSimpleXlsx(
+      await file.arrayBuffer()
+    );
+
+  const worksheetPath =
+    Array.from(files.keys())
+      .filter((name) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)
+      )
+      .sort((a, b) => {
+        const aNo =
+          Number(a.match(/sheet(\d+)/i)?.[1] || 0);
+        const bNo =
+          Number(b.match(/sheet(\d+)/i)?.[1] || 0);
+
+        return aNo - bNo;
+      })[0];
+
+  if (!worksheetPath) {
+    throw new Error(
+      'Excel dosyasında çalışma sayfası bulunamadı.'
+    );
+  }
+
+  const sharedStrings =
+    readXlsxSharedStrings(files);
+
+  const rows =
+    parseXlsxWorksheet(
+      files.get(worksheetPath)!,
+      sharedStrings
+    );
+
+  if (!rows.length) {
+    throw new Error('Excel dosyası boş.');
+  }
+
+  const headerRow =
+    rows[0].map(normalizeBulkHeader);
+
+  const headerIndexes =
+    new Map<string, number>();
+
+  headerRow.forEach((header, index) => {
+    headerIndexes.set(header, index);
+  });
+
+  const missingHeaders =
+    BULK_CIHAZ_HEADERS.filter(
+      (header) => !headerIndexes.has(header)
+    );
+
+  if (missingHeaders.length) {
+    throw new Error(
+      `Şablon başlıkları değiştirilmiş. Eksik: ${missingHeaders.join(', ')}`
+    );
+  }
+
+  const getValue = (
+    row: string[],
+    header: typeof BULK_CIHAZ_HEADERS[number]
+  ) => {
+    const index =
+      headerIndexes.get(header);
+
+    return String(
+      index === undefined
+        ? ''
+        : row[index] ?? ''
+    ).trim();
+  };
+
+  const devices: CihazTalepBulkRow[] = [];
+  const errors: string[] = [];
+
+  for (
+    let rowIndex = 1;
+    rowIndex < rows.length;
+    rowIndex++
+  ) {
+    const row = rows[rowIndex] || [];
+
+    const allEmpty =
+      BULK_CIHAZ_HEADERS.every(
+        (header) =>
+          getValue(row, header) === ''
+      );
+
+    if (allEmpty) continue;
+
+    const markaModel =
+      getValue(row, 'MARKA MODEL');
+
+    const hafiza =
+      getValue(row, 'HAFIZA');
+
+    const renk =
+      getValue(row, 'RENK');
+
+    const pil =
+      getValue(row, 'PIL');
+
+    const grade =
+      getValue(row, 'GRADE')
+        .toLocaleUpperCase('tr-TR');
+
+    const garanti =
+      getValue(row, 'GARANTI');
+
+    const degisenParca =
+      getValue(row, 'DEGISEN PARCA') ||
+      'Orijinal / Yok';
+
+    const kutuFatura =
+      getValue(row, 'KUTU FATURA');
+
+    const stokRaw =
+      getValue(row, 'STOK ADET');
+
+    const stokAdet =
+      Number(stokRaw);
+
+    const excelLine = rowIndex + 1;
+
+    if (!markaModel) {
+      errors.push(
+        `${excelLine}. satır: Marka / Model boş.`
+      );
+    }
+
+    if (!hafiza) {
+      errors.push(
+        `${excelLine}. satır: Hafıza boş.`
+      );
+    }
+
+    if (!renk) {
+      errors.push(
+        `${excelLine}. satır: Renk boş.`
+      );
+    }
+
+    if (
+      !Number.isInteger(stokAdet) ||
+      stokAdet < 1
+    ) {
+      errors.push(
+        `${excelLine}. satır: Stok Adet 1 veya daha büyük tam sayı olmalı.`
+      );
+    }
+
+    if (
+      grade &&
+      ![
+        'MÜKEMMEL',
+        'ÇOK İYİ',
+        'İYİ',
+        'OUTLET',
+      ].includes(grade)
+    ) {
+      errors.push(
+        `${excelLine}. satır: Grade geçersiz.`
+      );
+    }
+
+    devices.push({
+      markaModel,
+      hafiza,
+      renk,
+      pil,
+      grade,
+      garanti,
+      degisenParca,
+      kutuFatura,
+      stokAdet,
+    });
+  }
+
+  if (errors.length) {
+    throw new Error(
+      errors.slice(0, 8).join('\n') +
+        (errors.length > 8
+          ? `\n+${errors.length - 8} hata daha`
+          : '')
+    );
+  }
+
+  if (!devices.length) {
+    throw new Error(
+      'Yüklenecek cihaz bulunamadı.'
+    );
+  }
+
+  if (devices.length > 500) {
+    throw new Error(
+      'Tek seferde en fazla 500 cihaz yükleyebilirsiniz.'
+    );
+  }
+
+  return devices;
+}
+
 function trimTrailingEmptyCells(row: any[]): any[] {
   const result = [...row];
   while (
@@ -691,12 +1203,18 @@ export default function CnetmobilCmrFinalUltimate() {
     | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
     | { type: 'cihaz_ekle' }
+    | { type: 'cihaz_toplu_ekle' }
     | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
 
   const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
   const [talepAdetInput, setTalepAdetInput] = useState('1');
   const [redNedeniInput, setRedNedeniInput] = useState('');
   const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+  const [bulkCihazFileName, setBulkCihazFileName] = useState('');
+  const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
+  const [bulkCihazError, setBulkCihazError] = useState('');
+  const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
+  const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
   const [cihazEkleForm, setCihazEkleForm] = useState({
     markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
     garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
@@ -1596,6 +2114,135 @@ export default function CnetmobilCmrFinalUltimate() {
       garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
     });
     setCihazTalepDialog({ type: 'cihaz_ekle' });
+  };
+
+
+  const openTopluCihazEkleModal = () => {
+    if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
+      showTalepMessage(
+        'YETKİ GEREKLİ',
+        'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
+        'error'
+      );
+      return;
+    }
+
+    setBulkCihazFileName('');
+    setBulkCihazRows([]);
+    setBulkCihazError('');
+    setBulkCihazParsing(false);
+    setBulkCihazSaving(false);
+    setCihazTalepDialog({
+      type: 'cihaz_toplu_ekle',
+    });
+  };
+
+  const handleTopluCihazExcelSec = async (
+    file: File | null
+  ) => {
+    setBulkCihazRows([]);
+    setBulkCihazError('');
+    setBulkCihazFileName(
+      file?.name || ''
+    );
+
+    if (!file) return;
+
+    setBulkCihazParsing(true);
+
+    try {
+      const rows =
+        await parseCihazTalepBulkXlsx(file);
+
+      setBulkCihazRows(rows);
+    } catch (error: any) {
+      setBulkCihazError(
+        error?.message ||
+        'Excel dosyası okunamadı.'
+      );
+    } finally {
+      setBulkCihazParsing(false);
+    }
+  };
+
+  const submitTopluCihazEkle = async () => {
+    if (
+      !isAdmin &&
+      !isMasterAccess &&
+      !isSuperAdminUser
+    ) {
+      return;
+    }
+
+    if (!bulkCihazRows.length) {
+      setBulkCihazError(
+        'Önce doldurulmuş Excel şablonunu seçin.'
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `${bulkCihazRows.length} cihaz Cihaz Talep listesine toplu eklenecek. Onaylıyor musunuz?`
+      )
+    ) {
+      return;
+    }
+
+    setBulkCihazSaving(true);
+    setBulkCihazError('');
+
+    try {
+      const response = await fetch(
+        '/api/panel-action',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            type: 'ADD_CIHAZ_TALEP_BULK',
+            devices: bulkCihazRows,
+          }),
+        }
+      );
+
+      const result =
+        await response.json().catch(
+          () => ({})
+        );
+
+      if (
+        !response.ok ||
+        result?.result !== 'success'
+      ) {
+        throw new Error(
+          result?.message ||
+          'Toplu cihaz yükleme başarısız.'
+        );
+      }
+
+      setCihazTalepDialog(null);
+      setBulkCihazFileName('');
+      setBulkCihazRows([]);
+      setBulkCihazError('');
+
+      await refreshDataCache();
+
+      showTalepMessage(
+        'TOPLU YÜKLEME TAMAMLANDI',
+        `${Number(result?.addedCount || 0) || bulkCihazRows.length} cihaz başarıyla eklendi.`,
+        'success'
+      );
+    } catch (error: any) {
+      setBulkCihazError(
+        error?.message ||
+        'Toplu cihaz yükleme sırasında hata oluştu.'
+      );
+    } finally {
+      setBulkCihazSaving(false);
+    }
   };
 
   const submitCihazEkle = async () => {
@@ -4108,16 +4755,29 @@ export default function CnetmobilCmrFinalUltimate() {
                     </button>
 
                     {(isMasterAccess || isAdmin || isSuperAdminUser) && (
-                      <button
-                        type="button"
-                        onClick={openCihazEkleModal}
-                        className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.99]"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Cihaz Ekle
-                      </button>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={openTopluCihazEkleModal}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 text-[10px] font-black uppercase tracking-wider text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.99]"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5" />
+                          </svg>
+                          Toplu Cihaz Ekle
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={openCihazEkleModal}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.99]"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Cihaz Ekle
+                        </button>
+                      </div>
                     )}
                   </div>
                 </section>
@@ -5280,7 +5940,11 @@ export default function CnetmobilCmrFinalUltimate() {
       {/* CİHAZ TALEP PROFESYONEL İŞLEM MODALI */}
       {cihazTalepDialog && (
         <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 backdrop-blur-md p-4 print:hidden">
-          <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className={`w-full overflow-hidden rounded-[32px] border border-white/20 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
+            cihazTalepDialog.type === 'cihaz_toplu_ekle'
+              ? 'max-w-5xl'
+              : 'max-w-md'
+          }`}>
             {cihazTalepDialog.type === 'adet' && (
               <>
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-6 text-white">
@@ -5420,6 +6084,229 @@ export default function CnetmobilCmrFinalUltimate() {
                   <div className="mt-6 flex gap-3">
                     <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
                     <button onClick={submitCihazEkle} disabled={cihazEkleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazEkleSaving ? 'EKLENİYOR...' : 'CİHAZI EKLE'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+
+            {cihazTalepDialog.type === 'cihaz_toplu_ekle' && (
+              <>
+                <div className="bg-gradient-to-r from-[#15345d] via-blue-700 to-indigo-700 px-6 py-5 text-white sm:px-8 sm:py-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.3} d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5" />
+                        </svg>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-black sm:text-2xl">
+                          TOPLU CİHAZ EKLE
+                        </h3>
+                        <p className="mt-1 text-xs font-bold text-blue-100">
+                          Excel şablonunu indir, doldur ve tek seferde yükle
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!bulkCihazSaving) {
+                          setCihazTalepDialog(null);
+                        }
+                      }}
+                      disabled={bulkCihazSaving}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-lg font-black text-white transition hover:bg-white/20 disabled:opacity-50"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[76vh] overflow-y-auto p-5 custom-scrollbar sm:p-7">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <section className="rounded-[24px] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                        <span className="text-sm font-black">1</span>
+                      </div>
+
+                      <h4 className="mt-4 text-base font-black text-slate-900">
+                        Excel Şablonunu İndir
+                      </h4>
+
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Başlıkları değiştirmeden cihazları satır satır doldurun.
+                        Marka / Model, Hafıza, Renk ve Stok Adet zorunludur.
+                      </p>
+
+                      <a
+                        href="/cihaz_talep_toplu_sablon.xlsx"
+                        download
+                        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                        </svg>
+                        Şablonu İndir
+                      </a>
+                    </section>
+
+                    <section className="rounded-[24px] border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white">
+                        <span className="text-sm font-black">2</span>
+                      </div>
+
+                      <h4 className="mt-4 text-base font-black text-slate-900">
+                        Doldurulmuş Excel'i Yükle
+                      </h4>
+
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Dosyanızı .xlsx olarak kaydedin. Sistem satırları kontrol eder,
+                        hata varsa yüklemeden önce size gösterir.
+                      </p>
+
+                      <label className="mt-5 flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-white px-5 text-xs font-black text-violet-700 transition hover:border-violet-400 hover:bg-violet-50">
+                        <input
+                          type="file"
+                          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          className="hidden"
+                          disabled={bulkCihazSaving || bulkCihazParsing}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            handleTopluCihazExcelSec(file);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14" />
+                        </svg>
+
+                        {bulkCihazParsing
+                          ? 'EXCEL OKUNUYOR...'
+                          : 'EXCEL DOSYASI SEÇ'}
+                      </label>
+
+                      {bulkCihazFileName && (
+                        <div className="mt-3 truncate rounded-xl bg-white px-3 py-2 text-[10px] font-bold text-slate-500 ring-1 ring-slate-100">
+                          {bulkCihazFileName}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  {bulkCihazError && (
+                    <div className="mt-4 whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
+                      {bulkCihazError}
+                    </div>
+                  )}
+
+                  {bulkCihazRows.length > 0 && !bulkCihazError && (
+                    <section className="mt-5 overflow-hidden rounded-[24px] border border-emerald-100 bg-white">
+                      <div className="flex flex-col gap-3 border-b border-slate-100 bg-emerald-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-sm font-black text-emerald-800">
+                            Excel Hazır
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-bold text-emerald-600">
+                            {bulkCihazRows.length} cihaz doğrulandı ve yüklemeye hazır.
+                          </div>
+                        </div>
+
+                        <span className="w-fit rounded-full bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white">
+                          {bulkCihazRows.length} KAYIT
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[900px] text-left text-[10px]">
+                          <thead>
+                            <tr className="border-b border-slate-100 bg-slate-50">
+                              <th className="px-4 py-3 font-black text-slate-500">#</th>
+                              <th className="px-4 py-3 font-black text-slate-500">MARKA / MODEL</th>
+                              <th className="px-4 py-3 font-black text-slate-500">HAFIZA</th>
+                              <th className="px-4 py-3 font-black text-slate-500">RENK</th>
+                              <th className="px-4 py-3 font-black text-slate-500">PİL</th>
+                              <th className="px-4 py-3 font-black text-slate-500">GRADE</th>
+                              <th className="px-4 py-3 font-black text-slate-500">GARANTİ</th>
+                              <th className="px-4 py-3 font-black text-slate-500">STOK</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {bulkCihazRows.slice(0, 8).map((item, index) => (
+                              <tr
+                                key={`${item.markaModel}-${index}`}
+                                className="border-b border-slate-50"
+                              >
+                                <td className="px-4 py-3 font-black text-slate-400">
+                                  {index + 1}
+                                </td>
+                                <td className="px-4 py-3 font-black text-slate-900">
+                                  {item.markaModel}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.hafiza}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.renk}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.pil || '-'}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.grade || '-'}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-slate-600">
+                                  {item.garanti || '-'}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-700">
+                                    {item.stokAdet} ADET
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {bulkCihazRows.length > 8 && (
+                        <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-center text-[9px] font-bold text-slate-400">
+                          Önizlemede ilk 8 kayıt gösteriliyor. Toplam {bulkCihazRows.length} cihaz yüklenecek.
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setCihazTalepDialog(null)}
+                      disabled={bulkCihazSaving}
+                      className="h-12 rounded-2xl border border-slate-200 px-6 text-xs font-black uppercase tracking-wider text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Vazgeç
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={submitTopluCihazEkle}
+                      disabled={
+                        bulkCihazSaving ||
+                        bulkCihazParsing ||
+                        !bulkCihazRows.length ||
+                        !!bulkCihazError
+                      }
+                      className="h-12 rounded-2xl bg-emerald-600 px-7 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {bulkCihazSaving
+                        ? `${bulkCihazRows.length} CİHAZ YÜKLENİYOR...`
+                        : `${bulkCihazRows.length || 0} CİHAZI TOPLU YÜKLE`}
+                    </button>
                   </div>
                 </div>
               </>
