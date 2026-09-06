@@ -734,8 +734,20 @@ const aktifTalepleriExcelIndir = () => {
 
   const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [
-    ['Tarih','Mağaza','Marka Model','Hafıza','Renk','Grade','Stok','Talep Adet','Durum'].map(esc).join(';'),
-    ...rows.map((row) => [row[10],row[9],row[0],row[1],row[2],row[4],row[8],row[14] || 1,row[11] || 'BEKLİYOR'].map(esc).join(';'))
+    ['Tarih','Mağaza','IMEI','Marka Model','Hafıza','Renk','Pil','Grade','Stok','Talep Adet','Durum'].map(esc).join(';'),
+    ...rows.map((row) => [
+      row[10],
+      row[9],
+      row[15],
+      row[0],
+      row[1],
+      row[2],
+      row[3],
+      row[4],
+      row[8],
+      row[14] || 1,
+      row[11] || 'BEKLİYOR'
+    ].map(esc).join(';'))
   ];
   const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -3021,7 +3033,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL - GÖNDERİLDİ İŞLEMLİ) */}
 {aktifTaleplerModalOpen && (
   <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
-    <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-5xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
+    <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-7xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
       <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-5 shrink-0">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
@@ -3041,13 +3053,16 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       </div>
 
       <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
-        <div className="min-w-[950px]">
-          <div className="bg-emerald-600 text-white grid grid-cols-7 px-5 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-md items-center">
+        <div className="min-w-[1320px]">
+          <div className="grid grid-cols-[150px_110px_155px_190px_90px_110px_80px_100px_80px_190px] items-center rounded-2xl bg-emerald-600 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-md">
             <div>TARİH / SAAT</div>
             <div>MAĞAZA</div>
+            <div>IMEI</div>
             <div>MARKA / MODEL</div>
             <div>HAFIZA</div>
             <div>RENK</div>
+            <div>PİL</div>
+            <div>GRADE</div>
             <div className="text-center">ADET</div>
             <div className="text-right pr-2">İŞLEM</div>
           </div>
@@ -3065,21 +3080,39 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               const markaModel = row[0] || '-';
               const hafiza = row[1] || '-';
               const renk = row[2] || '-';
+              const pil = row[3] || '-';
+              const grade = row[4] || '-';
+              const imei = row[15] || '-';
               const tarihSaat = row[10] || new Date().toLocaleString('tr-TR');
               const talepAdedi = Math.max(1, Number(row[14]) || 1);
               const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
 
               return (
-                <div key={originalIndex} className="grid grid-cols-7 items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-xs font-bold text-slate-700">
-                  <div className="text-slate-500 font-medium">{tarihSaat}</div>
-                  <div className="font-black text-slate-900">{magazaAdi}</div>
-                  <div className="font-black text-slate-800">{markaModel}</div>
+                <div key={originalIndex} className="grid grid-cols-[150px_110px_155px_190px_90px_110px_80px_100px_80px_190px] items-center border-b border-slate-100 px-5 py-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                  <div className="pr-3 text-[11px] font-medium text-slate-500">{tarihSaat}</div>
+                  <div className="pr-3 font-black text-slate-900">{magazaAdi}</div>
+                  <div className="pr-3">
+                    <span className="inline-flex rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-[10px] font-black tracking-tight text-blue-700">
+                      {imei}
+                    </span>
+                  </div>
+                  <div className="pr-3 font-black text-slate-800">{markaModel}</div>
                   <div>{hafiza}</div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-slate-600">{renk}</span>
                   </div>
+                  <div>
+                    <span className="inline-flex rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                      {pil}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="inline-flex rounded-lg border border-violet-100 bg-violet-50 px-2 py-1 text-[9px] font-black uppercase text-violet-700">
+                      {grade}
+                    </span>
+                  </div>
                   <div className="text-center">
-                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-200 text-emerald-700 font-black">{talepAdedi} ADET</span>
+                    <span className="inline-flex rounded-lg border border-emerald-200 bg-white/80 px-2.5 py-1 font-black text-emerald-700">{talepAdedi} ADET</span>
                   </div>
                   <div className="flex items-center justify-end gap-2 pr-2">
                     <button
