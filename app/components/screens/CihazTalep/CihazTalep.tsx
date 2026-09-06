@@ -269,6 +269,7 @@ const [talepAdetInput, setTalepAdetInput] = useState('1');
 const [redNedeniInput, setRedNedeniInput] = useState('');
 const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
 const [cihazDuzenleSaving, setCihazDuzenleSaving] = useState(false);
+const [cihazSilSaving, setCihazSilSaving] = useState(false);
 const [cihazDuzenleForm, setCihazDuzenleForm] = useState({
   renk: '', pil: '', grade: '', garanti: '', degisenParca: '', kutuFatura: ''
 });
@@ -372,6 +373,80 @@ const submitCihazDuzenle = async () => {
     showTalepMessage('GÜNCELLENEMEDİ', 'Cihaz detayları güncellenirken bağlantı hatası oluştu.', 'error');
   } finally {
     setCihazDuzenleSaving(false);
+  }
+};
+
+
+const deleteTestCihaz = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'cihaz_duzenle') return;
+  if (!stockSourceBranch || !isSuperAdminUser || cihazSilSaving) return;
+
+  const imei = String(cihazTalepDialog.imei || '').trim();
+
+  const firstConfirm = window.confirm(
+    `${imei} IMEI numaralı TEST cihazı tamamen silinecek.\n\n` +
+    `Bu işlem cihazı, bağlı talep/transfer kayıtlarını ve test hareket geçmişini kaldırır.\n` +
+    `GERİ ALINAMAZ.\n\nDevam etmek istiyor musunuz?`
+  );
+
+  if (!firstConfirm) return;
+
+  const typedImei = window.prompt(
+    `Güvenlik için silmek istediğiniz IMEI'yi aynen yazın:\n${imei}`
+  );
+
+  if (typedImei === null) return;
+
+  if (String(typedImei).trim() !== imei) {
+    showTalepMessage(
+      'IMEI EŞLEŞMEDİ',
+      'Yazdığınız IMEI cihazın IMEI bilgisiyle eşleşmedi. Silme işlemi yapılmadı.',
+      'error'
+    );
+    return;
+  }
+
+  setCihazSilSaving(true);
+
+  try {
+    const response = await fetch('/api/stock/devices', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        deviceId: cihazTalepDialog.deviceId,
+        imei,
+        confirmImei: imei,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result?.success) {
+      showTalepMessage(
+        'CİHAZ SİLİNEMEDİ',
+        result?.error || 'Test cihazı silinemedi.',
+        'error'
+      );
+      return;
+    }
+
+    setCihazTalepDialog(null);
+    await loadPostgresStock();
+
+    showTalepMessage(
+      'TEST CİHAZI SİLİNDİ',
+      `${imei} IMEI numaralı test cihazı ve bağlı test kayıtları tamamen silindi.`,
+      'success'
+    );
+  } catch {
+    showTalepMessage(
+      'CİHAZ SİLİNEMEDİ',
+      'Test cihazı silinirken bağlantı hatası oluştu.',
+      'error'
+    );
+  } finally {
+    setCihazSilSaving(false);
   }
 };
 
@@ -632,7 +707,7 @@ const submitCihazEkle = async () => {
     return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
   }
 
-  if (stockSourceBranch && !/^[0-9]{14,16}$/.test(imei)) {
+  if (stockSourceBranch && !/^[0-9]{15}$/.test(imei)) {
     return showTalepMessage('GEÇERSİZ IMEI', 'IMEI 14-16 haneli ve yalnızca rakamlardan oluşmalıdır.', 'error');
   }
 
@@ -2781,9 +2856,27 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               </div>
             </div>
 
-            <div className="mt-6 flex gap-3">
-              <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazDuzenleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
-              <button onClick={submitCihazDuzenle} disabled={cihazDuzenleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazDuzenleSaving ? 'KAYDEDİLİYOR...' : 'DEĞİŞİKLİKLERİ KAYDET'}</button>
+            {isSuperAdminUser && (
+              <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+                <div className="text-[9px] font-black uppercase tracking-widest text-red-500">SUPER ADMIN · TEST TEMİZLİĞİ</div>
+                <div className="mt-1 text-[11px] font-semibold leading-5 text-red-700">
+                  Yalnızca manuel eklenmiş test cihazlarını tamamen temizlemek için kullanın.
+                  Gerçek WingSM cihazları bu işlemle silinemez.
+                </div>
+                <button
+                  type="button"
+                  onClick={deleteTestCihaz}
+                  disabled={cihazDuzenleSaving || cihazSilSaving}
+                  className="mt-3 w-full rounded-xl border border-red-300 bg-white px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {cihazSilSaving ? 'TEST CİHAZI SİLİNİYOR...' : 'TEST CİHAZINI TAMAMEN SİL'}
+                </button>
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-3">
+              <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazDuzenleSaving || cihazSilSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+              <button onClick={submitCihazDuzenle} disabled={cihazDuzenleSaving || cihazSilSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazDuzenleSaving ? 'KAYDEDİLİYOR...' : 'DEĞİŞİKLİKLERİ KAYDET'}</button>
             </div>
           </div>
         </>
