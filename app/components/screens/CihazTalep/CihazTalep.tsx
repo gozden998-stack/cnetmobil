@@ -2780,12 +2780,12 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   <input
                     type="text"
                     inputMode="numeric"
-                    maxLength={16}
+                    maxLength={15}
                     value={cihazEkleForm.imei}
                     onChange={(e: any) =>
                       setCihazEkleForm(p => ({
                         ...p,
-                        imei: String(e.target.value || '').replace(/\D/g, '').slice(0, 16)
+                        imei: String(e.target.value || '').replace(/\D/g, '').slice(0, 15)
                       }))
                     }
                     placeholder="35XXXXXXXXXXXXX"
@@ -3420,7 +3420,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
           <input
             value={hareketGecmisiImei}
-            onChange={(e) => setHareketGecmisiImei(e.target.value.replace(/\D/g, '').slice(0, 16))}
+            onChange={(e) => setHareketGecmisiImei(e.target.value.replace(/\D/g, '').slice(0, 15))}
             placeholder="IMEI ara..."
             className="h-11 min-w-[210px] rounded-2xl border border-slate-200 bg-white px-4 font-mono text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
           />
