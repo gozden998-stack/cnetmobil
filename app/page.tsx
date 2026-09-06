@@ -92,8 +92,7 @@ function buildPanelData(rows: SheetRow[]) {
 
 // ======================================================
 // V6 - EKRAN BAZLI CACHE + SEÇİLİ EKRANLARDA REALTIME
-// Anlık: Cep + Tablet / Kampanyalı, YNA, Dış Kanal
-// Cihaz Talep artık kendi /api/stock/* PostgreSQL API'lerini kullanır.
+// Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
 // Diğer ekranlar: 20 dakika cache
 // ======================================================
 const SHEET_CACHE_KEY = 'cnet_pg_sheet_rows_cache_v7';
@@ -101,6 +100,7 @@ const SHEET_CACHE_META_KEY = 'cnet_pg_sheet_rows_cache_meta_v7';
 const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
 
 const REALTIME_SHEETS = [
+  'CihazTalep',
   'CEP + TABLET+IOT SAAT LIST',
   'YNA LİST',
   'DIŞ KANAL SATIN ALMA',
@@ -118,8 +118,7 @@ const MODE_SHEETS: Record<string, string[]> = {
   ikinci_el_android: ['2.EL FİYAT LİSTESİ'],
   imei_list: ['DEPO'],
   thh: ['THH'],
-  // Cihaz Talep stok verisi artık Sheet tablosundan değil doğrudan PostgreSQL stock API'sinden gelir.
-  cihaz_talep: [],
+  cihaz_talep: ['CihazTalep'],
 };
 
 function replaceSheetsInRows(
@@ -3414,7 +3413,7 @@ export default function CnetmobilCmrFinalUltimate() {
               setCihazTalepPage={setCihazTalepPage}
               openActiveRequestsSignal={cihazTalepOpenActiveSignal}
               selectedBranch={selectedBranch}
-              sourceBranch={cihazTalepSourceBranch}
+              stockSourceBranch={cihazTalepSourceBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
               isSuperAdminUser={isSuperAdminUser}
