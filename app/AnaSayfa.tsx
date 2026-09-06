@@ -6,6 +6,139 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
+    // --- HAVA DURUMU (Open-Meteo / API key gerektirmez) ---
+    const [weather, setWeather] = useState<{
+        city: string;
+        temperature: number | null;
+        apparentTemperature: number | null;
+        weatherCode: number | null;
+        windSpeed: number | null;
+        loading: boolean;
+    }>({
+        city: '',
+        temperature: null,
+        apparentTemperature: null,
+        weatherCode: null,
+        windSpeed: null,
+        loading: true,
+    });
+
+    const weatherCityForBranch = (branch: string) => {
+        const b = String(branch || '').toLocaleUpperCase('tr-TR');
+
+        if (b.includes('SARAY')) return 'Saray Tekirdağ';
+        if (b.includes('KAPAKLI')) return 'Kapaklı Tekirdağ';
+
+        // CMR Merkez, CMR Cadde, Vodafone ve diğer kanallar
+        // için merkez bölge olarak Çerkezköy kullanılır.
+        return 'Çerkezköy Tekirdağ';
+    };
+
+    const weatherDescription = (code: number | null) => {
+        if (code === null || code === undefined) return 'Bilinmiyor';
+        if (code === 0) return 'Açık';
+        if ([1, 2].includes(code)) return 'Az Bulutlu';
+        if (code === 3) return 'Kapalı';
+        if ([45, 48].includes(code)) return 'Sisli';
+        if ([51, 53, 55, 56, 57].includes(code)) return 'Çisenti';
+        if ([61, 63, 65, 66, 67].includes(code)) return 'Yağmurlu';
+        if ([71, 73, 75, 77].includes(code)) return 'Karlı';
+        if ([80, 81, 82].includes(code)) return 'Sağanak';
+        if ([85, 86].includes(code)) return 'Kar Sağanağı';
+        if ([95, 96, 99].includes(code)) return 'Gök Gürültülü';
+        return 'Değişken';
+    };
+
+    const weatherIcon = (code: number | null) => {
+        if (code === null || code === undefined) return '☁️';
+        if (code === 0) return '☀️';
+        if ([1, 2].includes(code)) return '🌤️';
+        if (code === 3) return '☁️';
+        if ([45, 48].includes(code)) return '🌫️';
+        if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '🌧️';
+        if ([71, 73, 75, 77, 85, 86].includes(code)) return '❄️';
+        if ([95, 96, 99].includes(code)) return '⛈️';
+        return '🌤️';
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadWeather = async () => {
+            const cityQuery = weatherCityForBranch(selectedBranch);
+            const cacheKey = `cnet_weather_${cityQuery}`;
+
+            try {
+                const cachedRaw = typeof window !== 'undefined'
+                    ? sessionStorage.getItem(cacheKey)
+                    : null;
+
+                if (cachedRaw) {
+                    const cached = JSON.parse(cachedRaw);
+                    if (cached?.savedAt && Date.now() - cached.savedAt < 30 * 60 * 1000) {
+                        if (!cancelled) {
+                            setWeather({ ...cached.data, loading: false });
+                        }
+                        return;
+                    }
+                }
+            } catch (_) {}
+
+            if (!cancelled) {
+                setWeather((prev) => ({ ...prev, city: cityQuery.split(' ')[0], loading: true }));
+            }
+
+            try {
+                const geoRes = await fetch(
+                    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=1&language=tr&format=json`,
+                    { cache: 'no-store' }
+                );
+                const geo = await geoRes.json();
+                const place = geo?.results?.[0];
+
+                if (!place) throw new Error('Konum bulunamadı');
+
+                const weatherRes = await fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=Europe%2FIstanbul`,
+                    { cache: 'no-store' }
+                );
+                const weatherJson = await weatherRes.json();
+                const current = weatherJson?.current;
+
+                const nextWeather = {
+                    city: String(place.name || cityQuery.split(' ')[0]),
+                    temperature: typeof current?.temperature_2m === 'number' ? current.temperature_2m : null,
+                    apparentTemperature: typeof current?.apparent_temperature === 'number' ? current.apparent_temperature : null,
+                    weatherCode: typeof current?.weather_code === 'number' ? current.weather_code : null,
+                    windSpeed: typeof current?.wind_speed_10m === 'number' ? current.wind_speed_10m : null,
+                    loading: false,
+                };
+
+                if (!cancelled) setWeather(nextWeather);
+
+                try {
+                    if (typeof window !== 'undefined') {
+                        sessionStorage.setItem(
+                            cacheKey,
+                            JSON.stringify({ savedAt: Date.now(), data: nextWeather })
+                        );
+                    }
+                } catch (_) {}
+            } catch (error) {
+                console.error('Hava durumu alınamadı:', error);
+                if (!cancelled) {
+                    setWeather((prev) => ({ ...prev, loading: false }));
+                }
+            }
+        };
+
+        loadWeather();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedBranch]);
+
     const isCmr = selectedBranch.includes('CMR');
     const branchLower = selectedBranch.toLowerCase();
     const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
@@ -464,7 +597,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-3 xl:border-l xl:border-t-0">
+                        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2 xl:grid-cols-4 xl:border-l xl:border-t-0">
                             <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -475,6 +608,34 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Bugün</div>
                                     <div className="text-[13px] font-black capitalize text-slate-800">{tarihMetni}</div>
                                     <div className="text-[9px] font-bold capitalize text-slate-400">{gunMetni}</div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white px-4 py-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-xl">
+                                    {weatherIcon(weather.weatherCode)}
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="truncate text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                        {weather.city || weatherCityForBranch(selectedBranch).split(' ')[0]}
+                                    </div>
+                                    {weather.loading ? (
+                                        <div className="mt-1 text-[10px] font-black text-slate-400">Hava alınıyor...</div>
+                                    ) : weather.temperature !== null ? (
+                                        <>
+                                            <div className="text-[18px] font-black leading-none text-slate-900">
+                                                {Math.round(weather.temperature)}°C
+                                            </div>
+                                            <div className="mt-1 text-[9px] font-bold text-slate-500">
+                                                {weatherDescription(weather.weatherCode)}
+                                                {weather.apparentTemperature !== null
+                                                    ? ` · Hissedilen ${Math.round(weather.apparentTemperature)}°`
+                                                    : ''}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="mt-1 text-[9px] font-bold text-slate-400">Hava bilgisi alınamadı</div>
+                                    )}
                                 </div>
                             </div>
 
@@ -579,7 +740,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </section>
 
-                {/* PERFORMANS + SIRALAMALAR */}
+                {/* PERFORMANS + SIRALAMALAR - SADECE CMR */}
+                {isCmr && (
                 <section className="mb-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.7fr)_minmax(300px,0.7fr)]">
 
                     {/* AYLIK PERFORMANS */}
@@ -772,9 +934,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                 </section>
+                )}
 
                 {/* OPERASYON ÖZETİ */}
-                {!isBlocked && (
+                {isCmr && (
                     <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                         <button
                             type="button"
@@ -891,9 +1054,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <span className="text-base">◎</span> Hedefler
                         </button>
 
-                        <button type="button" onClick={() => setActiveModal('izinler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 text-[9px] font-black text-purple-700 transition hover:-translate-y-0.5 hover:border-purple-300">
-                            <span className="text-base">▦</span> İzinler
-                        </button>
+                        {isCmr && (
+                            <button type="button" onClick={() => setActiveModal('izinler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 text-[9px] font-black text-purple-700 transition hover:-translate-y-0.5 hover:border-purple-300">
+                                <span className="text-base">▦</span> İzinler
+                            </button>
+                        )}
 
                         <button type="button" onClick={() => setActiveModal('departman')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[9px] font-black text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400">
                             <span className="text-base">▥</span> Raporlar
