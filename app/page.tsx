@@ -2585,7 +2585,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             rect.left + rect.width / 2 - width / 2
                           )
                         ),
-                        top: rect.bottom + 3,
+                        top: rect.bottom - 1,
                         width,
                       });
                     }
@@ -2871,18 +2871,18 @@ export default function CnetmobilCmrFinalUltimate() {
 
                           {mobileSubMenuOpen && (
                             <div
-                              className="fixed z-[99999] hidden overflow-hidden rounded-xl border border-white/10 bg-[#10233f] py-1.5 shadow-2xl ring-1 ring-black/15 lg:flex lg:flex-col"
+                              className="fixed z-[99999] hidden overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-[0_14px_35px_rgba(15,23,42,0.18)] ring-1 ring-black/5 lg:flex lg:flex-col"
                               style={{
                                 left: secondHandMenuPos.left,
                                 top: secondHandMenuPos.top,
                                 width: secondHandMenuPos.width,
                               }}
                             >
-                              <div className="border-b border-white/10 px-4 py-2.5">
-                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/55">
+                              <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
                                   2. El Fiyat Listesi
                                 </div>
-                                <div className="mt-0.5 text-[10px] font-black text-white">
+                                <div className="mt-0.5 text-[11px] font-black text-slate-900">
                                   Liste Seç
                                 </div>
                               </div>
@@ -2897,14 +2897,20 @@ export default function CnetmobilCmrFinalUltimate() {
                                     resetSelection();
                                     setMobileSubMenuOpen(false);
                                   }}
-                                  className={`flex items-center justify-between px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition ${
+                                  className={`group/sub flex items-center justify-between border-b border-slate-100 px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition last:border-b-0 ${
                                     appMode === sub.id
-                                      ? 'bg-blue-500/20 text-blue-200'
-                                      : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                      ? 'bg-blue-50 text-blue-700'
+                                      : 'bg-white text-slate-800 hover:bg-slate-50 hover:text-blue-700'
                                   }`}
                                 >
                                   <span>{sub.label}</span>
-                                  <span className="text-blue-300">
+                                  <span
+                                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black transition ${
+                                      appMode === sub.id
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-100 text-slate-500 group-hover/sub:bg-blue-600 group-hover/sub:text-white'
+                                    }`}
+                                  >
                                     {appMode === sub.id ? '✓' : '→'}
                                   </span>
                                 </button>
@@ -2913,7 +2919,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           )}
 
                           {mobileSubMenuOpen && (
-                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
                               {item.subItems.map((sub) => (
                                 <button
                                   key={sub.id}
@@ -2923,10 +2929,10 @@ export default function CnetmobilCmrFinalUltimate() {
                                     resetSelection();
                                     setMobileSubMenuOpen(false);
                                   }}
-                                  className={`border-b border-white/5 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
+                                  className={`border-b border-slate-100 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
                                     appMode === sub.id
-                                      ? 'bg-blue-500/20 text-blue-200'
-                                      : 'text-white'
+                                      ? 'bg-blue-50 text-blue-700'
+                                      : 'bg-white text-slate-900'
                                   }`}
                                 >
                                   {sub.label}
