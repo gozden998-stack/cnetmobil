@@ -305,10 +305,12 @@ const openCihazEkleModal = () => {
 
 
 const openTopluCihazEkleModal = () => {
-  if (!isAdmin && !isMasterAccess && !isSuperAdminUser) {
+  if (!canManageCihazStock) {
     showTalepMessage(
       'YETKİ GEREKLİ',
-      'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
+      stockSourceBranch
+        ? 'Yalnızca seçili mağazanın kendi kullanıcıları veya Super Admin toplu stok ekleyebilir.'
+        : 'Toplu cihaz ekleme işlemi yalnızca yetkili yönetici tarafından yapılabilir.',
       'error'
     );
     return;
@@ -353,11 +355,88 @@ const handleTopluCihazExcelSec = async (
 };
 
 const submitTopluCihazEkle = async () => {
-  if (stockSourceBranch) {
+  if (!canManageCihazStock) return;
+
+  if (!bulkCihazRows.length) {
     setBulkCihazError(
-      'Yeni IMEI bazlı stok için Excel şablonuna IMEI kolonu ekleniyor. Eski Sheet toplu yükleme bu mağaza görünümünde kapatıldı.'
+      'Önce doldurulmuş Excel şablonunu seçin.'
     );
     return;
+  }
+
+  if (stockSourceBranch) {
+    if (
+      !confirm(
+        `${bulkCihazRows.length} IMEI ${stockSourceBranch} stoğuna eklenecek. Onaylıyor musunuz?`
+      )
+    ) {
+      return;
+    }
+
+    setBulkCihazSaving(true);
+    setBulkCihazError('');
+
+    try {
+      const devices = bulkCihazRows.map((item) => {
+        const pilText = String(item.pil || '').replace(/[^0-9]/g, '');
+        const batteryPercent = pilText === '' ? null : Number(pilText);
+
+        return {
+          imei: item.imei,
+          brand: inferStockBrand(item.markaModel),
+          model: item.markaModel,
+          memory: item.hafiza,
+          color: item.renk,
+          batteryPercent: Number.isFinite(batteryPercent as number)
+            ? batteryPercent
+            : null,
+          grade: item.grade,
+          warranty: item.garanti,
+          changedParts: item.degisenParca,
+          boxInvoice: item.kutuFatura,
+        };
+      });
+
+      const response = await fetch('/api/stock/devices/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          branchCode: stockSourceBranch,
+          devices,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(
+          result?.error || 'Toplu cihaz yükleme başarısız.'
+        );
+      }
+
+      setCihazTalepDialog(null);
+      setBulkCihazFileName('');
+      setBulkCihazRows([]);
+      setBulkCihazError('');
+
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'TOPLU YÜKLEME TAMAMLANDI',
+        `${Number(result?.insertedCount || 0) || devices.length} IMEI ${stockSourceBranch} stoğuna başarıyla eklendi.`,
+        'success'
+      );
+      return;
+    } catch (error: any) {
+      setBulkCihazError(
+        error?.message ||
+        'Toplu cihaz yükleme sırasında hata oluştu.'
+      );
+      return;
+    } finally {
+      setBulkCihazSaving(false);
+    }
   }
 
   if (
@@ -365,13 +444,6 @@ const submitTopluCihazEkle = async () => {
     !isMasterAccess &&
     !isSuperAdminUser
   ) {
-    return;
-  }
-
-  if (!bulkCihazRows.length) {
-    setBulkCihazError(
-      'Önce doldurulmuş Excel şablonunu seçin.'
-    );
     return;
   }
 
@@ -2260,7 +2332,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
                 <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
                   Başlıkları değiştirmeden cihazları satır satır doldurun.
-                  Marka / Model, Hafıza, Renk ve Stok Adet zorunludur.
+                  IMEI, Marka / Model, Hafıza ve Renk zorunludur. 1 satır = 1 cihaz.
                 </p>
 
                 <button
@@ -2353,14 +2425,14 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         <th className="px-4 py-3 font-black text-slate-500">PİL</th>
                         <th className="px-4 py-3 font-black text-slate-500">GRADE</th>
                         <th className="px-4 py-3 font-black text-slate-500">GARANTİ</th>
-                        <th className="px-4 py-3 font-black text-slate-500">STOK</th>
+                        <th className="px-4 py-3 font-black text-slate-500">IMEI</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       {bulkCihazRows.slice(0, 8).map((item, index) => (
                         <tr
-                          key={`${item.markaModel}-${index}`}
+                          key={`${item.imei}-${index}`}
                           className="border-b border-slate-50"
                         >
                           <td className="px-4 py-3 font-black text-slate-400">
@@ -2386,7 +2458,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           </td>
                           <td className="px-4 py-3">
                             <span className="rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-700">
-                              {item.stokAdet} ADET
+                              {item.imei}
                             </span>
                           </td>
                         </tr>
