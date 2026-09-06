@@ -676,3 +676,218 @@ export async function POST(request: NextRequest) {
     client?.release();
   }
 }
+
+// ============================================================
+// PATCH /api/stock/devices
+// Cihaz detaylarini guncelleme.
+// IMEI / marka / model / hafiza / magaza bu endpoint ile degismez.
+// Normal kullanici yalnizca kendi magazasindaki cihazi duzenleyebilir.
+// Super Admin tum magazalari duzenleyebilir.
+// ============================================================
+export async function PATCH(request: NextRequest) {
+  let client: PoolClient | null = null;
+
+  try {
+    if (!validateOrigin(request)) {
+      return json({ success: false, error: 'Geçersiz istek kaynağı.' }, 403);
+    }
+
+    const user = await getAuthenticatedUser(request);
+
+    if (!user) {
+      return json({ success: false, error: 'Oturum gerekli.' }, 401);
+    }
+
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > 50_000) {
+      return json({ success: false, error: 'İstek çok büyük.' }, 413);
+    }
+
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ success: false, error: 'Geçersiz istek.' }, 400);
+    }
+
+    const data = body as Record<string, unknown>;
+    const deviceId = Number(data.deviceId);
+
+    if (!Number.isInteger(deviceId) || deviceId < 1) {
+      return json({ success: false, error: 'Geçersiz cihaz kaydı.' }, 400);
+    }
+
+    let color: string;
+    let grade: string;
+    let warranty: string;
+    let changedParts: string;
+    let boxInvoice: string;
+    let batteryPercent: number | null;
+
+    try {
+      color = cleanText(data.color, 100);
+      grade = cleanText(data.grade, 50);
+      warranty = cleanText(data.warranty, 100);
+      changedParts = cleanText(data.changedParts, 300);
+      boxInvoice = cleanText(data.boxInvoice, 100);
+      batteryPercent = parseBattery(data.batteryPercent);
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Cihaz bilgileri geçersiz.',
+        },
+        400
+      );
+    }
+
+    client = await getPool().connect();
+    await client.query('BEGIN');
+
+    const existingResult = await client.query(
+      `
+        SELECT
+          id, imei, brand, model, memory, color, battery_percent,
+          grade, warranty, changed_parts, box_invoice,
+          current_branch_code, status
+        FROM public.stock_devices
+        WHERE id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [deviceId]
+    );
+
+    if (existingResult.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      return json({ success: false, error: 'Cihaz bulunamadı.' }, 404);
+    }
+
+    const existing = existingResult.rows[0];
+    const ownerBranch = String(existing.current_branch_code || '');
+
+    if (!user.isSuperAdmin && user.stockBranchCode !== ownerBranch) {
+      await client.query('ROLLBACK');
+      return json(
+        { success: false, error: 'Başka mağazanın cihazını düzenleyemezsiniz.' },
+        403
+      );
+    }
+
+    const oldStatus = String(existing.status || '');
+    if (oldStatus === 'SOLD' || oldStatus === 'PASSIVE') {
+      await client.query('ROLLBACK');
+      return json(
+        { success: false, error: 'Satılmış veya pasif cihaz düzenlenemez.' },
+        409
+      );
+    }
+
+    const detailsComplete =
+      Boolean(color) &&
+      batteryPercent !== null &&
+      Boolean(grade) &&
+      Boolean(warranty) &&
+      Boolean(changedParts) &&
+      Boolean(boxInvoice);
+
+    let newStatus = oldStatus;
+    if (oldStatus === 'DETAILS_PENDING' || oldStatus === 'AVAILABLE') {
+      newStatus = detailsComplete ? 'AVAILABLE' : 'DETAILS_PENDING';
+    }
+
+    const updateResult = await client.query(
+      `
+        UPDATE public.stock_devices
+        SET
+          color = $2,
+          battery_percent = $3,
+          grade = $4,
+          warranty = $5,
+          changed_parts = $6,
+          box_invoice = $7,
+          status = $8,
+          details_completed_at = CASE WHEN $9::boolean THEN COALESCE(details_completed_at, now()) ELSE NULL END,
+          details_completed_by = CASE WHEN $9::boolean THEN $10 ELSE NULL END
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        deviceId,
+        color || null,
+        batteryPercent,
+        grade || null,
+        warranty || null,
+        changedParts || null,
+        boxInvoice || null,
+        newStatus,
+        detailsComplete,
+        user.username,
+      ]
+    );
+
+    const device = updateResult.rows[0];
+
+    await client.query(
+      `
+        INSERT INTO public.stock_events (
+          device_id,
+          imei,
+          event_type,
+          from_branch_code,
+          to_branch_code,
+          old_status,
+          new_status,
+          performed_by,
+          metadata
+        )
+        VALUES ($1, $2, 'DEVICE_DETAILS_UPDATED', $3, $3, $4, $5, $6, $7::jsonb)
+      `,
+      [
+        deviceId,
+        String(existing.imei || ''),
+        ownerBranch,
+        oldStatus,
+        newStatus,
+        user.username,
+        JSON.stringify({
+          old: {
+            color: existing.color,
+            batteryPercent: existing.battery_percent,
+            grade: existing.grade,
+            warranty: existing.warranty,
+            changedParts: existing.changed_parts,
+            boxInvoice: existing.box_invoice,
+          },
+          new: {
+            color: color || null,
+            batteryPercent,
+            grade: grade || null,
+            warranty: warranty || null,
+            changedParts: changedParts || null,
+            boxInvoice: boxInvoice || null,
+          },
+          detailsComplete,
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    return json({
+      success: true,
+      message: 'Cihaz detayları güncellendi.',
+      device,
+    });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+    }
+
+    console.error('STOCK DEVICES PATCH ERROR:', error);
+    return json({ success: false, error: 'Cihaz detayları güncellenemedi.' }, 500);
+  } finally {
+    client?.release();
+  }
+}
+
