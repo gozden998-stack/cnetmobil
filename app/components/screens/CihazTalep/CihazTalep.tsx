@@ -251,12 +251,17 @@ type CihazTalepDialog =
   | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
   | { type: 'cihaz_ekle' }
   | { type: 'cihaz_toplu_ekle' }
+  | { type: 'cihaz_duzenle'; rowIndex: number; deviceId: number; imei: string; markaModel: string; hafiza: string }
   | { type: 'message'; title: string; message: string; tone?: 'success' | 'error' | 'info' };
 
 const [cihazTalepDialog, setCihazTalepDialog] = useState<CihazTalepDialog>(null);
 const [talepAdetInput, setTalepAdetInput] = useState('1');
 const [redNedeniInput, setRedNedeniInput] = useState('');
 const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
+const [cihazDuzenleSaving, setCihazDuzenleSaving] = useState(false);
+const [cihazDuzenleForm, setCihazDuzenleForm] = useState({
+  renk: '', pil: '', grade: '', garanti: '', degisenParca: '', kutuFatura: ''
+});
 const [bulkCihazFileName, setBulkCihazFileName] = useState('');
 const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
 const [bulkCihazError, setBulkCihazError] = useState('');
@@ -274,6 +279,91 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
 const canManageCihazStock = stockSourceBranch
   ? Boolean(postgresCanManage || isSuperAdminUser)
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
+
+
+const openCihazDuzenleModal = (rowIndex: number) => {
+  if (!stockSourceBranch || !canManageCihazStock) {
+    showTalepMessage('YETKİ GEREKLİ', 'Yalnızca kendi mağazanızdaki cihazı düzenleyebilirsiniz.', 'error');
+    return;
+  }
+
+  const row = effectiveCihazTalepData[rowIndex - 1];
+  if (!row) {
+    showTalepMessage('CİHAZ BULUNAMADI', 'Düzenlenecek cihaz kaydı bulunamadı.', 'error');
+    return;
+  }
+
+  const deviceId = Number(row?.[16]);
+  const imei = String(row?.[15] || '').trim();
+  if (!Number.isInteger(deviceId) || deviceId < 1 || !imei) {
+    showTalepMessage('CİHAZ BULUNAMADI', 'PostgreSQL cihaz kimliği bulunamadı.', 'error');
+    return;
+  }
+
+  setCihazDuzenleForm({
+    renk: String(row?.[2] || ''),
+    pil: String(row?.[3] || '').replace(/[^0-9]/g, ''),
+    grade: String(row?.[4] || ''),
+    garanti: String(row?.[5] || ''),
+    degisenParca: String(row?.[6] || ''),
+    kutuFatura: String(row?.[7] || ''),
+  });
+
+  setCihazTalepDialog({
+    type: 'cihaz_duzenle',
+    rowIndex,
+    deviceId,
+    imei,
+    markaModel: String(row?.[0] || ''),
+    hafiza: String(row?.[1] || ''),
+  });
+};
+
+const submitCihazDuzenle = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'cihaz_duzenle') return;
+  if (!stockSourceBranch || !canManageCihazStock || cihazDuzenleSaving) return;
+
+  const pilText = String(cihazDuzenleForm.pil || '').replace(/[^0-9]/g, '');
+  const batteryPercent = pilText === '' ? null : Number(pilText);
+
+  if (batteryPercent !== null && (!Number.isInteger(batteryPercent) || batteryPercent < 0 || batteryPercent > 100)) {
+    showTalepMessage('GEÇERSİZ PİL', 'Pil yüzdesi 0 ile 100 arasında olmalıdır.', 'error');
+    return;
+  }
+
+  setCihazDuzenleSaving(true);
+
+  try {
+    const response = await fetch('/api/stock/devices', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        deviceId: cihazTalepDialog.deviceId,
+        color: cihazDuzenleForm.renk.trim(),
+        batteryPercent,
+        grade: cihazDuzenleForm.grade.trim(),
+        warranty: cihazDuzenleForm.garanti.trim(),
+        changedParts: cihazDuzenleForm.degisenParca.trim(),
+        boxInvoice: cihazDuzenleForm.kutuFatura.trim(),
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.success) {
+      showTalepMessage('GÜNCELLENEMEDİ', result?.error || 'Cihaz detayları güncellenemedi.', 'error');
+      return;
+    }
+
+    setCihazTalepDialog(null);
+    await loadPostgresStock();
+    showTalepMessage('CİHAZ GÜNCELLENDİ', `${cihazTalepDialog.imei} IMEI cihazın detayları güncellendi.`, 'success');
+  } catch {
+    showTalepMessage('GÜNCELLENEMEDİ', 'Cihaz detayları güncellenirken bağlantı hatası oluştu.', 'error');
+  } finally {
+    setCihazDuzenleSaving(false);
+  }
+};
 
 const inferStockBrand = (value: string) => {
   const raw = String(value || '').trim();
@@ -1944,10 +2034,20 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                       </div>
                                     )}
                                   </div>
-                                ) : stockSourceBranch && postgresCanManage ? (
-                                  <span className="inline-flex min-w-[112px] justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[9px] font-black tracking-wider text-slate-400">
-                                    KENDİ STOĞUNUZ
-                                  </span>
+                                ) : stockSourceBranch && canManageCihazStock ? (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <span className="inline-flex min-w-[112px] justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[9px] font-black tracking-wider text-slate-400">
+                                      KENDİ STOĞUNUZ
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openCihazDuzenleModal(rowIndex)}
+                                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[9px] font-black tracking-wider text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                                      title="Cihaz detaylarını düzenle"
+                                    >
+                                      DÜZENLE
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button
                                     disabled={stokAdedi <= 0 || talepSaving}
@@ -2415,6 +2515,64 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
             <div className="mt-6 flex gap-3">
               <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
               <button onClick={submitCihazEkle} disabled={cihazEkleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazEkleSaving ? 'EKLENİYOR...' : 'CİHAZI EKLE'}</button>
+            </div>
+          </div>
+        </>
+      )}
+
+
+      {cihazTalepDialog.type === 'cihaz_duzenle' && (
+        <>
+          <div className="bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 px-7 py-6 text-white">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L8 18l-4 1 1-4L16.5 3.5z" /></svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-black">CİHAZ DETAY DÜZENLE</h3>
+                <p className="mt-1 text-xs font-bold text-blue-100">IMEI ve cihaz kimliği sabittir</p>
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[72vh] overflow-y-auto p-6 custom-scrollbar">
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-black text-slate-900">{cihazTalepDialog.markaModel} · {cihazTalepDialog.hafiza}</div>
+              <div className="mt-1 font-mono text-xs font-bold text-slate-500">IMEI {cihazTalepDialog.imei}</div>
+              <div className="mt-2 text-[9px] font-black uppercase tracking-wider text-slate-400">Marka / model / hafıza / IMEI / mağaza bu ekrandan değişmez.</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK</label>
+                <input value={cihazDuzenleForm.renk} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,renk:e.target.value.toUpperCase()}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL %</label>
+                <input inputMode="numeric" maxLength={3} value={cihazDuzenleForm.pil} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,pil:String(e.target.value||'').replace(/\D/g,'').slice(0,3)}))} placeholder="100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label>
+                <select value={cihazDuzenleForm.grade} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500">
+                  <option value="">Seçin</option><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label>
+                <input value={cihazDuzenleForm.garanti} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label>
+                <input value={cihazDuzenleForm.degisenParca} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label>
+                <input value={cihazDuzenleForm.kutuFatura} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazDuzenleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+              <button onClick={submitCihazDuzenle} disabled={cihazDuzenleSaving} className="flex-[1.4] rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">{cihazDuzenleSaving ? 'KAYDEDİLİYOR...' : 'DEĞİŞİKLİKLERİ KAYDET'}</button>
             </div>
           </div>
         </>
