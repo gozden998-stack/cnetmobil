@@ -48,6 +48,15 @@ const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
 const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
 const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 const [transferBekleyenModalOpen, setTransferBekleyenModalOpen] = useState(false);
+const [hareketGecmisiModalOpen, setHareketGecmisiModalOpen] = useState(false);
+const [hareketGecmisiLoading, setHareketGecmisiLoading] = useState(false);
+const [hareketGecmisiError, setHareketGecmisiError] = useState('');
+const [hareketGecmisiRows, setHareketGecmisiRows] = useState<any[]>([]);
+const [hareketGecmisiPeriod, setHareketGecmisiPeriod] = useState<'TODAY' | 'YESTERDAY' | 'CUSTOM'>('TODAY');
+const [hareketGecmisiDateFrom, setHareketGecmisiDateFrom] = useState('');
+const [hareketGecmisiDateTo, setHareketGecmisiDateTo] = useState('');
+const [hareketGecmisiImei, setHareketGecmisiImei] = useState('');
+const [hareketGecmisiEventType, setHareketGecmisiEventType] = useState('ALL');
 
 // ======================================================
 // POSTGRESQL MAĞAZA STOK KÖPRÜSÜ
@@ -1049,6 +1058,126 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       )
     : [];
 
+
+  const getIstanbulDate = (dayOffset = 0) => {
+    const now = new Date(Date.now() + dayOffset * 24 * 60 * 60 * 1000);
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  };
+
+  const getHistoryDates = (period = hareketGecmisiPeriod) => {
+    if (period === 'YESTERDAY') {
+      const yesterday = getIstanbulDate(-1);
+      return { dateFrom: yesterday, dateTo: yesterday };
+    }
+    if (period === 'CUSTOM') {
+      return {
+        dateFrom: hareketGecmisiDateFrom || getIstanbulDate(0),
+        dateTo: hareketGecmisiDateTo || hareketGecmisiDateFrom || getIstanbulDate(0),
+      };
+    }
+    const today = getIstanbulDate(0);
+    return { dateFrom: today, dateTo: today };
+  };
+
+  const loadHareketGecmisi = async (period = hareketGecmisiPeriod) => {
+    if (!stockSourceBranch) return;
+
+    setHareketGecmisiLoading(true);
+    setHareketGecmisiError('');
+
+    try {
+      const { dateFrom, dateTo } = getHistoryDates(period);
+      const params = new URLSearchParams({
+        branch: stockSourceBranch,
+        dateFrom,
+        dateTo,
+      });
+
+      const imei = hareketGecmisiImei.replace(/\D/g, '').trim();
+      if (imei) params.set('imei', imei);
+      if (hareketGecmisiEventType !== 'ALL') {
+        params.set('eventType', hareketGecmisiEventType);
+      }
+
+      const response = await fetch(`/api/stock/history?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Hareket geçmişi alınamadı.');
+      }
+
+      setHareketGecmisiRows(Array.isArray(result?.events) ? result.events : []);
+    } catch (error: any) {
+      setHareketGecmisiRows([]);
+      setHareketGecmisiError(error?.message || 'Hareket geçmişi alınamadı.');
+    } finally {
+      setHareketGecmisiLoading(false);
+    }
+  };
+
+  const openHareketGecmisi = async () => {
+    const today = getIstanbulDate(0);
+    setHareketGecmisiPeriod('TODAY');
+    setHareketGecmisiDateFrom(today);
+    setHareketGecmisiDateTo(today);
+    setHareketGecmisiImei('');
+    setHareketGecmisiEventType('ALL');
+    setHareketGecmisiModalOpen(true);
+    setHareketGecmisiLoading(true);
+    setHareketGecmisiError('');
+
+    try {
+      const params = new URLSearchParams({ branch: stockSourceBranch || '', dateFrom: today, dateTo: today });
+      const response = await fetch(`/api/stock/history?${params.toString()}`, {
+        method: 'GET', cache: 'no-store', credentials: 'same-origin'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Hareket geçmişi alınamadı.');
+      setHareketGecmisiRows(Array.isArray(result?.events) ? result.events : []);
+    } catch (error: any) {
+      setHareketGecmisiRows([]);
+      setHareketGecmisiError(error?.message || 'Hareket geçmişi alınamadı.');
+    } finally {
+      setHareketGecmisiLoading(false);
+    }
+  };
+
+  const getHistoryEventLabel = (eventType: any) => {
+    const type = String(eventType || '').toUpperCase();
+    const labels: Record<string, string> = {
+      DEVICE_ADDED: 'CİHAZ EKLENDİ',
+      DEVICE_BULK_ADDED: 'TOPLU EKLENDİ',
+      REQUEST_CREATED: 'TALEP OLUŞTURULDU',
+      REQUEST_REJECTED: 'TALEP REDDEDİLDİ',
+      DEVICE_SENT: 'GÖNDERİLDİ',
+      DEVICE_DETAILS_UPDATED: 'DETAY GÜNCELLENDİ',
+      WING_TRANSFER_COMPLETED: 'TRANSFER TAMAMLANDI',
+      TRANSFER_COMPLETED: 'TRANSFER TAMAMLANDI',
+      DEVICE_SOLD: 'SATILDI',
+      SOLD: 'SATILDI',
+    };
+    return labels[type] || type.replace(/_/g, ' ') || '-';
+  };
+
+  const getHistoryEventStyle = (eventType: any) => {
+    const type = String(eventType || '').toUpperCase();
+    if (type.includes('REJECT')) return 'border-rose-200 bg-rose-50 text-rose-700';
+    if (type.includes('SENT') || type.includes('TRANSFER')) return 'border-violet-200 bg-violet-50 text-violet-700';
+    if (type.includes('SOLD')) return 'border-slate-300 bg-slate-100 text-slate-700';
+    if (type.includes('REQUEST')) return 'border-blue-200 bg-blue-50 text-blue-700';
+    if (type.includes('UPDATED')) return 'border-amber-200 bg-amber-50 text-amber-700';
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  };
+
   const formatTransferDate = (value: any) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -1642,6 +1771,19 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     >
                       Temizle
                     </button>
+
+                    {stockSourceBranch && (
+                      <button
+                        type="button"
+                        onClick={() => void openHareketGecmisi()}
+                        className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-[10px] font-black uppercase tracking-wider text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:scale-[0.99]"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Hareket Geçmişi
+                      </button>
+                    )}
 
                     {stockSourceBranch && (
                       <button
@@ -3016,6 +3158,182 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
     </div>
   </div>
 )}
+
+
+{/* HAREKET GEÇMİŞİ MODALI - STOCK_EVENTS */}
+{hareketGecmisiModalOpen && (
+  <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md print:hidden">
+    <div className="relative flex max-h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-[36px] border border-slate-200 bg-white shadow-2xl">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 to-blue-900 px-6 py-5 text-white sm:px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-black sm:text-2xl">HAREKET GEÇMİŞİ</h3>
+            <p className="mt-1 text-xs font-bold text-blue-100">
+              {stockSourceBranch} · IMEI bazlı stok ve talep hareketleri
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setHareketGecmisiModalOpen(false)}
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-xl font-black text-white transition hover:bg-white/20"
+        >×</button>
+      </div>
+
+      <div className="shrink-0 border-b border-slate-100 bg-slate-50/80 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <div className="flex gap-2">
+            {[
+              ['TODAY', 'Bugün'],
+              ['YESTERDAY', 'Dün'],
+              ['CUSTOM', 'Özel Tarih'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  const next = value as 'TODAY' | 'YESTERDAY' | 'CUSTOM';
+                  setHareketGecmisiPeriod(next);
+                  if (next !== 'CUSTOM') void loadHareketGecmisi(next);
+                }}
+                className={`h-11 rounded-2xl px-4 text-[10px] font-black uppercase tracking-wider transition ${
+                  hareketGecmisiPeriod === value
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >{label}</button>
+            ))}
+          </div>
+
+          {hareketGecmisiPeriod === 'CUSTOM' && (
+            <div className="flex flex-wrap gap-2">
+              <input type="date" value={hareketGecmisiDateFrom} onChange={(e) => setHareketGecmisiDateFrom(e.target.value)} className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-400" />
+              <input type="date" value={hareketGecmisiDateTo} onChange={(e) => setHareketGecmisiDateTo(e.target.value)} className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-400" />
+            </div>
+          )}
+
+          <input
+            value={hareketGecmisiImei}
+            onChange={(e) => setHareketGecmisiImei(e.target.value.replace(/\D/g, '').slice(0, 16))}
+            placeholder="IMEI ara..."
+            className="h-11 min-w-[210px] rounded-2xl border border-slate-200 bg-white px-4 font-mono text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
+          />
+
+          <select
+            value={hareketGecmisiEventType}
+            onChange={(e) => setHareketGecmisiEventType(e.target.value)}
+            className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-[10px] font-black uppercase text-slate-700 outline-none focus:border-blue-400"
+          >
+            <option value="ALL">Tüm İşlemler</option>
+            <option value="DEVICE_ADDED">Cihaz Eklendi</option>
+            <option value="DEVICE_BULK_ADDED">Toplu Eklendi</option>
+            <option value="REQUEST_CREATED">Talep Oluşturuldu</option>
+            <option value="REQUEST_REJECTED">Talep Reddedildi</option>
+            <option value="DEVICE_SENT">Gönderildi</option>
+            <option value="DEVICE_DETAILS_UPDATED">Detay Güncellendi</option>
+            <option value="WING_TRANSFER_COMPLETED">Transfer Tamamlandı</option>
+            <option value="DEVICE_SOLD">Satıldı</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => void loadHareketGecmisi()}
+            disabled={hareketGecmisiLoading}
+            className="h-11 rounded-2xl bg-slate-900 px-5 text-[10px] font-black uppercase tracking-wider text-white transition hover:bg-slate-800 disabled:opacity-50"
+          >
+            {hareketGecmisiLoading ? 'Yükleniyor...' : 'Filtrele'}
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-y-auto p-5 custom-scrollbar sm:p-7">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">KAYIT SAYISI</div>
+            <div className="mt-1 text-2xl font-black text-slate-900">{hareketGecmisiRows.length}</div>
+          </div>
+          <div className="max-w-xl text-right text-[10px] font-semibold leading-5 text-slate-400">
+            WingSM bağlandığında transfer tamamlandı ve satış hareketleri de aynı geçmişe otomatik eklenecek.
+          </div>
+        </div>
+
+        {hareketGecmisiError ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{hareketGecmisiError}</div>
+        ) : hareketGecmisiLoading ? (
+          <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-16 text-center text-sm font-black uppercase tracking-widest text-slate-400">Hareketler yükleniyor...</div>
+        ) : hareketGecmisiRows.length === 0 ? (
+          <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-16 text-center">
+            <div className="text-sm font-black uppercase tracking-widest text-slate-400">Bu filtrede hareket bulunamadı</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-[28px] border border-slate-200">
+            <table className="w-full min-w-[1150px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                  <th className="px-5 py-4">Tarih</th>
+                  <th className="px-5 py-4">IMEI</th>
+                  <th className="px-5 py-4">Cihaz</th>
+                  <th className="px-5 py-4">İşlem</th>
+                  <th className="px-5 py-4">Mağaza Hareketi</th>
+                  <th className="px-5 py-4">Durum</th>
+                  <th className="px-5 py-4 text-right">İşlemi Yapan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hareketGecmisiRows.map((event: any) => {
+                  const deviceName = [event?.brand, event?.model]
+                    .map((v: any) => String(v || '').trim())
+                    .filter(Boolean)
+                    .join(' ') || '-';
+                  const from = String(event?.from_branch_code || '').trim();
+                  const to = String(event?.to_branch_code || '').trim();
+                  const metadata = event?.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+                  const reason = String(metadata?.reason || '').trim();
+
+                  return (
+                    <tr key={String(event?.id)} className="border-b border-slate-100 last:border-0 hover:bg-blue-50/20">
+                      <td className="whitespace-nowrap px-5 py-4 font-bold text-slate-500">{formatTransferDate(event?.created_at)}</td>
+                      <td className="px-5 py-4 font-mono text-[11px] font-black text-slate-800">{event?.imei || '-'}</td>
+                      <td className="px-5 py-4">
+                        <div className="font-black text-slate-900">{deviceName}</div>
+                        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{event?.memory || '-'}</div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-wider ${getHistoryEventStyle(event?.event_type)}`}>
+                          {getHistoryEventLabel(event?.event_type)}
+                        </span>
+                        {reason && <div className="mt-1 max-w-[220px] text-[9px] font-semibold text-rose-500">{reason}</div>}
+                      </td>
+                      <td className="px-5 py-4">
+                        {from || to ? (
+                          <div className="flex items-center gap-2 font-black text-slate-700">
+                            <span className="rounded-lg bg-slate-100 px-2 py-1">{from || '-'}</span>
+                            <span className="text-blue-500">→</span>
+                            <span className="rounded-lg bg-blue-50 px-2 py-1 text-blue-700">{to || '-'}</span>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-5 py-4 font-bold text-slate-500">
+                        {event?.old_status || '-'} → {event?.new_status || '-'}
+                      </td>
+                      <td className="px-5 py-4 text-right font-black text-slate-700">{event?.performed_by || 'SİSTEM'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
     </>
   );
 }
