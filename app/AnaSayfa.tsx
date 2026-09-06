@@ -365,29 +365,29 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     );
 
     return (
-        <div className="min-h-screen bg-[#F8F9FB] p-4 md:p-8 font-sans text-slate-800 animate-in fade-in duration-500 overflow-x-hidden">
+        <div className="min-h-screen bg-[#F4F7FB] px-3 py-4 font-sans text-slate-800 animate-in fade-in duration-500 overflow-x-hidden sm:px-5 md:px-7 md:py-6">
             
             {/* YENİ EKLENEN: EN ÜST MODERN ŞUBE BİLGİ ŞERİDİ */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-100 shadow-sm mb-6 gap-4">
+            <div className="mx-auto mb-5 flex w-full max-w-[1700px] flex-col items-start justify-between gap-4 rounded-[22px] border border-slate-200/80 bg-white px-5 py-4 shadow-[0_8px_30px_rgba(15,23,42,0.05)] sm:flex-row sm:items-center md:px-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-50"></div>
                     <div>
-                        <h1 className="font-black text-slate-800 uppercase tracking-tight text-xl">{selectedBranch} ŞUBESİ</h1>
-                        <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-emerald-200/60">Aktif Durumda</span>
+                        <h1 className="text-lg font-black uppercase tracking-[-0.02em] text-slate-900 md:text-xl">{selectedBranch} ŞUBESİ</h1>
+                        <span className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">Aktif Durumda</span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-100 self-stretch sm:self-auto">
+                <div className="flex self-stretch items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-[10px] font-bold text-slate-400 sm:self-auto">
                     <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     <span>Veri Güncelleme: <strong className="text-slate-700 font-bold ml-1">{lastUpdatedDate || "Bilinmiyor"}</strong></span>
                 </div>
             </div>
 
             {/* 1. BÖLÜM: ÜST KPI KARTLARI */}
-            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 mb-8 flex flex-col xl:flex-row gap-6 justify-between">
+            <div className="mx-auto mb-6 flex w-full max-w-[1700px] flex-col justify-between gap-5 rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] md:p-5 xl:flex-row">
                 
                 {/* ORTA KISIM: 4 DETAYLI KPI KARTI */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                    <div className="group flex min-h-[164px] flex-col justify-between rounded-[18px] border border-slate-200/90 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -411,7 +411,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+                    <div className="group flex min-h-[164px] flex-col justify-between rounded-[18px] border border-slate-200/90 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -430,7 +430,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+                    <div className="group flex min-h-[164px] flex-col justify-between rounded-[18px] border border-slate-200/90 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
@@ -449,7 +449,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+                    <div className="group flex min-h-[164px] flex-col justify-between rounded-[18px] border border-slate-200/90 bg-white p-4 shadow-[0_4px_16px_rgba(15,23,42,0.035)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
@@ -470,9 +470,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </div>
 
                 {/* SAĞ KISIM: REVİZE EDİLMİŞ "AYIN EN İYİ MAĞAZASI" PODYUMU */}
-                <div className="flex flex-col items-center gap-4 xl:border-l border-slate-100 xl:pl-6 shrink-0 w-full xl:w-[460px] 2xl:w-[500px]">
+                <div className="flex w-full shrink-0 flex-col items-center gap-3 xl:w-[430px] xl:border-l xl:border-slate-200 xl:pl-5 2xl:w-[470px]">
                     {!isBlocked && (
-                        <div className="relative overflow-hidden bg-gradient-to-br from-[#2c0f59] via-[#210947] to-[#12032b] p-6 rounded-[2rem] border border-purple-500/30 w-full flex-1 flex flex-col justify-between shadow-2xl text-white min-h-[300px]">
+                        <div className="relative flex min-h-[270px] w-full flex-1 flex-col justify-between overflow-hidden rounded-[20px] border border-indigo-200/20 bg-gradient-to-br from-[#172554] via-[#312E81] to-[#4C1D95] p-5 text-white shadow-[0_14px_34px_rgba(49,46,129,0.22)]">
                             
                             <div className="absolute top-6 right-16 w-2 h-2 rounded-full bg-yellow-400 opacity-80 animate-pulse"></div>
                             <div className="absolute top-12 right-32 w-2.5 h-1.5 bg-emerald-400 opacity-70 rotate-12"></div>
@@ -563,7 +563,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                         </div>
                     )}
-                    <button onClick={() => setAppMode('alim')} className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold text-sm tracking-wide shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap mt-auto">
+                    <button onClick={() => setAppMode('alim')} className="mt-auto flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-5 py-3.5 text-[11px] font-black uppercase tracking-wide text-white shadow-sm transition-all hover:bg-blue-700">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                         Cihaz Alımı Başlat
                     </button>
@@ -571,38 +571,38 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             </div>
 
             {/* 2. BÖLÜM: YENİ 4'LÜ GRİD */}
-            <div className={`grid grid-cols-1 md:grid-cols-2 ${!isBlocked ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-5 mb-8`}>
+            <div className={`mx-auto mb-6 grid w-full max-w-[1700px] grid-cols-1 gap-4 md:grid-cols-2 ${!isBlocked ? 'xl:grid-cols-4' : 'xl:grid-cols-1'}`}>
                 
                 {/* 1. KART (LACİVERT): Personel Metrikleri */}
                 {!isBlocked && (
-                    <div className="relative overflow-hidden bg-[#0A1128] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-blue-900/40">
+                    <div className="relative flex min-h-[210px] flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_8px_26px_rgba(15,23,42,0.05)]">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <p className="text-blue-400 text-[10px] font-extrabold uppercase tracking-widest">PERSONEL METRİKLERİ</p>
-                                <h2 className="text-white text-2xl font-black tracking-tight italic mt-0.5">Güncel Durumunuz</h2>
+                                <p className="text-blue-600 text-[9px] font-black uppercase tracking-[0.16em]">PERSONEL METRİKLERİ</p>
+                                <h2 className="mt-1 text-xl font-black tracking-tight text-slate-900">Güncel Durumunuz</h2>
                             </div>
-                            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-600">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 divide-x divide-blue-900/50 my-2">
+                        <div className="my-2 grid grid-cols-3 divide-x divide-slate-200">
                             <div className="pr-2">
-                                <span className="text-[9px] text-slate-400 block font-medium">Toplam Personel</span>
-                                <span className="text-white font-black text-xl">{toplamPersonelSayisi}</span>
+                                <span className="block text-[9px] font-bold text-slate-400">Toplam Personel</span>
+                                <span className="text-xl font-black text-slate-900">{toplamPersonelSayisi}</span>
                             </div>
                             <div className="px-2">
-                                <span className="text-[9px] text-slate-400 block font-medium">Aktif Personel</span>
-                                <span className="text-white font-black text-xl">{aktifPersonelSayisi}</span>
+                                <span className="block text-[9px] font-bold text-slate-400">Aktif Personel</span>
+                                <span className="text-xl font-black text-slate-900">{aktifPersonelSayisi}</span>
                             </div>
                             <div className="pl-2">
-                                <span className="text-[9px] text-slate-400 block font-medium">Ortalama Perf.</span>
-                                <span className="text-white font-black text-lg">{ortalamaSubePerformans} <span className="text-[10px] font-normal text-blue-400">Puan</span></span>
+                                <span className="block text-[9px] font-bold text-slate-400">Ortalama Perf.</span>
+                                <span className="text-lg font-black text-slate-900">{ortalamaSubePerformans} <span className="text-[10px] font-normal text-blue-400">Puan</span></span>
                             </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-blue-900/40">
-                            <button onClick={() => setActiveDrawer('personel')} className="w-full bg-[#1D4ED8] hover:bg-blue-600 text-white py-3 rounded-xl text-xs font-black uppercase transition-colors tracking-wider shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
+                        <div className="mt-4 border-t border-slate-100 pt-4">
+                            <button onClick={() => setActiveDrawer('personel')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-blue-700">
                                 <span>İNCELE</span>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                             </button>
@@ -612,41 +612,41 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* 2. KART (MOR): Mağaza Skor Metrikleri */}
                 {!isBlocked && (
-                    <div className="relative overflow-hidden bg-gradient-to-br from-[#2D124D] to-[#1C0A35] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-purple-800/40">
+                    <div className="relative flex min-h-[210px] flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_8px_26px_rgba(15,23,42,0.05)]">
                         <div className="flex justify-between items-start mb-3">
                             <div>
-                                <p className="text-purple-300 text-[10px] font-extrabold uppercase tracking-widest">MAĞAZA SKOR METRİKLERİ</p>
-                                <h2 className="text-white text-2xl font-black tracking-tight italic mt-0.5">Mağaza Performansı</h2>
+                                <p className="text-violet-600 text-[9px] font-black uppercase tracking-[0.16em]">MAĞAZA SKOR METRİKLERİ</p>
+                                <h2 className="mt-1 text-xl font-black tracking-tight text-slate-900">Mağaza Performansı</h2>
                             </div>
-                            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-300 shrink-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50 text-violet-600">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 divide-x divide-purple-800/50 my-1">
+                        <div className="my-1 grid grid-cols-3 divide-x divide-slate-200">
                             <div className="pr-2">
-                                <span className="text-[9px] text-purple-200/60 block font-medium">Aylık Hedef</span>
-                                <span className="text-white font-black text-xl">{anaHedef}</span>
+                                <span className="block text-[9px] font-bold text-slate-400">Aylık Hedef</span>
+                                <span className="text-xl font-black text-slate-900">{anaHedef}</span>
                             </div>
                             <div className="px-2">
-                                <span className="text-[9px] text-purple-200/60 block font-medium">Gerçekleşen</span>
-                                <span className="text-white font-black text-xl">{anaSatis}</span>
+                                <span className="block text-[9px] font-bold text-slate-400">Gerçekleşen</span>
+                                <span className="text-xl font-black text-slate-900">{anaSatis}</span>
                             </div>
                             <div className="pl-2">
-                                <span className="text-[9px] text-purple-200/60 block font-medium">Kalan Adet</span>
-                                <span className="text-white font-black text-xl">{kalanHedef}</span>
+                                <span className="block text-[9px] font-bold text-slate-400">Kalan Adet</span>
+                                <span className="text-xl font-black text-slate-900">{kalanHedef}</span>
                             </div>
                         </div>
 
                         <div className="my-2">
-                            <div className="h-2 w-full bg-purple-950 rounded-full overflow-hidden p-0.5">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                                 <div className="h-full bg-gradient-to-r from-blue-500 to-purple-400 rounded-full" style={{ width: `${tamamlananYuzde}%` }}></div>
                             </div>
-                            <span className="text-[9px] font-bold text-purple-300/80 float-right mt-1">%{tamamlananYuzde} Tamamlandı</span>
+                            <span className="float-right mt-1 text-[9px] font-black text-violet-600">%{tamamlananYuzde} Tamamlandı</span>
                         </div>
 
-                        <div className="mt-2 pt-3 border-t border-purple-800/40 clear-both">
-                            <button onClick={() => setActiveDrawer('magaza')} className="w-full bg-[#8B5CF6] hover:bg-purple-500 text-white py-3 rounded-xl text-xs font-black uppercase transition-colors tracking-wider shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2">
+                        <div className="clear-both mt-2 border-t border-slate-100 pt-3">
+                            <button onClick={() => setActiveDrawer('magaza')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-violet-700">
                                 <span>DETAYLAR</span>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                             </button>
@@ -656,26 +656,26 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* 3. KART (TURKUAZ): Mağaza Vizyonu */}
                 {!isBlocked && (
-                    <div className="relative overflow-hidden bg-gradient-to-br from-[#0C6967] to-[#064e4c] rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] text-white">
+                    <div className="relative flex min-h-[210px] flex-col justify-between overflow-hidden rounded-[20px] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-[0_8px_26px_rgba(15,23,42,0.05)] text-slate-900">
                         <div className="absolute top-4 right-20 w-2 h-2 bg-yellow-400 rotate-45"></div>
                         <div className="absolute bottom-12 left-6 w-1.5 h-1.5 rounded-full bg-amber-300"></div>
                         <div className="absolute top-1/2 right-4 w-2 h-2 rounded-full bg-emerald-300 opacity-40"></div>
 
                         <div className="flex justify-between items-start relative z-10">
                             <div>
-                                <p className="text-emerald-200 text-[10px] font-extrabold uppercase tracking-widest">MAĞAZA VİZYONU</p>
-                                <h3 className="text-lg font-black leading-snug mt-4 max-w-[210px]">"Müşteri geri çevirmek yok, mağazada yok yok!"</h3>
+                                <p className="text-emerald-700 text-[9px] font-black uppercase tracking-[0.16em]">MAĞAZA VİZYONU</p>
+                                <h3 className="mt-4 max-w-[220px] text-lg font-black leading-snug text-slate-900">"Müşteri geri çevirmek yok, mağazada yok yok!"</h3>
                             </div>
                             
-                            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3 text-center shrink-0 ml-2">
-                                <span className="text-[8px] text-emerald-100 font-bold uppercase block">AYLIK HEDEF</span>
-                                <span className="text-xl font-black text-white block my-0.5">100+</span>
+                            <div className="ml-2 shrink-0 rounded-xl border border-emerald-200 bg-white p-3 text-center shadow-sm">
+                                <span className="block text-[8px] font-black uppercase text-emerald-600">AYLIK HEDEF</span>
+                                <span className="my-0.5 block text-xl font-black text-slate-900">100+</span>
                                 <span className="text-[8px] text-emerald-200 font-bold tracking-widest">PUAN</span>
                             </div>
                         </div>
 
-                        <div className="relative z-10 mt-auto pt-4 border-t border-white/10">
-                            <p className="text-xs text-emerald-100 font-semibold flex items-center gap-2">
+                        <div className="relative z-10 mt-auto border-t border-emerald-200/70 pt-4">
+                            <p className="flex items-center gap-2 text-xs font-bold text-emerald-800">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                                 Bu vizyonla bu ay hedefi patlatıyoruz! 🚀
                             </p>
@@ -685,7 +685,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* 4. KART (BEYAZ): Motivasyon Köşesi */}
                 {!isBlocked && (
-                    <div className="relative overflow-hidden bg-white rounded-[2rem] p-6 shadow-xl flex flex-col justify-between min-h-[220px] border border-slate-200/80">
+                    <div className="relative flex min-h-[210px] flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_8px_26px_rgba(15,23,42,0.05)]">
                         <div>
                             <p className="text-slate-800 text-[10px] font-black uppercase tracking-widest">MOTİVASYON KÖŞESİ</p>
                             <span className="text-amber-500 font-serif text-4xl leading-none block mt-2 font-bold">“</span>
@@ -712,11 +712,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             </div>
 
             {/* 3. BÖLÜM: HIZLI ERİŞİM */}
-            <div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 pl-1">Hızlı Erişim</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="mx-auto w-full max-w-[1700px] pb-6">
+                <h3 className="mb-3 pl-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Hızlı Erişim</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {izinlerAktifMi && (
-                        <div onClick={() => setActiveModal('izinler')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group">
+                        <div onClick={() => setActiveModal('izinler')} className="group flex cursor-pointer items-center justify-between rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>
                                 <div><h4 className="text-xs font-black text-slate-800 uppercase">İZİNLER</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Personel izin takvimi</p></div>
@@ -725,7 +725,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     )}
                     {hedeflerAktifMi && (
-                        <div onClick={() => setActiveModal('hedefler')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all group">
+                        <div onClick={() => setActiveModal('hedefler')} className="group flex cursor-pointer items-center justify-between rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
                                 <div><h4 className="text-xs font-black text-slate-800 uppercase">HEDEFLER</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Mağaza hedef tablosu</p></div>
@@ -733,7 +733,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     )}
-                    <div onClick={() => setActiveModal('departman')} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-purple-300 transition-all group">
+                    <div onClick={() => setActiveModal('departman')} className="group flex cursor-pointer items-center justify-between rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg></div>
                             <div><h4 className="text-xs font-black text-slate-800 uppercase">RAPORLAR</h4><p className="text-[10px] text-slate-500 font-medium mt-0.5">Detaylı puan raporları</p></div>
@@ -966,7 +966,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <button onClick={() => setActiveModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg></button>
                             </div>
                             <div className="p-6 overflow-y-auto custom-scrollbar bg-slate-50/50">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     {dinamikBaremler.map((barem, i) => {
                                         const hedef = selectedPersonel.hedefler[barem.name] || 0; 
                                         const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
