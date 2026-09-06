@@ -938,8 +938,19 @@ export async function DELETE(request: NextRequest) {
       return json({ success: false, error: 'Geçersiz cihaz kaydı.' }, 400);
     }
 
-    if (!/^[0-9]{15}$/.test(imei) || imei !== confirmImei) {
-      return json({ success: false, error: 'IMEI doğrulaması başarısız.' }, 400);
+    // Legacy test temizliği:
+    // Yeni cihaz girişleri yalnızca 15 hane kabul eder.
+    // Ancak geçmişte 14 veya 16 haneli MANUAL test IMEI'leri oluştuğu için,
+    // sadece Super Admin DELETE işleminde 14-16 haneli rakamsal kayıtların
+    // exact IMEI eşleşmesiyle silinmesine izin veriyoruz.
+    if (!/^[0-9]{14,16}$/.test(imei) || imei !== confirmImei) {
+      return json(
+        {
+          success: false,
+          error: 'IMEI doğrulaması başarısız. Silme için kayıtlı IMEI’yi aynen girin.',
+        },
+        400
+      );
     }
 
     client = await getPool().connect();
