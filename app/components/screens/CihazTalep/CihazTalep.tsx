@@ -54,6 +54,7 @@ const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 // ======================================================
 const [postgresCihazTalepData, setPostgresCihazTalepData] = useState<any[][]>([]);
 const [postgresCanManage, setPostgresCanManage] = useState(false);
+const [postgresCapacity, setPostgresCapacity] = useState<any>(null);
 const [postgresLoading, setPostgresLoading] = useState(false);
 const [postgresError, setPostgresError] = useState('');
 
@@ -89,6 +90,7 @@ const loadPostgresStock = async () => {
     }
 
     setPostgresCanManage(Boolean(stockJson?.canManage));
+    setPostgresCapacity(stockJson?.capacity || null);
 
     const requests = Array.isArray(requestJson?.requests)
       ? requestJson.requests
@@ -207,6 +209,7 @@ const loadPostgresStock = async () => {
     console.error('PostgreSQL cihaz talep yükleme hatası:', error);
     setPostgresCihazTalepData([]);
     setPostgresCanManage(false);
+    setPostgresCapacity(null);
     setPostgresError(error?.message || 'Mağaza stoğu alınamadı.');
   } finally {
     setPostgresLoading(false);
@@ -1331,6 +1334,105 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     </div>
                   </div>
                 </section>
+
+                {stockSourceBranch && postgresCapacity && (
+                  <section className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-sm">
+                    {(() => {
+                      const maxStock =
+                        postgresCapacity?.max_stock === null ||
+                        typeof postgresCapacity?.max_stock === 'undefined'
+                          ? null
+                          : Number(postgresCapacity.max_stock);
+                      const currentStock = Number(postgresCapacity?.current_stock || 0);
+                      const incomingWaiting = Number(postgresCapacity?.incoming_waiting || 0);
+                      const usedCapacity = Number(
+                        postgresCapacity?.used_capacity ?? currentStock + incomingWaiting
+                      );
+                      const remainingCapacity =
+                        maxStock === null
+                          ? null
+                          : Number(
+                              postgresCapacity?.remaining_capacity ??
+                                Math.max(maxStock - usedCapacity, 0)
+                            );
+                      const percent =
+                        maxStock && maxStock > 0
+                          ? Math.min(100, Math.max(0, Math.round((usedCapacity / maxStock) * 100)))
+                          : 0;
+
+                      return (
+                        <div className="p-4 sm:p-5">
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                  MAĞAZA KAPASİTESİ
+                                </div>
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-[9px] font-black ${
+                                    postgresCapacity?.can_request === false
+                                      ? 'bg-red-50 text-red-600'
+                                      : 'bg-emerald-50 text-emerald-600'
+                                  }`}
+                                >
+                                  {postgresCapacity?.can_request === false ? 'KAPASİTE DOLU' : 'TALEBE AÇIK'}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
+                                <div className="text-3xl font-black tracking-tight text-slate-950">
+                                  {maxStock === null ? `${currentStock} / ∞` : `${usedCapacity} / ${maxStock}`}
+                                </div>
+                                <div className="pb-1 text-[10px] font-bold text-slate-400">
+                                  {maxStock === null
+                                    ? 'CNET sınırsız kapasite'
+                                    : `${remainingCapacity ?? 0} boş kapasite`}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 sm:min-w-[390px]">
+                              <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Mevcut Stok</div>
+                                <div className="mt-1 text-xl font-black text-slate-900">{currentStock}</div>
+                              </div>
+                              <div className="rounded-2xl bg-blue-50 px-3 py-3 text-center">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-blue-400">Rezerve</div>
+                                <div className="mt-1 text-xl font-black text-blue-700">{incomingWaiting}</div>
+                              </div>
+                              <div className="rounded-2xl bg-emerald-50 px-3 py-3 text-center">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-emerald-500">Boş</div>
+                                <div className="mt-1 text-xl font-black text-emerald-700">
+                                  {remainingCapacity === null ? '∞' : remainingCapacity}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {maxStock !== null && (
+                            <div className="mt-4">
+                              <div className="mb-1.5 flex items-center justify-between text-[9px] font-black text-slate-400">
+                                <span>KULLANILAN KAPASİTE</span>
+                                <span>%{percent}</span>
+                              </div>
+                              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-3 text-[9px] font-semibold leading-4 text-slate-400">
+                            Rezerve kapasite; bu mağazanın yaptığı PENDING / SENT / TRANSFER_WAITING taleplerini içerir.
+                            WingSM bağlandığında mevcut stok verisi WingSM senkronundan beslenecek; mağaza limitleri panelde bizim belirlediğimiz değerler olarak kalacak.
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </section>
+                )}
 
                 {stockSourceBranch && (postgresLoading || postgresError) && (
                   <div
