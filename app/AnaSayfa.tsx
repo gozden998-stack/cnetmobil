@@ -23,15 +23,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         loading: true,
     });
 
-    const weatherCityForBranch = (branch: string) => {
+    const weatherLocationForBranch = (branch: string) => {
         const b = String(branch || '').toLocaleUpperCase('tr-TR');
 
-        if (b.includes('SARAY')) return 'Saray Tekirdağ';
-        if (b.includes('KAPAKLI')) return 'Kapaklı Tekirdağ';
+        if (b.includes('SARAY')) {
+            return { city: 'Saray', latitude: 41.4420, longitude: 27.9210 };
+        }
 
-        // CMR Merkez, CMR Cadde, Vodafone ve diğer kanallar
-        // için merkez bölge olarak Çerkezköy kullanılır.
-        return 'Çerkezköy Tekirdağ';
+        if (b.includes('KAPAKLI')) {
+            return { city: 'Kapaklı', latitude: 41.3291, longitude: 27.9785 };
+        }
+
+        // CMR Merkez, CMR Cadde, CNET ve Vodafone/ZUMAY kanalları
+        // için Çerkezköy merkez hava durumu gösterilir.
+        return { city: 'Çerkezköy', latitude: 41.2850, longitude: 27.9990 };
     };
 
     const weatherDescription = (code: number | null) => {
@@ -65,17 +70,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         let cancelled = false;
 
         const loadWeather = async () => {
-            const cityQuery = weatherCityForBranch(selectedBranch);
-            const cacheKey = `cnet_weather_${cityQuery}`;
+            const location = weatherLocationForBranch(selectedBranch);
+            const cacheKey = `cnet_weather_${location.city}`;
 
             try {
-                const cachedRaw = typeof window !== 'undefined'
-                    ? sessionStorage.getItem(cacheKey)
-                    : null;
+                const cachedRaw =
+                    typeof window !== 'undefined'
+                        ? sessionStorage.getItem(cacheKey)
+                        : null;
 
                 if (cachedRaw) {
                     const cached = JSON.parse(cachedRaw);
-                    if (cached?.savedAt && Date.now() - cached.savedAt < 30 * 60 * 1000) {
+
+                    // 20 dakika boyunca tekrar API çağrısı yapma.
+                    if (
+                        cached?.savedAt &&
+                        Date.now() - cached.savedAt < 20 * 60 * 1000
+                    ) {
                         if (!cancelled) {
                             setWeather({ ...cached.data, loading: false });
                         }
@@ -85,49 +96,82 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             } catch (_) {}
 
             if (!cancelled) {
-                setWeather((prev) => ({ ...prev, city: cityQuery.split(' ')[0], loading: true }));
+                setWeather((prev) => ({
+                    ...prev,
+                    city: location.city,
+                    loading: true,
+                }));
             }
 
             try {
-                const geoRes = await fetch(
-                    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityQuery)}&count=1&language=tr&format=json`,
-                    { cache: 'no-store' }
-                );
-                const geo = await geoRes.json();
-                const place = geo?.results?.[0];
-
-                if (!place) throw new Error('Konum bulunamadı');
-
                 const weatherRes = await fetch(
-                    `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=Europe%2FIstanbul`,
-                    { cache: 'no-store' }
+                    `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=Europe%2FIstanbul`,
+                    {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: { Accept: 'application/json' },
+                    }
                 );
+
+                if (!weatherRes.ok) {
+                    throw new Error(`Hava servisi hatası (${weatherRes.status})`);
+                }
+
                 const weatherJson = await weatherRes.json();
                 const current = weatherJson?.current;
 
+                if (!current) {
+                    throw new Error('Hava durumu verisi boş geldi.');
+                }
+
                 const nextWeather = {
-                    city: String(place.name || cityQuery.split(' ')[0]),
-                    temperature: typeof current?.temperature_2m === 'number' ? current.temperature_2m : null,
-                    apparentTemperature: typeof current?.apparent_temperature === 'number' ? current.apparent_temperature : null,
-                    weatherCode: typeof current?.weather_code === 'number' ? current.weather_code : null,
-                    windSpeed: typeof current?.wind_speed_10m === 'number' ? current.wind_speed_10m : null,
+                    city: location.city,
+                    temperature:
+                        typeof current?.temperature_2m === 'number'
+                            ? current.temperature_2m
+                            : null,
+                    apparentTemperature:
+                        typeof current?.apparent_temperature === 'number'
+                            ? current.apparent_temperature
+                            : null,
+                    weatherCode:
+                        typeof current?.weather_code === 'number'
+                            ? current.weather_code
+                            : null,
+                    windSpeed:
+                        typeof current?.wind_speed_10m === 'number'
+                            ? current.wind_speed_10m
+                            : null,
                     loading: false,
                 };
 
-                if (!cancelled) setWeather(nextWeather);
+                if (!cancelled) {
+                    setWeather(nextWeather);
+                }
 
                 try {
                     if (typeof window !== 'undefined') {
                         sessionStorage.setItem(
                             cacheKey,
-                            JSON.stringify({ savedAt: Date.now(), data: nextWeather })
+                            JSON.stringify({
+                                savedAt: Date.now(),
+                                data: nextWeather,
+                            })
                         );
                     }
                 } catch (_) {}
             } catch (error) {
                 console.error('Hava durumu alınamadı:', error);
+
                 if (!cancelled) {
-                    setWeather((prev) => ({ ...prev, loading: false }));
+                    setWeather({
+                        city: location.city,
+                        temperature: null,
+                        apparentTemperature: null,
+                        weatherCode: null,
+                        windSpeed: null,
+                        loading: false,
+                    });
                 }
             }
         };
@@ -561,12 +605,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* ÜST KARŞILAMA */}
                 <section className="mb-4 overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_10px_32px_rgba(15,23,42,0.055)]">
-                    <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr]">
-                        <div className="relative overflow-hidden px-5 py-5 sm:px-7">
+                    <div className="grid grid-cols-1 xl:grid-cols-[0.70fr_1.30fr]">
+                        <div className="relative overflow-hidden px-6 py-5 sm:px-7">
                             <div className="pointer-events-none absolute -bottom-16 left-24 h-40 w-40 rounded-full bg-blue-100/50 blur-3xl" />
                             <div className="pointer-events-none absolute -right-8 -top-12 h-44 w-44 rounded-full bg-violet-100/60 blur-3xl" />
 
-                            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="relative z-10 flex min-h-[104px] items-center">
                                 <div>
                                     <div className="mb-1 flex items-center gap-2">
                                         <span className="text-[13px] font-bold text-slate-500">{selamlama} 👋</span>
@@ -583,21 +627,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         Bugün de hedefe birlikte ilerliyoruz.
                                     </p>
                                 </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setAppMode('alim')}
-                                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-wider text-white shadow-[0_8px_20px_rgba(37,99,235,0.22)] transition hover:bg-blue-700"
-                                >
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Cihaz Alımı Başlat
-                                </button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2 xl:grid-cols-4 xl:border-l xl:border-t-0">
+                        <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-2 xl:grid-cols-4 xl:border-l xl:border-t-0">
                             <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -606,7 +639,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </div>
                                 <div>
                                     <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Bugün</div>
-                                    <div className="text-[13px] font-black capitalize text-slate-800">{tarihMetni}</div>
+                                    <div className="text-[12px] font-black capitalize leading-tight text-slate-800">{tarihMetni}</div>
                                     <div className="text-[9px] font-bold capitalize text-slate-400">{gunMetni}</div>
                                 </div>
                             </div>
@@ -617,7 +650,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </div>
                                 <div className="min-w-0">
                                     <div className="truncate text-[9px] font-black uppercase tracking-wider text-slate-400">
-                                        {weather.city || weatherCityForBranch(selectedBranch).split(' ')[0]}
+                                        {weather.city || weatherLocationForBranch(selectedBranch).city}
                                     </div>
                                     {weather.loading ? (
                                         <div className="mt-1 text-[10px] font-black text-slate-400">Hava alınıyor...</div>
@@ -647,7 +680,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </div>
                                 <div className="min-w-0">
                                     <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Son Güncelleme</div>
-                                    <div className="truncate text-[13px] font-black text-slate-800">{lastUpdatedDate || 'Bilinmiyor'}</div>
+                                    <div className="truncate text-[11px] font-black leading-tight text-slate-800">{lastUpdatedDate || 'Bilinmiyor'}</div>
                                     <div className="mt-0.5 flex items-center gap-1.5 text-[9px] font-bold text-emerald-600">
                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                         Veriler güncel
