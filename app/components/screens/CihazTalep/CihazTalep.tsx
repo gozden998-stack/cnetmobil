@@ -47,6 +47,7 @@ const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | nu
 const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
 const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
 const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+const [transferBekleyenModalOpen, setTransferBekleyenModalOpen] = useState(false);
 
 // ======================================================
 // POSTGRESQL MAĞAZA STOK KÖPRÜSÜ
@@ -55,6 +56,7 @@ const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 const [postgresCihazTalepData, setPostgresCihazTalepData] = useState<any[][]>([]);
 const [postgresCanManage, setPostgresCanManage] = useState(false);
 const [postgresCapacity, setPostgresCapacity] = useState<any>(null);
+const [postgresRequests, setPostgresRequests] = useState<any[]>([]);
 const [postgresLoading, setPostgresLoading] = useState(false);
 const [postgresError, setPostgresError] = useState('');
 
@@ -95,6 +97,8 @@ const loadPostgresStock = async () => {
     const requests = Array.isArray(requestJson?.requests)
       ? requestJson.requests
       : [];
+
+    setPostgresRequests(requests);
 
     const activeRequestByDevice = new Map<number, any>();
 
@@ -210,6 +214,7 @@ const loadPostgresStock = async () => {
     setPostgresCihazTalepData([]);
     setPostgresCanManage(false);
     setPostgresCapacity(null);
+    setPostgresRequests([]);
     setPostgresError(error?.message || 'Mağaza stoğu alınamadı.');
   } finally {
     setPostgresLoading(false);
@@ -948,6 +953,19 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
   }
 };
 
+  const transferBekleyenTalepler = stockSourceBranch
+    ? postgresRequests.filter((request: any) =>
+        String(request?.request_status || '').toUpperCase() === 'TRANSFER_WAITING'
+      )
+    : [];
+
+  const formatTransferDate = (value: any) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('tr-TR');
+  };
+
   return (
     <>
       {(() => {
@@ -1534,6 +1552,24 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     >
                       Temizle
                     </button>
+
+                    {stockSourceBranch && (
+                      <button
+                        type="button"
+                        onClick={() => setTransferBekleyenModalOpen(true)}
+                        className="relative flex h-12 items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 text-[10px] font-black uppercase tracking-wider text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 active:scale-[0.99]"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 17L17 7M7 7h10v10" />
+                        </svg>
+                        Transfer Bekleyen
+                        {transferBekleyenTalepler.length > 0 && (
+                          <span className="ml-1 inline-flex min-w-[22px] items-center justify-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] text-white">
+                            {transferBekleyenTalepler.length}
+                          </span>
+                        )}
+                      </button>
+                    )}
 
                     {canManageCihazStock && (
                       <div className="flex flex-col gap-2 sm:flex-row">
@@ -2715,6 +2751,109 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
             )}
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* TRANSFER BEKLEYEN MODALI - WINGSM SONRADAN TAMAMLAYACAK */}
+{transferBekleyenModalOpen && (
+  <div className="fixed inset-0 z-[145] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
+    <div className="relative flex max-h-[86vh] w-full max-w-6xl flex-col overflow-hidden rounded-[36px] border border-violet-100 bg-white shadow-2xl">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-5 text-white sm:px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 17L17 7M7 7h10v10" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-black sm:text-2xl">TRANSFER BEKLEYENLER</h3>
+            <p className="mt-1 text-xs font-bold text-violet-100">
+              Gönderildi verilen ve WingSM mağaza transferi henüz doğrulanmayan cihazlar
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setTransferBekleyenModalOpen(false)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xl font-black text-white transition hover:bg-white/20"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="overflow-y-auto p-5 custom-scrollbar sm:p-7">
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
+            <div className="text-[9px] font-black uppercase tracking-widest text-violet-500">Bekleyen Transfer</div>
+            <div className="mt-1 text-2xl font-black text-violet-800">{transferBekleyenTalepler.length}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Kural</div>
+            <div className="mt-1 text-xs font-bold leading-5 text-slate-600">
+              Bu aşamada cihazın mağazası değişmez. WingSM aynı IMEI'nin hedef mağazaya transferini doğruladığında transfer tamamlanacak.
+            </div>
+          </div>
+        </div>
+
+        {transferBekleyenTalepler.length === 0 ? (
+          <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-16 text-center">
+            <div className="text-sm font-black uppercase tracking-widest text-slate-400">Transfer bekleyen cihaz yok</div>
+            <div className="mt-2 text-xs font-semibold text-slate-400">Gönderildi verilen cihazlar burada otomatik görünür.</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-[28px] border border-slate-200">
+            <table className="w-full min-w-[980px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                  <th className="px-5 py-4">IMEI</th>
+                  <th className="px-5 py-4">Cihaz</th>
+                  <th className="px-5 py-4">Hafıza</th>
+                  <th className="px-5 py-4">Transfer</th>
+                  <th className="px-5 py-4">Gönderildi</th>
+                  <th className="px-5 py-4 text-right">Durum</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transferBekleyenTalepler.map((request: any) => {
+                  const markaModel = [request?.brand, request?.model]
+                    .map((value: any) => String(value || '').trim())
+                    .filter(Boolean)
+                    .join(' ') || '-';
+                  const source = String(request?.owner_branch_code || request?.current_branch_code || '-');
+                  const target = String(request?.requester_branch_code || '-');
+
+                  return (
+                    <tr key={String(request?.request_id || request?.device_id || request?.imei)} className="border-b border-slate-100 last:border-0 hover:bg-violet-50/30">
+                      <td className="px-5 py-4 font-mono text-[11px] font-black text-slate-800">{request?.imei || '-'}</td>
+                      <td className="px-5 py-4">
+                        <div className="font-black text-slate-900">{markaModel}</div>
+                        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">İstek #{request?.request_id || '-'}</div>
+                      </td>
+                      <td className="px-5 py-4 font-bold text-slate-600">{request?.memory || '-'}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 font-black text-slate-800">
+                          <span className="rounded-lg bg-slate-100 px-2.5 py-1">{source}</span>
+                          <span className="text-violet-500">→</span>
+                          <span className="rounded-lg bg-violet-100 px-2.5 py-1 text-violet-700">{target}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 font-bold text-slate-500">{formatTransferDate(request?.sent_at || request?.decision_at)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-violet-700">
+                          WINGSM TRANSFERİ BEKLENİYOR
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   </div>
