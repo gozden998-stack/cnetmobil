@@ -592,7 +592,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     });
 
     const topMagazalar = tumMagazalarSiralama.slice(0, 5);
-    const topPersoneller = tumSirketPersonelleri.slice(0, 5);
+    // En iyi personeller seçili mağazaya göre gösterilir.
+    // Böylece CMR MERKEZ, CMR KAPAKLI, CMR CADDE, CMR SARAY hangi mağaza seçilirse
+    // sadece o mağazanın personelleri sıralanır.
+    const topPersoneller = aktifPersoneller.slice(0, 5);
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-[#F5F8FC] font-sans text-slate-800 animate-in fade-in duration-500">
@@ -701,7 +704,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 </section>
 
-                {/* KPI KARTLARI */}
+                {/* KPI KARTLARI - SADECE CMR */}
+                {isCmr && (
                 <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
                         <div className="flex items-start justify-between">
@@ -772,6 +776,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                 </section>
+                )}
 
                 {/* PERFORMANS + SIRALAMALAR - SADECE CMR */}
                 {isCmr && (
@@ -1045,7 +1050,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </section>
                 )}
 
-                {/* HIZLI ERİŞİM */}
+                {/* HIZLI ERİŞİM - SADECE CMR */}
+                {isCmr && (
                 <section className="mb-6 rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,0.04)]">
                     <div className="mb-3">
                         <h3 className="text-[14px] font-black text-[#102A56]">Hızlı Erişim</h3>
@@ -1098,6 +1104,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </button>
                     </div>
                 </section>
+                )}
             </div>
 
             {/* ========================================================= */}
