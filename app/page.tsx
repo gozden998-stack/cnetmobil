@@ -630,7 +630,6 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
-  const [topQuickSearch, setTopQuickSearch] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
@@ -680,7 +679,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   // --- CİHAZ TALEP STATE'LERİ ---
   // --- CİHAZ TALEP ---
-  // Veri + üst navbar hızlı arama köprüsü parent'ta kalır.
+  // Cihaz Talep verisi ve ekran araması parent'ta kalır.
   const [cihazTalepData, setCihazTalepData] = useState<any[][]>([]);
   const [cihazTalepSearch, setCihazTalepSearch] = useState('');
   const [cihazTalepPage, setCihazTalepPage] = useState(1);
@@ -1833,19 +1832,6 @@ export default function CnetmobilCmrFinalUltimate() {
     .toLocaleUpperCase('tr-TR')
     .slice(0, 2);
 
-  const handleTopQuickSearch = () => {
-    const q = topQuickSearch.trim();
-    if (!q) return;
-
-    if (appMode === 'cihaz_talep') {
-      setCihazTalepSearch(q);
-      setCihazTalepPage(1);
-      return;
-    }
-
-    setSearchQuery(q);
-  };
-
   const navIcon = (id: string) => {
     const common = "h-4 w-4";
 
@@ -2442,46 +2428,6 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             </button>
 
-            {!isZumay && step < 99 && (
-              <div className="hidden min-w-0 flex-1 justify-center xl:flex">
-                <div className="flex h-10 w-full max-w-[330px] items-center rounded-full border border-white/10 bg-white/10 px-4 shadow-inner transition focus-within:border-blue-300/40 focus-within:bg-white/15">
-                  <svg
-                    className="h-4 w-4 shrink-0 text-blue-100/70"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-
-                  <input
-                    value={topQuickSearch}
-                    onChange={(e) => setTopQuickSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleTopQuickSearch();
-                      }
-                    }}
-                    placeholder="Hızlı ara..."
-                    className="min-w-0 flex-1 bg-transparent px-3 text-[11px] font-bold text-white outline-none placeholder:text-blue-100/50"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleTopQuickSearch}
-                    className="rounded-full bg-white/10 px-2.5 py-1 text-[8px] font-black text-blue-100 hover:bg-white/20"
-                  >
-                    ARA
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="flex shrink-0 items-center gap-2">
               {!isZumay && step < 99 && (
                 <>
@@ -2662,7 +2608,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             rect.left + rect.width / 2 - width / 2
                           )
                         ),
-                        top: rect.bottom + 3,
+                        top: rect.bottom - 1,
                         width,
                       });
                     }
@@ -2754,18 +2700,18 @@ export default function CnetmobilCmrFinalUltimate() {
 
                           {cihazTalepMenuOpen && (
                             <div
-                              className="fixed z-[99999] hidden overflow-hidden rounded-xl border border-white/10 bg-[#10233f] py-1.5 shadow-2xl ring-1 ring-black/15 lg:flex lg:flex-col"
+                              className="fixed z-[99999] hidden overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-[0_14px_35px_rgba(15,23,42,0.18)] ring-1 ring-black/5 lg:flex lg:flex-col"
                               style={{
                                 left: cihazTalepMenuPos.left,
                                 top: cihazTalepMenuPos.top,
                                 width: cihazTalepMenuPos.width,
                               }}
                             >
-                              <div className="border-b border-white/10 px-4 py-2.5">
-                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-200/55">
+                              <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
                                   Cihaz Talep
                                 </div>
-                                <div className="mt-0.5 text-[10px] font-black text-white">
+                                <div className="mt-0.5 text-[11px] font-black text-slate-900">
                                   Mağaza Seç
                                 </div>
                               </div>
@@ -2793,33 +2739,33 @@ export default function CnetmobilCmrFinalUltimate() {
                                       resetSelection();
                                       setCihazTalepMenuOpen(false);
                                     }}
-                                    className={`group/sub flex items-center justify-between gap-3 px-4 py-3 text-left transition ${
+                                    className={`group/sub flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 ${
                                       branchActive
-                                        ? 'bg-blue-500/20'
-                                        : 'hover:bg-white/10'
+                                        ? 'bg-blue-50'
+                                        : 'bg-white hover:bg-slate-50'
                                     }`}
                                   >
                                     <div className="min-w-0">
                                       <div
                                         className={`text-[10px] font-black uppercase tracking-wide ${
                                           branchActive
-                                            ? 'text-blue-200'
-                                            : 'text-white/90 group-hover/sub:text-white'
+                                            ? 'text-blue-700'
+                                            : 'text-slate-800 group-hover/sub:text-blue-700'
                                         }`}
                                       >
                                         {branchItem.label}
                                       </div>
 
-                                      <div className="mt-0.5 text-[8px] font-bold text-blue-100/45">
+                                      <div className="mt-0.5 text-[8px] font-bold text-slate-400">
                                         {branchItem.detail}
                                       </div>
                                     </div>
 
                                     <div
-                                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-black transition ${
+                                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black transition ${
                                         branchActive
-                                          ? 'bg-blue-500 text-white'
-                                          : 'bg-white/5 text-blue-200 group-hover/sub:bg-blue-500 group-hover/sub:text-white'
+                                          ? 'bg-blue-600 text-white'
+                                          : 'bg-slate-100 text-slate-500 group-hover/sub:bg-blue-600 group-hover/sub:text-white'
                                       }`}
                                     >
                                       {branchActive ? '✓' : '→'}
@@ -2831,8 +2777,8 @@ export default function CnetmobilCmrFinalUltimate() {
                           )}
 
                           {cihazTalepMenuOpen && (
-                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#10233f] shadow-2xl lg:hidden">
-                              <div className="border-b border-white/10 px-5 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200/70">
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
+                              <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
                                 Cihaz Talep · Mağaza Seç
                               </div>
 
@@ -2854,17 +2800,17 @@ export default function CnetmobilCmrFinalUltimate() {
                                     resetSelection();
                                     setCihazTalepMenuOpen(false);
                                   }}
-                                  className={`border-b border-white/5 px-5 py-4 text-left last:border-0 ${
+                                  className={`border-b border-slate-100 px-5 py-4 text-left last:border-0 ${
                                     cihazTalepSourceBranch === branchItem.code &&
                                     appMode === 'cihaz_talep'
-                                      ? 'bg-blue-500/20'
-                                      : ''
+                                      ? 'bg-blue-50'
+                                      : 'bg-white'
                                   }`}
                                 >
-                                  <div className="text-[11px] font-black uppercase tracking-wide text-white">
+                                  <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">
                                     {branchItem.label}
                                   </div>
-                                  <div className="mt-1 text-[9px] font-bold text-blue-100/55">
+                                  <div className="mt-1 text-[9px] font-bold text-slate-400">
                                     {branchItem.detail}
                                   </div>
                                 </button>
