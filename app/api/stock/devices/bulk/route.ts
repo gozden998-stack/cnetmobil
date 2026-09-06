@@ -283,9 +283,9 @@ function parseDevice(
 
   const imei = normalizeImei(row.imei);
 
-  if (!/^[0-9]{14,16}$/.test(imei)) {
+  if (!/^[0-9]{15}$/.test(imei)) {
     throw new Error(
-      `${rowNumber}. satır: IMEI 14-16 haneli yalnızca rakamlardan oluşmalıdır.`
+      `${rowNumber}. satır: IMEI tam 15 haneli ve yalnızca rakamlardan oluşmalıdır.`
     );
   }
 
