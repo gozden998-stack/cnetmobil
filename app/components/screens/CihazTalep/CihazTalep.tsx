@@ -255,7 +255,7 @@ const [bulkCihazError, setBulkCihazError] = useState('');
 const [bulkCihazParsing, setBulkCihazParsing] = useState(false);
 const [bulkCihazSaving, setBulkCihazSaving] = useState(false);
 const [cihazEkleForm, setCihazEkleForm] = useState({
-  markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+  imei: '', markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
   garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
 });
 
@@ -263,14 +263,41 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
   setCihazTalepDialog({ type: 'message', title, message, tone });
 };
 
+const canManageCihazStock = stockSourceBranch
+  ? Boolean(postgresCanManage || isSuperAdminUser)
+  : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
+
+const inferStockBrand = (value: string) => {
+  const raw = String(value || '').trim();
+  const upper = raw.toLocaleUpperCase('tr-TR');
+
+  if (upper.startsWith('IPH') || upper.startsWith('IPHONE') || upper.startsWith('APPLE')) return 'Apple';
+  if (upper.startsWith('SAM') || upper.startsWith('SAMSUNG')) return 'Samsung';
+  if (upper.startsWith('XIAOMI') || upper.startsWith('REDMI') || upper.startsWith('POCO')) return 'Xiaomi';
+  if (upper.startsWith('HONOR')) return 'Honor';
+  if (upper.startsWith('HUAWEI')) return 'Huawei';
+  if (upper.startsWith('REALME')) return 'Realme';
+  if (upper.startsWith('OPPO')) return 'Oppo';
+  if (upper.startsWith('VIVO')) return 'Vivo';
+  if (upper.startsWith('NUBIA')) return 'Nubia';
+
+  return raw.split(/\s+/)[0] || 'Diğer';
+};
+
 
 const openCihazEkleModal = () => {
-  if (!isAdmin && !isMasterAccess) {
-    showTalepMessage('YETKİ GEREKLİ', 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.', 'error');
+  if (!canManageCihazStock) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      stockSourceBranch
+        ? 'Yalnızca seçili mağazanın kendi kullanıcıları veya Super Admin stok ekleyebilir.'
+        : 'Cihaz ekleme işlemi yalnızca yönetici girişi ile yapılabilir.',
+      'error'
+    );
     return;
   }
   setCihazEkleForm({
-    markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
+    imei: '', markaModel: '', hafiza: '', renk: '', renkDiger: '', pil: '', grade: 'MÜKEMMEL',
     garanti: '', degisenParca: 'Orijinal / Yok', kutuFatura: '', stokAdet: '1'
   });
   setCihazTalepDialog({ type: 'cihaz_ekle' });
@@ -413,15 +440,9 @@ const submitTopluCihazEkle = async () => {
 };
 
 const submitCihazEkle = async () => {
-  if (!isAdmin && !isMasterAccess) return;
+  if (!canManageCihazStock) return;
 
-  if (stockSourceBranch) {
-    return showTalepMessage(
-      'IMEI GEREKLİ',
-      'Yeni stok sisteminde her fiziksel cihaz IMEI ile eklenir. Tekli cihaz ekleme modalını bir sonraki adımda aynı tasarım içinde IMEI alanına bağlıyoruz.',
-      'info'
-    );
-  }
+  const imei = String(cihazEkleForm.imei || '').replace(/\D/g, '').trim();
   const markaModel = cihazEkleForm.markaModel.trim();
   const hafiza = cihazEkleForm.hafiza.trim();
   const renk = (cihazEkleForm.renk === 'DİĞER' ? cihazEkleForm.renkDiger : cihazEkleForm.renk).trim();
@@ -430,12 +451,67 @@ const submitCihazEkle = async () => {
   if (!markaModel || !hafiza || !renk) {
     return showTalepMessage('EKSİK BİLGİ', 'Marka / Model, Hafıza ve Renk alanları zorunludur.', 'error');
   }
-  if (!Number.isInteger(stokAdet) || stokAdet < 1) {
+
+  if (stockSourceBranch && !/^[0-9]{14,16}$/.test(imei)) {
+    return showTalepMessage('GEÇERSİZ IMEI', 'IMEI 14-16 haneli ve yalnızca rakamlardan oluşmalıdır.', 'error');
+  }
+
+  if (!stockSourceBranch && (!Number.isInteger(stokAdet) || stokAdet < 1)) {
     return showTalepMessage('GEÇERSİZ STOK', 'Stok adedi 1 veya daha büyük tam sayı olmalıdır.', 'error');
   }
 
   setCihazEkleSaving(true);
+
   try {
+    if (stockSourceBranch) {
+      const pilText = String(cihazEkleForm.pil || '').replace(/[^0-9]/g, '');
+      const pilValue = pilText === '' ? null : Number(pilText);
+
+      if (pilValue !== null && (!Number.isInteger(pilValue) || pilValue < 0 || pilValue > 100)) {
+        showTalepMessage('GEÇERSİZ PİL', 'Pil yüzdesi 0 ile 100 arasında olmalıdır.', 'error');
+        return;
+      }
+
+      const response = await fetch('/api/stock/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          branchCode: stockSourceBranch,
+          imei,
+          brand: inferStockBrand(markaModel),
+          model: markaModel,
+          memory: hafiza,
+          color: renk,
+          batteryPercent: pilValue,
+          grade: cihazEkleForm.grade.trim(),
+          warranty: cihazEkleForm.garanti.trim(),
+          changedParts: cihazEkleForm.degisenParca.trim(),
+          boxInvoice: cihazEkleForm.kutuFatura.trim(),
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        showTalepMessage(
+          'CİHAZ EKLENEMEDİ',
+          result?.error || 'Cihaz PostgreSQL stoğuna eklenemedi.',
+          'error'
+        );
+        return;
+      }
+
+      setCihazTalepDialog(null);
+      await loadPostgresStock();
+      showTalepMessage(
+        'CİHAZ EKLENDİ',
+        `${markaModel} - ${imei} ${stockSourceBranch} stoğuna eklendi.`,
+        'success'
+      );
+      return;
+    }
+
     const response = await fetch('/api/panel-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -452,11 +528,13 @@ const submitCihazEkle = async () => {
         stokAdet
       })
     });
+
     const result = await response.json();
     if (result.result !== 'success') {
       showTalepMessage('CİHAZ EKLENEMEDİ', result.message || 'Cihaz eklenemedi.', 'error');
       return;
     }
+
     setCihazTalepDialog(null);
     showTalepMessage('CİHAZ EKLENDİ', `${markaModel} (${hafiza} - ${renk}) ${stokAdet} adet stok ile eklendi.`, 'success');
   } catch (e) {
@@ -1283,7 +1361,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       Temizle
                     </button>
 
-                    {(isMasterAccess || isAdmin || isSuperAdminUser) && (
+                    {canManageCihazStock && (
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <button
                           type="button"
@@ -2100,7 +2178,27 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={(e: any) =>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={(e: any) =>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
               <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={(e: any) =>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              {stockSourceBranch ? (
+                <div>
+                  <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">IMEI *</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={16}
+                    value={cihazEkleForm.imei}
+                    onChange={(e: any) =>
+                      setCihazEkleForm(p => ({
+                        ...p,
+                        imei: String(e.target.value || '').replace(/\D/g, '').slice(0, 16)
+                      }))
+                    }
+                    placeholder="35XXXXXXXXXXXXX"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+              ) : (
+                <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              )}
               <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={(e: any) =>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={(e: any) =>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
             </div>
