@@ -48,6 +48,7 @@ const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
 const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
 const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
 const [transferBekleyenModalOpen, setTransferBekleyenModalOpen] = useState(false);
+const [manualTransferCompletingId, setManualTransferCompletingId] = useState<number | null>(null);
 const [hareketGecmisiModalOpen, setHareketGecmisiModalOpen] = useState(false);
 const [hareketGecmisiLoading, setHareketGecmisiLoading] = useState(false);
 const [hareketGecmisiError, setHareketGecmisiError] = useState('');
@@ -1057,6 +1058,62 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
         String(request?.request_status || '').toUpperCase() === 'TRANSFER_WAITING'
       )
     : [];
+
+
+  const completeTransferManualTest = async (request: any) => {
+    if (!isSuperAdminUser || !stockSourceBranch) return;
+
+    const requestId = Number(request?.request_id || 0);
+    if (!requestId) {
+      showTalepMessage('TEST TRANSFERİ', 'Geçerli transfer isteği bulunamadı.', 'error');
+      return;
+    }
+
+    const source = String(request?.owner_branch_code || request?.current_branch_code || '-');
+    const target = String(request?.requester_branch_code || '-');
+    const imei = String(request?.imei || '');
+
+    if (
+      !confirm(
+        `TEST AMAÇLI TRANSFER TAMAMLANSIN MI?\n\nIMEI: ${imei}\n${source} → ${target}\n\nBu işlem cihazı hedef mağazaya taşıyacak. WingSM entegrasyonu geldiğinde bu buton kaldırılacak.`
+      )
+    ) {
+      return;
+    }
+
+    setManualTransferCompletingId(requestId);
+
+    try {
+      const response = await fetch('/api/stock/transfers/test-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ requestId }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Test transferi tamamlanamadı.');
+      }
+
+      await loadPostgresStock();
+
+      showTalepMessage(
+        'TEST TRANSFERİ TAMAMLANDI',
+        `${imei} numaralı cihaz ${source} → ${target} mağazasına taşındı.`,
+        'success'
+      );
+    } catch (error: any) {
+      showTalepMessage(
+        'TEST TRANSFERİ BAŞARISIZ',
+        error?.message || 'Test transferi tamamlanamadı.',
+        'error'
+      );
+    } finally {
+      setManualTransferCompletingId(null);
+    }
+  };
 
 
   const getIstanbulDate = (dayOffset = 0) => {
@@ -3115,6 +3172,9 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   <th className="px-5 py-4">Transfer</th>
                   <th className="px-5 py-4">Gönderildi</th>
                   <th className="px-5 py-4 text-right">Durum</th>
+                  {isSuperAdminUser && (
+                    <th className="px-5 py-4 text-right">Test İşlemi</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -3147,6 +3207,21 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           WINGSM TRANSFERİ BEKLENİYOR
                         </span>
                       </td>
+                      {isSuperAdminUser && (
+                        <td className="px-5 py-4 text-right">
+                          <button
+                            type="button"
+                            disabled={manualTransferCompletingId === Number(request?.request_id)}
+                            onClick={() => completeTransferManualTest(request)}
+                            className="inline-flex min-w-[150px] items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-amber-700 transition hover:bg-amber-500 hover:text-white disabled:cursor-wait disabled:opacity-50"
+                            title="Sadece WingSM gelmeden önce test amacıyla kullanılır"
+                          >
+                            {manualTransferCompletingId === Number(request?.request_id)
+                              ? 'TAMAMLANIYOR...'
+                              : 'TEST TRANSFERİNİ TAMAMLA'}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
