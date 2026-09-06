@@ -463,7 +463,7 @@ export async function POST(request: NextRequest) {
 
     const imei = normalizeImei(data.imei);
 
-    if (!/^[0-9]{14,16}$/.test(imei)) {
+    if (!/^[0-9]{15}$/.test(imei)) {
       return json(
         {
           success: false,
@@ -890,4 +890,164 @@ export async function PATCH(request: NextRequest) {
     client?.release();
   }
 }
+// ============================================================
+// DELETE /api/stock/devices
+// Super Admin test temizliği.
+// SADECE source='MANUAL' cihazlar tamamen silinebilir.
+// WingSM / entegrasyon kaynaklı gerçek cihazlar bu endpoint ile silinemez.
+// ============================================================
+export async function DELETE(request: NextRequest) {
+  let client: PoolClient | null = null;
 
+  try {
+    if (!validateOrigin(request)) {
+      return json({ success: false, error: 'Geçersiz istek kaynağı.' }, 403);
+    }
+
+    const user = await getAuthenticatedUser(request);
+
+    if (!user) {
+      return json({ success: false, error: 'Oturum gerekli.' }, 401);
+    }
+
+    if (!user.isSuperAdmin) {
+      return json(
+        { success: false, error: 'Bu işlem yalnızca Super Admin tarafından yapılabilir.' },
+        403
+      );
+    }
+
+    const contentLength = Number(request.headers.get('content-length') || 0);
+
+    if (contentLength > 20_000) {
+      return json({ success: false, error: 'İstek çok büyük.' }, 413);
+    }
+
+    const body = await request.json().catch(() => null);
+
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ success: false, error: 'Geçersiz istek.' }, 400);
+    }
+
+    const data = body as Record<string, unknown>;
+    const deviceId = Number(data.deviceId);
+    const imei = normalizeImei(data.imei);
+    const confirmImei = normalizeImei(data.confirmImei);
+
+    if (!Number.isInteger(deviceId) || deviceId < 1) {
+      return json({ success: false, error: 'Geçersiz cihaz kaydı.' }, 400);
+    }
+
+    if (!/^[0-9]{15}$/.test(imei) || imei !== confirmImei) {
+      return json({ success: false, error: 'IMEI doğrulaması başarısız.' }, 400);
+    }
+
+    client = await getPool().connect();
+    await client.query('BEGIN');
+
+    const deviceResult = await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          current_branch_code,
+          status,
+          source
+        FROM public.stock_devices
+        WHERE id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [deviceId]
+    );
+
+    if (deviceResult.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      return json({ success: false, error: 'Cihaz bulunamadı.' }, 404);
+    }
+
+    const device = deviceResult.rows[0];
+
+    if (String(device.imei || '') !== imei) {
+      await client.query('ROLLBACK');
+      return json({ success: false, error: 'IMEI cihaz kaydıyla eşleşmiyor.' }, 409);
+    }
+
+    if (String(device.source || '').toUpperCase() !== 'MANUAL') {
+      await client.query('ROLLBACK');
+      return json(
+        {
+          success: false,
+          error: 'Bu cihaz manuel test kaydı değil. WingSM / entegrasyon cihazları tamamen silinemez.',
+        },
+        409
+      );
+    }
+
+    // Child kayıtlar önce temizlenir.
+    const transfersResult = await client.query(
+      `DELETE FROM public.device_transfers WHERE device_id = $1 RETURNING id`,
+      [deviceId]
+    );
+
+    const requestsResult = await client.query(
+      `DELETE FROM public.device_requests WHERE device_id = $1 RETURNING id`,
+      [deviceId]
+    );
+
+    const eventsResult = await client.query(
+      `DELETE FROM public.stock_events WHERE device_id = $1 OR imei = $2 RETURNING id`,
+      [deviceId, imei]
+    );
+
+    const deleteDeviceResult = await client.query(
+      `
+        DELETE FROM public.stock_devices
+        WHERE id = $1
+          AND imei = $2
+          AND UPPER(COALESCE(source, '')) = 'MANUAL'
+        RETURNING id, imei
+      `,
+      [deviceId, imei]
+    );
+
+    if (deleteDeviceResult.rowCount !== 1) {
+      throw new Error('Cihaz silme işlemi tamamlanamadı.');
+    }
+
+    await client.query('COMMIT');
+
+    return json({
+      success: true,
+      message: 'Test cihazı tamamen silindi.',
+      deleted: {
+        deviceId,
+        imei,
+        transfers: transfersResult.rowCount ?? 0,
+        requests: requestsResult.rowCount ?? 0,
+        events: eventsResult.rowCount ?? 0,
+      },
+    });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+    }
+
+    console.error('STOCK DEVICES DELETE ERROR:', error);
+
+    return json(
+      {
+        success: false,
+        error: 'Test cihazı silinemedi. Bağlı başka bir kayıt varsa önce kontrol edilmelidir.',
+      },
+      500
+    );
+  } finally {
+    client?.release();
+  }
+}
