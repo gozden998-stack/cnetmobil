@@ -3413,7 +3413,7 @@ export default function CnetmobilCmrFinalUltimate() {
               setCihazTalepPage={setCihazTalepPage}
               openActiveRequestsSignal={cihazTalepOpenActiveSignal}
               selectedBranch={selectedBranch}
-              stockBranchCode={cihazTalepSourceBranch}
+              sourceBranch={cihazTalepSourceBranch}
               isAdmin={isAdmin}
               isMasterAccess={isMasterAccess}
               isSuperAdminUser={isSuperAdminUser}
