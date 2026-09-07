@@ -86,7 +86,6 @@ type ListingDraftForm = {
   color: string;
   grade: string;
   warranty: string;
-  referenceProductUrl: string;
   salePrice: string;
   listPrice: string;
 };
@@ -159,7 +158,6 @@ const EMPTY_DRAFT_FORM: ListingDraftForm = {
   color: "",
   grade: "",
   warranty: "",
-  referenceProductUrl: "",
   salePrice: "",
   listPrice: "",
 };
@@ -349,7 +347,6 @@ export default function Online() {
           color: draftForm.color,
           grade: draftForm.grade,
           warranty: draftForm.warranty,
-          referenceProductUrl: draftForm.referenceProductUrl,
           salePrice: draftForm.salePrice,
           listPrice: draftForm.listPrice,
         }),
@@ -1259,7 +1256,7 @@ export default function Online() {
                     Yeni Ürün Aç
                   </h3>
                   <p className="mt-1 text-[12px] font-semibold text-slate-500">
-                    Cihaz bilgilerini ve N11 fiyatlarını girin. N11&apos;e gerçek ürün oluşturulur. stockCode otomatik olarak IMEI olur.
+                    Cihaz bilgilerini ve N11 fiyatlarını girin. N11 genel kataloğunda otomatik aranır ve yeni IMEI ile gerçek ürün oluşturulur.
                   </p>
                 </div>
 
@@ -1396,26 +1393,6 @@ export default function Online() {
                     />
                   </label>
 
-                  <label className="md:col-span-2">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      N11 Örnek Ürün Linki
-                    </div>
-                    <input
-                      value={draftForm.referenceProductUrl}
-                      onChange={(event) =>
-                        setDraftForm((current) => ({
-                          ...current,
-                          referenceProductUrl: event.target.value,
-                        }))
-                      }
-                      placeholder="https://www.n11.com/urun/..."
-                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                    />
-                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
-                      Aynı ürünün kendi N11 mağazanızdaki ürün sayfası linkini yapıştır. Sistem ürün kodu, kategori, özellik ve görseli bu linkten otomatik alır.
-                    </div>
-                  </label>
-
                   <label>
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       N11 Satış Fiyatı
@@ -1452,7 +1429,7 @@ export default function Online() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
-                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. Örnek N11 ürün linkinden kategori/özellik/görsel alınır ve yeni IMEI ile N11 ürünü açılır.
+                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. N11 genel kataloğunda Marka / Model / Hafıza / Renk otomatik aranır. catalogId bulunursa yeni IMEI ile stok 1 ürün açılır.
                 </div>
 
                 {draftError ? (
