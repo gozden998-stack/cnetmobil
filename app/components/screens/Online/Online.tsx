@@ -1,0 +1,625 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
+type OnlineChannel = {
+  id: number;
+  channel: string;
+  enabled: boolean;
+  integrator_name: string | null;
+  default_currency: string;
+  default_vat_rate: number | null;
+  default_preparing_day: number | null;
+  default_shipment_template: string | null;
+  auto_stock_sync: boolean;
+  auto_price_sync: boolean;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type OnlineStats = {
+  totalProducts: number;
+  totalStock: number;
+  averageSalePrice: number;
+  onSaleCount: number;
+  outOfStockCount: number;
+  saleClosedCount: number;
+  activeProductCount: number;
+  matchedDeviceCount: number;
+  unmatchedDeviceCount: number;
+};
+
+type OnlineListing = {
+  id: number;
+  channel: string;
+  stock_device_id: number | null;
+  external_product_id: string | null;
+  external_stock_code: string;
+  external_product_main_id: string | null;
+  category_id: number | null;
+  title: string | null;
+  sale_price: string | number | null;
+  list_price: string | number | null;
+  quantity: number;
+  product_status: string | null;
+  sale_status: string | null;
+  sync_status: string;
+  last_task_id: string | null;
+  last_task_status: string | null;
+  last_error: string | null;
+  attributes: unknown;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+
+  device_imei: string | null;
+  device_brand: string | null;
+  device_model: string | null;
+  device_memory: string | null;
+  device_color: string | null;
+  device_battery_percent: number | null;
+  device_grade: string | null;
+  device_warranty: string | null;
+  device_changed_parts: string | null;
+  device_box_invoice: string | null;
+  device_branch_code: string | null;
+  device_status: string | null;
+  device_source: string | null;
+};
+
+type OnlineTask = {
+  id: number;
+  channel: string;
+  task_id: string;
+  task_type: string | null;
+  task_status: string | null;
+  stock_code: string | null;
+  online_listing_id: number | null;
+  reasons: unknown;
+  error_message: string | null;
+  created_at: string;
+  checked_at: string | null;
+  completed_at: string | null;
+};
+
+type OnlineResponse = {
+  success: boolean;
+  error?: string;
+  apiConnected: boolean;
+  apiConfigured: boolean;
+  channel: OnlineChannel | null;
+  stats: OnlineStats;
+  listings: OnlineListing[];
+  count: number;
+  tasks: OnlineTask[];
+  taskCount: number;
+};
+
+const EMPTY_STATS: OnlineStats = {
+  totalProducts: 0,
+  totalStock: 0,
+  averageSalePrice: 0,
+  onSaleCount: 0,
+  outOfStockCount: 0,
+  saleClosedCount: 0,
+  activeProductCount: 0,
+  matchedDeviceCount: 0,
+  unmatchedDeviceCount: 0,
+};
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function getStatusBadge(
+  productStatus: string | null,
+  saleStatus: string | null,
+  quantity: number
+) {
+  if (quantity <= 0 || saleStatus === "Out_Of_Stock") {
+    return {
+      label: "Stok Yok",
+      className: "bg-red-50 text-red-700 ring-red-100",
+    };
+  }
+
+  if (saleStatus === "On_Sale" && productStatus === "Active") {
+    return {
+      label: "Yayında",
+      className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    };
+  }
+
+  if (saleStatus === "Sale_Closed") {
+    return {
+      label: "Satış Kapalı",
+      className: "bg-amber-50 text-amber-700 ring-amber-100",
+    };
+  }
+
+  return {
+    label: saleStatus || productStatus || "Bekliyor",
+    className: "bg-slate-100 text-slate-700 ring-slate-200",
+  };
+}
+
+export default function Online() {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [data, setData] = useState<OnlineResponse | null>(null);
+  const [search, setSearch] = useState("");
+
+  const loadData = useCallback(async (silent = false) => {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    setError("");
+
+    try {
+      const response = await fetch("/api/online", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | OnlineResponse
+        | null;
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "ONLINE verileri alınamadı.");
+      }
+
+      setData(payload);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "ONLINE verileri alınamadı."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData(false);
+  }, [loadData]);
+
+  const stats = data?.stats ?? EMPTY_STATS;
+  const channel = data?.channel ?? null;
+  const listings = data?.listings ?? [];
+
+  const filteredListings = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase("tr-TR");
+
+    if (!q) return listings;
+
+    return listings.filter((item) => {
+      const haystack = [
+        item.title,
+        item.external_stock_code,
+        item.external_product_id,
+        item.device_imei,
+        item.device_brand,
+        item.device_model,
+        item.device_memory,
+        item.device_color,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("tr-TR");
+
+      return haystack.includes(q);
+    });
+  }, [listings, search]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[420px] w-full items-center justify-center">
+        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm font-black text-slate-600 shadow-sm">
+          ONLINE verileri yükleniyor...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full animate-in fade-in duration-300">
+      <div className="space-y-4">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_340px]">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.06)] sm:p-6">
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.15fr)_minmax(560px,0.85fr)]">
+              <div className="flex min-h-[160px] items-center gap-4 rounded-[24px] border border-slate-100 bg-gradient-to-br from-white via-white to-violet-50/40 px-5 py-5 sm:px-6">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[26px] bg-violet-50 shadow-inner">
+                  <div className="text-5xl font-black tracking-tight text-violet-700">
+                    n11
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[28px] font-black tracking-tight text-slate-900">
+                      N11 Entegrasyonu
+                    </h2>
+
+                    {data?.apiConnected ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Bağlı
+                      </span>
+                    ) : data?.apiConfigured ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700 ring-1 ring-amber-200">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        Bağlantı Bekliyor
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600 ring-1 ring-slate-200">
+                        <span className="h-2 w-2 rounded-full bg-slate-400" />
+                        API Yapılandırılmadı
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-2 max-w-2xl text-[14px] font-semibold leading-6 text-slate-500">
+                    ONLINE modülü PostgreSQL verilerini kullanıyor. N11 API bağlantısı
+                    henüz aktif değil.
+                  </p>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] font-bold text-slate-500">
+                    <div className="inline-flex items-center gap-2">
+                      <span className="text-slate-400">Son senkronizasyon:</span>
+                      <span className="font-black text-slate-700">
+                        {formatDate(channel?.last_sync_at)}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void loadData(true)}
+                      disabled={refreshing}
+                      className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 px-3 text-[11px] font-black uppercase tracking-wider text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {refreshing ? "Yenileniyor..." : "Yenile"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 2xl:grid-cols-3">
+                <div className="rounded-[22px] border border-blue-100 bg-white p-4 shadow-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl font-black text-blue-600">
+                    ◫
+                  </div>
+                  <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Toplam Ürün
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-900">
+                    {stats.totalProducts}
+                  </div>
+                  <div className="mt-1 text-[12px] font-semibold text-slate-500">
+                    PostgreSQL kayıtları
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-violet-100 bg-white p-4 shadow-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-xl font-black text-violet-600">
+                    ◈
+                  </div>
+                  <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Toplam Stok
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-900">
+                    {stats.totalStock}
+                  </div>
+                  <div className="mt-1 text-[12px] font-semibold text-slate-500">
+                    ONLINE toplam adet
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-amber-100 bg-white p-4 shadow-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-xl font-black text-amber-600">
+                    ₺
+                  </div>
+                  <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    Ortalama Fiyat
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-900">
+                    {formatMoney(stats.averageSalePrice)}
+                  </div>
+                  <div className="mt-1 text-[12px] font-semibold text-slate-500">
+                    Satış fiyatı ortalaması
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+              <div className="text-[12px] font-black text-slate-900">
+                Bağlantı Durumu
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[13px] font-black text-slate-900">
+                      N11 API
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                      {data?.apiConnected
+                        ? "Bağlantı aktif"
+                        : data?.apiConfigured
+                        ? "API bilgileri mevcut, bağlantı bekleniyor"
+                        : "Henüz yapılandırılmadı"}
+                    </div>
+                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                      data?.apiConnected
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {data?.apiConnected ? "Bağlı" : "Kapalı"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 text-[12px] font-semibold text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>Kanal</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.channel || "N11"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Kanal Aktif</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.enabled ? "Evet" : "Hayır"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Entegratör</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.integrator_name || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Para Birimi</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.default_currency || "TL"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Oto Stok Sync</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.auto_stock_sync ? "Açık" : "Kapalı"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Oto Fiyat Sync</span>
+                  <span className="font-black text-slate-800">
+                    {channel?.auto_price_sync ? "Açık" : "Kapalı"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[26px] border border-blue-100 bg-blue-50/70 p-5 shadow-sm">
+              <div className="text-[12px] font-black text-blue-800">
+                Gerçek Sistem Durumu
+              </div>
+              <p className="mt-3 text-[12px] font-semibold leading-6 text-blue-700">
+                Bu ekrandaki tüm sayılar PostgreSQL&apos;den gelir. N11 API bağlantısı
+                yapılana kadar ürün listesi yalnızca online_listings tablosundaki
+                gerçek kayıtları gösterir.
+              </p>
+            </div>
+          </aside>
+        </section>
+
+        {error ? (
+          <section className="rounded-[22px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            {error}
+          </section>
+        ) : null}
+
+        <section className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
+          <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-[15px] font-black text-slate-900">
+                ONLINE Ürünler
+              </div>
+              <div className="mt-1 text-[12px] font-semibold text-slate-500">
+                N11 eşleşmeleri ve PostgreSQL kayıtları
+              </div>
+            </div>
+
+            <div className="relative w-full lg:w-[420px]">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-4 pr-11 text-[13px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300"
+                placeholder="Ürün, IMEI, stok kodu veya N11 ID ara..."
+              />
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                ⌕
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-100">
+            {filteredListings.length === 0 ? (
+              <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
+                  ◫
+                </div>
+                <div className="mt-4 text-[15px] font-black text-slate-800">
+                  Ürün bulunamadı
+                </div>
+                <div className="mt-2 max-w-lg text-[12px] font-semibold leading-5 text-slate-500">
+                  PostgreSQL online_listings tablosunda henüz N11 ürünü yok. N11 API
+                  bağlantısı geldiğinde gerçek ürünler buraya aktarılacak.
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[1240px]">
+                  <div className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.8fr_0.65fr_0.9fr_1fr_0.8fr] items-center bg-slate-50 px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    <div>Ürün</div>
+                    <div>Stok Kodu / IMEI</div>
+                    <div>N11 Ürün ID</div>
+                    <div>Fiyat</div>
+                    <div>Stok</div>
+                    <div>Durum</div>
+                    <div>Son Güncelleme</div>
+                    <div>Eşleşme</div>
+                  </div>
+
+                  {filteredListings.map((item) => {
+                    const status = getStatusBadge(
+                      item.product_status,
+                      item.sale_status,
+                      Number(item.quantity || 0)
+                    );
+
+                    const title =
+                      item.title ||
+                      [item.device_brand, item.device_model]
+                        .filter(Boolean)
+                        .join(" ") ||
+                      "İsimsiz Ürün";
+
+                    const variant = [
+                      item.device_memory,
+                      item.device_color,
+                      item.device_grade,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ");
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.8fr_0.65fr_0.9fr_1fr_0.8fr] items-center border-t border-slate-100 px-4 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50/60"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-[14px] font-black text-slate-900">
+                            {title}
+                          </div>
+                          <div className="truncate text-[12px] font-semibold text-slate-500">
+                            {variant || "—"}
+                          </div>
+                        </div>
+
+                        <div className="font-mono text-[12px] font-bold text-slate-600">
+                          {item.external_stock_code || item.device_imei || "—"}
+                        </div>
+
+                        <div className="text-[12px] font-bold text-slate-600">
+                          {item.external_product_id || "—"}
+                        </div>
+
+                        <div className="font-black text-slate-900">
+                          {formatMoney(Number(item.sale_price || 0))}
+                        </div>
+
+                        <div
+                          className={`font-black ${
+                            Number(item.quantity || 0) <= 0
+                              ? "text-red-500"
+                              : "text-slate-900"
+                          }`}
+                        >
+                          {Number(item.quantity || 0)}
+                        </div>
+
+                        <div>
+                          <span
+                            className={`inline-flex items-center rounded-xl px-3 py-1 text-[11px] font-black ring-1 ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
+
+                        <div className="text-[12px] font-semibold text-slate-500">
+                          {formatDate(item.last_synced_at || item.updated_at)}
+                        </div>
+
+                        <div>
+                          {item.stock_device_id ? (
+                            <span className="inline-flex rounded-xl bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                              Cihaz Eşleşti
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-xl bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
+                              Eşleşmedi
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] font-semibold text-slate-500">
+            <div>
+              Gösterilen:{" "}
+              <span className="font-black text-slate-800">
+                {filteredListings.length}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Eşleşen:{" "}
+                <b className="text-emerald-700">{stats.matchedDeviceCount}</b>
+              </span>
+              <span>
+                Eşleşmeyen:{" "}
+                <b className="text-amber-700">{stats.unmatchedDeviceCount}</b>
+              </span>
+              <span>
+                Son Task:{" "}
+                <b className="text-slate-800">{data?.taskCount ?? 0}</b>
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
