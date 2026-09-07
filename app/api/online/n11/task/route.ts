@@ -266,6 +266,41 @@ function integerOrNull(value: unknown) {
   return Math.trunc(number);
 }
 
+
+function requestIntent(requestPayload: any) {
+  const sku =
+    requestPayload?.payload &&
+    Array.isArray(requestPayload.payload.skus) &&
+    requestPayload.payload.skus.length > 0
+      ? requestPayload.payload.skus[0]
+      : null;
+
+  const has = (key: string) =>
+    Boolean(
+      sku &&
+        typeof sku === 'object' &&
+        Object.prototype.hasOwnProperty.call(sku, key)
+    );
+
+  return {
+    requestedPrice: has('salePrice') || has('listPrice'),
+    requestedStock: has('quantity'),
+  };
+}
+
+function detectN11PartialReason(reasons: string[]) {
+  const joined = reasons.join(' ').toLocaleLowerCase('tr-TR');
+
+  const priceNotUpdated =
+    joined.includes('fiyat güncellenme izni olmadığı') ||
+    joined.includes('fiyat güncelleme işlemi gerçekleştirilememiştir') ||
+    joined.includes('fiyat güncellemesi gerçekleştirilememiştir');
+
+  return {
+    priceNotUpdated,
+  };
+}
+
 async function fetchTaskDetails(
   taskId: number,
   credentials: { appKey: string; appSecret: string }
@@ -356,8 +391,10 @@ async function updateDatabaseFromTask(params: {
   const pool = getPool();
 
   const errorMessage =
-    params.finalStatus === 'FAIL' || params.finalStatus === 'REJECT'
-      ? params.reasons.join(' | ') || 'N11 task başarısız oldu.'
+    ['FAIL', 'REJECT', 'PARTIAL_SUCCESS', 'PRICE_NOT_UPDATED'].includes(
+      params.finalStatus
+    )
+      ? params.reasons.join(' | ') || 'N11 task tam olarak uygulanmadı.'
       : null;
 
   await pool.query(
@@ -367,7 +404,13 @@ async function updateDatabaseFromTask(params: {
         task_status = $2,
         checked_at = now(),
         completed_at = CASE
-          WHEN $2 IN ('SUCCESS', 'FAIL', 'REJECT') THEN now()
+          WHEN $2 IN (
+            'SUCCESS',
+            'FAIL',
+            'REJECT',
+            'PARTIAL_SUCCESS',
+            'PRICE_NOT_UPDATED'
+          ) THEN now()
           ELSE completed_at
         END,
         response_payload = $3::jsonb,
@@ -420,7 +463,9 @@ async function updateDatabaseFromTask(params: {
 
   if (
     params.finalStatus === 'FAIL' ||
-    params.finalStatus === 'REJECT'
+    params.finalStatus === 'REJECT' ||
+    params.finalStatus === 'PARTIAL_SUCCESS' ||
+    params.finalStatus === 'PRICE_NOT_UPDATED'
   ) {
     await pool.query(
       `
@@ -510,7 +555,8 @@ export async function GET(request: NextRequest) {
       `
         SELECT
           t.online_listing_id,
-          t.stock_code
+          t.stock_code,
+          t.request_payload
         FROM public.online_tasks t
         WHERE t.channel = 'N11'
           AND t.task_id = $1
@@ -528,6 +574,8 @@ export async function GET(request: NextRequest) {
     const stockCode = localTask?.stock_code
       ? String(localTask.stock_code)
       : null;
+
+    const intent = requestIntent(localTask?.request_payload ?? null);
 
     const payload = await fetchTaskDetails(
       parsedTaskId.number,
@@ -562,12 +610,21 @@ export async function GET(request: NextRequest) {
 
     const reasons = collectReasons(matchedItem);
 
+    const partial = detectN11PartialReason(reasons);
+
     let finalStatus = 'IN_QUEUE';
 
     if (overallStatus === 'REJECT') {
       finalStatus = 'REJECT';
     } else if (overallStatus === 'PROCESSED') {
-      if (skuStatus === 'SUCCESS') {
+      if (
+        intent.requestedPrice &&
+        partial.priceNotUpdated
+      ) {
+        finalStatus = intent.requestedStock
+          ? 'PARTIAL_SUCCESS'
+          : 'PRICE_NOT_UPDATED';
+      } else if (skuStatus === 'SUCCESS') {
         finalStatus = 'SUCCESS';
       } else if (
         skuStatus === 'FAIL' ||
@@ -612,7 +669,9 @@ export async function GET(request: NextRequest) {
       completed:
         finalStatus === 'SUCCESS' ||
         finalStatus === 'FAIL' ||
-        finalStatus === 'REJECT',
+        finalStatus === 'REJECT' ||
+        finalStatus === 'PARTIAL_SUCCESS' ||
+        finalStatus === 'PRICE_NOT_UPDATED',
       stockCode:
         matchedItem?.itemCode !== null &&
         matchedItem?.itemCode !== undefined
@@ -623,9 +682,19 @@ export async function GET(request: NextRequest) {
       listPrice,
       stock,
       reasons,
+      requestedPrice: intent.requestedPrice,
+      requestedStock: intent.requestedStock,
       message:
         finalStatus === 'SUCCESS'
           ? 'N11 işlemi başarıyla tamamlandı.'
+          : finalStatus === 'PRICE_NOT_UPDATED'
+          ? `N11 task tamamlandı ancak fiyat güncellenmedi: ${
+              reasons.join(' | ') || 'N11 fiyat güncellemesine izin vermedi.'
+            }`
+          : finalStatus === 'PARTIAL_SUCCESS'
+          ? `N11 işlemi kısmen tamamlandı: ${
+              reasons.join(' | ') || 'Bazı alanlar uygulanmadı.'
+            }`
           : finalStatus === 'IN_QUEUE'
           ? 'N11 işlemi hâlâ kuyrukta.'
           : `N11 işlemi başarısız: ${
