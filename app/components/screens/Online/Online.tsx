@@ -88,6 +88,24 @@ type ListingDraftForm = {
   listPrice: string;
 };
 
+type ListingEditForm = {
+  listingId: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+};
+
+type ListingPriceForm = {
+  listingId: number;
+  imei: string;
+  salePrice: string;
+  listPrice: string;
+};
+
 type OnlineTask = {
   id: number;
   channel: string;
@@ -163,12 +181,27 @@ function formatDate(value: string | null | undefined) {
 function getStatusBadge(
   productStatus: string | null,
   saleStatus: string | null,
-  quantity: number
+  quantity: number,
+  syncStatus: string | null
 ) {
   if (quantity <= 0 || saleStatus === "Out_Of_Stock") {
     return {
-      label: "Stok Yok",
+      label: "Stok 0",
       className: "bg-red-50 text-red-700 ring-red-100",
+    };
+  }
+
+  if (syncStatus === "DRAFT") {
+    return {
+      label: "Taslak",
+      className: "bg-blue-50 text-blue-700 ring-blue-100",
+    };
+  }
+
+  if (syncStatus === "READY") {
+    return {
+      label: "Gönderim Bekliyor",
+      className: "bg-amber-50 text-amber-700 ring-amber-100",
     };
   }
 
@@ -187,7 +220,7 @@ function getStatusBadge(
   }
 
   return {
-    label: saleStatus || productStatus || "Bekliyor",
+    label: saleStatus || productStatus || syncStatus || "Bekliyor",
     className: "bg-slate-100 text-slate-700 ring-slate-200",
   };
 }
@@ -203,6 +236,13 @@ export default function Online() {
   const [draftError, setDraftError] = useState("");
   const [draftSuccess, setDraftSuccess] = useState("");
   const [draftForm, setDraftForm] = useState<ListingDraftForm>(EMPTY_DRAFT_FORM);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
+  const [editForm, setEditForm] = useState<ListingEditForm | null>(null);
+  const [priceForm, setPriceForm] = useState<ListingPriceForm | null>(null);
 
   const loadData = useCallback(async (silent = false) => {
     if (silent) {
@@ -333,6 +373,179 @@ export default function Online() {
       setDraftSaving(false);
     }
   }, [draftForm, loadData]);
+
+
+  const openEditModal = useCallback((item: OnlineListing) => {
+    setActionError("");
+    setActionSuccess("");
+    setEditForm({
+      listingId: item.id,
+      imei: item.external_stock_code || "",
+      brand: item.brand || item.device_brand || "",
+      model: item.model || item.device_model || "",
+      memory: item.memory || item.device_memory || "",
+      color: item.color || item.device_color || "",
+      grade: item.grade || item.device_grade || "",
+      warranty: item.warranty || item.device_warranty || "",
+    });
+    setShowEditModal(true);
+  }, []);
+
+  const openPriceModal = useCallback((item: OnlineListing) => {
+    setActionError("");
+    setActionSuccess("");
+    setPriceForm({
+      listingId: item.id,
+      imei: item.external_stock_code || "",
+      salePrice: String(item.sale_price ?? ""),
+      listPrice: String(item.list_price ?? ""),
+    });
+    setShowPriceModal(true);
+  }, []);
+
+  const patchListing = useCallback(
+    async (body: Record<string, unknown>) => {
+      const response = await fetch("/api/online/listings", {
+        method: "PATCH",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "İşlem tamamlanamadı.");
+      }
+
+      return payload;
+    },
+    []
+  );
+
+  const saveEdit = useCallback(async () => {
+    if (!editForm) return;
+
+    setActionError("");
+    setActionSuccess("");
+
+    if (
+      !editForm.brand.trim() ||
+      !editForm.model.trim() ||
+      !editForm.memory.trim() ||
+      !editForm.color.trim() ||
+      !editForm.grade.trim() ||
+      !editForm.warranty.trim()
+    ) {
+      setActionError(
+        "Marka, model, hafıza, renk, grade ve garanti alanları zorunludur."
+      );
+      return;
+    }
+
+    setActionSaving(true);
+
+    try {
+      const payload = await patchListing({
+        action: "UPDATE_DETAILS",
+        listingId: editForm.listingId,
+        brand: editForm.brand,
+        model: editForm.model,
+        memory: editForm.memory,
+        color: editForm.color,
+        grade: editForm.grade,
+        warranty: editForm.warranty,
+      });
+
+      setActionSuccess(payload?.message || "Ürün bilgileri güncellendi.");
+      await loadData(true);
+
+      window.setTimeout(() => {
+        setShowEditModal(false);
+        setEditForm(null);
+        setActionSuccess("");
+      }, 700);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Ürün güncellenemedi."
+      );
+    } finally {
+      setActionSaving(false);
+    }
+  }, [editForm, loadData, patchListing]);
+
+  const savePrice = useCallback(async () => {
+    if (!priceForm) return;
+
+    setActionError("");
+    setActionSuccess("");
+
+    if (!priceForm.salePrice.trim() || !priceForm.listPrice.trim()) {
+      setActionError("N11 satış ve liste fiyatı zorunludur.");
+      return;
+    }
+
+    setActionSaving(true);
+
+    try {
+      const payload = await patchListing({
+        action: "UPDATE_PRICE",
+        listingId: priceForm.listingId,
+        salePrice: priceForm.salePrice,
+        listPrice: priceForm.listPrice,
+      });
+
+      setActionSuccess(payload?.message || "Fiyat güncellendi.");
+      await loadData(true);
+
+      window.setTimeout(() => {
+        setShowPriceModal(false);
+        setPriceForm(null);
+        setActionSuccess("");
+      }, 700);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Fiyat güncellenemedi."
+      );
+    } finally {
+      setActionSaving(false);
+    }
+  }, [priceForm, loadData, patchListing]);
+
+  const setStockZero = useCallback(
+    async (item: OnlineListing) => {
+      const imei = item.external_stock_code || "";
+      const productName = [item.brand, item.model].filter(Boolean).join(" ");
+
+      const confirmed = window.confirm(
+        `${productName || "Bu ürün"}\nIMEI: ${imei}\n\nStok 0 yapılacak. Devam edilsin mi?`
+      );
+
+      if (!confirmed) return;
+
+      setActionSaving(true);
+      setActionError("");
+
+      try {
+        await patchListing({
+          action: "SET_STOCK_ZERO",
+          listingId: item.id,
+        });
+
+        await loadData(true);
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : "Stok sıfırlanamadı."
+        );
+      } finally {
+        setActionSaving(false);
+      }
+    },
+    [loadData, patchListing]
+  );
 
   useEffect(() => {
     void loadData(false);
@@ -638,75 +851,77 @@ export default function Online() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <div className="min-w-[1240px]">
-                  <div className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.8fr_0.65fr_0.9fr_1fr_0.8fr] items-center bg-slate-50 px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                    <div>Ürün</div>
-                    <div>Stok Kodu / IMEI</div>
-                    <div>N11 Ürün ID</div>
-                    <div>Fiyat</div>
+                <div className="min-w-[1680px]">
+                  <div className="grid grid-cols-[1.35fr_0.75fr_0.7fr_0.65fr_0.75fr_1.05fr_0.7fr_0.7fr_0.5fr_0.75fr_1.3fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <div>Marka / Model</div>
+                    <div>Hafıza</div>
+                    <div>Renk</div>
+                    <div>Grade</div>
+                    <div>Garanti</div>
+                    <div>IMEI / Stok Kodu</div>
+                    <div>N11 Satış</div>
+                    <div>N11 Liste</div>
                     <div>Stok</div>
                     <div>Durum</div>
-                    <div>Son Güncelleme</div>
-                    <div>Eşleşme</div>
+                    <div>İşlemler</div>
                   </div>
 
                   {filteredListings.map((item) => {
                     const status = getStatusBadge(
                       item.product_status,
                       item.sale_status,
-                      Number(item.quantity || 0)
+                      Number(item.quantity || 0),
+                      item.sync_status
                     );
 
-                    const title =
-                      item.title ||
-                      [item.brand, item.model]
-                        .filter(Boolean)
-                        .join(" ") ||
-                      [item.device_brand, item.device_model]
-                        .filter(Boolean)
-                        .join(" ") ||
-                      "İsimsiz Ürün";
-
-                    const variant = [
-                      item.memory || item.device_memory,
-                      item.color || item.device_color,
-                      item.grade || item.device_grade,
-                      item.warranty || item.device_warranty,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ");
+                    const brand = item.brand || item.device_brand || "—";
+                    const model = item.model || item.device_model || "—";
+                    const memory = item.memory || item.device_memory || "—";
+                    const color = item.color || item.device_color || "—";
+                    const grade = item.grade || item.device_grade || "—";
+                    const warranty = item.warranty || item.device_warranty || "—";
 
                     return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[1.6fr_1.1fr_0.9fr_0.8fr_0.65fr_0.9fr_1fr_0.8fr] items-center border-t border-slate-100 px-4 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50/60"
+                        className="grid grid-cols-[1.35fr_0.75fr_0.7fr_0.65fr_0.75fr_1.05fr_0.7fr_0.7fr_0.5fr_0.75fr_1.3fr] items-center border-t border-slate-100 px-4 py-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50/60"
                       >
-                        <div className="min-w-0">
-                          <div className="truncate text-[14px] font-black text-slate-900">
-                            {title}
+                        <div className="min-w-0 pr-3">
+                          <div className="truncate text-[13px] font-black text-slate-900">
+                            {brand}
                           </div>
-                          <div className="truncate text-[12px] font-semibold text-slate-500">
-                            {variant || "—"}
+                          <div className="mt-0.5 truncate text-[12px] font-semibold text-slate-500">
+                            {model}
                           </div>
                         </div>
 
-                        <div className="font-mono text-[12px] font-bold text-slate-600">
-                          {item.external_stock_code || item.device_imei || "—"}
-                        </div>
+                        <div className="font-bold text-slate-700">{memory}</div>
+                        <div className="font-bold text-slate-700">{color}</div>
+                        <div className="font-black text-slate-800">{grade}</div>
+                        <div className="font-bold text-slate-700">{warranty}</div>
 
-                        <div className="text-[12px] font-bold text-slate-600">
-                          {item.external_product_id || "—"}
+                        <div>
+                          <div className="font-mono text-[12px] font-black text-slate-700">
+                            {item.external_stock_code || item.device_imei || "—"}
+                          </div>
+                          <div className="mt-1 text-[9px] font-bold text-slate-400">
+                            N11 ID: {item.external_product_id || "Henüz yok"}
+                          </div>
                         </div>
 
                         <div className="font-black text-slate-900">
                           {formatMoney(Number(item.sale_price || 0))}
                         </div>
 
+                        <div className="font-black text-slate-900">
+                          {formatMoney(Number(item.list_price || 0))}
+                        </div>
+
                         <div
-                          className={`font-black ${
+                          className={`text-[14px] font-black ${
                             Number(item.quantity || 0) <= 0
-                              ? "text-red-500"
-                              : "text-slate-900"
+                              ? "text-red-600"
+                              : "text-emerald-700"
                           }`}
                         >
                           {Number(item.quantity || 0)}
@@ -714,26 +929,42 @@ export default function Online() {
 
                         <div>
                           <span
-                            className={`inline-flex items-center rounded-xl px-3 py-1 text-[11px] font-black ring-1 ${status.className}`}
+                            className={`inline-flex items-center rounded-xl px-3 py-1 text-[10px] font-black ring-1 ${status.className}`}
                           >
                             {status.label}
                           </span>
+                          <div className="mt-1 text-[9px] font-semibold text-slate-400">
+                            {formatDate(item.updated_at)}
+                          </div>
                         </div>
 
-                        <div className="text-[12px] font-semibold text-slate-500">
-                          {formatDate(item.last_synced_at || item.updated_at)}
-                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            disabled={actionSaving}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                          >
+                            DÜZENLE
+                          </button>
 
-                        <div>
-                          {item.stock_device_id ? (
-                            <span className="inline-flex rounded-xl bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
-                              Cihaz Eşleşti
-                            </span>
-                          ) : (
-                            <span className="inline-flex rounded-xl bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
-                              Eşleşmedi
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => openPriceModal(item)}
+                            disabled={actionSaving}
+                            className="rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                          >
+                            FİYAT
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void setStockZero(item)}
+                            disabled={actionSaving || Number(item.quantity || 0) === 0}
+                            className="rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            STOK 0
+                          </button>
                         </div>
                       </div>
                     );
@@ -753,20 +984,218 @@ export default function Online() {
 
             <div className="flex flex-wrap items-center gap-3">
               <span>
-                Eşleşen:{" "}
-                <b className="text-emerald-700">{stats.matchedDeviceCount}</b>
+                Toplam Stok:{" "}
+                <b className="text-slate-800">{stats.totalStock}</b>
               </span>
               <span>
-                Eşleşmeyen:{" "}
-                <b className="text-amber-700">{stats.unmatchedDeviceCount}</b>
-              </span>
-              <span>
-                Son Task:{" "}
+                Task:{" "}
                 <b className="text-slate-800">{data?.taskCount ?? 0}</b>
               </span>
             </div>
           </div>
         </section>
+
+        {showEditModal && editForm ? (
+          <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
+            <div className="w-full max-w-[850px] overflow-hidden rounded-[26px] bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                    ONLINE · ÜRÜN DÜZENLE
+                  </div>
+                  <h3 className="mt-1 text-xl font-black text-slate-900">
+                    Ürün Bilgileri
+                  </h3>
+                  <div className="mt-1 font-mono text-[11px] font-bold text-slate-500">
+                    IMEI: {editForm.imei}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!actionSaving) {
+                      setShowEditModal(false);
+                      setEditForm(null);
+                      setActionError("");
+                    }
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl font-black text-slate-500"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                {[
+                  ["Marka", "brand"],
+                  ["Model", "model"],
+                  ["Hafıza", "memory"],
+                  ["Renk", "color"],
+                  ["Grade", "grade"],
+                  ["Garanti", "warranty"],
+                ].map(([label, key]) => (
+                  <label key={key}>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      {label}
+                    </div>
+                    <input
+                      value={String(editForm[key as keyof ListingEditForm] ?? "")}
+                      onChange={(event) =>
+                        setEditForm((current) =>
+                          current
+                            ? { ...current, [key]: event.target.value }
+                            : current
+                        )
+                      }
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+                ))}
+
+                {actionError ? (
+                  <div className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                    {actionError}
+                  </div>
+                ) : null}
+
+                {actionSuccess ? (
+                  <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                    {actionSuccess}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!actionSaving) {
+                      setShowEditModal(false);
+                      setEditForm(null);
+                      setActionError("");
+                    }
+                  }}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600"
+                >
+                  İPTAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveEdit()}
+                  disabled={actionSaving}
+                  className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white disabled:opacity-50"
+                >
+                  {actionSaving ? "KAYDEDİLİYOR..." : "KAYDET"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showPriceModal && priceForm ? (
+          <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
+            <div className="w-full max-w-[620px] overflow-hidden rounded-[26px] bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                    ONLINE · FİYAT
+                  </div>
+                  <h3 className="mt-1 text-xl font-black text-slate-900">
+                    N11 Fiyat Güncelle
+                  </h3>
+                  <div className="mt-1 font-mono text-[11px] font-bold text-slate-500">
+                    IMEI: {priceForm.imei}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!actionSaving) {
+                      setShowPriceModal(false);
+                      setPriceForm(null);
+                      setActionError("");
+                    }
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl font-black text-slate-500"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    N11 Satış Fiyatı
+                  </div>
+                  <input
+                    value={priceForm.salePrice}
+                    onChange={(event) =>
+                      setPriceForm((current) =>
+                        current
+                          ? { ...current, salePrice: event.target.value }
+                          : current
+                      )
+                    }
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    N11 Liste Fiyatı
+                  </div>
+                  <input
+                    value={priceForm.listPrice}
+                    onChange={(event) =>
+                      setPriceForm((current) =>
+                        current
+                          ? { ...current, listPrice: event.target.value }
+                          : current
+                      )
+                    }
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                  />
+                </label>
+
+                {actionError ? (
+                  <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                    {actionError}
+                  </div>
+                ) : null}
+
+                {actionSuccess ? (
+                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                    {actionSuccess}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!actionSaving) {
+                      setShowPriceModal(false);
+                      setPriceForm(null);
+                      setActionError("");
+                    }
+                  }}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600"
+                >
+                  İPTAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void savePrice()}
+                  disabled={actionSaving}
+                  className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white disabled:opacity-50"
+                >
+                  {actionSaving ? "GÜNCELLENİYOR..." : "FİYATI KAYDET"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {showCreateModal ? (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
