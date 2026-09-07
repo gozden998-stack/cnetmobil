@@ -274,6 +274,8 @@ export default function Online() {
   const [data, setData] = useState<OnlineResponse | null>(null);
   const [ordersData, setOrdersData] = useState<N11OrdersResponse | null>(null);
   const [ordersError, setOrdersError] = useState("");
+  const [orderActionId, setOrderActionId] = useState("");
+  const [orderActionMessage, setOrderActionMessage] = useState("");
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<
     "orders" | "open" | "closed"
@@ -360,6 +362,121 @@ export default function Online() {
       setRefreshing(false);
     }
   }, []);
+
+  const approveOrder = useCallback(
+    async (order: N11Order) => {
+      const lineIds = (order.lines || [])
+        .map((line) => Number(line.orderLineId))
+        .filter(
+          (lineId) =>
+            Number.isInteger(lineId) &&
+            lineId > 0
+        );
+
+      if (lineIds.length === 0) {
+        setOrdersError(
+          "Bu siparişte onaylanabilir orderLineId bulunamadı."
+        );
+        return;
+      }
+
+      const orderKey =
+        order.packageId ||
+        order.orderNumber ||
+        lineIds.join("-");
+
+      const confirmed = window.confirm(
+        `${order.orderNumber || "Bu sipariş"} N11 üzerinde onaylansın mı?\n\nDurum Created → Picking (Hazırlanıyor) olacak.`
+      );
+
+      if (!confirmed) return;
+
+      setOrderActionId(orderKey);
+      setOrderActionMessage("");
+      setOrdersError("");
+
+      try {
+        const response = await fetch(
+          "/api/online/n11/orders",
+          {
+            method: "PUT",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "APPROVE",
+              lineIds,
+            }),
+          }
+        );
+
+        const payload = await response
+          .json()
+          .catch(() => null);
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(
+            payload?.error ||
+              "N11 siparişi onaylanamadı."
+          );
+        }
+
+        setOrderActionMessage(
+          `${order.orderNumber || "Sipariş"} onaylandı. Hazırlanıyor durumuna geçti.`
+        );
+
+        await loadData(true);
+      } catch (err) {
+        setOrdersError(
+          err instanceof Error
+            ? err.message
+            : "N11 siparişi onaylanamadı."
+        );
+      } finally {
+        setOrderActionId("");
+      }
+    },
+    [loadData]
+  );
+
+  const openCargoTracking = useCallback(
+    async (order: N11Order) => {
+      if (order.cargoTrackingLink) {
+        window.open(
+          order.cargoTrackingLink,
+          "_blank",
+          "noopener,noreferrer"
+        );
+        return;
+      }
+
+      if (order.cargoTrackingNumber) {
+        try {
+          await navigator.clipboard.writeText(
+            order.cargoTrackingNumber
+          );
+
+          setOrderActionMessage(
+            `Kargo kodu kopyalandı: ${order.cargoTrackingNumber}`
+          );
+        } catch {
+          setOrderActionMessage(
+            `Kargo kodu: ${order.cargoTrackingNumber}`
+          );
+        }
+
+        return;
+      }
+
+      setOrderActionMessage(
+        "Bu sipariş için henüz N11 kargo takip bilgisi oluşmamış."
+      );
+    },
+    []
+  );
+
 
 
   const openCreateModal = useCallback(() => {
@@ -1023,6 +1140,12 @@ export default function Online() {
             </div>
           </div>
 
+          {orderActionMessage && activeSection === "orders" ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+              {orderActionMessage}
+            </div>
+          ) : null}
+
           <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-100">
             {activeSection === "orders" ? (
               ordersError ? (
@@ -1059,21 +1182,23 @@ export default function Online() {
               ) : (
                 <div className="overflow-x-auto">
                   <div className="min-w-[1500px]">
-                    <div className="grid grid-cols-[0.8fr_1fr_1.8fr_0.55fr_0.8fr_0.85fr_0.8fr_0.9fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <div className="grid grid-cols-[0.8fr_1fr_1.55fr_0.45fr_0.7fr_0.75fr_0.85fr_0.7fr_0.9fr_1.05fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       <div>Sipariş No</div>
                       <div>Müşteri</div>
                       <div>Ürün</div>
                       <div>Adet</div>
                       <div>Tutar</div>
                       <div>Şehir</div>
+                      <div>Kargo</div>
                       <div>Durum</div>
                       <div>Tarih</div>
+                      <div>İşlem</div>
                     </div>
 
                     {orders.map((order, index) => (
                       <div
                         key={`${order.packageId || order.orderNumber || "order"}-${index}`}
-                        className="grid grid-cols-[0.8fr_1fr_1.8fr_0.55fr_0.8fr_0.85fr_0.8fr_0.9fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
+                        className="grid grid-cols-[0.8fr_1fr_1.55fr_0.45fr_0.7fr_0.75fr_0.85fr_0.7fr_0.9fr_1.05fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
                       >
                         <div>
                           <div className="font-mono text-[12px] font-black text-slate-900">
@@ -1121,6 +1246,15 @@ export default function Online() {
                           </div>
                         </div>
 
+                        <div className="min-w-0 pr-2">
+                          <div className="truncate text-[11px] font-bold text-slate-800">
+                            {order.cargoProviderName || "—"}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-[9px] font-bold text-slate-400">
+                            {order.cargoTrackingNumber || "Takip kodu yok"}
+                          </div>
+                        </div>
+
                         <div>
                           <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
                             {order.shipmentPackageStatus || "Created"}
@@ -1132,6 +1266,35 @@ export default function Online() {
                             order.agreedDeliveryDate ||
                               order.lastModifiedDate
                           )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void approveOrder(order)}
+                            disabled={
+                              orderActionId ===
+                              (order.packageId ||
+                                order.orderNumber ||
+                                "")
+                            }
+                            className="h-9 rounded-xl bg-blue-600 px-3 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {orderActionId ===
+                            (order.packageId ||
+                              order.orderNumber ||
+                              "")
+                              ? "ONAYLANIYOR..."
+                              : "ONAYLA"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void openCargoTracking(order)}
+                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:bg-slate-50"
+                          >
+                            KARGO
+                          </button>
                         </div>
                       </div>
                     ))}
