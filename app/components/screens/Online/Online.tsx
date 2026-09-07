@@ -224,6 +224,9 @@ export default function Online() {
   const [activeSection, setActiveSection] = useState<
     "orders" | "open" | "closed"
   >("open");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterMemory, setFilterMemory] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftError, setDraftError] = useState("");
@@ -571,10 +574,23 @@ export default function Online() {
         : [];
 
     const q = search.trim().toLocaleLowerCase("tr-TR");
-
-    if (!q) return source;
+    const wantedBrand = filterBrand.trim().toLocaleLowerCase("tr-TR");
+    const wantedMemory = filterMemory.trim().toLocaleLowerCase("tr-TR");
 
     return source.filter((item) => {
+      const brandValue = String(
+        item.brand || item.device_brand || ""
+      ).toLocaleLowerCase("tr-TR");
+
+      const memoryValue = String(
+        item.memory || item.device_memory || ""
+      ).toLocaleLowerCase("tr-TR");
+
+      if (wantedBrand && !brandValue.includes(wantedBrand)) return false;
+      if (wantedMemory && !memoryValue.includes(wantedMemory)) return false;
+
+      if (!q) return true;
+
       const haystack = [
         item.title,
         item.external_stock_code,
@@ -597,7 +613,14 @@ export default function Online() {
 
       return haystack.includes(q);
     });
-  }, [activeSection, closedListings, openListings, search]);
+  }, [
+    activeSection,
+    closedListings,
+    filterBrand,
+    filterMemory,
+    openListings,
+    search,
+  ]);
 
   if (loading) {
     return (
@@ -677,20 +700,11 @@ export default function Online() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveSection("orders")}
-              className={`rounded-[22px] border p-4 text-left shadow-sm transition ${
-                activeSection === "orders"
-                  ? "border-blue-300 bg-blue-50/70 ring-2 ring-blue-100"
-                  : "border-blue-100 bg-white hover:bg-blue-50/40"
-              }`}
-            >
+            <div className="rounded-[22px] border border-blue-100 bg-white p-4 text-left shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                   🛒
                 </div>
-                <span className="text-xl font-black text-blue-400">›</span>
               </div>
               <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
                 Siparişler
@@ -701,22 +715,13 @@ export default function Online() {
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 SP bağlantısı bekleniyor
               </div>
-            </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveSection("open")}
-              className={`rounded-[22px] border p-4 text-left shadow-sm transition ${
-                activeSection === "open"
-                  ? "border-emerald-300 bg-emerald-50/70 ring-2 ring-emerald-100"
-                  : "border-emerald-100 bg-white hover:bg-emerald-50/40"
-              }`}
-            >
+            <div className="rounded-[22px] border border-emerald-100 bg-white p-4 text-left shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                   ▶
                 </div>
-                <span className="text-xl font-black text-emerald-400">›</span>
               </div>
               <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
                 Satışa Açık
@@ -727,22 +732,13 @@ export default function Online() {
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 Stokta ve yayında
               </div>
-            </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveSection("closed")}
-              className={`rounded-[22px] border p-4 text-left shadow-sm transition ${
-                activeSection === "closed"
-                  ? "border-red-300 bg-red-50/70 ring-2 ring-red-100"
-                  : "border-red-100 bg-white hover:bg-red-50/40"
-              }`}
-            >
+            <div className="rounded-[22px] border border-red-100 bg-white p-4 text-left shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl text-red-600">
                   Ⅱ
                 </div>
-                <span className="text-xl font-black text-red-400">›</span>
               </div>
               <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
                 Satışa Kapalı
@@ -753,7 +749,7 @@ export default function Online() {
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 Stok 0 / kapalı
               </div>
-            </button>
+            </div>
 
             <div className="rounded-[22px] border border-amber-100 bg-white p-4 shadow-sm">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-xl font-black text-amber-600">
@@ -843,19 +839,86 @@ export default function Online() {
                 </button>
               </div>
 
-              <div className="relative w-full xl:w-[420px]">
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+              <div className="flex w-full flex-col gap-2 xl:w-auto xl:flex-row xl:items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert("Excel ile toplu cihaz ekleme ADIM 2'de bağlanacak.");
+                  }}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 text-[11px] font-black text-blue-700 transition hover:bg-blue-100"
+                >
+                  📄 EXCEL İLE TOPLU EKLE
+                </button>
+
+                <div className="relative w-full xl:w-[360px]">
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    disabled={activeSection === "orders"}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-4 pr-11 text-[13px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                    placeholder="Ürün, IMEI, stok kodu veya N11 ID ara..."
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                    ⌕
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFilterPanel((current) => !current)}
                   disabled={activeSection === "orders"}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-4 pr-11 text-[13px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                  placeholder="Ürün, IMEI, stok kodu veya N11 ID ara..."
-                />
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  ⌕
-                </span>
+                  className={`inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    showFilterPanel
+                      ? "border-slate-300 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  ⏷ FİLTRELE
+                </button>
               </div>
             </div>
+
+            {showFilterPanel && activeSection !== "orders" ? (
+              <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_1fr_auto]">
+                <label>
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Marka
+                  </div>
+                  <input
+                    value={filterBrand}
+                    onChange={(event) => setFilterBrand(event.target.value)}
+                    placeholder="Örn. Apple"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-300"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Hafıza
+                  </div>
+                  <input
+                    value={filterMemory}
+                    onChange={(event) => setFilterMemory(event.target.value)}
+                    placeholder="Örn. 128 GB"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-300"
+                  />
+                </label>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterBrand("");
+                      setFilterMemory("");
+                      setSearch("");
+                    }}
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-600 hover:bg-slate-100"
+                  >
+                    TEMİZLE
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div>
               <div className="text-[15px] font-black text-slate-900">
