@@ -70,6 +70,38 @@ type OnlineListing = {
   device_source: string | null;
 };
 
+type AvailableDevice = {
+  id: number;
+  imei: string;
+  brand: string | null;
+  model: string | null;
+  memory: string | null;
+  color: string | null;
+  battery_percent: number | null;
+  grade: string | null;
+  warranty: string | null;
+  changed_parts: string | null;
+  box_invoice: string | null;
+  current_branch_code: string | null;
+  status: string | null;
+  source: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type ListingDraftForm = {
+  stockDeviceId: number | null;
+  title: string;
+  description: string;
+  categoryId: string;
+  salePrice: string;
+  listPrice: string;
+  vatRate: string;
+  preparingDay: string;
+  shipmentTemplate: string;
+  imagesText: string;
+};
+
 type OnlineTask = {
   id: number;
   channel: string;
@@ -108,6 +140,19 @@ const EMPTY_STATS: OnlineStats = {
   activeProductCount: 0,
   matchedDeviceCount: 0,
   unmatchedDeviceCount: 0,
+};
+
+const EMPTY_DRAFT_FORM: ListingDraftForm = {
+  stockDeviceId: null,
+  title: "",
+  description: "",
+  categoryId: "",
+  salePrice: "",
+  listPrice: "",
+  vatRate: "20",
+  preparingDay: "1",
+  shipmentTemplate: "",
+  imagesText: "",
 };
 
 function formatMoney(value: number) {
@@ -168,6 +213,14 @@ export default function Online() {
   const [error, setError] = useState("");
   const [data, setData] = useState<OnlineResponse | null>(null);
   const [search, setSearch] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState<AvailableDevice[]>([]);
+  const [deviceSearch, setDeviceSearch] = useState("");
+  const [deviceLoading, setDeviceLoading] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftError, setDraftError] = useState("");
+  const [draftSuccess, setDraftSuccess] = useState("");
+  const [draftForm, setDraftForm] = useState<ListingDraftForm>(EMPTY_DRAFT_FORM);
 
   const loadData = useCallback(async (silent = false) => {
     if (silent) {
@@ -203,6 +256,147 @@ export default function Online() {
       setRefreshing(false);
     }
   }, []);
+
+
+  const loadAvailableDevices = useCallback(async (q = "") => {
+    setDeviceLoading(true);
+    setDraftError("");
+
+    try {
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("q", q.trim());
+      params.set("limit", "100");
+
+      const response = await fetch(`/api/online/listings?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "Cihaz listesi alınamadı.");
+      }
+
+      setAvailableDevices(
+        Array.isArray(payload.availableDevices) ? payload.availableDevices : []
+      );
+    } catch (err) {
+      setDraftError(
+        err instanceof Error ? err.message : "Cihaz listesi alınamadı."
+      );
+    } finally {
+      setDeviceLoading(false);
+    }
+  }, []);
+
+  const openCreateModal = useCallback(() => {
+    setShowCreateModal(true);
+    setDraftError("");
+    setDraftSuccess("");
+    setDeviceSearch("");
+    setDraftForm(EMPTY_DRAFT_FORM);
+    void loadAvailableDevices("");
+  }, [loadAvailableDevices]);
+
+  const closeCreateModal = useCallback(() => {
+    if (draftSaving) return;
+    setShowCreateModal(false);
+    setDraftError("");
+    setDraftSuccess("");
+    setDeviceSearch("");
+    setDraftForm(EMPTY_DRAFT_FORM);
+  }, [draftSaving]);
+
+  const selectedDevice = useMemo(
+    () =>
+      availableDevices.find((item) => item.id === draftForm.stockDeviceId) ||
+      null,
+    [availableDevices, draftForm.stockDeviceId]
+  );
+
+  const chooseDevice = useCallback((device: AvailableDevice) => {
+    const autoTitle = [
+      device.brand,
+      device.model,
+      device.memory,
+      device.color,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    setDraftForm((current) => ({
+      ...current,
+      stockDeviceId: device.id,
+      title: current.title || autoTitle,
+    }));
+  }, []);
+
+  const saveDraft = useCallback(async () => {
+    setDraftError("");
+    setDraftSuccess("");
+
+    if (!draftForm.stockDeviceId) {
+      setDraftError("Önce bir cihaz seçin.");
+      return;
+    }
+
+    const imageUrls = draftForm.imagesText
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    setDraftSaving(true);
+
+    try {
+      const response = await fetch("/api/online/listings", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stockDeviceId: draftForm.stockDeviceId,
+          title: draftForm.title,
+          description: draftForm.description,
+          categoryId: draftForm.categoryId,
+          salePrice: draftForm.salePrice,
+          listPrice: draftForm.listPrice,
+          vatRate: draftForm.vatRate,
+          preparingDay: draftForm.preparingDay,
+          shipmentTemplate: draftForm.shipmentTemplate,
+          images: imageUrls,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "Taslak kaydedilemedi.");
+      }
+
+      setDraftSuccess(
+        payload?.message || "N11 ürün taslağı PostgreSQL'e kaydedildi."
+      );
+
+      await loadData(true);
+      await loadAvailableDevices(deviceSearch);
+
+      window.setTimeout(() => {
+        setShowCreateModal(false);
+        setDraftForm(EMPTY_DRAFT_FORM);
+        setDraftSuccess("");
+      }, 900);
+    } catch (err) {
+      setDraftError(
+        err instanceof Error ? err.message : "Taslak kaydedilemedi."
+      );
+    } finally {
+      setDraftSaving(false);
+    }
+  }, [draftForm, loadData, loadAvailableDevices, deviceSearch]);
 
   useEffect(() => {
     void loadData(false);
@@ -295,6 +489,14 @@ export default function Online() {
                         {formatDate(channel?.last_sync_at)}
                       </span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={openCreateModal}
+                      className="inline-flex h-9 items-center justify-center rounded-xl bg-blue-600 px-4 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-blue-700"
+                    >
+                      Yeni Ürün Aç
+                    </button>
 
                     <button
                       type="button"
@@ -619,6 +821,387 @@ export default function Online() {
             </div>
           </div>
         </section>
+
+        {showCreateModal ? (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
+            <div className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                    ONLINE · N11
+                  </div>
+                  <h3 className="mt-1 text-2xl font-black text-slate-900">
+                    Yeni Ürün Aç
+                  </h3>
+                  <p className="mt-1 text-[12px] font-semibold text-slate-500">
+                    Bu işlem sadece PostgreSQL taslağı oluşturur. N11 API'ye gönderim yapılmaz.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={draftSaving}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)]">
+                <aside className="min-h-0 border-b border-slate-200 bg-slate-50/70 xl:border-b-0 xl:border-r">
+                  <div className="border-b border-slate-200 p-4">
+                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      1. Cihaz Seç
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        value={deviceSearch}
+                        onChange={(event) => setDeviceSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            void loadAvailableDevices(deviceSearch);
+                          }
+                        }}
+                        placeholder="IMEI, marka veya model ara..."
+                        className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void loadAvailableDevices(deviceSearch)}
+                        disabled={deviceLoading}
+                        className="h-11 rounded-xl bg-slate-900 px-4 text-[11px] font-black text-white disabled:opacity-50"
+                      >
+                        ARA
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[calc(94vh-180px)] overflow-y-auto p-3">
+                    {deviceLoading ? (
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[12px] font-black text-slate-500">
+                        Cihazlar yükleniyor...
+                      </div>
+                    ) : availableDevices.length === 0 ? (
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[12px] font-semibold text-slate-500">
+                        ONLINE'a uygun cihaz bulunamadı.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {availableDevices.map((device) => {
+                          const selected = draftForm.stockDeviceId === device.id;
+
+                          return (
+                            <button
+                              key={device.id}
+                              type="button"
+                              onClick={() => chooseDevice(device)}
+                              className={`w-full rounded-2xl border p-4 text-left transition ${
+                                selected
+                                  ? "border-blue-500 bg-blue-50 shadow-sm"
+                                  : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[13px] font-black text-slate-900">
+                                    {[device.brand, device.model]
+                                      .filter(Boolean)
+                                      .join(" ") || "Cihaz"}
+                                  </div>
+                                  <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">
+                                    {[device.memory, device.color]
+                                      .filter(Boolean)
+                                      .join(" | ") || "—"}
+                                  </div>
+                                </div>
+
+                                <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-600">
+                                  {device.current_branch_code || "—"}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 font-mono text-[12px] font-black text-slate-700">
+                                {device.imei}
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black">
+                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
+                                  Pil: {device.battery_percent ?? "—"}%
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
+                                  Grade: {device.grade || "—"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
+                                  {device.status || "—"}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </aside>
+
+                <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    2. N11 Ürün Taslağı
+                  </div>
+
+                  {selectedDevice ? (
+                    <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">IMEI / stockCode</div>
+                          <div className="mt-1 font-mono text-[12px] font-black text-slate-800">
+                            {selectedDevice.imei}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Marka</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.brand || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Model</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.model || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Hafıza</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.memory || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Renk</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.color || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Stok</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            1
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-[12px] font-semibold text-slate-500">
+                      Sol taraftan cihaz seçin.
+                    </div>
+                  )}
+
+                  <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <label className="lg:col-span-2">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Ürün Başlığı
+                      </div>
+                      <input
+                        value={draftForm.title}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                        placeholder="Örn: Apple iPhone 15 Pro 256 GB Siyah"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Kategori ID
+                      </div>
+                      <input
+                        value={draftForm.categoryId}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            categoryId: event.target.value,
+                          }))
+                        }
+                        inputMode="numeric"
+                        placeholder="N11 kategori ID"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        KDV
+                      </div>
+                      <select
+                        value={draftForm.vatRate}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            vatRate: event.target.value,
+                          }))
+                        }
+                        className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold outline-none"
+                      >
+                        <option value="0">%0</option>
+                        <option value="1">%1</option>
+                        <option value="10">%10</option>
+                        <option value="20">%20</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Satış Fiyatı
+                      </div>
+                      <input
+                        value={draftForm.salePrice}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            salePrice: event.target.value,
+                          }))
+                        }
+                        placeholder="42999,00"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Liste Fiyatı
+                      </div>
+                      <input
+                        value={draftForm.listPrice}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            listPrice: event.target.value,
+                          }))
+                        }
+                        placeholder="44999,00"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Hazırlık Süresi (Gün)
+                      </div>
+                      <input
+                        value={draftForm.preparingDay}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            preparingDay: event.target.value,
+                          }))
+                        }
+                        inputMode="numeric"
+                        placeholder="1"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Kargo Şablonu
+                      </div>
+                      <input
+                        value={draftForm.shipmentTemplate}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            shipmentTemplate: event.target.value,
+                          }))
+                        }
+                        placeholder="N11 teslimat şablonu adı"
+                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label className="lg:col-span-2">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Açıklama
+                      </div>
+                      <textarea
+                        value={draftForm.description}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        rows={6}
+                        placeholder="Ürün açıklaması..."
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+
+                    <label className="lg:col-span-2">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Görsel URL'leri
+                      </div>
+                      <textarea
+                        value={draftForm.imagesText}
+                        onChange={(event) =>
+                          setDraftForm((current) => ({
+                            ...current,
+                            imagesText: event.target.value,
+                          }))
+                        }
+                        rows={5}
+                        placeholder={"Her satıra bir https görsel adresi\nhttps://.../1.jpg\nhttps://.../2.jpg"}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 font-mono text-[12px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+                  </div>
+
+                  {draftError ? (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                      {draftError}
+                    </div>
+                  ) : null}
+
+                  {draftSuccess ? (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                      {draftSuccess}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="text-[11px] font-semibold text-slate-500">
+                  stockCode otomatik olarak cihazın 15 haneli IMEI bilgisidir. Stok otomatik 1 kaydedilir.
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeCreateModal}
+                    disabled={draftSaving}
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600 disabled:opacity-50"
+                  >
+                    İPTAL
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void saveDraft()}
+                    disabled={draftSaving || !draftForm.stockDeviceId}
+                    className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {draftSaving ? "KAYDEDİLİYOR..." : "TASLAĞI KAYDET"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
