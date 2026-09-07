@@ -170,20 +170,37 @@ type N11Order = {
   lines: N11OrderLine[];
 };
 
+type N11OrderGroup = {
+  status: string;
+  count: number;
+  totalQuantity: number;
+  totalAmount: number;
+  orders: N11Order[];
+};
+
 type N11OrdersResponse = {
   success: boolean;
   error?: string;
   channel: string;
-  readOnly: boolean;
-  status: string;
   period: {
     startDate: string;
     endDate: string;
     days: number;
   };
+  groups: {
+    Created: N11OrderGroup;
+    Picking: N11OrderGroup;
+    Shipped: N11OrderGroup;
+    Delivered: N11OrderGroup;
+  };
+  counts: {
+    newOrders: number;
+    preparing: number;
+    shipped: number;
+    delivered: number;
+    total: number;
+  };
   count: number;
-  totalQuantity: number;
-  totalAmount: number;
   orders: N11Order[];
   checkedAt: string;
 };
@@ -281,6 +298,9 @@ export default function Online() {
   const [activeSection, setActiveSection] = useState<
     "orders" | "open" | "closed"
   >("open");
+  const [orderSection, setOrderSection] = useState<
+    "new" | "preparing" | "shipped" | "delivered"
+  >("new");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterBrand, setFilterBrand] = useState("");
   const [filterMemory, setFilterMemory] = useState("");
@@ -347,7 +367,7 @@ export default function Online() {
 
     try {
       const ordersResponse = await fetch(
-        "/api/online/n11/orders?status=Created",
+        "/api/online/n11/orders",
         {
           method: "GET",
           cache: "no-store",
@@ -745,6 +765,20 @@ export default function Online() {
     void loadOrders(false);
   }, [loadOrders]);
 
+  useEffect(() => {
+    if (activeSection !== "orders") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadOrders(true);
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeSection, loadOrders]);
+
   const stats = data?.stats ?? EMPTY_STATS;
   const channel = data?.channel ?? null;
   const listings = data?.listings ?? [];
@@ -759,8 +793,35 @@ export default function Online() {
     [listings]
   );
 
-  const orders = ordersData?.orders ?? [];
-  const orderCount = ordersData?.count ?? 0;
+  const newOrders =
+    ordersData?.groups?.Created?.orders ?? [];
+  const preparingOrders =
+    ordersData?.groups?.Picking?.orders ?? [];
+  const shippedOrders =
+    ordersData?.groups?.Shipped?.orders ?? [];
+  const deliveredOrders =
+    ordersData?.groups?.Delivered?.orders ?? [];
+
+  const orderCount =
+    ordersData?.counts?.newOrders ?? 0;
+
+  const selectedOrders =
+    orderSection === "new"
+      ? newOrders
+      : orderSection === "preparing"
+      ? preparingOrders
+      : orderSection === "shipped"
+      ? shippedOrders
+      : deliveredOrders;
+
+  const selectedOrderGroup =
+    orderSection === "new"
+      ? ordersData?.groups?.Created
+      : orderSection === "preparing"
+      ? ordersData?.groups?.Picking
+      : orderSection === "shipped"
+      ? ordersData?.groups?.Shipped
+      : ordersData?.groups?.Delivered;
 
   const filteredListings = useMemo(() => {
     const source =
@@ -1130,13 +1191,69 @@ export default function Online() {
               </div>
               <div className="mt-1 text-[12px] font-semibold text-slate-500">
                 {activeSection === "orders"
-                  ? "N11'den gelen Created statülü siparişler müşteri bazlı listelenir."
+                  ? "Yeni sipariş, hazırlanan, kargodaki ve teslim edilen N11 siparişlerini takip edin."
                   : activeSection === "open"
                   ? "Stok adedi 1 ve üzeri olan, yayındaki N11 ürünleri."
                   : "Stok adedi 0 olan, satışa kapalı N11 ürünleri."}
               </div>
             </div>
           </div>
+
+          {activeSection === "orders" ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <button
+                type="button"
+                onClick={() => setOrderSection("new")}
+                className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
+                  orderSection === "new"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                YENİ SİPARİŞLER ({ordersData?.counts?.newOrders ?? 0})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOrderSection("preparing")}
+                className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
+                  orderSection === "preparing"
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                KARGOYA HAZIRLANIYOR ({ordersData?.counts?.preparing ?? 0})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOrderSection("shipped")}
+                className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
+                  orderSection === "shipped"
+                    ? "bg-violet-600 text-white shadow-sm"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                KARGODA ({ordersData?.counts?.shipped ?? 0})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOrderSection("delivered")}
+                className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
+                  orderSection === "delivered"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                TESLİM EDİLDİ ({ordersData?.counts?.delivered ?? 0})
+              </button>
+
+              <div className="ml-auto px-2 text-[10px] font-bold text-slate-400">
+                N11 durumu 60 sn&apos;de bir yenilenir
+              </div>
+            </div>
+          ) : null}
 
           {orderActionMessage && activeSection === "orders" ? (
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
@@ -1175,7 +1292,7 @@ export default function Online() {
                     TEKRAR DENE
                   </button>
                 </div>
-              ) : orders.length === 0 ? (
+              ) : selectedOrders.length === 0 ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-3xl">
                     🛒
@@ -1184,7 +1301,13 @@ export default function Online() {
                     Yeni sipariş yok
                   </div>
                   <div className="mt-2 max-w-xl text-[12px] font-semibold leading-5 text-slate-500">
-                    Son 30 günde Created statüsünde bekleyen N11 siparişi bulunamadı.
+                    {orderSection === "new"
+                      ? "Yeni onay bekleyen N11 siparişi bulunamadı."
+                      : orderSection === "preparing"
+                      ? "Kargoya hazırlanan sipariş bulunamadı."
+                      : orderSection === "shipped"
+                      ? "Kargoda olan sipariş bulunamadı."
+                      : "Teslim edilmiş sipariş bulunamadı."}
                   </div>
                 </div>
               ) : (
@@ -1202,7 +1325,7 @@ export default function Online() {
                       <div>İşlem</div>
                     </div>
 
-                    {orders.map((order, index) => (
+                    {selectedOrders.map((order, index) => (
                       <div
                         key={`${order.packageId || order.orderNumber || "order"}-${index}`}
                         className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
@@ -1254,8 +1377,24 @@ export default function Online() {
                         </div>
 
                         <div>
-                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
-                            {order.shipmentPackageStatus || "Created"}
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black ring-1 ${
+                              orderSection === "new"
+                                ? "bg-blue-50 text-blue-700 ring-blue-100"
+                                : orderSection === "preparing"
+                                ? "bg-amber-50 text-amber-700 ring-amber-100"
+                                : orderSection === "shipped"
+                                ? "bg-violet-50 text-violet-700 ring-violet-100"
+                                : "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                            }`}
+                          >
+                            {orderSection === "new"
+                              ? "Yeni Sipariş"
+                              : orderSection === "preparing"
+                              ? "Kargoya Hazırlanıyor"
+                              : orderSection === "shipped"
+                              ? "Kargoda"
+                              : "Teslim Edildi"}
                           </span>
                         </div>
 
@@ -1267,24 +1406,30 @@ export default function Online() {
                         </div>
 
                         <div>
-                          <button
-                            type="button"
-                            onClick={() => void approveOrder(order)}
-                            disabled={
-                              orderActionId ===
+                          {orderSection === "new" ? (
+                            <button
+                              type="button"
+                              onClick={() => void approveOrder(order)}
+                              disabled={
+                                orderActionId ===
+                                (order.packageId ||
+                                  order.orderNumber ||
+                                  "")
+                              }
+                              className="h-9 rounded-xl bg-blue-600 px-4 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {orderActionId ===
                               (order.packageId ||
                                 order.orderNumber ||
                                 "")
-                            }
-                            className="h-9 rounded-xl bg-blue-600 px-4 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {orderActionId ===
-                            (order.packageId ||
-                              order.orderNumber ||
-                              "")
-                              ? "ONAYLANIYOR..."
-                              : "ONAYLA"}
-                          </button>
+                                ? "ONAYLANIYOR..."
+                                : "ONAYLA"}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400">
+                              —
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1431,25 +1576,27 @@ export default function Online() {
           </div>
 
           {activeSection === "orders" ? (
-            !ordersError && orders.length > 0 ? (
+            !ordersError && selectedOrders.length > 0 ? (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] font-semibold text-slate-500">
                 <div>
-                  Yeni Sipariş:{" "}
+                  Gösterilen Sipariş:{" "}
                   <span className="font-black text-blue-700">
-                    {orderCount}
+                    {selectedOrderGroup?.count ?? 0}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <span>
                     Toplam Adet:{" "}
                     <b className="text-slate-800">
-                      {ordersData?.totalQuantity ?? 0}
+                      {selectedOrderGroup?.totalQuantity ?? 0}
                     </b>
                   </span>
                   <span>
                     Toplam Tutar:{" "}
                     <b className="text-slate-800">
-                      {formatMoney(Number(ordersData?.totalAmount || 0))}
+                      {formatMoney(
+                        Number(selectedOrderGroup?.totalAmount || 0)
+                      )}
                     </b>
                   </span>
                 </div>
