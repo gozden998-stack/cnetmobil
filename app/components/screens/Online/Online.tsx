@@ -30,6 +30,8 @@ type OnlineStats = {
   activeProductCount: number;
   matchedDeviceCount: number;
   unmatchedDeviceCount: number;
+  n11SyncedCount: number;
+  localDraftCount: number;
 };
 
 type OnlineListing = {
@@ -144,6 +146,8 @@ const EMPTY_STATS: OnlineStats = {
   activeProductCount: 0,
   matchedDeviceCount: 0,
   unmatchedDeviceCount: 0,
+  n11SyncedCount: 0,
+  localDraftCount: 0,
 };
 
 const EMPTY_DRAFT_FORM: ListingDraftForm = {
@@ -617,7 +621,7 @@ export default function Online() {
                     {data?.apiConnected ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">
                         <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        Bağlı
+                        API Bağlı
                       </span>
                     ) : data?.apiConfigured ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700 ring-1 ring-amber-200">
@@ -633,8 +637,11 @@ export default function Online() {
                   </div>
 
                   <p className="mt-2 max-w-2xl text-[14px] font-semibold leading-6 text-slate-500">
-                    ONLINE modülü PostgreSQL verilerini kullanıyor. N11 API bağlantısı
-                    henüz aktif değil.
+                    {data?.apiConnected
+                      ? "N11 API bağlantısı aktif. Son başarılı N11 senkronizasyon verileri PostgreSQL üzerinden gösteriliyor."
+                      : data?.apiConfigured
+                      ? "N11 API bilgileri yapılandırıldı. Başarılı bağlantı ve senkronizasyon bekleniyor."
+                      : "ONLINE modülü PostgreSQL verilerini kullanıyor. N11 API bilgileri henüz yapılandırılmadı."}
                   </p>
 
                   <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] font-bold text-slate-500">
@@ -677,7 +684,7 @@ export default function Online() {
                     {stats.totalProducts}
                   </div>
                   <div className="mt-1 text-[12px] font-semibold text-slate-500">
-                    PostgreSQL kayıtları
+                    {stats.n11SyncedCount} N11 · {stats.localDraftCount} yerel/taslak
                   </div>
                 </div>
 
@@ -728,9 +735,9 @@ export default function Online() {
                     </div>
                     <div className="mt-1 text-[11px] font-semibold text-slate-500">
                       {data?.apiConnected
-                        ? "Bağlantı aktif"
+                        ? "N11 REST API doğrulandı ve aktif"
                         : data?.apiConfigured
-                        ? "API bilgileri mevcut, bağlantı bekleniyor"
+                        ? "API bilgileri mevcut, başarılı senkronizasyon bekleniyor"
                         : "Henüz yapılandırılmadı"}
                     </div>
                   </div>
@@ -742,7 +749,11 @@ export default function Online() {
                         : "bg-slate-200 text-slate-600"
                     }`}
                   >
-                    {data?.apiConnected ? "Bağlı" : "Kapalı"}
+                    {data?.apiConnected
+                      ? "Aktif"
+                      : data?.apiConfigured
+                      ? "Bekliyor"
+                      : "Kapalı"}
                   </span>
                 </div>
               </div>
@@ -792,15 +803,51 @@ export default function Online() {
               </div>
             </div>
 
-            <div className="rounded-[26px] border border-blue-100 bg-blue-50/70 p-5 shadow-sm">
-              <div className="text-[12px] font-black text-blue-800">
+            <div
+              className={`rounded-[26px] border p-5 shadow-sm ${
+                data?.apiConnected
+                  ? "border-emerald-100 bg-emerald-50/70"
+                  : "border-blue-100 bg-blue-50/70"
+              }`}
+            >
+              <div
+                className={`text-[12px] font-black ${
+                  data?.apiConnected ? "text-emerald-800" : "text-blue-800"
+                }`}
+              >
                 Gerçek Sistem Durumu
               </div>
-              <p className="mt-3 text-[12px] font-semibold leading-6 text-blue-700">
-                Bu ekrandaki tüm sayılar PostgreSQL&apos;den gelir. N11 API bağlantısı
-                yapılana kadar ürün listesi yalnızca online_listings tablosundaki
-                gerçek kayıtları gösterir.
-              </p>
+
+              {data?.apiConnected ? (
+                <div className="mt-3 space-y-2 text-[12px] font-semibold leading-6 text-emerald-700">
+                  <p>
+                    N11 API bağlantısı aktif ve son ürün senkronizasyonu başarıyla tamamlandı.
+                  </p>
+                  <div className="rounded-xl border border-emerald-100 bg-white/70 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Son N11 senkronizasyonu</span>
+                      <span className="font-black text-emerald-900">
+                        {formatDate(channel?.last_sync_at)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <span>N11 senkronize ürün</span>
+                      <span className="font-black text-emerald-900">
+                        {stats.n11SyncedCount}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px]">
+                    Otomatik stok ve fiyat senkronizasyonu henüz kapalı; sonraki adımda gerçek N11 güncelleme servislerini bağlayacağız.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-[12px] font-semibold leading-6 text-blue-700">
+                  {data?.apiConfigured
+                    ? "N11 API bilgileri mevcut. İlk başarılı ürün senkronizasyonundan sonra bağlantı burada aktif görünecek."
+                    : "N11 API bilgileri henüz yapılandırılmadı. ONLINE kayıtları PostgreSQL üzerinden gösteriliyor."}
+                </p>
+              )}
             </div>
           </aside>
         </section>
