@@ -1237,6 +1237,262 @@ async function queryN11ProductByStockCode(stockCode: string) {
   );
 }
 
+function parseN11ReferenceUrl(value: unknown) {
+  const text = String(value ?? '').trim();
+
+  if (!text) return null;
+
+  try {
+    const url = new URL(text);
+
+    if (url.protocol !== 'https:') {
+      return null;
+    }
+
+    const hostname = url.hostname.toLowerCase();
+
+    if (
+      hostname !== 'n11.com' &&
+      hostname !== 'www.n11.com' &&
+      !hostname.endsWith('.n11.com')
+    ) {
+      return null;
+    }
+
+    const path = url.pathname;
+
+    const matches = [
+      ...path.matchAll(/-(\d{5,})(?=\/|$)/g),
+    ];
+
+    const lastMatch = matches[matches.length - 1];
+    const productId = lastMatch?.[1] || null;
+
+    return {
+      url: url.toString(),
+      productId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function queryN11ProductById(productId: string) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  if (!/^\d+$/.test(productId)) {
+    throw new Error('N11 ürün kodu geçersiz.');
+  }
+
+  const url = new URL(N11_PRODUCT_QUERY_URL);
+  url.searchParams.set('id', productId);
+  url.searchParams.set('page', '0');
+  url.searchParams.set('size', '20');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      appkey: credentials.appKey,
+      appsecret: credentials.appSecret,
+      Accept: 'application/json',
+    },
+  });
+
+  const rawText = await response.text();
+
+  let payload: any = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = safeN11Message(payload, rawText);
+
+    throw new Error(
+      message
+        ? `N11 örnek ürün sorgulama: ${message}`
+        : `N11 product-query HTTP ${response.status} hatası döndürdü.`
+    );
+  }
+
+  const content = Array.isArray(payload?.content)
+    ? payload.content
+    : [];
+
+  return (
+    content.find(
+      (item: any) =>
+        String(item?.n11ProductId || '').trim() === productId
+    ) ||
+    content[0] ||
+    null
+  );
+}
+
+function decodeHtmlAttribute(value: string) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+async function fetchN11ReferenceImage(referenceUrl: string) {
+  const parsed = parseN11ReferenceUrl(referenceUrl);
+
+  if (!parsed) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12_000);
+
+  try {
+    const response = await fetch(parsed.url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent':
+          'Mozilla/5.0 (compatible; CNETMOBIL-N11-Integration/1.0)',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    const html = await response.text();
+
+    const patterns = [
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+
+      if (!match?.[1]) continue;
+
+      const cleaned = cleanHttpsImageUrl(
+        decodeHtmlAttribute(match[1])
+      );
+
+      if (cleaned) return cleaned;
+    }
+
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function templateFromReferenceUrl(
+  referenceUrl: string
+) {
+  const parsed = parseN11ReferenceUrl(referenceUrl);
+
+  if (!parsed) {
+    throw new Error(
+      'N11 örnek ürün linki geçersiz. n11.com üzerindeki ürün sayfası linkini yapıştırın.'
+    );
+  }
+
+  if (!parsed.productId) {
+    throw new Error(
+      'N11 örnek ürün linkinden ürün kodu okunamadı.'
+    );
+  }
+
+  const product = await queryN11ProductById(
+    parsed.productId
+  );
+
+  if (!product) {
+    throw new Error(
+      `N11 API'de ürün kodu ${parsed.productId} bulunamadı. Link kendi N11 mağazanızdaki ürüne ait olmalı.`
+    );
+  }
+
+  const categoryId = positiveIntegerOrNull(
+    product?.categoryId
+  );
+
+  const shipmentTemplate = String(
+    product?.shipmentTemplate || ''
+  ).trim();
+
+  if (!categoryId || !shipmentTemplate) {
+    throw new Error(
+      'N11 örnek ürününde categoryId veya kargo şablonu eksik.'
+    );
+  }
+
+  const catalogId = positiveIntegerOrNull(
+    product?.catalogId
+  );
+
+  const barcodeText =
+    product?.barcode === null ||
+    product?.barcode === undefined
+      ? ''
+      : String(product.barcode).trim();
+
+  const barcode = barcodeText || null;
+
+  const pageImageUrl =
+    await fetchN11ReferenceImage(parsed.url);
+
+  return {
+    row: {
+      id: null,
+      external_product_id:
+        product?.n11ProductId === null ||
+        product?.n11ProductId === undefined
+          ? null
+          : String(product.n11ProductId),
+      external_product_main_id:
+        product?.productMainId === null ||
+        product?.productMainId === undefined
+          ? null
+          : String(product.productMainId),
+      category_id: product?.categoryId ?? null,
+      title: product?.title ?? null,
+      description: product?.description ?? null,
+      preparing_day: product?.preparingDay ?? null,
+      shipment_template:
+        product?.shipmentTemplate ?? null,
+      product_status: product?.status ?? null,
+    },
+    rawProduct: product,
+    catalogId,
+    barcode,
+    source: 'N11_REFERENCE_URL' as const,
+    createMode:
+      catalogId || barcode
+        ? ('QUICK' as const)
+        : ('FULL' as const),
+    nearMatches: [],
+    pageImageUrl,
+    referenceUrl: parsed.url,
+  };
+}
+
 async function finalizeCreatedListing(
   listingId: number,
   stockCode: string,
@@ -1431,7 +1687,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = body as Record<string, unknown>;
-    const imageUrl = String(data.imageUrl ?? '').trim();
+    const referenceProductUrl = String(
+      data.referenceProductUrl ??
+        data.imageUrl ??
+        ''
+    ).trim();
 
     const imei = String(data.imei ?? '')
       .replace(/\s+/g, '')
@@ -1543,16 +1803,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // İlk gerçek ürün testinde kategori/attribute tahmini YAPMIYORUZ.
-    // Aynı özellikte, zaten N11'de bulunan ürünü katalog şablonu olarak kullanıyoruz.
-    const template = await findCatalogTemplate({
-      brand,
-      model,
-      memory,
-      color,
-      grade,
-      warranty,
-    });
+    // En sağlam yöntem: kullanıcı mevcut N11 ürün linkini verirse
+    // fuzzy Marka/Model eşleştirmesi yapmadan ürün ID'sini URL'den alır
+    // ve N11 product-query?id=... ile tam ürünü kullanırız.
+    const template = referenceProductUrl
+      ? await templateFromReferenceUrl(
+          referenceProductUrl
+        )
+      : await findCatalogTemplate({
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+        });
 
     if (!template.row || !template.rawProduct) {
       const nearTitles = Array.isArray(template.nearMatches)
@@ -1723,7 +1988,10 @@ export async function POST(request: NextRequest) {
           templateBarcode: template.barcode,
           templateSource: template.source,
           templateCreateMode: template.createMode,
-          imageUrl: imageUrl || null,
+          referenceProductUrl:
+            referenceProductUrl || null,
+          referencePageImageUrl:
+            (template as any).pageImageUrl || null,
           brand,
           model,
           memory,
@@ -1771,16 +2039,16 @@ export async function POST(request: NextRequest) {
       // catalogId/barcode yoksa görsel + zorunlu kategori özellikleri gerekir.
       const imageUrls = extractTemplateImageUrls(
         templateRaw,
-        imageUrl
+        (template as any).pageImageUrl
       );
 
       if (imageUrls.length === 0) {
         return json(
           {
             success: false,
-            requiresImageUrl: true,
+            requiresReferenceProductUrl: true,
             error:
-              'Bu N11 ürünü catalogId/barcode taşımıyor; normal ürün oluşturma gerekiyor. N11 Görsel URL alanına aynı cihazın HTTPS görsel adresini girin.',
+              'Örnek N11 ürününün görseli otomatik alınamadı. Başka bir N11 örnek ürün linki deneyin.',
           },
           409
         );
