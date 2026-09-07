@@ -1,11 +1,12 @@
-// app/api/online/route.ts
-// CNETMOBIL ONLINE - PostgreSQL okuma endpointi
+// app/api/online/listings/route.ts
+// CNETMOBIL ONLINE - N11 TASLAK LISTING API
 // N11 API BAGLI DEGIL.
-// Bu endpoint yalnizca mevcut PostgreSQL online tablolarini okur.
-// Sadece Super Admin erisebilir.
+// GET  -> ONLINE'a uygun cihazlari ve mevcut taslaklari okur.
+// POST -> Secilen cihaz icin N11 taslagi olusturur.
+// SADECE SUPER ADMIN.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -14,7 +15,7 @@ export const revalidate = 0;
 
 declare global {
   // eslint-disable-next-line no-var
-  var cnetOnlinePool: Pool | undefined;
+  var cnetOnlineListingsPool: Pool | undefined;
 }
 
 const COOKIE_NAME = 'cnet_auth';
@@ -43,8 +44,8 @@ function getPool() {
     throw new Error('DATABASE_URL bulunamadı.');
   }
 
-  if (!global.cnetOnlinePool) {
-    global.cnetOnlinePool = new Pool({
+  if (!global.cnetOnlineListingsPool) {
+    global.cnetOnlineListingsPool = new Pool({
       connectionString,
       max: 5,
       idleTimeoutMillis: 30_000,
@@ -52,7 +53,7 @@ function getPool() {
     });
   }
 
-  return global.cnetOnlinePool;
+  return global.cnetOnlineListingsPool;
 }
 
 function getSessionSecret() {
@@ -117,6 +118,30 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function validateOrigin(request: NextRequest) {
+  if (request.method === 'GET') return true;
+
+  const origin = request.headers.get('origin');
+  const expectedAppUrl = process.env.APP_URL;
+
+  if (!expectedAppUrl) {
+    const host = request.headers.get('host');
+    const proto =
+      request.headers.get('x-forwarded-proto') ||
+      request.nextUrl.protocol.replace(':', '');
+
+    if (!host || !origin) return false;
+
+    return origin === `${proto}://${host}`;
+  }
+
+  try {
+    return origin === new URL(expectedAppUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
 async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<ActiveUser | null> {
@@ -171,223 +196,615 @@ async function getAuthenticatedUser(
   };
 }
 
+function cleanText(
+  value: unknown,
+  maxLength: number,
+  required = false
+): string {
+  const text = String(value ?? '').trim();
+
+  if (required && !text) {
+    throw new Error('Zorunlu alan eksik.');
+  }
+
+  if (text.length > maxLength) {
+    throw new Error('Alan uzunluğu geçersiz.');
+  }
+
+  return text;
+}
+
+function parsePositiveId(value: unknown) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) return null;
+
+  return id;
+}
+
+function parseMoney(value: unknown, fieldName: string) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ''
+  ) {
+    return null;
+  }
+
+  const normalized = String(value)
+    .trim()
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const numberValue = Number(normalized);
+
+  if (!Number.isFinite(numberValue) || numberValue < 0) {
+    throw new Error(`${fieldName} geçersiz.`);
+  }
+
+  return Number(numberValue.toFixed(2));
+}
+
+function parseNullableInteger(
+  value: unknown,
+  fieldName: string,
+  min = 0
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ''
+  ) {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  if (!Number.isInteger(numberValue) || numberValue < min) {
+    throw new Error(`${fieldName} geçersiz.`);
+  }
+
+  return numberValue;
+}
+
+
+async function requireSuperAdmin(request: NextRequest) {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    return {
+      user: null,
+      response: json({ success: false, error: 'Oturum gerekli.' }, 401),
+    };
+  }
+
+  if (!user.isSuperAdmin) {
+    return {
+      user: null,
+      response: json(
+        {
+          success: false,
+          error: 'ONLINE modülü yalnızca Super Admin tarafından yönetilebilir.',
+        },
+        403
+      ),
+    };
+  }
+
+  return {
+    user,
+    response: null,
+  };
+}
+
 // ============================================================
-// GET /api/online
+// GET /api/online/listings
 //
-// SADECE PostgreSQL okur.
-// N11'e istek ATMAZ.
+// ONLINE'a uygun cihazlari listeler.
+// N11 API'ye istek ATMAZ.
 //
-// Dondurulenler:
-// - channel: online_channels/N11
-// - stats: toplam urun, toplam stok, ortalama fiyat
-// - listings: online_listings + varsa stock_devices detaylari
-// - tasks: son 50 online task
+// Uygun cihaz:
+// - aktif stokta olacak
+// - SOLD / PASSIVE olmayacak
+// - IMEI 15 haneli olacak
+// - ayni cihaz icin N11 listing zaten olmayacak
 //
-// ONLINE modulu su an sadece Super Admin.
+// query:
+// ?q=356789...
+// ?limit=100
 // ============================================================
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const auth = await requireSuperAdmin(request);
 
-    if (!user) {
-      return json(
-        {
-          success: false,
-          error: 'Oturum gerekli.',
-        },
-        401
-      );
+    if (auth.response) return auth.response;
+
+    const q = String(request.nextUrl.searchParams.get('q') || '').trim();
+    const requestedLimit = Number(
+      request.nextUrl.searchParams.get('limit') || 100
+    );
+
+    const limit =
+      Number.isInteger(requestedLimit) &&
+      requestedLimit >= 1 &&
+      requestedLimit <= 500
+        ? requestedLimit
+        : 100;
+
+    const params: unknown[] = [];
+    let searchSql = '';
+
+    if (q) {
+      params.push(`%${q}%`);
+
+      searchSql = `
+        AND (
+          sd.imei ILIKE $1
+          OR sd.brand ILIKE $1
+          OR sd.model ILIKE $1
+          OR sd.memory ILIKE $1
+          OR sd.color ILIKE $1
+          OR CONCAT_WS(' ', sd.brand, sd.model, sd.memory, sd.color) ILIKE $1
+        )
+      `;
     }
 
-    if (!user.isSuperAdmin) {
+    params.push(limit);
+
+    const limitParam = params.length;
+    const pool = getPool();
+
+    const [devicesResult, draftsResult] = await Promise.all([
+      pool.query(
+        `
+          SELECT
+            sd.id,
+            sd.imei,
+            sd.brand,
+            sd.model,
+            sd.memory,
+            sd.color,
+            sd.battery_percent,
+            sd.grade,
+            sd.warranty,
+            sd.changed_parts,
+            sd.box_invoice,
+            sd.current_branch_code,
+            sd.status,
+            sd.source,
+            sd.created_at,
+            sd.updated_at
+          FROM public.stock_devices sd
+          WHERE sd.status NOT IN ('SOLD', 'PASSIVE')
+            AND sd.imei ~ '^[0-9]{15}$'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM public.online_listings ol
+              WHERE ol.stock_device_id = sd.id
+                AND ol.channel = 'N11'
+            )
+            ${searchSql}
+          ORDER BY
+            sd.updated_at DESC,
+            sd.id DESC
+          LIMIT $${limitParam}
+        `,
+        params
+      ),
+
+      pool.query(
+        `
+          SELECT
+            ol.id,
+            ol.stock_device_id,
+            ol.channel,
+            ol.external_product_id,
+            ol.external_stock_code,
+            ol.title,
+            ol.description,
+            ol.category_id,
+            ol.sale_price,
+            ol.list_price,
+            ol.quantity,
+            ol.vat_rate,
+            ol.preparing_day,
+            ol.shipment_template,
+            ol.currency_type,
+            ol.images,
+            ol.attributes,
+            ol.product_status,
+            ol.sale_status,
+            ol.sync_status,
+            ol.last_task_id,
+            ol.last_task_status,
+            ol.last_error,
+            ol.last_synced_at,
+            ol.created_at,
+            ol.updated_at,
+
+            sd.imei,
+            sd.brand,
+            sd.model,
+            sd.memory,
+            sd.color,
+            sd.battery_percent,
+            sd.grade,
+            sd.warranty,
+            sd.changed_parts,
+            sd.box_invoice,
+            sd.current_branch_code,
+            sd.status AS device_status
+
+          FROM public.online_listings ol
+          LEFT JOIN public.stock_devices sd
+            ON sd.id = ol.stock_device_id
+          WHERE ol.channel = 'N11'
+          ORDER BY ol.updated_at DESC, ol.id DESC
+          LIMIT 500
+        `
+      ),
+    ]);
+
+    return json({
+      success: true,
+      availableDevices: devicesResult.rows,
+      availableCount: devicesResult.rows.length,
+      listings: draftsResult.rows,
+      listingCount: draftsResult.rows.length,
+    });
+  } catch (error) {
+    console.error('ONLINE LISTINGS GET ERROR:', error);
+
+    return json(
+      {
+        success: false,
+        error: 'ONLINE cihaz listesi alınamadı.',
+      },
+      500
+    );
+  }
+}
+
+// ============================================================
+// POST /api/online/listings
+//
+// N11 TASLAGI olusturur.
+// N11 API'ye istek ATMAZ.
+//
+// body:
+// {
+//   stockDeviceId,
+//   salePrice,
+//   listPrice
+// }
+//
+// Otomatik:
+// channel = N11
+// external_stock_code = IMEI
+// quantity = 1
+// sync_status = DRAFT
+// external_product_id = NULL
+// ============================================================
+export async function POST(request: NextRequest) {
+  let client: PoolClient | null = null;
+
+  try {
+    if (!validateOrigin(request)) {
       return json(
         {
           success: false,
-          error: 'ONLINE modülü yalnızca Super Admin tarafından görüntülenebilir.',
+          error: 'Geçersiz istek kaynağı.',
         },
         403
       );
     }
 
-    const pool = getPool();
+    const auth = await requireSuperAdmin(request);
 
-    const [channelResult, statsResult, listingsResult, tasksResult] =
-      await Promise.all([
-        pool.query(
-          `
-            SELECT
-              id,
-              channel,
-              enabled,
-              integrator_name,
-              default_currency,
-              default_vat_rate,
-              default_preparing_day,
-              default_shipment_template,
-              auto_stock_sync,
-              auto_price_sync,
-              last_sync_at,
-              last_sync_status,
-              last_sync_error,
-              created_at,
-              updated_at
-            FROM public.online_channels
-            WHERE channel = 'N11'
-            LIMIT 1
-          `
-        ),
+    if (auth.response || !auth.user) {
+      return auth.response!;
+    }
 
-        pool.query(
-          `
-            SELECT
-              COUNT(*)::integer AS total_products,
-              COALESCE(SUM(quantity), 0)::integer AS total_stock,
-              COALESCE(AVG(sale_price), 0)::numeric(12,2) AS average_sale_price,
+    const contentLength = Number(
+      request.headers.get('content-length') || 0
+    );
 
-              COUNT(*) FILTER (
-                WHERE sale_status = 'On_Sale'
-              )::integer AS on_sale_count,
+    if (contentLength > 100_000) {
+      return json(
+        {
+          success: false,
+          error: 'İstek çok büyük.',
+        },
+        413
+      );
+    }
 
-              COUNT(*) FILTER (
-                WHERE sale_status = 'Out_Of_Stock'
-              )::integer AS out_of_stock_count,
+    const body = await request.json().catch(() => null);
 
-              COUNT(*) FILTER (
-                WHERE sale_status = 'Sale_Closed'
-              )::integer AS sale_closed_count,
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json(
+        {
+          success: false,
+          error: 'Geçersiz istek.',
+        },
+        400
+      );
+    }
 
-              COUNT(*) FILTER (
-                WHERE product_status = 'Active'
-              )::integer AS active_product_count,
+    const data = body as Record<string, unknown>;
 
-              COUNT(*) FILTER (
-                WHERE stock_device_id IS NOT NULL
-              )::integer AS matched_device_count,
+    const stockDeviceId = parsePositiveId(data.stockDeviceId);
 
-              COUNT(*) FILTER (
-                WHERE stock_device_id IS NULL
-              )::integer AS unmatched_device_count
-            FROM public.online_listings
-            WHERE channel = 'N11'
-          `
-        ),
+    if (!stockDeviceId) {
+      return json(
+        {
+          success: false,
+          error: 'Geçersiz cihaz.',
+        },
+        400
+      );
+    }
 
-        pool.query(
-          `
-            SELECT
-              ol.id,
-              ol.channel,
-              ol.stock_device_id,
-              ol.external_product_id,
-              ol.external_stock_code,
-              ol.external_product_main_id,
-              ol.category_id,
-              ol.title,
-              ol.sale_price,
-              ol.list_price,
-              ol.quantity,
-              ol.product_status,
-              ol.sale_status,
-              ol.sync_status,
-              ol.last_task_id,
-              ol.last_task_status,
-              ol.last_error,
-              ol.attributes,
-              ol.last_synced_at,
-              ol.created_at,
-              ol.updated_at,
+    let salePrice: number | null;
+    let listPrice: number | null;
 
-              sd.imei AS device_imei,
-              sd.brand AS device_brand,
-              sd.model AS device_model,
-              sd.memory AS device_memory,
-              sd.color AS device_color,
-              sd.battery_percent AS device_battery_percent,
-              sd.grade AS device_grade,
-              sd.warranty AS device_warranty,
-              sd.changed_parts AS device_changed_parts,
-              sd.box_invoice AS device_box_invoice,
-              sd.current_branch_code AS device_branch_code,
-              sd.status AS device_status,
-              sd.source AS device_source
+    try {
+      salePrice = parseMoney(data.salePrice, 'N11 satış fiyatı');
+      listPrice = parseMoney(data.listPrice, 'N11 liste fiyatı');
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Fiyat bilgileri geçersiz.',
+        },
+        400
+      );
+    }
 
-            FROM public.online_listings ol
-            LEFT JOIN public.stock_devices sd
-              ON sd.id = ol.stock_device_id
-            WHERE ol.channel = 'N11'
-            ORDER BY
-              ol.updated_at DESC,
-              ol.id DESC
-            LIMIT 1000
-          `
-        ),
+    if (salePrice === null || listPrice === null) {
+      return json(
+        {
+          success: false,
+          error: 'N11 satış fiyatı ve N11 liste fiyatı zorunludur.',
+        },
+        400
+      );
+    }
 
-        pool.query(
-          `
-            SELECT
-              id,
-              channel,
-              task_id,
-              task_type,
-              task_status,
-              stock_code,
-              online_listing_id,
-              reasons,
-              error_message,
-              created_at,
-              checked_at,
-              completed_at
-            FROM public.online_tasks
-            WHERE channel = 'N11'
-            ORDER BY created_at DESC, id DESC
-            LIMIT 50
-          `
-        ),
-      ]);
+    if (
+      salePrice !== null &&
+      listPrice !== null &&
+      listPrice < salePrice
+    ) {
+      return json(
+        {
+          success: false,
+          error: 'Liste fiyatı satış fiyatından düşük olamaz.',
+        },
+        400
+      );
+    }
 
-    const statsRow = statsResult.rows[0] ?? {};
+    client = await getPool().connect();
+    await client.query('BEGIN');
 
-    return json({
-      success: true,
+    const deviceResult = await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          color,
+          battery_percent,
+          grade,
+          warranty,
+          changed_parts,
+          box_invoice,
+          current_branch_code,
+          status,
+          source
+        FROM public.stock_devices
+        WHERE id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [stockDeviceId]
+    );
 
-      currentUser: {
-        id: user.id,
-        username: user.username,
-        isSuperAdmin: user.isSuperAdmin,
+    const device = deviceResult.rows[0];
+
+    if (!device) {
+      await client.query('ROLLBACK');
+
+      return json(
+        {
+          success: false,
+          error: 'Cihaz bulunamadı.',
+        },
+        404
+      );
+    }
+
+    const imei = String(device.imei || '').trim();
+
+    if (!/^[0-9]{15}$/.test(imei)) {
+      await client.query('ROLLBACK');
+
+      return json(
+        {
+          success: false,
+          error: 'ONLINE ürün için cihaz IMEI bilgisi tam 15 haneli olmalıdır.',
+        },
+        409
+      );
+    }
+
+    const deviceStatus = String(device.status || '');
+
+    if (['SOLD', 'PASSIVE'].includes(deviceStatus)) {
+      await client.query('ROLLBACK');
+
+      return json(
+        {
+          success: false,
+          error: 'Satılmış veya pasif cihaz ONLINE ürüne açılamaz.',
+        },
+        409
+      );
+    }
+
+    const duplicateResult = await client.query(
+      `
+        SELECT
+          id,
+          channel,
+          external_stock_code,
+          sync_status
+        FROM public.online_listings
+        WHERE channel = 'N11'
+          AND (
+            stock_device_id = $1
+            OR external_stock_code = $2
+          )
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [stockDeviceId, imei]
+    );
+
+    if (duplicateResult.rowCount) {
+      await client.query('ROLLBACK');
+
+      return json(
+        {
+          success: false,
+          error: 'Bu cihaz için zaten N11 ONLINE kaydı bulunuyor.',
+          existingListing: duplicateResult.rows[0],
+        },
+        409
+      );
+    }
+
+    const finalTitle = [
+      device.brand,
+      device.model,
+      device.memory,
+      device.color,
+      device.grade,
+    ]
+      .filter(Boolean)
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .join(' ') || `CNETMOBIL ${imei}`;
+
+    const insertResult = await client.query(
+      `
+        INSERT INTO public.online_listings (
+          stock_device_id,
+          channel,
+          external_product_id,
+          external_stock_code,
+          title,
+          sale_price,
+          list_price,
+          quantity,
+          product_status,
+          sale_status,
+          sync_status,
+          currency_type,
+          raw_data,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          'N11',
+          NULL,
+          $2,
+          $3,
+          $4,
+          $5,
+          1,
+          NULL,
+          NULL,
+          'DRAFT',
+          'TL',
+          $6::jsonb,
+          now(),
+          now()
+        )
+        RETURNING *
+      `,
+      [
+        stockDeviceId,
+        imei,
+        finalTitle,
+        salePrice,
+        listPrice,
+        JSON.stringify({
+          draftSource: 'PANEL',
+          createdBy: auth.user.username,
+          deviceSnapshot: {
+            id: Number(device.id),
+            imei,
+            brand: device.brand ?? null,
+            model: device.model ?? null,
+            memory: device.memory ?? null,
+            color: device.color ?? null,
+            grade: device.grade ?? null,
+            warranty: device.warranty ?? null,
+            branchCode: device.current_branch_code ?? null,
+            status: device.status ?? null,
+            source: device.source ?? null,
+          },
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    return json(
+      {
+        success: true,
+        message: 'N11 ürün taslağı kaydedildi. Henüz N11 API’ye gönderilmedi.',
+        listing: insertResult.rows[0],
       },
+      201
+    );
+  } catch (error: any) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // ignore
+      }
+    }
 
-      apiConnected: false,
-      apiConfigured: false,
+    if (error?.code === '23505') {
+      return json(
+        {
+          success: false,
+          error: 'Bu cihaz için N11 ONLINE kaydı zaten mevcut.',
+        },
+        409
+      );
+    }
 
-      channel: channelResult.rows[0] ?? null,
-
-      stats: {
-        totalProducts: Number(statsRow.total_products || 0),
-        totalStock: Number(statsRow.total_stock || 0),
-        averageSalePrice: Number(statsRow.average_sale_price || 0),
-        onSaleCount: Number(statsRow.on_sale_count || 0),
-        outOfStockCount: Number(statsRow.out_of_stock_count || 0),
-        saleClosedCount: Number(statsRow.sale_closed_count || 0),
-        activeProductCount: Number(statsRow.active_product_count || 0),
-        matchedDeviceCount: Number(statsRow.matched_device_count || 0),
-        unmatchedDeviceCount: Number(statsRow.unmatched_device_count || 0),
-      },
-
-      listings: listingsResult.rows,
-      count: listingsResult.rows.length,
-
-      tasks: tasksResult.rows,
-      taskCount: tasksResult.rows.length,
-    });
-  } catch (error) {
-    console.error('ONLINE GET ERROR:', error);
+    console.error('ONLINE LISTINGS POST ERROR:', error);
 
     return json(
       {
         success: false,
-        error: 'ONLINE verileri alınamadı.',
+        error: 'N11 ürün taslağı oluşturulamadı.',
       },
       500
     );
+  } finally {
+    client?.release();
   }
 }
