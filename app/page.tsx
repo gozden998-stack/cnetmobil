@@ -1759,6 +1759,7 @@ export default function CnetmobilCmrFinalUltimate() {
       title: "ANA MODÜLLER",
       items: [
         { id: 'ana_sayfa', label: 'Ana Sayfa', visible: true },
+        { id: 'online', label: 'ONLINE', visible: isSuperAdminUser },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
@@ -1840,6 +1841,12 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9z" />
+          </svg>
+        );
+      case 'online':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16v12H4zM8 10h8M8 14h5M7 3v3M17 3v3" />
           </svg>
         );
       case 'alim':
@@ -2944,6 +2951,11 @@ export default function CnetmobilCmrFinalUltimate() {
                       ) : (
                         <button
                           onClick={() => {
+                            if (item.id === 'online') {
+                              window.location.href = '/online';
+                              return;
+                            }
+
                             setAppMode(item.id as any);
                             setStep(1);
                             resetSelection();
