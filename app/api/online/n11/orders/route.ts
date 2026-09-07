@@ -25,6 +25,8 @@ declare global {
 const COOKIE_NAME = 'cnet_auth';
 const N11_ORDERS_URL =
   'https://api.n11.com/rest/delivery/v1/shipmentPackages';
+const N11_ORDER_UPDATE_URL =
+  'https://api.n11.com/rest/order/v1/update';
 
 type SessionPayload = {
   userId: number | null;
@@ -572,6 +574,259 @@ export async function GET(request: NextRequest) {
           error instanceof Error
             ? error.message
             : 'N11 siparişleri alınamadı.',
+      },
+      500
+    );
+  }
+}
+
+
+// ============================================================
+// PUT /api/online/n11/orders
+// ACTION: APPROVE
+// Created siparis kalemlerini Picking durumuna alir.
+// N11 dokumanina gore su an UpdateOrder ile desteklenen
+// tek write islemi Picking/onaydir.
+// ============================================================
+export async function PUT(request: NextRequest) {
+  try {
+    const user =
+      await getAuthenticatedUser(request);
+
+    if (!user) {
+      return json(
+        {
+          success: false,
+          error: 'Oturum gerekli.',
+        },
+        401
+      );
+    }
+
+    if (!user.isSuperAdmin) {
+      return json(
+        {
+          success: false,
+          error:
+            'Bu işlem yalnızca Super Admin tarafından yapılabilir.',
+        },
+        403
+      );
+    }
+
+    const credentials = getN11Credentials();
+
+    if (!credentials) {
+      return json(
+        {
+          success: false,
+          error:
+            'N11_APP_KEY veya N11_APP_SECRET eksik.',
+        },
+        503
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+
+    if (!body || typeof body !== 'object') {
+      return json(
+        {
+          success: false,
+          error: 'Geçersiz istek.',
+        },
+        400
+      );
+    }
+
+    const action = String(
+      (body as Record<string, unknown>).action || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    if (action !== 'APPROVE') {
+      return json(
+        {
+          success: false,
+          error:
+            'Bu endpoint şu an yalnızca APPROVE işlemini destekliyor.',
+        },
+        400
+      );
+    }
+
+    const rawLineIds = (
+      body as Record<string, unknown>
+    ).lineIds;
+
+    if (!Array.isArray(rawLineIds)) {
+      return json(
+        {
+          success: false,
+          error: 'lineIds alanı zorunludur.',
+        },
+        400
+      );
+    }
+
+    const lineIds = Array.from(
+      new Set(
+        rawLineIds
+          .map((value) => Number(value))
+          .filter(
+            (value) =>
+              Number.isInteger(value) &&
+              value > 0
+          )
+      )
+    );
+
+    if (lineIds.length === 0) {
+      return json(
+        {
+          success: false,
+          error:
+            'Onaylanacak geçerli N11 orderLineId bulunamadı.',
+        },
+        400
+      );
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      20_000
+    );
+
+    let response: Response;
+    let rawText = '';
+
+    try {
+      response = await fetch(N11_ORDER_UPDATE_URL, {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: {
+          appkey: credentials.appKey,
+          appsecret: credentials.appSecret,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          lines: lineIds.map((lineId) => ({
+            lineId,
+          })),
+          status: 'Picking',
+        }),
+        signal: controller.signal,
+      });
+
+      rawText = await response.text();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    let payload: any = null;
+
+    if (rawText) {
+      try {
+        payload = JSON.parse(rawText);
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!response.ok) {
+      const message =
+        payload?.message ||
+        payload?.error ||
+        payload?.errorMessage ||
+        rawText.slice(0, 500) ||
+        `HTTP ${response.status}`;
+
+      return json(
+        {
+          success: false,
+          error: `N11 sipariş onayı başarısız: ${String(
+            message
+          )}`,
+          n11HttpStatus: response.status,
+        },
+        response.status >= 400 &&
+          response.status < 600
+          ? response.status
+          : 502
+      );
+    }
+
+    const content = Array.isArray(payload?.content)
+      ? payload.content
+      : [];
+
+    const results = content.map((item: any) => ({
+      lineId:
+        item?.lineId === null ||
+        item?.lineId === undefined
+          ? null
+          : String(item.lineId),
+      status: textOrNull(item?.status),
+      reasons: textOrNull(item?.reasons),
+    }));
+
+    const failed = results.filter(
+      (item: any) =>
+        String(item.status || '').toUpperCase() !==
+        'SUCCESS'
+    );
+
+    if (results.length === 0) {
+      return json(
+        {
+          success: false,
+          error:
+            'N11 sipariş onayı yanıt verdi ancak satır sonucu dönmedi.',
+          rawResponse: payload,
+        },
+        502
+      );
+    }
+
+    if (failed.length > 0) {
+      return json(
+        {
+          success: false,
+          partial: failed.length < results.length,
+          error:
+            failed.length < results.length
+              ? 'Sipariş kalemlerinin bir kısmı onaylandı, bir kısmı reddedildi.'
+              : 'N11 sipariş kalemlerini onaylamadı.',
+          results,
+        },
+        409
+      );
+    }
+
+    return json({
+      success: true,
+      action: 'APPROVE',
+      newStatus: 'Picking',
+      approvedLineCount: results.length,
+      results,
+      message:
+        'Sipariş N11 üzerinde onaylandı ve Hazırlanıyor (Picking) durumuna geçti.',
+      updatedBy: user.username,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('N11 ORDER APPROVE ERROR:', error);
+
+    return json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'N11 sipariş onayı tamamlanamadı.',
       },
       500
     );
