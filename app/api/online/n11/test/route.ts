@@ -1,8 +1,10 @@
 // app/api/online/n11/test/route.ts
-// CNETMOBIL ONLINE - N11 GERCEK BAGLANTI TESTI
+// CNETMOBIL ONLINE - N11 KEY / SECRET TESHIS TESTI
 // SADECE SUPER ADMIN.
-// N11 anahtarlari sadece server-side ENV'den okunur.
-// Bu endpoint N11'de veri DEGISTIRMEZ; sadece urun sorgulama GET istegi atar.
+// Secret response'a yazilmaz.
+// 1) Category endpoint: sadece APP KEY test edilir.
+// 2) Product Query: APP KEY + APP SECRET birlikte test edilir.
+// N11 tarafinda veri DEGISTIRMEZ.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
@@ -14,10 +16,11 @@ export const revalidate = 0;
 
 declare global {
   // eslint-disable-next-line no-var
-  var cnetN11TestPool: Pool | undefined;
+  var cnetN11DiagPool: Pool | undefined;
 }
 
 const COOKIE_NAME = 'cnet_auth';
+const N11_CATEGORIES_URL = 'https://api.n11.com/cdn/categories';
 const N11_PRODUCT_QUERY_URL =
   'https://api.n11.com/ms/product-query?page=0&size=1';
 
@@ -53,8 +56,8 @@ function getPool() {
     throw new Error('DATABASE_URL bulunamadı.');
   }
 
-  if (!global.cnetN11TestPool) {
-    global.cnetN11TestPool = new Pool({
+  if (!global.cnetN11DiagPool) {
+    global.cnetN11DiagPool = new Pool({
       connectionString,
       max: 5,
       idleTimeoutMillis: 30_000,
@@ -62,7 +65,7 @@ function getPool() {
     });
   }
 
-  return global.cnetN11TestPool;
+  return global.cnetN11DiagPool;
 }
 
 function getSessionSecret() {
@@ -151,9 +154,7 @@ async function getAuthenticatedUser(
 
   const row = result.rows[0];
 
-  if (!row || row.active !== true) {
-    return null;
-  }
+  if (!row || row.active !== true) return null;
 
   return {
     id: Number(row.id),
@@ -166,14 +167,37 @@ function getN11Credentials() {
   const appKey = String(process.env.N11_APP_KEY || '').trim();
   const appSecret = String(process.env.N11_APP_SECRET || '').trim();
 
-  if (!appKey || !appSecret) {
-    return null;
+  if (!appKey || !appSecret) return null;
+
+  return { appKey, appSecret };
+}
+
+async function readResponse(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return { text: '', payload: null as any };
   }
 
-  return {
-    appKey,
-    appSecret,
-  };
+  try {
+    return { text, payload: JSON.parse(text) };
+  } catch {
+    return { text, payload: null as any };
+  }
+}
+
+function extractMessage(payload: any, rawText: string) {
+  const message =
+    payload?.message ||
+    payload?.error ||
+    payload?.errorMessage ||
+    payload?.title ||
+    payload?.reason ||
+    null;
+
+  if (message) return String(message);
+  if (rawText && rawText.length <= 300) return rawText;
+  return null;
 }
 
 function safeSampleProduct(value: unknown) {
@@ -185,44 +209,43 @@ function safeSampleProduct(value: unknown) {
 
   return {
     n11ProductId:
-      row.n11ProductId === null || row.n11ProductId === undefined
-        ? null
-        : String(row.n11ProductId),
-    stockCode:
-      row.stockCode === null || row.stockCode === undefined
-        ? null
-        : String(row.stockCode),
-    title:
-      row.title === null || row.title === undefined
-        ? null
-        : String(row.title),
-    status:
-      row.status === null || row.status === undefined
-        ? null
-        : String(row.status),
-    saleStatus:
-      row.saleStatus === null || row.saleStatus === undefined
-        ? null
-        : String(row.saleStatus),
+      row.n11ProductId == null ? null : String(row.n11ProductId),
+    stockCode: row.stockCode == null ? null : String(row.stockCode),
+    title: row.title == null ? null : String(row.title),
+    status: row.status == null ? null : String(row.status),
+    saleStatus: row.saleStatus == null ? null : String(row.saleStatus),
     quantity: Number(row.quantity || 0),
-    salePrice:
-      row.salePrice === null || row.salePrice === undefined
-        ? null
-        : Number(row.salePrice),
-    listPrice:
-      row.listPrice === null || row.listPrice === undefined
-        ? null
-        : Number(row.listPrice),
+    salePrice: row.salePrice == null ? null : Number(row.salePrice),
+    listPrice: row.listPrice == null ? null : Number(row.listPrice),
   };
 }
 
-// ============================================================
-// GET /api/online/n11/test
-//
-// Gercek N11 baglanti testi.
-// N11'de herhangi bir veri degistirmez.
-// GET product-query page=0 size=1 kullanir.
-// ============================================================
+async function fetchWithTimeout(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs = 12_000
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers,
+      signal: controller.signal,
+    });
+
+    return {
+      response,
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser(request);
@@ -266,120 +289,125 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12_000);
-    const startedAt = Date.now();
-
-    let response: Response;
+    // 1) Sadece APP KEY testi
+    let keyTest: {
+      success: boolean;
+      httpStatus: number | null;
+      durationMs: number | null;
+      error: string | null;
+    };
 
     try {
-      response = await fetch(N11_PRODUCT_QUERY_URL, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: {
+      const { response, durationMs } = await fetchWithTimeout(
+        N11_CATEGORIES_URL,
+        {
+          appkey: credentials.appKey,
+          Accept: 'application/json',
+        }
+      );
+
+      const { text, payload } = await readResponse(response);
+
+      keyTest = {
+        success: response.ok,
+        httpStatus: response.status,
+        durationMs,
+        error: response.ok
+          ? null
+          : extractMessage(payload, text) ||
+            `N11 kategori servisi HTTP ${response.status}`,
+      };
+    } catch (error) {
+      keyTest = {
+        success: false,
+        httpStatus: null,
+        durationMs: null,
+        error:
+          error instanceof Error && error.name === 'AbortError'
+            ? 'N11 kategori servisi zaman aşımına uğradı.'
+            : 'N11 kategori servisine ulaşılamadı.',
+      };
+    }
+
+    // 2) APP KEY + APP SECRET testi
+    let authTest: {
+      success: boolean;
+      httpStatus: number | null;
+      durationMs: number | null;
+      error: string | null;
+      totalElements: number | null;
+      sampleProduct: ReturnType<typeof safeSampleProduct>;
+    };
+
+    try {
+      const { response, durationMs } = await fetchWithTimeout(
+        N11_PRODUCT_QUERY_URL,
+        {
           appkey: credentials.appKey,
           appsecret: credentials.appSecret,
           Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
+        }
+      );
+
+      const { text, payload } = await readResponse(response);
+      const content = Array.isArray(payload?.content) ? payload.content : [];
+
+      authTest = {
+        success: response.ok,
+        httpStatus: response.status,
+        durationMs,
+        error: response.ok
+          ? null
+          : extractMessage(payload, text) ||
+            `N11 ürün servisi HTTP ${response.status}`,
+        totalElements: response.ok
+          ? Number(payload?.totalElements || 0)
+          : null,
+        sampleProduct:
+          response.ok && content.length > 0
+            ? safeSampleProduct(content[0])
+            : null,
+      };
     } catch (error) {
-      clearTimeout(timeoutId);
-
-      if (
-        error instanceof Error &&
-        (error.name === 'AbortError' ||
-          error.message.toLowerCase().includes('aborted'))
-      ) {
-        return json(
-          {
-            success: false,
-            configured: true,
-            connected: false,
-            error: 'N11 API bağlantısı 12 saniye içinde yanıt vermedi.',
-          },
-          504
-        );
-      }
-
-      console.error('N11 CONNECTION TEST FETCH ERROR:', error);
-
-      return json(
-        {
-          success: false,
-          configured: true,
-          connected: false,
-          error: 'N11 API bağlantısı kurulamadı.',
-        },
-        502
-      );
-    } finally {
-      clearTimeout(timeoutId);
+      authTest = {
+        success: false,
+        httpStatus: null,
+        durationMs: null,
+        error:
+          error instanceof Error && error.name === 'AbortError'
+            ? 'N11 ürün servisi zaman aşımına uğradı.'
+            : 'N11 ürün servisine ulaşılamadı.',
+        totalElements: null,
+        sampleProduct: null,
+      };
     }
 
-    const durationMs = Date.now() - startedAt;
-    const rawText = await response.text();
+    let diagnosis = '';
 
-    let payload: any = null;
-
-    if (rawText) {
-      try {
-        payload = JSON.parse(rawText);
-      } catch {
-        payload = null;
-      }
+    if (keyTest.success && authTest.success) {
+      diagnosis = 'N11 API KEY ve API SECRET doğrulaması başarılı.';
+    } else if (!keyTest.success) {
+      diagnosis =
+        'API KEY doğrulanamadı. N11 panelindeki API Anahtarı ile Coolify N11_APP_KEY değerini birebir kontrol edin.';
+    } else {
+      diagnosis =
+        'API KEY doğrulandı ancak KEY + SECRET doğrulaması reddedildi. N11_APP_SECRET veya KEY/SECRET eşleşmesi hatalı.';
     }
 
-    if (!response.ok) {
-      console.error('N11 CONNECTION TEST HTTP ERROR:', {
-        status: response.status,
-        bodyPreview: rawText.slice(0, 1000),
-      });
-
-      const n11Message =
-        payload?.message ||
-        payload?.error ||
-        payload?.errorMessage ||
-        payload?.title ||
-        null;
-
-      return json(
-        {
-          success: false,
-          configured: true,
-          connected: false,
-          n11HttpStatus: response.status,
-          durationMs,
-          error: n11Message
-            ? `N11 API hatası: ${String(n11Message)}`
-            : `N11 API HTTP ${response.status} hatası döndürdü.`,
-        },
-        response.status >= 400 && response.status < 600
-          ? response.status
-          : 502
-      );
-    }
-
-    const content = Array.isArray(payload?.content)
-      ? payload.content
-      : [];
-
-    return json({
-      success: true,
-      configured: true,
-      connected: true,
-      message: 'N11 API bağlantısı başarılı.',
-      durationMs,
-      n11HttpStatus: response.status,
-      totalElements: Number(payload?.totalElements || 0),
-      totalPages: Number(payload?.totalPages || 0),
-      returnedElements: content.length,
-      sampleProduct:
-        content.length > 0 ? safeSampleProduct(content[0]) : null,
-      checkedBy: user.username,
-    });
+    return json(
+      {
+        success: keyTest.success && authTest.success,
+        configured: true,
+        connected: authTest.success,
+        keyTest,
+        authTest,
+        diagnosis,
+        checkedBy: user.username,
+      },
+      keyTest.success && authTest.success ? 200 : 401
+    );
   } catch (error) {
-    console.error('N11 CONNECTION TEST ERROR:', error);
+    console.error('N11 DIAGNOSTIC TEST ERROR:', error);
 
     return json(
       {
@@ -388,7 +416,7 @@ export async function GET(request: NextRequest) {
           process.env.N11_APP_KEY && process.env.N11_APP_SECRET
         ),
         connected: false,
-        error: 'N11 bağlantı testi tamamlanamadı.',
+        error: 'N11 teşhis testi tamamlanamadı.',
       },
       500
     );
