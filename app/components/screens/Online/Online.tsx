@@ -41,6 +41,12 @@ type OnlineListing = {
   external_product_main_id: string | null;
   category_id: number | null;
   title: string | null;
+  brand: string | null;
+  model: string | null;
+  memory: string | null;
+  color: string | null;
+  grade: string | null;
+  warranty: string | null;
   sale_price: string | number | null;
   list_price: string | number | null;
   quantity: number;
@@ -70,27 +76,14 @@ type OnlineListing = {
   device_source: string | null;
 };
 
-type AvailableDevice = {
-  id: number;
-  imei: string;
-  brand: string | null;
-  model: string | null;
-  memory: string | null;
-  color: string | null;
-  battery_percent: number | null;
-  grade: string | null;
-  warranty: string | null;
-  changed_parts: string | null;
-  box_invoice: string | null;
-  current_branch_code: string | null;
-  status: string | null;
-  source: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-};
-
 type ListingDraftForm = {
-  stockDeviceId: number | null;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
   salePrice: string;
   listPrice: string;
 };
@@ -136,7 +129,13 @@ const EMPTY_STATS: OnlineStats = {
 };
 
 const EMPTY_DRAFT_FORM: ListingDraftForm = {
-  stockDeviceId: null,
+  imei: "",
+  brand: "",
+  model: "",
+  memory: "",
+  color: "",
+  grade: "",
+  warranty: "",
   salePrice: "",
   listPrice: "",
 };
@@ -200,9 +199,6 @@ export default function Online() {
   const [data, setData] = useState<OnlineResponse | null>(null);
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [availableDevices, setAvailableDevices] = useState<AvailableDevice[]>([]);
-  const [deviceSearch, setDeviceSearch] = useState("");
-  const [deviceLoading, setDeviceLoading] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftError, setDraftError] = useState("");
   const [draftSuccess, setDraftSuccess] = useState("");
@@ -244,77 +240,48 @@ export default function Online() {
   }, []);
 
 
-  const loadAvailableDevices = useCallback(async (q = "") => {
-    setDeviceLoading(true);
-    setDraftError("");
-
-    try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
-      params.set("limit", "100");
-
-      const response = await fetch(`/api/online/listings?${params.toString()}`, {
-        method: "GET",
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || "Cihaz listesi alınamadı.");
-      }
-
-      setAvailableDevices(
-        Array.isArray(payload.availableDevices) ? payload.availableDevices : []
-      );
-    } catch (err) {
-      setDraftError(
-        err instanceof Error ? err.message : "Cihaz listesi alınamadı."
-      );
-    } finally {
-      setDeviceLoading(false);
-    }
-  }, []);
-
   const openCreateModal = useCallback(() => {
     setShowCreateModal(true);
     setDraftError("");
     setDraftSuccess("");
-    setDeviceSearch("");
     setDraftForm(EMPTY_DRAFT_FORM);
-    void loadAvailableDevices("");
-  }, [loadAvailableDevices]);
+  }, []);
 
   const closeCreateModal = useCallback(() => {
     if (draftSaving) return;
     setShowCreateModal(false);
     setDraftError("");
     setDraftSuccess("");
-    setDeviceSearch("");
     setDraftForm(EMPTY_DRAFT_FORM);
   }, [draftSaving]);
-
-  const selectedDevice = useMemo(
-    () =>
-      availableDevices.find((item) => item.id === draftForm.stockDeviceId) ||
-      null,
-    [availableDevices, draftForm.stockDeviceId]
-  );
-
-  const chooseDevice = useCallback((device: AvailableDevice) => {
-    setDraftForm((current) => ({
-      ...current,
-      stockDeviceId: device.id,
-    }));
-  }, []);
 
   const saveDraft = useCallback(async () => {
     setDraftError("");
     setDraftSuccess("");
 
-    if (!draftForm.stockDeviceId) {
-      setDraftError("Önce bir cihaz seçin.");
+    const imei = draftForm.imei.replace(/\s+/g, "").trim();
+
+    if (!/^[0-9]{15}$/.test(imei)) {
+      setDraftError("IMEI tam 15 haneli ve yalnızca rakamlardan oluşmalıdır.");
+      return;
+    }
+
+    if (
+      !draftForm.brand.trim() ||
+      !draftForm.model.trim() ||
+      !draftForm.memory.trim() ||
+      !draftForm.color.trim() ||
+      !draftForm.grade.trim() ||
+      !draftForm.warranty.trim()
+    ) {
+      setDraftError(
+        "Marka, model, hafıza, renk, grade ve garanti alanları zorunludur."
+      );
+      return;
+    }
+
+    if (!draftForm.salePrice.trim() || !draftForm.listPrice.trim()) {
+      setDraftError("N11 satış fiyatı ve N11 liste fiyatı zorunludur.");
       return;
     }
 
@@ -329,7 +296,13 @@ export default function Online() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          stockDeviceId: draftForm.stockDeviceId,
+          imei,
+          brand: draftForm.brand,
+          model: draftForm.model,
+          memory: draftForm.memory,
+          color: draftForm.color,
+          grade: draftForm.grade,
+          warranty: draftForm.warranty,
           salePrice: draftForm.salePrice,
           listPrice: draftForm.listPrice,
         }),
@@ -346,7 +319,6 @@ export default function Online() {
       );
 
       await loadData(true);
-      await loadAvailableDevices(deviceSearch);
 
       window.setTimeout(() => {
         setShowCreateModal(false);
@@ -360,7 +332,7 @@ export default function Online() {
     } finally {
       setDraftSaving(false);
     }
-  }, [draftForm, loadData, loadAvailableDevices, deviceSearch]);
+  }, [draftForm, loadData]);
 
   useEffect(() => {
     void loadData(false);
@@ -380,6 +352,12 @@ export default function Online() {
         item.title,
         item.external_stock_code,
         item.external_product_id,
+        item.brand,
+        item.model,
+        item.memory,
+        item.color,
+        item.grade,
+        item.warranty,
         item.device_imei,
         item.device_brand,
         item.device_model,
@@ -681,15 +659,19 @@ export default function Online() {
 
                     const title =
                       item.title ||
+                      [item.brand, item.model]
+                        .filter(Boolean)
+                        .join(" ") ||
                       [item.device_brand, item.device_model]
                         .filter(Boolean)
                         .join(" ") ||
                       "İsimsiz Ürün";
 
                     const variant = [
-                      item.device_memory,
-                      item.device_color,
-                      item.device_grade,
+                      item.memory || item.device_memory,
+                      item.color || item.device_color,
+                      item.grade || item.device_grade,
+                      item.warranty || item.device_warranty,
                     ]
                       .filter(Boolean)
                       .join(" | ");
@@ -788,7 +770,7 @@ export default function Online() {
 
         {showCreateModal ? (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
-            <div className="flex max-h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+            <div className="flex max-h-[94vh] w-full max-w-[1150px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
               <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
@@ -798,7 +780,7 @@ export default function Online() {
                     Yeni Ürün Aç
                   </h3>
                   <p className="mt-1 text-[12px] font-semibold text-slate-500">
-                    Cihazı seçin ve sadece N11 satış / liste fiyatını girin. Bu işlem henüz N11 API'ye gönderim yapmaz.
+                    Cihaz bilgilerini ve N11 fiyatlarını girin. Henüz N11 API&apos;ye gönderim yapılmaz.
                   </p>
                 </div>
 
@@ -812,202 +794,203 @@ export default function Online() {
                 </button>
               </div>
 
-              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)]">
-                <aside className="min-h-0 border-b border-slate-200 bg-slate-50/70 xl:border-b-0 xl:border-r">
-                  <div className="border-b border-slate-200 p-4">
-                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                      1. Cihaz Seç
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="md:col-span-2">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      IMEI
                     </div>
+                    <input
+                      value={draftForm.imei}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          imei: event.target.value.replace(/\D/g, "").slice(0, 15),
+                        }))
+                      }
+                      inputMode="numeric"
+                      maxLength={15}
+                      placeholder="15 haneli IMEI"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 font-mono text-[13px] font-black outline-none focus:border-blue-400"
+                    />
+                  </label>
 
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        value={deviceSearch}
-                        onChange={(event) => setDeviceSearch(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            void loadAvailableDevices(deviceSearch);
-                          }
-                        }}
-                        placeholder="IMEI, marka veya model ara..."
-                        className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void loadAvailableDevices(deviceSearch)}
-                        disabled={deviceLoading}
-                        className="h-11 rounded-xl bg-slate-900 px-4 text-[11px] font-black text-white disabled:opacity-50"
-                      >
-                        ARA
-                      </button>
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Marka
                     </div>
+                    <input
+                      value={draftForm.brand}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          brand: event.target.value,
+                        }))
+                      }
+                      placeholder="Apple"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Model
+                    </div>
+                    <input
+                      value={draftForm.model}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          model: event.target.value,
+                        }))
+                      }
+                      placeholder="iPhone 15 Pro"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Hafıza
+                    </div>
+                    <input
+                      value={draftForm.memory}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          memory: event.target.value,
+                        }))
+                      }
+                      placeholder="256 GB"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Renk
+                    </div>
+                    <input
+                      value={draftForm.color}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          color: event.target.value,
+                        }))
+                      }
+                      placeholder="Siyah"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Grade
+                    </div>
+                    <input
+                      value={draftForm.grade}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          grade: event.target.value,
+                        }))
+                      }
+                      placeholder="Mükemmel"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Garanti
+                    </div>
+                    <input
+                      value={draftForm.warranty}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          warranty: event.target.value,
+                        }))
+                      }
+                      placeholder="12 Ay"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      N11 Satış Fiyatı
+                    </div>
+                    <input
+                      value={draftForm.salePrice}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          salePrice: event.target.value,
+                        }))
+                      }
+                      placeholder="42999,00"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+
+                  <label>
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      N11 Liste Fiyatı
+                    </div>
+                    <input
+                      value={draftForm.listPrice}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          listPrice: event.target.value,
+                        }))
+                      }
+                      placeholder="44999,00"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
+                  stockCode otomatik olarak IMEI olacaktır. N11 stok adedi otomatik 1 kaydedilir.
+                </div>
+
+                {draftError ? (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                    {draftError}
                   </div>
+                ) : null}
 
-                  <div className="max-h-[calc(94vh-180px)] overflow-y-auto p-3">
-                    {deviceLoading ? (
-                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[12px] font-black text-slate-500">
-                        Cihazlar yükleniyor...
-                      </div>
-                    ) : availableDevices.length === 0 ? (
-                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-[12px] font-semibold text-slate-500">
-                        ONLINE'a uygun cihaz bulunamadı.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {availableDevices.map((device) => {
-                          const selected = draftForm.stockDeviceId === device.id;
-
-                          return (
-                            <button
-                              key={device.id}
-                              type="button"
-                              onClick={() => chooseDevice(device)}
-                              className={`w-full rounded-2xl border p-4 text-left transition ${
-                                selected
-                                  ? "border-blue-500 bg-blue-50 shadow-sm"
-                                  : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[13px] font-black text-slate-900">
-                                    {[device.brand, device.model]
-                                      .filter(Boolean)
-                                      .join(" ") || "Cihaz"}
-                                  </div>
-                                  <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">
-                                    {[device.memory, device.color]
-                                      .filter(Boolean)
-                                      .join(" | ") || "—"}
-                                  </div>
-                                </div>
-
-                                <span className="rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-600">
-                                  {device.current_branch_code || "—"}
-                                </span>
-                              </div>
-
-                              <div className="mt-3 font-mono text-[12px] font-black text-slate-700">
-                                {device.imei}
-                              </div>
-
-                              <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black">
-                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
-                                  Grade: {device.grade || "—"}
-                                </span>
-                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
-                                  Garanti: {device.warranty || "—"}
-                                </span>
-                                <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
-                                  {device.status || "—"}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                {draftSuccess ? (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                    {draftSuccess}
                   </div>
-                </aside>
+                ) : null}
+              </div>
 
-                <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
-                  <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                    2. N11 Fiyat Bilgileri
-                  </div>
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={draftSaving}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600 disabled:opacity-50"
+                >
+                  İPTAL
+                </button>
 
-                  {selectedDevice ? (
-                    <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">IMEI</div>
-                          <div className="mt-1 font-mono text-[12px] font-black text-slate-800">
-                            {selectedDevice.imei}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Marka / Model</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {[selectedDevice.brand, selectedDevice.model].filter(Boolean).join(" ") || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Hafıza</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.memory || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Renk</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.color || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Grade</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.grade || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Garanti</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.warranty || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">N11 Stok</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            1
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-[12px] font-semibold text-slate-500">
-                      Sol taraftan cihaz seçin.
-                    </div>
-                  )}
-
-                  <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        N11 Satış Fiyatı
-                      </div>
-                      <input
-                        value={draftForm.salePrice}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            salePrice: event.target.value,
-                          }))
-                        }
-                        placeholder="42999,00"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        N11 Liste Fiyatı
-                      </div>
-                      <input
-                        value={draftForm.listPrice}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            listPrice: event.target.value,
-                          }))
-                        }
-                        placeholder="44999,00"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-                  </div>
-
-                  {draftError ? (
-                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
-                      {draftError}
-                    </div>
-                  ) : null}
+                <button
+                  type="button"
+                  onClick={() => void saveDraft()}
+                  disabled={draftSaving}
+                  className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {draftSaving ? "KAYDEDİLİYOR..." : "TASLAĞI KAYDET"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
                   {draftSuccess ? (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
