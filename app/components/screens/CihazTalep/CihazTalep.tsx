@@ -291,6 +291,14 @@ const canManageCihazStock = stockSourceBranch
   ? Boolean(postgresCanManage || isSuperAdminUser)
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
 
+// PostgreSQL stok ekranında mağaza personeli kendi mağazasını yönetebiliyorsa
+// Aktif Talepler modalını açabilir ve kendi mağazasına gelen taleplerde
+// Gönderildi / Red işlemlerini kullanabilir.
+// Asıl mağaza/yetki doğrulaması backend /api/stock/requests tarafında kalır.
+const canManageActiveRequests = stockSourceBranch
+  ? canManageCihazStock
+  : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
+
 
 const openCihazDuzenleModal = (rowIndex: number) => {
   if (!stockSourceBranch || !canManageCihazStock) {
@@ -925,8 +933,14 @@ const submitTalep = async () => {
 };
 
 const handleGonderildi = (rowIndex: number, cihazAdi: string, magaza: string) => {
-  if (!isAdmin && !isMasterAccess) {
-    showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
+  if (!canManageActiveRequests) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      stockSourceBranch
+        ? 'Yalnızca kendi mağazanıza gelen taleplerde bu işlemi yapabilirsiniz.'
+        : 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.',
+      'error'
+    );
     return;
   }
 
@@ -999,8 +1013,14 @@ const submitGonderildi = async () => {
 };
 
 const handleTalepReddet = (rowIndex: number, cihazAdi: string, magaza: string) => {
-  if (!isAdmin && !isMasterAccess) {
-    showTalepMessage('YETKİ GEREKLİ', 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.', 'error');
+  if (!canManageActiveRequests) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      stockSourceBranch
+        ? 'Yalnızca kendi mağazanıza gelen taleplerde bu işlemi yapabilirsiniz.'
+        : 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.',
+      'error'
+    );
     return;
   }
 
@@ -1646,13 +1666,13 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   <button
                     type="button"
                     onClick={() => {
-                      if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                      if (canManageActiveRequests) {
                         setAktifTaleplerModalOpen(true);
                       }
                     }}
                     className={`rounded-[22px] border border-slate-100 bg-white p-4 text-left shadow-sm transition sm:p-5 ${
-                      isMasterAccess || isAdmin || isSuperAdminUser
-                        ? 'hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'
+                      canManageActiveRequests
+                        ? 'hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md cursor-pointer'
                         : ''
                     }`}
                   >
@@ -2489,7 +2509,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         <button
                           type="button"
                           onClick={() => {
-                            if (isMasterAccess || isAdmin || isSuperAdminUser) {
+                            if (canManageActiveRequests) {
                               setAktifTaleplerModalOpen(true);
                             }
                           }}
