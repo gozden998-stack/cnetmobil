@@ -1,7 +1,9 @@
 // app/api/online/listings/route.ts
 // CNETMOBIL ONLINE - N11 urun yonetimi
-// Manuel taslak + GERCEK N11 fiyat / stok guncelleme.
-// stock_devices / WingSM bagimliligi YOK.
+// GERCEK N11 urun olusturma + fiyat / stok guncelleme.
+// Yeni fiziksel cihaz icin stockCode = IMEI.
+// Ilk hizli create, ayni ozellikte mevcut N11 urununu katalog sablonu olarak kullanir.
+// stock_devices / WingSM bagimliligi simdilik YOK.
 // SADECE SUPER ADMIN.
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,6 +22,12 @@ declare global {
 const COOKIE_NAME = 'cnet_auth';
 const N11_PRICE_STOCK_UPDATE_URL =
   'https://api.n11.com/ms/product/tasks/price-stock-update';
+const N11_PRODUCT_CREATE_URL =
+  'https://api.n11.com/ms/product/tasks/product-create';
+const N11_TASK_DETAILS_URL =
+  'https://api.n11.com/ms/product/task-details/page-query';
+const N11_PRODUCT_QUERY_URL =
+  'https://api.n11.com/ms/product-query';
 const N11_INTEGRATOR = 'CNETMOBIL';
 
 type SessionPayload = {
@@ -260,6 +268,492 @@ function parsePositiveId(value: unknown) {
   return id;
 }
 
+
+function getN11DefaultVatRate(channelRow: any) {
+  const envValue = String(process.env.N11_DEFAULT_VAT_RATE || '').trim();
+
+  const rawValue =
+    envValue !== ''
+      ? envValue
+      : channelRow?.default_vat_rate !== null &&
+        channelRow?.default_vat_rate !== undefined
+      ? String(channelRow.default_vat_rate)
+      : '';
+
+  const vatRate = Number(rawValue);
+
+  if (![0, 1, 10, 20].includes(vatRate)) {
+    throw new Error(
+      'N11_DEFAULT_VAT_RATE eksik/geçersiz. Coolify ENV içine mağazada kullandığınız KDV oranını 0, 1, 10 veya 20 olarak girin.'
+    );
+  }
+
+  return vatRate;
+}
+
+function normalizeCompare(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleLowerCase('tr-TR');
+}
+
+function rawN11Product(row: any) {
+  const raw = row?.raw_data;
+
+  if (!raw || typeof raw !== 'object') return null;
+
+  const n11 = (raw as any).n11;
+
+  return n11 && typeof n11 === 'object' ? n11 : null;
+}
+
+function positiveIntegerOrNull(value: unknown) {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < 1) {
+    return null;
+  }
+
+  return number;
+}
+
+async function findCatalogTemplate(params: {
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+}) {
+  const result = await getPool().query(
+    `
+      SELECT *
+      FROM public.online_listings
+      WHERE channel = 'N11'
+        AND external_product_id IS NOT NULL
+        AND category_id IS NOT NULL
+        AND external_product_main_id IS NOT NULL
+        AND shipment_template IS NOT NULL
+        AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(TRIM($1))
+        AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(TRIM($2))
+        AND LOWER(TRIM(COALESCE(memory, ''))) = LOWER(TRIM($3))
+        AND LOWER(TRIM(COALESCE(color, ''))) = LOWER(TRIM($4))
+        AND LOWER(TRIM(COALESCE(grade, ''))) = LOWER(TRIM($5))
+        AND LOWER(TRIM(COALESCE(warranty, ''))) = LOWER(TRIM($6))
+      ORDER BY
+        CASE WHEN product_status = 'Active' THEN 0 ELSE 1 END,
+        last_synced_at DESC NULLS LAST,
+        updated_at DESC
+      LIMIT 10
+    `,
+    [
+      params.brand,
+      params.model,
+      params.memory,
+      params.color,
+      params.grade,
+      params.warranty,
+    ]
+  );
+
+  for (const row of result.rows) {
+    const rawProduct = rawN11Product(row);
+    const catalogId = positiveIntegerOrNull(rawProduct?.catalogId);
+
+    if (!catalogId) continue;
+
+    return {
+      row,
+      rawProduct,
+      catalogId,
+    };
+  }
+
+  return null;
+}
+
+async function sendN11ProductCreate(sku: Record<string, unknown>) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  const requestPayload = {
+    payload: {
+      integrator: N11_INTEGRATOR,
+      skus: [sku],
+    },
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const response = await fetch(N11_PRODUCT_CREATE_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        appkey: credentials.appKey,
+        appsecret: credentials.appSecret,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestPayload),
+      signal: controller.signal,
+    });
+
+    const rawText = await response.text();
+
+    let responsePayload: any = null;
+
+    if (rawText) {
+      try {
+        responsePayload = JSON.parse(rawText);
+      } catch {
+        responsePayload = null;
+      }
+    }
+
+    if (!response.ok) {
+      const n11Message = safeN11Message(responsePayload, rawText);
+
+      throw new Error(
+        n11Message
+          ? `N11 API: ${n11Message}`
+          : `N11 ürün oluşturma servisi HTTP ${response.status} hatası döndürdü.`
+      );
+    }
+
+    if (!responsePayload || typeof responsePayload !== 'object') {
+      throw new Error('N11 ürün oluşturma servisi geçersiz cevap döndürdü.');
+    }
+
+    const taskId =
+      responsePayload.id === null || responsePayload.id === undefined
+        ? null
+        : String(responsePayload.id);
+
+    const taskStatus = String(responsePayload.status || '')
+      .trim()
+      .toUpperCase();
+
+    const taskType = String(
+      responsePayload.type || 'PRODUCT_CREATE'
+    ).trim();
+
+    const reasons = Array.isArray(responsePayload.reasons)
+      ? responsePayload.reasons.map(String)
+      : [];
+
+    return {
+      requestPayload,
+      responsePayload,
+      taskId,
+      taskStatus,
+      taskType,
+      reasons,
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' ||
+        error.message.toLowerCase().includes('aborted'))
+    ) {
+      throw new Error('N11 ürün oluşturma servisi 20 saniye içinde yanıt vermedi.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function getN11TaskOnce(taskId: string) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  const numericTaskId = Number(taskId);
+
+  if (!Number.isSafeInteger(numericTaskId) || numericTaskId < 1) {
+    throw new Error('N11 taskId geçersiz.');
+  }
+
+  const response = await fetch(N11_TASK_DETAILS_URL, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      appkey: credentials.appKey,
+      appsecret: credentials.appSecret,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      taskId: numericTaskId,
+      pageable: {
+        page: 0,
+        size: 1000,
+      },
+    }),
+  });
+
+  const rawText = await response.text();
+
+  let payload: any = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = safeN11Message(payload, rawText);
+
+    throw new Error(
+      message
+        ? `N11 Task Detail: ${message}`
+        : `N11 Task Detail HTTP ${response.status} hatası döndürdü.`
+    );
+  }
+
+  const overallStatus = String(payload?.status || '')
+    .trim()
+    .toUpperCase();
+
+  const content = Array.isArray(payload?.skus?.content)
+    ? payload.skus.content
+    : [];
+
+  return {
+    payload,
+    overallStatus,
+    content,
+  };
+}
+
+async function waitForCreateTask(taskId: string, stockCode: string) {
+  const maxAttempts = 12;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await getN11TaskOnce(taskId);
+
+    if (result.overallStatus === 'REJECT') {
+      return {
+        completed: true,
+        success: false,
+        status: 'REJECT',
+        reasons: ['N11 task reddedildi.'],
+        payload: result.payload,
+      };
+    }
+
+    if (result.overallStatus === 'PROCESSED') {
+      const matched =
+        result.content.find(
+          (item: any) =>
+            String(item?.itemCode || '').trim() === stockCode
+        ) ||
+        (result.content.length === 1 ? result.content[0] : null);
+
+      const skuStatus = String(matched?.status || '')
+        .trim()
+        .toUpperCase();
+
+      const reasons: string[] = [];
+
+      if (Array.isArray(matched?.reasons)) {
+        matched.reasons.forEach((item: unknown) => {
+          if (typeof item === 'string' && item.trim()) {
+            reasons.push(item.trim());
+          }
+        });
+      }
+
+      if (Array.isArray(matched?.sku?.reasons)) {
+        matched.sku.reasons.forEach((item: unknown) => {
+          if (
+            typeof item === 'string' &&
+            item.trim() &&
+            !reasons.includes(item.trim())
+          ) {
+            reasons.push(item.trim());
+          }
+        });
+      }
+
+      return {
+        completed: true,
+        success: skuStatus === 'SUCCESS',
+        status: skuStatus || 'FAIL',
+        reasons,
+        payload: result.payload,
+      };
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  return {
+    completed: false,
+    success: false,
+    status: 'IN_QUEUE',
+    reasons: [],
+    payload: null,
+  };
+}
+
+async function queryN11ProductByStockCode(stockCode: string) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  const url = new URL(N11_PRODUCT_QUERY_URL);
+  url.searchParams.set('stockCode', stockCode);
+  url.searchParams.set('page', '0');
+  url.searchParams.set('size', '20');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      appkey: credentials.appKey,
+      appsecret: credentials.appSecret,
+      Accept: 'application/json',
+    },
+  });
+
+  const rawText = await response.text();
+
+  let payload: any = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = safeN11Message(payload, rawText);
+
+    throw new Error(
+      message
+        ? `N11 ürün sorgulama: ${message}`
+        : `N11 product-query HTTP ${response.status} hatası döndürdü.`
+    );
+  }
+
+  const content = Array.isArray(payload?.content)
+    ? payload.content
+    : [];
+
+  return (
+    content.find(
+      (item: any) =>
+        String(item?.stockCode || '').trim() === stockCode
+    ) || null
+  );
+}
+
+async function finalizeCreatedListing(
+  listingId: number,
+  stockCode: string,
+  taskId: string,
+  product: any
+) {
+  const externalProductId =
+    product?.n11ProductId === null ||
+    product?.n11ProductId === undefined
+      ? null
+      : String(product.n11ProductId);
+
+  const categoryId =
+    product?.categoryId === null ||
+    product?.categoryId === undefined
+      ? null
+      : String(product.categoryId);
+
+  await getPool().query(
+    `
+      UPDATE public.online_listings
+      SET
+        external_product_id = $2,
+        external_product_main_id = $3,
+        category_id = $4::bigint,
+        title = COALESCE($5, title),
+        description = COALESCE($6, description),
+        sale_price = COALESCE($7, sale_price),
+        list_price = COALESCE($8, list_price),
+        quantity = COALESCE($9, quantity),
+        product_status = $10,
+        sale_status = $11,
+        preparing_day = $12,
+        shipment_template = $13,
+        currency_type = COALESCE($14, currency_type),
+        attributes = COALESCE($15::jsonb, attributes),
+        raw_data = $16::jsonb,
+        sync_status = 'SYNCED',
+        last_task_id = $17,
+        last_task_status = 'SUCCESS',
+        last_error = NULL,
+        last_synced_at = now(),
+        updated_at = now()
+      WHERE id = $1
+        AND channel = 'N11'
+    `,
+    [
+      listingId,
+      externalProductId,
+      product?.productMainId ? String(product.productMainId) : null,
+      categoryId,
+      product?.title ? String(product.title) : null,
+      product?.description ? String(product.description) : null,
+      product?.salePrice ?? null,
+      product?.listPrice ?? null,
+      Number.isInteger(Number(product?.quantity))
+        ? Number(product.quantity)
+        : null,
+      product?.status ? String(product.status) : null,
+      product?.saleStatus ? String(product.saleStatus) : null,
+      Number.isInteger(Number(product?.preparingDay))
+        ? Number(product.preparingDay)
+        : null,
+      product?.shipmentTemplate
+        ? String(product.shipmentTemplate)
+        : null,
+      product?.currencyType ? String(product.currencyType) : null,
+      JSON.stringify(
+        Array.isArray(product?.attributes)
+          ? product.attributes
+          : []
+      ),
+      JSON.stringify({
+        source: 'N11_PRODUCT_QUERY_AFTER_CREATE',
+        syncedAt: new Date().toISOString(),
+        n11: product,
+      }),
+      taskId,
+    ]
+  );
+}
+
 // ============================================================
 // GET /api/online/listings
 // Mevcut N11 taslaklarini/listinglerini PostgreSQL'den okur.
@@ -432,7 +926,7 @@ export async function POST(request: NextRequest) {
 
     const duplicate = await pool.query(
       `
-        SELECT id, external_stock_code, sync_status
+        SELECT id, external_stock_code, sync_status, external_product_id
         FROM public.online_listings
         WHERE channel = 'N11'
           AND external_stock_code = $1
@@ -452,10 +946,105 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const channelResult = await pool.query(
+      `
+        SELECT
+          default_vat_rate,
+          default_preparing_day,
+          default_shipment_template
+        FROM public.online_channels
+        WHERE channel = 'N11'
+        LIMIT 1
+      `
+    );
+
+    const channel = channelResult.rows[0] ?? null;
+
+    let vatRate: number;
+
+    try {
+      vatRate = getN11DefaultVatRate(channel);
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'N11 KDV oranı bulunamadı.',
+        },
+        409
+      );
+    }
+
+    // İlk gerçek ürün testinde kategori/attribute tahmini YAPMIYORUZ.
+    // Aynı özellikte, zaten N11'de bulunan ürünü katalog şablonu olarak kullanıyoruz.
+    const template = await findCatalogTemplate({
+      brand,
+      model,
+      memory,
+      color,
+      grade,
+      warranty,
+    });
+
+    if (!template) {
+      return json(
+        {
+          success: false,
+          error:
+            'Aynı Marka/Model/Hafıza/Renk/Grade/Garanti özelliklerinde mevcut bir N11 ürünü bulunamadı. İlk test için N11’de zaten bulunan aynı özellikte bir cihazın yeni IMEI’sini girin.',
+        },
+        409
+      );
+    }
+
+    const templateRow = template.row;
+    const templateRaw = template.rawProduct;
+
+    const preparingDay =
+      positiveIntegerOrNull(templateRaw?.preparingDay) ||
+      positiveIntegerOrNull(templateRow.preparing_day) ||
+      positiveIntegerOrNull(channel?.default_preparing_day);
+
+    const shipmentTemplate = String(
+      templateRaw?.shipmentTemplate ||
+        templateRow.shipment_template ||
+        channel?.default_shipment_template ||
+        ''
+    ).trim();
+
+    const categoryId =
+      positiveIntegerOrNull(templateRaw?.categoryId) ||
+      positiveIntegerOrNull(templateRow.category_id);
+
+    const productMainId = String(
+      templateRaw?.productMainId ||
+        templateRow.external_product_main_id ||
+        ''
+    ).trim();
+
+    if (
+      !preparingDay ||
+      !shipmentTemplate ||
+      !categoryId ||
+      !productMainId
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            'N11 katalog şablonunda categoryId / productMainId / hazırlık süresi / kargo şablonu eksik. Başka bir aynı ürünle test edin.',
+        },
+        409
+      );
+    }
+
     const title = [brand, model, memory, color, grade]
       .filter(Boolean)
       .join(' ');
 
+    // Önce yerel kayıt açılır. N11 hata verirse kayıt ERROR olarak kalır ve sebebi görülür.
     const insertResult = await pool.query(
       `
         INSERT INTO public.online_listings (
@@ -463,7 +1052,10 @@ export async function POST(request: NextRequest) {
           channel,
           external_product_id,
           external_stock_code,
+          external_product_main_id,
+          category_id,
           title,
+          description,
           brand,
           model,
           memory,
@@ -476,7 +1068,10 @@ export async function POST(request: NextRequest) {
           product_status,
           sale_status,
           sync_status,
+          preparing_day,
+          shipment_template,
           currency_type,
+          vat_rate,
           raw_data,
           created_at,
           updated_at
@@ -487,7 +1082,7 @@ export async function POST(request: NextRequest) {
           NULL,
           $1,
           $2,
-          $3,
+          $3::bigint,
           $4,
           $5,
           $6,
@@ -495,12 +1090,18 @@ export async function POST(request: NextRequest) {
           $8,
           $9,
           $10,
+          $11,
+          $12,
+          $13,
           1,
           NULL,
           NULL,
-          'DRAFT',
+          'CREATING',
+          $14,
+          $15,
           'TL',
-          $11::jsonb,
+          $16,
+          $17::jsonb,
           now(),
           now()
         )
@@ -508,7 +1109,12 @@ export async function POST(request: NextRequest) {
       `,
       [
         imei,
+        productMainId,
+        categoryId,
         title,
+        templateRow.description ||
+          templateRaw?.description ||
+          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
         brand,
         model,
         memory,
@@ -517,10 +1123,16 @@ export async function POST(request: NextRequest) {
         warranty,
         salePrice,
         listPrice,
+        preparingDay,
+        shipmentTemplate,
+        vatRate,
         JSON.stringify({
-          draftSource: 'PANEL_MANUAL',
+          draftSource: 'PANEL_MANUAL_REAL_N11_CREATE',
           createdBy: auth.user.username,
           imei,
+          templateListingId: templateRow.id,
+          templateN11ProductId: templateRow.external_product_id,
+          templateCatalogId: template.catalogId,
           brand,
           model,
           memory,
@@ -533,11 +1145,333 @@ export async function POST(request: NextRequest) {
       ]
     );
 
+    const listing = insertResult.rows[0];
+
+    const createSku = {
+      description:
+        templateRow.description ||
+        templateRaw?.description ||
+        `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
+      categoryId,
+      productMainId,
+      preparingDay,
+      shipmentTemplate,
+      maxPurchaseQuantity:
+        positiveIntegerOrNull(templateRaw?.maxPurchaseQuantity) || 1,
+      stockCode: imei,
+      catalogId: template.catalogId,
+      barcode:
+        templateRaw?.barcode === null ||
+        templateRaw?.barcode === undefined ||
+        String(templateRaw.barcode).trim() === ''
+          ? null
+          : templateRaw.barcode,
+      quantity: 1,
+      images: [],
+      attributes: [],
+      salePrice,
+      listPrice,
+      vatRate,
+    };
+
+    let createResult: Awaited<ReturnType<typeof sendN11ProductCreate>>;
+
+    try {
+      createResult = await sendN11ProductCreate(createSku);
+    } catch (error) {
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            sync_status = 'ERROR',
+            last_error = $2,
+            updated_at = now()
+          WHERE id = $1
+        `,
+        [
+          listing.id,
+          error instanceof Error
+            ? error.message
+            : 'N11 ürün oluşturma isteği başarısız.',
+        ]
+      );
+
+      throw error;
+    }
+
+    if (createResult.taskStatus === 'REJECT') {
+      const errorMessage =
+        createResult.reasons.join(' | ') ||
+        'N11 ürün oluşturma isteğini reddetti.';
+
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            sync_status = 'ERROR',
+            last_task_id = $2,
+            last_task_status = 'REJECT',
+            last_error = $3,
+            updated_at = now()
+          WHERE id = $1
+        `,
+        [listing.id, createResult.taskId, errorMessage]
+      );
+
+      if (createResult.taskId) {
+        await saveN11Task({
+          listingId: Number(listing.id),
+          stockCode: imei,
+          taskId: createResult.taskId,
+          taskType: createResult.taskType,
+          taskStatus: 'REJECT',
+          requestPayload: createResult.requestPayload,
+          responsePayload: createResult.responsePayload,
+          reasons: createResult.reasons,
+        });
+      }
+
+      return json(
+        {
+          success: false,
+          error: `N11 ürün oluşturmayı reddetti: ${errorMessage}`,
+          listingId: listing.id,
+          taskId: createResult.taskId,
+        },
+        422
+      );
+    }
+
+    if (
+      createResult.taskStatus !== 'IN_QUEUE' ||
+      !createResult.taskId
+    ) {
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            sync_status = 'ERROR',
+            last_error = $2,
+            updated_at = now()
+          WHERE id = $1
+        `,
+        [
+          listing.id,
+          `N11 beklenmeyen create cevabı: ${
+            createResult.taskStatus || 'STATUS YOK'
+          }`,
+        ]
+      );
+
+      return json(
+        {
+          success: false,
+          error: `N11 beklenmeyen create cevabı döndürdü: ${
+            createResult.taskStatus || 'STATUS YOK'
+          }`,
+        },
+        502
+      );
+    }
+
+    await saveN11Task({
+      listingId: Number(listing.id),
+      stockCode: imei,
+      taskId: createResult.taskId,
+      taskType: createResult.taskType,
+      taskStatus: 'IN_QUEUE',
+      requestPayload: createResult.requestPayload,
+      responsePayload: createResult.responsePayload,
+      reasons: createResult.reasons,
+    });
+
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          sync_status = 'IN_QUEUE',
+          last_task_id = $2,
+          last_task_status = 'IN_QUEUE',
+          last_error = NULL,
+          updated_at = now()
+        WHERE id = $1
+      `,
+      [listing.id, createResult.taskId]
+    );
+
+    const taskResult = await waitForCreateTask(
+      createResult.taskId,
+      imei
+    );
+
+    if (!taskResult.completed) {
+      return json(
+        {
+          success: true,
+          n11Requested: true,
+          created: false,
+          taskId: createResult.taskId,
+          taskStatus: 'IN_QUEUE',
+          message:
+            `Ürün N11’e gönderildi. Task #${createResult.taskId} hâlâ kuyrukta; otomatik N11 senkronizasyonu ürünü panele çekecek.`,
+          listing: {
+            ...listing,
+            sync_status: 'IN_QUEUE',
+            last_task_id: createResult.taskId,
+          },
+        },
+        202
+      );
+    }
+
+    if (!taskResult.success) {
+      const errorMessage =
+        taskResult.reasons.join(' | ') ||
+        `N11 ürün oluşturma task sonucu: ${taskResult.status}`;
+
+      await pool.query(
+        `
+          UPDATE public.online_tasks
+          SET
+            task_status = $2,
+            response_payload = $3::jsonb,
+            reasons = $4::jsonb,
+            error_message = $5,
+            checked_at = now(),
+            completed_at = now()
+          WHERE channel = 'N11'
+            AND task_id = $1
+        `,
+        [
+          createResult.taskId,
+          taskResult.status,
+          JSON.stringify(taskResult.payload),
+          JSON.stringify(taskResult.reasons),
+          errorMessage,
+        ]
+      );
+
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            sync_status = 'ERROR',
+            last_task_status = $2,
+            last_error = $3,
+            updated_at = now()
+          WHERE id = $1
+        `,
+        [listing.id, taskResult.status, errorMessage]
+      );
+
+      return json(
+        {
+          success: false,
+          n11Requested: true,
+          created: false,
+          taskId: createResult.taskId,
+          taskStatus: taskResult.status,
+          error: `N11 ürün oluşturulamadı: ${errorMessage}`,
+        },
+        422
+      );
+    }
+
+    await pool.query(
+      `
+        UPDATE public.online_tasks
+        SET
+          task_status = 'SUCCESS',
+          response_payload = $2::jsonb,
+          reasons = $3::jsonb,
+          error_message = NULL,
+          checked_at = now(),
+          completed_at = now()
+        WHERE channel = 'N11'
+          AND task_id = $1
+      `,
+      [
+        createResult.taskId,
+        JSON.stringify(taskResult.payload),
+        JSON.stringify(taskResult.reasons),
+      ]
+    );
+
+    // N11 create başarılıysa yeni ürünün gerçek N11 productId'sini stockCode=IMEI ile geri oku.
+    let createdProduct: any = null;
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      createdProduct = await queryN11ProductByStockCode(imei);
+
+      if (createdProduct) break;
+
+      if (attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+
+    if (createdProduct) {
+      await finalizeCreatedListing(
+        Number(listing.id),
+        imei,
+        createResult.taskId,
+        createdProduct
+      );
+
+      const finalResult = await pool.query(
+        `
+          SELECT *
+          FROM public.online_listings
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [listing.id]
+      );
+
+      return json(
+        {
+          success: true,
+          n11Requested: true,
+          created: true,
+          taskId: createResult.taskId,
+          taskStatus: 'SUCCESS',
+          message:
+            `Cihaz N11’de başarıyla oluşturuldu. IMEI/Stok Kodu: ${imei}`,
+          listing: finalResult.rows[0],
+        },
+        201
+      );
+    }
+
+    // Task SUCCESS ama product-query henüz görünmüyorsa otomatik sync biraz sonra tamamlar.
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          sync_status = 'SYNCED_PENDING_QUERY',
+          last_task_status = 'SUCCESS',
+          last_error = NULL,
+          updated_at = now()
+        WHERE id = $1
+      `,
+      [listing.id]
+    );
+
     return json(
       {
         success: true,
-        message: 'N11 ürün taslağı kaydedildi. Henüz N11 API’ye gönderilmedi.',
-        listing: insertResult.rows[0],
+        n11Requested: true,
+        created: true,
+        taskId: createResult.taskId,
+        taskStatus: 'SUCCESS',
+        message:
+          `N11 ürün oluşturma SUCCESS. IMEI ${imei}. N11 ürün kodu otomatik senkronizasyonda panele alınacak.`,
+        listing: {
+          ...listing,
+          sync_status: 'SYNCED_PENDING_QUERY',
+          last_task_id: createResult.taskId,
+          last_task_status: 'SUCCESS',
+        },
       },
       201
     );
@@ -552,12 +1486,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('ONLINE LISTINGS POST ERROR:', error);
+    console.error('ONLINE LISTINGS POST / N11 CREATE ERROR:', error);
 
     return json(
       {
         success: false,
-        error: 'N11 ürün taslağı oluşturulamadı.',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'N11 cihaz oluşturma işlemi tamamlanamadı.',
       },
       500
     );
