@@ -318,11 +318,6 @@ export default function Online() {
       return;
     }
 
-    const imageUrls = draftForm.imagesText
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
     setDraftSaving(true);
 
     try {
