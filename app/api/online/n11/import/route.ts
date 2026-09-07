@@ -455,7 +455,18 @@ function parseStructuredFieldsFromTitle(
 }
 
 function deriveStructuredFields(product: N11Product) {
-  const brand = findAttributeValue(product, ['Marka', 'Brand']);
+  const title = stringOrNull(product.title, 1000) || '';
+
+  const brandFromAttribute = findAttributeValue(product, ['Marka', 'Brand']);
+
+  // N11 bazı iPhone kayıtlarında Marka attribute'unu "Diğer" döndürebiliyor.
+  // Başlık açıkça iPhone ise bunu güvenli şekilde Apple olarak normalize ediyoruz.
+  const brand =
+    (!brandFromAttribute ||
+      normalizeAttributeName(brandFromAttribute) === 'diğer') &&
+    /\b[iİ]phone\b/i.test(title)
+      ? 'Apple'
+      : brandFromAttribute;
 
   const modelFromAttribute = findAttributeValue(product, [
     'Model',
