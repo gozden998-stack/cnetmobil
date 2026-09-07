@@ -31,6 +31,11 @@ const N11_PRODUCT_QUERY_URL =
   'https://api.n11.com/ms/product-query';
 const N11_CATEGORY_ATTRIBUTE_BASE_URL =
   'https://api.n11.com/cdn/category';
+const N11_CATALOG_SOAP_ENDPOINTS = [
+  'https://api.n11.com/ws/CatalogService',
+  'https://api.n11.com/ws/CatalogService.wsdl',
+];
+const N11_PHONE_CATEGORY_ID = 1000476;
 const N11_INTEGRATOR = 'CNETMOBIL';
 
 type SessionPayload = {
@@ -937,6 +942,369 @@ async function buildFullCreateAttributes(params: {
 }
 
 
+function xmlEscape(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function xmlDecode(value: string | null) {
+  if (!value) return null;
+
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+function xmlTagValue(xml: string, tag: string) {
+  const pattern = new RegExp(
+    `<(?:[A-Za-z0-9_]+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_]+:)?${tag}>`,
+    'i'
+  );
+
+  const match = xml.match(pattern);
+
+  if (!match?.[1]) return null;
+
+  return xmlDecode(
+    match[1]
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/<[^>]+>/g, '')
+  );
+}
+
+type N11CatalogProduct = {
+  catalogId: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  productTitle: string | null;
+  usc: string | null;
+};
+
+function parseSearchCatalogProducts(xml: string) {
+  const products: N11CatalogProduct[] = [];
+
+  const productRegex =
+    /<(?:[A-Za-z0-9_]+:)?product\b[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9_]+:)?product>/gi;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = productRegex.exec(xml)) !== null) {
+    const block = match[1] || '';
+
+    const catalogId = xmlTagValue(block, 'catalogId');
+    const categoryId = xmlTagValue(block, 'categoryId');
+    const categoryName = xmlTagValue(block, 'categoryName');
+    const productTitle = xmlTagValue(block, 'productTitle');
+    const usc = xmlTagValue(block, 'usc');
+
+    if (catalogId || categoryId || productTitle) {
+      products.push({
+        catalogId,
+        categoryId,
+        categoryName,
+        productTitle,
+        usc,
+      });
+    }
+  }
+
+  return products;
+}
+
+function buildSearchCatalogXml(params: {
+  appKey: string;
+  appSecret: string;
+  title: string;
+  brand: string;
+  categoryId: number;
+}) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.n11.com/ws/schemas">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <sch:SearchCatalogRequest>
+      <auth>
+        <appKey>${xmlEscape(params.appKey)}</appKey>
+        <appSecret>${xmlEscape(params.appSecret)}</appSecret>
+      </auth>
+      <productTitles>${xmlEscape(params.title)}</productTitles>
+      <categoryId>${params.categoryId}</categoryId>
+      <uscs></uscs>
+      <brandName>${xmlEscape(params.brand)}</brandName>
+      <catalogIds></catalogIds>
+      <currentPage>0</currentPage>
+    </sch:SearchCatalogRequest>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+}
+
+async function searchN11Catalog(params: {
+  brand: string;
+  title: string;
+  categoryId: number;
+}) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  const xml = buildSearchCatalogXml({
+    appKey: credentials.appKey,
+    appSecret: credentials.appSecret,
+    title: params.title,
+    brand: params.brand,
+    categoryId: params.categoryId,
+  });
+
+  let lastError = '';
+
+  for (const endpoint of N11_CATALOG_SOAP_ENDPOINTS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      20_000
+    );
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          Accept: 'text/xml, application/xml',
+          SOAPAction: '',
+        },
+        body: xml,
+        signal: controller.signal,
+      });
+
+      const rawText = await response.text();
+
+      if (!response.ok) {
+        lastError =
+          xmlTagValue(rawText, 'faultstring') ||
+          xmlTagValue(rawText, 'errorMessage') ||
+          `HTTP ${response.status}`;
+        continue;
+      }
+
+      const products =
+        parseSearchCatalogProducts(rawText);
+
+      return products;
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error.message
+          : 'SOAP bağlantı hatası';
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw new Error(
+    lastError
+      ? `N11 SearchCatalog bağlantısı başarısız: ${lastError}`
+      : 'N11 SearchCatalog bağlantısı başarısız.'
+  );
+}
+
+function containsUnexpectedModelVariant(
+  wantedModel: string,
+  candidateTitle: string
+) {
+  const wanted = normalizeTemplateValue(wantedModel);
+  const candidate =
+    normalizeTemplateValue(candidateTitle);
+
+  const variants = [
+    'promax',
+    'pro',
+    'plus',
+    'ultra',
+    'mini',
+    'max',
+    'fe',
+  ];
+
+  for (const variant of variants) {
+    const wantedHasVariant =
+      wanted.includes(variant);
+
+    const candidateHasVariantAfterModel =
+      candidate.includes(`${wanted}${variant}`);
+
+    if (
+      !wantedHasVariant &&
+      candidateHasVariantAfterModel
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function chooseCatalogProduct(params: {
+  products: N11CatalogProduct[];
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+}) {
+  const wantedBrand =
+    normalizeTemplateValue(params.brand);
+  const wantedModel =
+    normalizeTemplateValue(params.model);
+  const wantedMemory =
+    normalizeTemplateValue(params.memory);
+  const wantedColor =
+    normalizeTemplateValue(params.color);
+
+  const scored = params.products
+    .map((product) => {
+      const title = String(
+        product.productTitle || ''
+      ).trim();
+
+      const normalizedTitle =
+        normalizeTemplateValue(title);
+
+      if (
+        !product.catalogId ||
+        !product.categoryId ||
+        !title
+      ) {
+        return null;
+      }
+
+      if (
+        wantedBrand &&
+        !normalizedTitle.includes(wantedBrand)
+      ) {
+        return null;
+      }
+
+      if (
+        wantedModel &&
+        !normalizedTitle.includes(wantedModel)
+      ) {
+        return null;
+      }
+
+      if (
+        containsUnexpectedModelVariant(
+          params.model,
+          title
+        )
+      ) {
+        return null;
+      }
+
+      if (
+        wantedMemory &&
+        !normalizedTitle.includes(wantedMemory)
+      ) {
+        return null;
+      }
+
+      if (
+        wantedColor &&
+        !normalizedTitle.includes(wantedColor)
+      ) {
+        return null;
+      }
+
+      let score = 100;
+
+      if (
+        wantedColor &&
+        normalizedTitle.includes(wantedColor)
+      ) {
+        score += 30;
+      }
+
+      if (
+        wantedMemory &&
+        normalizedTitle.includes(wantedMemory)
+      ) {
+        score += 20;
+      }
+
+      if (
+        wantedModel &&
+        normalizedTitle.includes(wantedModel)
+      ) {
+        score += 20;
+      }
+
+      return {
+        product,
+        score,
+      };
+    })
+    .filter(
+      (
+        item
+      ): item is {
+        product: N11CatalogProduct;
+        score: number;
+      } => Boolean(item)
+    )
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.product || null;
+}
+
+async function getN11StoreDefaults() {
+  const result = await getPool().query(
+    `
+      SELECT
+        c.default_vat_rate,
+        c.default_preparing_day,
+        c.default_shipment_template,
+        (
+          SELECT ol.preparing_day
+          FROM public.online_listings ol
+          WHERE ol.channel = 'N11'
+            AND ol.preparing_day IS NOT NULL
+            AND ol.preparing_day > 0
+          ORDER BY
+            ol.last_synced_at DESC NULLS LAST,
+            ol.updated_at DESC
+          LIMIT 1
+        ) AS fallback_preparing_day,
+        (
+          SELECT ol.shipment_template
+          FROM public.online_listings ol
+          WHERE ol.channel = 'N11'
+            AND NULLIF(TRIM(ol.shipment_template), '') IS NOT NULL
+          ORDER BY
+            ol.last_synced_at DESC NULLS LAST,
+            ol.updated_at DESC
+          LIMIT 1
+        ) AS fallback_shipment_template
+      FROM public.online_channels c
+      WHERE c.channel = 'N11'
+      LIMIT 1
+    `
+  );
+
+  return result.rows[0] ?? null;
+}
+
+
 async function sendN11ProductCreate(sku: Record<string, unknown>) {
   const credentials = getN11Credentials();
 
@@ -1687,11 +2055,6 @@ export async function POST(request: NextRequest) {
     }
 
     const data = body as Record<string, unknown>;
-    const referenceProductUrl = String(
-      data.referenceProductUrl ??
-        data.imageUrl ??
-        ''
-    ).trim();
 
     const imei = String(data.imei ?? '')
       .replace(/\s+/g, '')
@@ -1772,19 +2135,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const channelResult = await pool.query(
-      `
-        SELECT
-          default_vat_rate,
-          default_preparing_day,
-          default_shipment_template
-        FROM public.online_channels
-        WHERE channel = 'N11'
-        LIMIT 1
-      `
-    );
-
-    const channel = channelResult.rows[0] ?? null;
+    const channel = await getN11StoreDefaults();
 
     let vatRate: number;
 
@@ -1803,99 +2154,117 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // En sağlam yöntem: kullanıcı mevcut N11 ürün linkini verirse
-    // fuzzy Marka/Model eşleştirmesi yapmadan ürün ID'sini URL'den alır
-    // ve N11 product-query?id=... ile tam ürünü kullanırız.
-    const template = referenceProductUrl
-      ? await templateFromReferenceUrl(
-          referenceProductUrl
-        )
-      : await findCatalogTemplate({
-          brand,
-          model,
-          memory,
-          color,
-          grade,
-          warranty,
-        });
+    const preparingDay =
+      positiveIntegerOrNull(
+        channel?.default_preparing_day
+      ) ||
+      positiveIntegerOrNull(
+        channel?.fallback_preparing_day
+      );
 
-    if (!template.row || !template.rawProduct) {
-      const nearTitles = Array.isArray(template.nearMatches)
-        ? template.nearMatches
-            .slice(0, 3)
-            .map(
-              (item: any) =>
-                `${item.title}${
-                  item.stockCode ? ` [${item.stockCode}]` : ''
-                }`
-            )
-            .filter(Boolean)
-        : [];
+    const shipmentTemplate = String(
+      channel?.default_shipment_template ||
+        channel?.fallback_shipment_template ||
+        ''
+    ).trim();
 
+    if (!preparingDay || !shipmentTemplate) {
       return json(
         {
           success: false,
           error:
-            nearTitles.length > 0
-              ? `N11'de aynı Marka/Model/Hafıza bulundu ancak tam Renk eşleşmesi bulunamadı. Yakın N11 ürünleri: ${nearTitles.join(' | ')}`
-              : 'N11 canlı ürünlerinde aynı Marka/Model/Hafıza/Renk için mevcut bir ürün bulunamadı.',
+            'N11 hazırlık süresi veya kargo şablonu bulunamadı. Mevcut N11 ürünlerinden mağaza varsayılanı okunamadı.',
         },
         409
       );
     }
 
-    const templateRow = template.row;
-    const templateRaw = template.rawProduct;
+    // DOĞRU AKIŞ:
+    // 59 satıcı ürününde aramıyoruz.
+    // N11'in GENEL KATALOĞUNDA SearchCatalog ile arıyoruz.
+    const catalogSearchTitle = [
+      brand,
+      model,
+      memory,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    const preparingDay =
-      positiveIntegerOrNull(templateRaw?.preparingDay) ||
-      positiveIntegerOrNull(templateRow.preparing_day) ||
-      positiveIntegerOrNull(channel?.default_preparing_day);
+    const catalogProducts =
+      await searchN11Catalog({
+        brand,
+        title: catalogSearchTitle,
+        categoryId: N11_PHONE_CATEGORY_ID,
+      });
 
-    const shipmentTemplate = String(
-      templateRaw?.shipmentTemplate ||
-        templateRow.shipment_template ||
-        channel?.default_shipment_template ||
-        ''
-    ).trim();
+    const catalogProduct =
+      chooseCatalogProduct({
+        products: catalogProducts,
+        brand,
+        model,
+        memory,
+        color,
+      });
+
+    if (!catalogProduct) {
+      const sampleTitles = catalogProducts
+        .slice(0, 8)
+        .map((item) => item.productTitle)
+        .filter(Boolean);
+
+      return json(
+        {
+          success: false,
+          catalogFound: catalogProducts.length > 0,
+          catalogResultCount:
+            catalogProducts.length,
+          catalogSamples: sampleTitles,
+          error:
+            catalogProducts.length > 0
+              ? `N11 kataloğunda ${catalogSearchTitle} bulundu ancak ${color} rengi/modeli için tam eşleşme seçilemedi.`
+              : `N11 kataloğunda ${catalogSearchTitle} için ürün bulunamadı.`,
+        },
+        409
+      );
+    }
 
     const categoryId =
-      positiveIntegerOrNull(templateRaw?.categoryId) ||
-      positiveIntegerOrNull(templateRow.category_id);
+      positiveIntegerOrNull(
+        catalogProduct.categoryId
+      );
+
+    const catalogId =
+      positiveIntegerOrNull(
+        catalogProduct.catalogId
+      );
+
+    if (!categoryId || !catalogId) {
+      return json(
+        {
+          success: false,
+          error:
+            'N11 SearchCatalog sonucu categoryId veya catalogId içermiyor.',
+        },
+        409
+      );
+    }
 
     const productMainId =
-      String(
-        templateRaw?.productMainId ||
-          templateRow.external_product_main_id ||
-          ''
-      ).trim() ||
       generatedProductMainId({
         brand,
         model,
         memory,
       });
 
-    if (
-      !preparingDay ||
-      !shipmentTemplate ||
-      !categoryId ||
-      !productMainId
-    ) {
-      return json(
-        {
-          success: false,
-          error:
-            'N11 şablonunda categoryId / hazırlık süresi / kargo şablonu bilgisi eksik.',
-        },
-        409
-      );
-    }
-
     const title = [brand, model, memory, color, grade]
       .filter(Boolean)
       .join(' ');
 
-    // Önce yerel kayıt açılır. N11 hata verirse kayıt ERROR olarak kalır ve sebebi görülür.
+    const description =
+      `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`;
+
+    // Önce yerel kayıt açılır.
+    // N11 create başarısızsa ERROR nedeni burada saklanır.
     const insertResult = await pool.query(
       `
         INSERT INTO public.online_listings (
@@ -1963,9 +2332,7 @@ export async function POST(request: NextRequest) {
         productMainId,
         categoryId,
         title,
-        templateRow.description ||
-          templateRaw?.description ||
-          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
+        description,
         brand,
         model,
         memory,
@@ -1978,20 +2345,18 @@ export async function POST(request: NextRequest) {
         shipmentTemplate,
         vatRate,
         JSON.stringify({
-          draftSource: 'PANEL_MANUAL_REAL_N11_CREATE',
+          draftSource:
+            'PANEL_N11_SEARCH_CATALOG_CREATE',
           createdBy: auth.user.username,
           imei,
-          templateListingId: templateRow.id ?? null,
-          templateN11ProductId:
-            templateRow.external_product_id ?? null,
-          templateCatalogId: template.catalogId,
-          templateBarcode: template.barcode,
-          templateSource: template.source,
-          templateCreateMode: template.createMode,
-          referenceProductUrl:
-            referenceProductUrl || null,
-          referencePageImageUrl:
-            (template as any).pageImageUrl || null,
+          catalogSearchTitle,
+          selectedCatalogId: catalogId,
+          selectedCatalogCategoryId:
+            categoryId,
+          selectedCatalogTitle:
+            catalogProduct.productTitle,
+          selectedCatalogUsc:
+            catalogProduct.usc,
           brand,
           model,
           memory,
@@ -2006,92 +2371,25 @@ export async function POST(request: NextRequest) {
 
     const listing = insertResult.rows[0];
 
-    let createSku: Record<string, unknown>;
-
-    if (template.createMode === 'QUICK') {
-      // Hızlı Ürün Yükleme:
-      // catalogId veya barcode var; attributes/images boş gönderilebilir.
-      createSku = {
-        description:
-          templateRow.description ||
-          templateRaw?.description ||
-          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
-        categoryId,
-        productMainId,
-        preparingDay,
-        shipmentTemplate,
-        maxPurchaseQuantity:
-          positiveIntegerOrNull(
-            templateRaw?.maxPurchaseQuantity
-          ) || 1,
-        stockCode: imei,
-        catalogId: template.catalogId ?? null,
-        barcode: template.barcode ?? null,
-        quantity: 1,
-        images: [],
-        attributes: [],
-        salePrice,
-        listPrice,
-        vatRate,
-      };
-    } else {
-      // Normal CreateProduct:
-      // catalogId/barcode yoksa görsel + zorunlu kategori özellikleri gerekir.
-      const imageUrls = extractTemplateImageUrls(
-        templateRaw,
-        (template as any).pageImageUrl
-      );
-
-      if (imageUrls.length === 0) {
-        return json(
-          {
-            success: false,
-            requiresReferenceProductUrl: true,
-            error:
-              'Örnek N11 ürününün görseli otomatik alınamadı. Başka bir N11 örnek ürün linki deneyin.',
-          },
-          409
-        );
-      }
-
-      const fullAttributes =
-        await buildFullCreateAttributes({
-          categoryId,
-          templateProduct: templateRaw,
-        });
-
-      createSku = {
-        title:
-          templateRaw?.title ||
-          templateRow.title ||
-          `${brand} ${model} ${memory} ${color} ${grade}`,
-        description:
-          templateRow.description ||
-          templateRaw?.description ||
-          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
-        categoryId,
-        currencyType: 'TL',
-        productMainId,
-        preparingDay,
-        shipmentTemplate,
-        maxPurchaseQuantity:
-          positiveIntegerOrNull(
-            templateRaw?.maxPurchaseQuantity
-          ) || 1,
-        stockCode: imei,
-        catalogId: null,
-        barcode: null,
-        quantity: 1,
-        images: imageUrls.map((url, order) => ({
-          url,
-          order,
-        })),
-        attributes: fullAttributes,
-        salePrice,
-        listPrice,
-        vatRate,
-      };
-    }
+    // SearchCatalog catalogId bulduğunda N11'in HIZLI ÜRÜN YÜKLEME
+    // akışını kullanıyoruz. images ve attributes boş gönderilebilir.
+    const createSku: Record<string, unknown> = {
+      description,
+      categoryId,
+      productMainId,
+      preparingDay,
+      shipmentTemplate,
+      maxPurchaseQuantity: 1,
+      stockCode: imei,
+      catalogId,
+      barcode: null,
+      quantity: 1,
+      images: [],
+      attributes: [],
+      salePrice,
+      listPrice,
+      vatRate,
+    };
 
     let createResult: Awaited<ReturnType<typeof sendN11ProductCreate>>;
 
