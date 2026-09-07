@@ -2,6 +2,7 @@
 // CNETMOBIL ONLINE - N11 urun yonetimi
 // GERCEK N11 urun olusturma + fiyat / stok guncelleme.
 // Yeni fiziksel cihaz icin stockCode = IMEI.
+// KDV online_channels.default_vat_rate alanindan otomatik alinır.
 // Ilk hizli create, ayni ozellikte mevcut N11 urununu katalog sablonu olarak kullanir.
 // stock_devices / WingSM bagimliligi simdilik YOK.
 // SADECE SUPER ADMIN.
@@ -270,13 +271,9 @@ function parsePositiveId(value: unknown) {
 
 
 function getN11DefaultVatRate(channelRow: any) {
-  const envValue = String(process.env.N11_DEFAULT_VAT_RATE || '').trim();
-
   const rawValue =
-    envValue !== ''
-      ? envValue
-      : channelRow?.default_vat_rate !== null &&
-        channelRow?.default_vat_rate !== undefined
+    channelRow?.default_vat_rate !== null &&
+    channelRow?.default_vat_rate !== undefined
       ? String(channelRow.default_vat_rate)
       : '';
 
@@ -284,7 +281,7 @@ function getN11DefaultVatRate(channelRow: any) {
 
   if (![0, 1, 10, 20].includes(vatRate)) {
     throw new Error(
-      'N11_DEFAULT_VAT_RATE eksik/geçersiz. Coolify ENV içine mağazada kullandığınız KDV oranını 0, 1, 10 veya 20 olarak girin.'
+      'N11 kanal KDV oranı ayarlı değil. online_channels.default_vat_rate alanını 0, 1, 10 veya 20 olarak ayarlayın.'
     );
   }
 
