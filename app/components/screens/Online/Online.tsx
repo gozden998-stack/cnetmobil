@@ -86,7 +86,7 @@ type ListingDraftForm = {
   color: string;
   grade: string;
   warranty: string;
-  imageUrl: string;
+  referenceProductUrl: string;
   salePrice: string;
   listPrice: string;
 };
@@ -159,7 +159,7 @@ const EMPTY_DRAFT_FORM: ListingDraftForm = {
   color: "",
   grade: "",
   warranty: "",
-  imageUrl: "",
+  referenceProductUrl: "",
   salePrice: "",
   listPrice: "",
 };
@@ -349,7 +349,7 @@ export default function Online() {
           color: draftForm.color,
           grade: draftForm.grade,
           warranty: draftForm.warranty,
-          imageUrl: draftForm.imageUrl,
+          referenceProductUrl: draftForm.referenceProductUrl,
           salePrice: draftForm.salePrice,
           listPrice: draftForm.listPrice,
         }),
@@ -1398,21 +1398,21 @@ export default function Online() {
 
                   <label className="md:col-span-2">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      N11 Görsel URL
+                      N11 Örnek Ürün Linki
                     </div>
                     <input
-                      value={draftForm.imageUrl}
+                      value={draftForm.referenceProductUrl}
                       onChange={(event) =>
                         setDraftForm((current) => ({
                           ...current,
-                          imageUrl: event.target.value,
+                          referenceProductUrl: event.target.value,
                         }))
                       }
-                      placeholder="https://...jpg  (catalogId/barcode yoksa gerekli)"
+                      placeholder="https://www.n11.com/urun/..."
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
                     <div className="mt-1 text-[10px] font-semibold text-slate-400">
-                      Mevcut N11 ürünü catalogId/barcode taşımıyorsa, aynı cihazın HTTPS görsel adresini buraya yapıştır.
+                      Aynı ürünün kendi N11 mağazanızdaki ürün sayfası linkini yapıştır. Sistem ürün kodu, kategori, özellik ve görseli bu linkten otomatik alır.
                     </div>
                   </label>
 
@@ -1452,7 +1452,7 @@ export default function Online() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
-                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. Uygun katalog varsa hızlı; yoksa görsel + kategori özellikleri ile normal N11 CreateProduct kullanılır.
+                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. Örnek N11 ürün linkinden kategori/özellik/görsel alınır ve yeni IMEI ile N11 ürünü açılır.
                 </div>
 
                 {draftError ? (
