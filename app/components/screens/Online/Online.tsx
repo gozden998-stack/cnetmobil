@@ -992,42 +992,6 @@ export default function Online() {
           </div>
         ) : null}
 
-                  {draftSuccess ? (
-                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
-                      {draftSuccess}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="text-[11px] font-semibold text-slate-500">
-                  stockCode otomatik olarak cihazın 15 haneli IMEI bilgisidir. Stok otomatik 1 kaydedilir.
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={closeCreateModal}
-                    disabled={draftSaving}
-                    className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600 disabled:opacity-50"
-                  >
-                    İPTAL
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void saveDraft()}
-                    disabled={draftSaving || !draftForm.stockDeviceId}
-                    className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {draftSaving ? "KAYDEDİLİYOR..." : "TASLAĞI KAYDET"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );
