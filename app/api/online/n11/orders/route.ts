@@ -485,27 +485,32 @@ export async function GET(request: NextRequest) {
     }
 
     const url = new URL(request.url);
+    const requestedStatus = String(
+      url.searchParams.get('status') || 'ALL'
+    ).trim();
 
-    const requestedStatus =
-      String(
-        url.searchParams.get('status') || 'Created'
-      ).trim() || 'Created';
-
-    const allowedStatuses = new Set([
+    const supportedStatuses = [
       'Created',
       'Picking',
       'Shipped',
-      'Cancelled',
       'Delivered',
-      'UnPacked',
-      'UnSupplied',
-    ]);
+    ] as const;
 
-    if (!allowedStatuses.has(requestedStatus)) {
+    if (
+      requestedStatus !== 'ALL' &&
+      !supportedStatuses.includes(
+        requestedStatus as
+          | 'Created'
+          | 'Picking'
+          | 'Shipped'
+          | 'Delivered'
+      )
+    ) {
       return json(
         {
           success: false,
-          error: 'N11 sipariş statüsü geçersiz.',
+          error:
+            'N11 sipariş statüsü geçersiz.',
         },
         400
       );
@@ -515,52 +520,134 @@ export async function GET(request: NextRequest) {
     const startDate =
       now - 30 * 24 * 60 * 60 * 1000;
 
-    const orders = await fetchN11Orders({
-      appKey: credentials.appKey,
-      appSecret: credentials.appSecret,
-      startDate,
-      endDate: now,
-      status: requestedStatus,
-    });
+    const statusesToFetch =
+      requestedStatus === 'ALL'
+        ? supportedStatuses
+        : [
+            requestedStatus as
+              | 'Created'
+              | 'Picking'
+              | 'Shipped'
+              | 'Delivered',
+          ];
 
-    orders.sort((a, b) => {
-      const aTime = a.lastModifiedDate
-        ? new Date(a.lastModifiedDate).getTime()
-        : 0;
+    const results = await Promise.all(
+      statusesToFetch.map(async (status) => {
+        const orders = await fetchN11Orders({
+          appKey: credentials.appKey,
+          appSecret: credentials.appSecret,
+          startDate,
+          endDate: now,
+          status,
+        });
 
-      const bTime = b.lastModifiedDate
-        ? new Date(b.lastModifiedDate).getTime()
-        : 0;
+        orders.sort((a, b) => {
+          const aTime = a.lastModifiedDate
+            ? new Date(
+                a.lastModifiedDate
+              ).getTime()
+            : 0;
 
-      return bTime - aTime;
-    });
+          const bTime = b.lastModifiedDate
+            ? new Date(
+                b.lastModifiedDate
+              ).getTime()
+            : 0;
 
-    const totalAmount = orders.reduce(
-      (sum, order) =>
-        sum + Number(order.totalAmount || 0),
-      0
+          return bTime - aTime;
+        });
+
+        const totalAmount = orders.reduce(
+          (sum, order) =>
+            sum +
+            Number(order.totalAmount || 0),
+          0
+        );
+
+        const totalQuantity = orders.reduce(
+          (sum, order) =>
+            sum +
+            Number(order.totalQuantity || 0),
+          0
+        );
+
+        return {
+          status,
+          count: orders.length,
+          totalQuantity,
+          totalAmount,
+          orders,
+        };
+      })
     );
 
-    const totalQuantity = orders.reduce(
-      (sum, order) =>
-        sum + Number(order.totalQuantity || 0),
-      0
-    );
+    const groups: Record<
+      string,
+      {
+        status: string;
+        count: number;
+        totalQuantity: number;
+        totalAmount: number;
+        orders: N11Order[];
+      }
+    > = {};
+
+    for (const result of results) {
+      groups[result.status] = result;
+    }
+
+    const emptyGroup = (status: string) => ({
+      status,
+      count: 0,
+      totalQuantity: 0,
+      totalAmount: 0,
+      orders: [] as N11Order[],
+    });
+
+    const created =
+      groups.Created ||
+      emptyGroup('Created');
+    const picking =
+      groups.Picking ||
+      emptyGroup('Picking');
+    const shipped =
+      groups.Shipped ||
+      emptyGroup('Shipped');
+    const delivered =
+      groups.Delivered ||
+      emptyGroup('Delivered');
+
+    const allOrders = [
+      ...created.orders,
+      ...picking.orders,
+      ...shipped.orders,
+      ...delivered.orders,
+    ];
 
     return json({
       success: true,
       channel: 'N11',
-      readOnly: true,
-      status: requestedStatus,
       period: {
-        startDate: new Date(startDate).toISOString(),
+        startDate:
+          new Date(startDate).toISOString(),
         endDate: new Date(now).toISOString(),
         days: 30,
       },
-      count: orders.length,
-      totalQuantity,
-      totalAmount,
-      orders,
+      groups: {
+        Created: created,
+        Picking: picking,
+        Shipped: shipped,
+        Delivered: delivered,
+      },
+      counts: {
+        newOrders: created.count,
+        preparing: picking.count,
+        shipped: shipped.count,
+        delivered: delivered.count,
+        total: allOrders.length,
+      },
+      count: allOrders.length,
+      orders: allOrders,
       checkedAt: new Date().toISOString(),
       checkedBy: user.username,
     });
