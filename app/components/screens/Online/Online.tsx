@@ -136,6 +136,58 @@ type OnlineResponse = {
   taskCount: number;
 };
 
+type N11OrderLine = {
+  quantity: number;
+  productId: string | null;
+  productName: string | null;
+  stockCode: string | null;
+  price: number | null;
+  dueAmount: number | null;
+  sellerInvoiceAmount: number | null;
+  orderLineId: string | null;
+  status: string | null;
+  variantAttributes: unknown[];
+};
+
+type N11Order = {
+  packageId: string | null;
+  orderNumber: string | null;
+  customerFullName: string | null;
+  customerEmail: string | null;
+  customerId: string | null;
+  city: string | null;
+  district: string | null;
+  cargoTrackingNumber: string | null;
+  cargoTrackingLink: string | null;
+  cargoProviderName: string | null;
+  shipmentPackageStatus: string | null;
+  lastModifiedDate: string | null;
+  agreedDeliveryDate: string | null;
+  totalAmount: number | null;
+  totalDiscountAmount: number | null;
+  totalQuantity: number;
+  productSummary: string;
+  lines: N11OrderLine[];
+};
+
+type N11OrdersResponse = {
+  success: boolean;
+  error?: string;
+  channel: string;
+  readOnly: boolean;
+  status: string;
+  period: {
+    startDate: string;
+    endDate: string;
+    days: number;
+  };
+  count: number;
+  totalQuantity: number;
+  totalAmount: number;
+  orders: N11Order[];
+  checkedAt: string;
+};
+
 const EMPTY_STATS: OnlineStats = {
   totalProducts: 0,
   totalStock: 0,
@@ -220,6 +272,8 @@ export default function Online() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<OnlineResponse | null>(null);
+  const [ordersData, setOrdersData] = useState<N11OrdersResponse | null>(null);
+  const [ordersError, setOrdersError] = useState("");
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState<
     "orders" | "open" | "closed"
@@ -248,6 +302,7 @@ export default function Online() {
     }
 
     setError("");
+    setOrdersError("");
 
     try {
       const response = await fetch("/api/online", {
@@ -265,6 +320,37 @@ export default function Online() {
       }
 
       setData(payload);
+
+      try {
+        const ordersResponse = await fetch(
+          "/api/online/n11/orders?status=Created",
+          {
+            method: "GET",
+            cache: "no-store",
+            credentials: "same-origin",
+          }
+        );
+
+        const ordersPayload = (await ordersResponse
+          .json()
+          .catch(() => null)) as N11OrdersResponse | null;
+
+        if (!ordersResponse.ok || !ordersPayload?.success) {
+          setOrdersData(null);
+          setOrdersError(
+            ordersPayload?.error || "N11 siparişleri alınamadı."
+          );
+        } else {
+          setOrdersData(ordersPayload);
+        }
+      } catch (ordersErr) {
+        setOrdersData(null);
+        setOrdersError(
+          ordersErr instanceof Error
+            ? ordersErr.message
+            : "N11 siparişleri alınamadı."
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "ONLINE verileri alınamadı."
@@ -561,9 +647,8 @@ export default function Online() {
     [listings]
   );
 
-  // SP sipariş entegrasyonu bir sonraki adımda bağlanacak.
-  // Şimdilik kart ve sekme hazır; gerçek sayı API bağlanınca gelecek.
-  const orderCount = 0;
+  const orders = ordersData?.orders ?? [];
+  const orderCount = ordersData?.count ?? 0;
 
   const filteredListings = useMemo(() => {
     const source =
@@ -713,7 +798,7 @@ export default function Online() {
                 {orderCount}
               </div>
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                SP bağlantısı bekleniyor
+                Yeni N11 siparişleri
               </div>
             </div>
 
@@ -930,7 +1015,7 @@ export default function Online() {
               </div>
               <div className="mt-1 text-[12px] font-semibold text-slate-500">
                 {activeSection === "orders"
-                  ? "N11 SP siparişleri müşteri bazlı burada listelenecek."
+                  ? "N11'den gelen Created statülü siparişler müşteri bazlı listelenir."
                   : activeSection === "open"
                   ? "Stok adedi 1 ve üzeri olan, yayındaki N11 ürünleri."
                   : "Stok adedi 0 olan, satışa kapalı N11 ürünleri."}
@@ -940,17 +1025,119 @@ export default function Online() {
 
           <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-100">
             {activeSection === "orders" ? (
-              <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-3xl">
-                  🛒
+              ordersError ? (
+                <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
+                    !
+                  </div>
+                  <div className="mt-4 text-[15px] font-black text-red-700">
+                    N11 siparişleri alınamadı
+                  </div>
+                  <div className="mt-2 max-w-xl text-[12px] font-semibold leading-5 text-slate-500">
+                    {ordersError}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadData(true)}
+                    className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-[11px] font-black text-white"
+                  >
+                    TEKRAR DENE
+                  </button>
                 </div>
-                <div className="mt-4 text-[16px] font-black text-slate-800">
-                  Sipariş ekranı hazır
+              ) : orders.length === 0 ? (
+                <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-3xl">
+                    🛒
+                  </div>
+                  <div className="mt-4 text-[16px] font-black text-slate-800">
+                    Yeni sipariş yok
+                  </div>
+                  <div className="mt-2 max-w-xl text-[12px] font-semibold leading-5 text-slate-500">
+                    Son 30 günde Created statüsünde bekleyen N11 siparişi bulunamadı.
+                  </div>
                 </div>
-                <div className="mt-2 max-w-xl text-[12px] font-semibold leading-5 text-slate-500">
-                  Bir sonraki adımda N11 SP sipariş servisini bağlayıp siparişleri müşteri bazlı burada göstereceğiz.
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="min-w-[1500px]">
+                    <div className="grid grid-cols-[0.8fr_1fr_1.8fr_0.55fr_0.8fr_0.85fr_0.8fr_0.9fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      <div>Sipariş No</div>
+                      <div>Müşteri</div>
+                      <div>Ürün</div>
+                      <div>Adet</div>
+                      <div>Tutar</div>
+                      <div>Şehir</div>
+                      <div>Durum</div>
+                      <div>Tarih</div>
+                    </div>
+
+                    {orders.map((order, index) => (
+                      <div
+                        key={`${order.packageId || order.orderNumber || "order"}-${index}`}
+                        className="grid grid-cols-[0.8fr_1fr_1.8fr_0.55fr_0.8fr_0.85fr_0.8fr_0.9fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
+                      >
+                        <div>
+                          <div className="font-mono text-[12px] font-black text-slate-900">
+                            {order.orderNumber || "—"}
+                          </div>
+                          <div className="mt-1 text-[9px] font-bold text-slate-400">
+                            Paket: {order.packageId || "—"}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 pr-3">
+                          <div className="truncate text-[13px] font-black text-slate-900">
+                            {order.customerFullName || "—"}
+                          </div>
+                          <div className="mt-1 truncate text-[10px] font-semibold text-slate-400">
+                            {order.customerEmail || "—"}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 pr-4">
+                          <div className="line-clamp-2 text-[12px] font-bold leading-5 text-slate-800">
+                            {order.productSummary || "—"}
+                          </div>
+                          {order.lines?.[0]?.stockCode ? (
+                            <div className="mt-1 font-mono text-[10px] font-bold text-slate-400">
+                              Stok: {order.lines[0].stockCode}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="text-[14px] font-black text-slate-900">
+                          {order.totalQuantity}
+                        </div>
+
+                        <div className="font-black text-slate-900">
+                          {formatMoney(Number(order.totalAmount || 0))}
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-slate-800">
+                            {order.city || "—"}
+                          </div>
+                          <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                            {order.district || "—"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
+                            {order.shipmentPackageStatus || "Created"}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] font-bold text-slate-600">
+                          {formatDate(
+                            order.agreedDeliveryDate ||
+                              order.lastModifiedDate
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )
             ) : filteredListings.length === 0 ? (
               <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
@@ -1090,7 +1277,32 @@ export default function Online() {
             )}
           </div>
 
-          {activeSection !== "orders" ? (
+          {activeSection === "orders" ? (
+            !ordersError && orders.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] font-semibold text-slate-500">
+                <div>
+                  Yeni Sipariş:{" "}
+                  <span className="font-black text-blue-700">
+                    {orderCount}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>
+                    Toplam Adet:{" "}
+                    <b className="text-slate-800">
+                      {ordersData?.totalQuantity ?? 0}
+                    </b>
+                  </span>
+                  <span>
+                    Toplam Tutar:{" "}
+                    <b className="text-slate-800">
+                      {formatMoney(Number(ordersData?.totalAmount || 0))}
+                    </b>
+                  </span>
+                </div>
+              </div>
+            ) : null
+          ) : (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] font-semibold text-slate-500">
               <div>
                 Gösterilen:{" "}
@@ -1110,7 +1322,7 @@ export default function Online() {
                 </span>
               </div>
             </div>
-          ) : null}
+          )}
         </section>
 
         {showEditModal && editForm ? (
