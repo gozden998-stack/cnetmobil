@@ -249,6 +249,14 @@ function parseMoney(value: unknown, field: string) {
   return Number(amount.toFixed(2));
 }
 
+function parsePositiveId(value: unknown) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) return null;
+
+  return id;
+}
+
 // ============================================================
 // GET /api/online/listings
 // Mevcut N11 taslaklarini/listinglerini PostgreSQL'den okur.
@@ -552,3 +560,226 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// ============================================================
+// PATCH /api/online/listings
+//
+// PostgreSQL tarafinda urun duzenleme / fiyat / stok islemleri.
+// N11 API'ye istek ATMAZ.
+//
+// UPDATE_DETAILS:
+// { action, listingId, brand, model, memory, color, grade, warranty }
+//
+// UPDATE_PRICE:
+// { action, listingId, salePrice, listPrice }
+//
+// SET_STOCK_ZERO:
+// { action, listingId }
+// ============================================================
+export async function PATCH(request: NextRequest) {
+  try {
+    if (!validateOrigin(request)) {
+      return json({ success: false, error: 'Geçersiz istek kaynağı.' }, 403);
+    }
+
+    const auth = await requireSuperAdmin(request);
+
+    if (auth.response || !auth.user) {
+      return auth.response!;
+    }
+
+    const contentLength = Number(request.headers.get('content-length') || 0);
+
+    if (contentLength > 50_000) {
+      return json({ success: false, error: 'İstek çok büyük.' }, 413);
+    }
+
+    const body = await request.json().catch(() => null);
+
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ success: false, error: 'Geçersiz istek.' }, 400);
+    }
+
+    const data = body as Record<string, unknown>;
+    const listingId = parsePositiveId(data.listingId);
+    const action = String(data.action ?? '').trim().toUpperCase();
+
+    if (!listingId) {
+      return json({ success: false, error: 'Geçersiz ONLINE kaydı.' }, 400);
+    }
+
+    if (!['UPDATE_DETAILS', 'UPDATE_PRICE', 'SET_STOCK_ZERO'].includes(action)) {
+      return json({ success: false, error: 'Geçersiz işlem.' }, 400);
+    }
+
+    const pool = getPool();
+
+    const existingResult = await pool.query(
+      `
+        SELECT *
+        FROM public.online_listings
+        WHERE id = $1
+          AND channel = 'N11'
+        LIMIT 1
+      `,
+      [listingId]
+    );
+
+    const existing = existingResult.rows[0];
+
+    if (!existing) {
+      return json({ success: false, error: 'ONLINE ürünü bulunamadı.' }, 404);
+    }
+
+    if (action === 'UPDATE_DETAILS') {
+      let brand: string;
+      let model: string;
+      let memory: string;
+      let color: string;
+      let grade: string;
+      let warranty: string;
+
+      try {
+        brand = cleanText(data.brand, 'Marka', 100);
+        model = cleanText(data.model, 'Model', 180);
+        memory = cleanText(data.memory, 'Hafıza', 50);
+        color = cleanText(data.color, 'Renk', 100);
+        grade = cleanText(data.grade, 'Grade', 50);
+        warranty = cleanText(data.warranty, 'Garanti', 100);
+      } catch (error) {
+        return json(
+          {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Ürün bilgileri geçersiz.',
+          },
+          400
+        );
+      }
+
+      const title = [brand, model, memory, color, grade]
+        .filter(Boolean)
+        .join(' ');
+
+      const result = await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            brand = $2,
+            model = $3,
+            memory = $4,
+            color = $5,
+            grade = $6,
+            warranty = $7,
+            title = $8,
+            sync_status = CASE
+              WHEN external_product_id IS NULL THEN 'DRAFT'
+              ELSE 'READY'
+            END,
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+          RETURNING *
+        `,
+        [listingId, brand, model, memory, color, grade, warranty, title]
+      );
+
+      return json({
+        success: true,
+        message: 'Ürün bilgileri güncellendi.',
+        listing: result.rows[0],
+      });
+    }
+
+    if (action === 'UPDATE_PRICE') {
+      let salePrice: number;
+      let listPrice: number;
+
+      try {
+        salePrice = parseMoney(data.salePrice, 'N11 satış fiyatı');
+        listPrice = parseMoney(data.listPrice, 'N11 liste fiyatı');
+      } catch (error) {
+        return json(
+          {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Fiyat bilgileri geçersiz.',
+          },
+          400
+        );
+      }
+
+      if (listPrice < salePrice) {
+        return json(
+          {
+            success: false,
+            error: 'N11 liste fiyatı satış fiyatından düşük olamaz.',
+          },
+          400
+        );
+      }
+
+      const result = await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            sale_price = $2,
+            list_price = $3,
+            sync_status = CASE
+              WHEN external_product_id IS NULL THEN 'DRAFT'
+              ELSE 'READY'
+            END,
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+          RETURNING *
+        `,
+        [listingId, salePrice, listPrice]
+      );
+
+      return json({
+        success: true,
+        message: 'N11 fiyatları güncellendi.',
+        listing: result.rows[0],
+      });
+    }
+
+    const result = await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          quantity = 0,
+          sync_status = CASE
+            WHEN external_product_id IS NULL THEN 'DRAFT'
+            ELSE 'READY'
+          END,
+          updated_at = now()
+        WHERE id = $1
+          AND channel = 'N11'
+        RETURNING *
+      `,
+      [listingId]
+    );
+
+    return json({
+      success: true,
+      message: 'ONLINE stok 0 yapıldı. N11 API bağlanınca bu değişiklik N11’e gönderilecek.',
+      listing: result.rows[0],
+    });
+  } catch (error) {
+    console.error('ONLINE LISTINGS PATCH ERROR:', error);
+
+    return json(
+      {
+        success: false,
+        error: 'ONLINE ürün işlemi tamamlanamadı.',
+      },
+      500
+    );
+  }
+}
+
