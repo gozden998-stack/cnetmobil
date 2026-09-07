@@ -371,39 +371,140 @@ function findAttributeValue(
   return null;
 }
 
-function deriveStructuredFields(product: N11Product) {
+function normalizeMemory(value: string | null) {
+  if (!value) return null;
+
+  const match = value.match(/(\d+)\s*(GB|TB)/i);
+
+  if (!match) return value.trim();
+
+  return `${match[1]} ${match[2].toUpperCase()}`;
+}
+
+function parseStructuredFieldsFromTitle(
+  product: N11Product,
+  attributeBrand: string | null,
+  attributeColor: string | null
+) {
+  const title = stringOrNull(product.title, 1000);
+
+  if (!title) {
+    return {
+      model: null as string | null,
+      memory: null as string | null,
+      grade: null as string | null,
+      warranty: null as string | null,
+      color: attributeColor,
+    };
+  }
+
+  // Örnek N11 başlık yapısı:
+  // Yenilenmiş iPhone 15 256 GB A Kalite (12 Ay Garantili) Yeşil
+  // Yenilenmiş Samsung Galaxy S21 FE 128GB A Kalite (12 Ay Garantili) Mor
+  //
+  // Burada başlıktan yalnızca açıkça bulunan alanları çıkarıyoruz.
+  // Eşleşme yoksa tahmin YAPMIYORUZ.
+
+  const memoryMatch = title.match(/\b(\d+)\s*(GB|TB)\b/i);
+  const gradeMatch = title.match(/\b([ABC])\s*Kalite\b/i);
+  const warrantyMatch = title.match(/\((\d+)\s*Ay\s*Garantili\)/i);
+
+  let model: string | null = null;
+
+  if (memoryMatch && typeof memoryMatch.index === 'number') {
+    let beforeMemory = title.slice(0, memoryMatch.index).trim();
+
+    beforeMemory = beforeMemory
+      .replace(/^Yenilenmiş\s+/i, '')
+      .trim();
+
+    if (
+      attributeBrand &&
+      beforeMemory
+        .toLocaleLowerCase('tr-TR')
+        .startsWith(attributeBrand.toLocaleLowerCase('tr-TR') + ' ')
+    ) {
+      beforeMemory = beforeMemory.slice(attributeBrand.length).trim();
+    }
+
+    model = beforeMemory || null;
+  }
+
+  let parsedColor = attributeColor;
+
+  if (!parsedColor && warrantyMatch) {
+    const warrantyEnd =
+      (warrantyMatch.index || 0) + warrantyMatch[0].length;
+
+    const afterWarranty = title.slice(warrantyEnd).trim();
+
+    if (afterWarranty) {
+      parsedColor = afterWarranty;
+    }
+  }
+
   return {
-    brand: findAttributeValue(product, ['Marka', 'Brand']),
-    model: findAttributeValue(product, [
-      'Model',
-      'Model Adı',
-      'Model Adi',
-      'Telefon Modeli',
-    ]),
-    memory: findAttributeValue(product, [
-      'Hafıza',
-      'Hafiza',
-      'Dahili Hafıza',
-      'Dahili Hafiza',
-      'Depolama',
-      'Depolama Kapasitesi',
-      'Kapasite',
-    ]),
-    color: findAttributeValue(product, ['Renk', 'Color']),
-    grade: findAttributeValue(product, [
-      'Grade',
-      'Kalite',
-      'Kondisyon',
-      'Ürün Kondisyonu',
-      'Urun Kondisyonu',
-      'Kozmetik Durum',
-    ]),
-    warranty: findAttributeValue(product, [
-      'Garanti',
-      'Garanti Süresi',
-      'Garanti Suresi',
-      'Garanti Tipi',
-    ]),
+    model,
+    memory: memoryMatch
+      ? `${memoryMatch[1]} ${memoryMatch[2].toUpperCase()}`
+      : null,
+    grade: gradeMatch ? gradeMatch[1].toUpperCase() : null,
+    warranty: warrantyMatch ? `${warrantyMatch[1]} Ay` : null,
+    color: parsedColor,
+  };
+}
+
+function deriveStructuredFields(product: N11Product) {
+  const brand = findAttributeValue(product, ['Marka', 'Brand']);
+
+  const modelFromAttribute = findAttributeValue(product, [
+    'Model',
+    'Model Adı',
+    'Model Adi',
+    'Telefon Modeli',
+  ]);
+
+  const memoryFromAttribute = findAttributeValue(product, [
+    'Hafıza',
+    'Hafiza',
+    'Dahili Hafıza',
+    'Dahili Hafiza',
+    'Depolama',
+    'Depolama Kapasitesi',
+    'Kapasite',
+  ]);
+
+  const colorFromAttribute = findAttributeValue(product, ['Renk', 'Color']);
+
+  const gradeFromAttribute = findAttributeValue(product, [
+    'Grade',
+    'Kalite',
+    'Kondisyon',
+    'Ürün Kondisyonu',
+    'Urun Kondisyonu',
+    'Kozmetik Durum',
+  ]);
+
+  const warrantyFromAttribute = findAttributeValue(product, [
+    'Garanti',
+    'Garanti Süresi',
+    'Garanti Suresi',
+    'Garanti Tipi',
+  ]);
+
+  const fromTitle = parseStructuredFieldsFromTitle(
+    product,
+    brand,
+    colorFromAttribute
+  );
+
+  return {
+    brand,
+    model: modelFromAttribute || fromTitle.model,
+    memory: normalizeMemory(memoryFromAttribute) || fromTitle.memory,
+    color: colorFromAttribute || fromTitle.color,
+    grade: gradeFromAttribute || fromTitle.grade,
+    warranty: warrantyFromAttribute || fromTitle.warranty,
   };
 }
 
