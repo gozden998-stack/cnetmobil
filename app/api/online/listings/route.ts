@@ -314,6 +314,34 @@ function positiveIntegerOrNull(value: unknown) {
   return number;
 }
 
+function normalizeTemplateValue(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function rowSearchText(row: any, rawProduct: any) {
+  return normalizeTemplateValue(
+    [
+      row?.brand,
+      row?.model,
+      row?.memory,
+      row?.color,
+      row?.title,
+      rawProduct?.title,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
+}
+
 async function findCatalogTemplate(params: {
   brand: string;
   model: string;
@@ -322,6 +350,12 @@ async function findCatalogTemplate(params: {
   grade: string;
   warranty: string;
 }) {
+  // Katalog şablonu bulurken Grade/Garanti'yi eşleştirmiyoruz.
+  // Bunlar fiziksel cihazın satış bilgileri; katalog eşleştirmede
+  // marka + model + hafıza + renk esas alınır.
+  //
+  // Ayrıca "64GB" ile "64 GB", "iphone 11" ile "iPhone 11"
+  // gibi yazım farklarını normalize ederek eşleştiriyoruz.
   const result = await getPool().query(
     `
       SELECT *
@@ -331,27 +365,27 @@ async function findCatalogTemplate(params: {
         AND category_id IS NOT NULL
         AND external_product_main_id IS NOT NULL
         AND shipment_template IS NOT NULL
-        AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(TRIM($1))
-        AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(TRIM($2))
-        AND LOWER(TRIM(COALESCE(memory, ''))) = LOWER(TRIM($3))
-        AND LOWER(TRIM(COALESCE(color, ''))) = LOWER(TRIM($4))
-        AND LOWER(TRIM(COALESCE(grade, ''))) = LOWER(TRIM($5))
-        AND LOWER(TRIM(COALESCE(warranty, ''))) = LOWER(TRIM($6))
       ORDER BY
         CASE WHEN product_status = 'Active' THEN 0 ELSE 1 END,
         last_synced_at DESC NULLS LAST,
         updated_at DESC
-      LIMIT 10
-    `,
-    [
-      params.brand,
-      params.model,
-      params.memory,
-      params.color,
-      params.grade,
-      params.warranty,
-    ]
+      LIMIT 1000
+    `
   );
+
+  const wantedBrand = normalizeTemplateValue(params.brand);
+  const wantedModel = normalizeTemplateValue(params.model);
+  const wantedMemory = normalizeTemplateValue(params.memory);
+  const wantedColor = normalizeTemplateValue(params.color);
+
+  type Candidate = {
+    row: any;
+    rawProduct: any;
+    catalogId: number;
+    score: number;
+  };
+
+  const candidates: Candidate[] = [];
 
   for (const row of result.rows) {
     const rawProduct = rawN11Product(row);
@@ -359,14 +393,88 @@ async function findCatalogTemplate(params: {
 
     if (!catalogId) continue;
 
-    return {
+    const rowBrand = normalizeTemplateValue(row?.brand);
+    const rowModel = normalizeTemplateValue(row?.model);
+    const rowMemory = normalizeTemplateValue(row?.memory);
+    const rowColor = normalizeTemplateValue(row?.color);
+    const searchable = rowSearchText(row, rawProduct);
+
+    let score = 0;
+
+    // BRAND
+    if (wantedBrand) {
+      if (rowBrand === wantedBrand) {
+        score += 40;
+      } else if (
+        searchable.includes(wantedBrand) ||
+        (wantedBrand === 'apple' && searchable.includes('iphone'))
+      ) {
+        score += 30;
+      } else {
+        continue;
+      }
+    }
+
+    // MODEL
+    if (wantedModel) {
+      if (rowModel === wantedModel) {
+        score += 40;
+      } else if (searchable.includes(wantedModel)) {
+        score += 35;
+      } else {
+        continue;
+      }
+    }
+
+    // MEMORY
+    if (wantedMemory) {
+      if (rowMemory === wantedMemory) {
+        score += 20;
+      } else if (searchable.includes(wantedMemory)) {
+        score += 15;
+      } else {
+        continue;
+      }
+    }
+
+    // COLOR
+    // Renk eşleşmesi varsa tercih edilir. Eski importlarda renk alanı boşsa
+    // başlıktan aranır. Hiç bulunamazsa ürünü yanlış renkle eşleştirmemek için elenir.
+    if (wantedColor) {
+      if (rowColor === wantedColor) {
+        score += 20;
+      } else if (searchable.includes(wantedColor)) {
+        score += 15;
+      } else {
+        continue;
+      }
+    }
+
+    if (String(row?.product_status || '').trim() === 'Active') {
+      score += 5;
+    }
+
+    candidates.push({
       row,
       rawProduct,
       catalogId,
-    };
+      score,
+    });
   }
 
-  return null;
+  candidates.sort((a, b) => b.score - a.score);
+
+  const best = candidates[0];
+
+  if (!best) {
+    return null;
+  }
+
+  return {
+    row: best.row,
+    rawProduct: best.rawProduct,
+    catalogId: best.catalogId,
+  };
 }
 
 async function sendN11ProductCreate(sku: Record<string, unknown>) {
@@ -990,7 +1098,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error:
-            'Aynı Marka/Model/Hafıza/Renk/Grade/Garanti özelliklerinde mevcut bir N11 ürünü bulunamadı. İlk test için N11’de zaten bulunan aynı özellikte bir cihazın yeni IMEI’sini girin.',
+            'N11 katalog şablonu bulunamadı. Aynı Marka/Model/Hafıza/Renk özelliklerinde N11’de mevcut bir ürün olmalı. Grade ve Garanti katalog eşleştirmesinde artık dikkate alınmıyor.',
         },
         409
       );
