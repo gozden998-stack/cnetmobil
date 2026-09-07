@@ -202,6 +202,22 @@ function isValidPassword(password: string) {
   );
 }
 
+
+function getStockBranchCode(branch: string): string | null {
+  switch (String(branch || '').trim()) {
+    case 'CMR MERKEZ':
+      return 'CMR';
+    case 'CMR CADDE':
+      return 'CADDE';
+    case 'CMR KAPAKLI':
+      return 'KAPAKLI';
+    case 'CMR SARAY':
+      return 'SARAY';
+    default:
+      return null;
+  }
+}
+
 async function countActiveSuperAdmins(client: PoolClient) {
   const result = await client.query(
     `
@@ -348,6 +364,7 @@ export async function GET(request: NextRequest) {
             username,
             email,
             branch,
+            stock_branch_code,
             active,
             created_at,
             updated_at,
@@ -485,6 +502,7 @@ export async function GET(request: NextRequest) {
         username: user.username,
         email: user.email,
         branch: user.branch,
+        stockBranchCode: user.stock_branch_code,
         active: user.active,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
@@ -645,16 +663,34 @@ export async function POST(request: NextRequest) {
     const internalUsername =
       `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
     const legacyRole = roleCode === 'personel' ? 'personel' : 'admin';
+    const stockBranchCode = getStockBranchCode(branch);
 
     const insertUser = await client.query(
       `
         INSERT INTO public.users
-          (username, email, password_hash, branch, role, active, created_at, updated_at)
+          (
+            username,
+            email,
+            password_hash,
+            branch,
+            role,
+            stock_branch_code,
+            active,
+            created_at,
+            updated_at
+          )
         VALUES
-          ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
-        RETURNING id, email, branch, active, created_at
+          ($1, $2, $3, $4, $5, $6, TRUE, NOW(), NOW())
+        RETURNING id, email, branch, stock_branch_code, active, created_at
       `,
-      [internalUsername, email, passwordHash, branch, legacyRole]
+      [
+        internalUsername,
+        email,
+        passwordHash,
+        branch,
+        legacyRole,
+        stockBranchCode,
+      ]
     );
 
     const user = insertUser.rows[0];
@@ -694,6 +730,7 @@ export async function POST(request: NextRequest) {
       newData: {
         email,
         branch,
+        stockBranchCode,
         roleCode,
         branches: finalBranches,
         active: true,
@@ -711,6 +748,7 @@ export async function POST(request: NextRequest) {
           id: userId,
           email: user.email,
           branch: user.branch,
+          stockBranchCode: user.stock_branch_code,
           active: user.active,
           roleCode,
           branches: finalBranches,
@@ -821,7 +859,7 @@ export async function PATCH(request: NextRequest) {
 
     const targetResult = await client.query(
       `
-        SELECT id, email, branch, active, role
+        SELECT id, email, branch, stock_branch_code, active, role
         FROM public.users
         WHERE id = $1
         FOR UPDATE
@@ -929,6 +967,7 @@ export async function PATCH(request: NextRequest) {
     );
 
     const legacyRole = roleCode === 'personel' ? 'personel' : 'admin';
+    const stockBranchCode = getStockBranchCode(branch);
 
     await client.query(
       `
@@ -937,11 +976,12 @@ export async function PATCH(request: NextRequest) {
           email = $1,
           branch = $2,
           role = $3,
-          active = $4,
+          stock_branch_code = $4,
+          active = $5,
           updated_at = NOW()
-        WHERE id = $5
+        WHERE id = $6
       `,
-      [email, branch, legacyRole, active, userId]
+      [email, branch, legacyRole, stockBranchCode, active, userId]
     );
 
     await client.query(
@@ -1015,12 +1055,14 @@ export async function PATCH(request: NextRequest) {
       oldData: {
         email: oldUser.email,
         branch: oldUser.branch,
+        stockBranchCode: oldUser.stock_branch_code,
         roleCode: oldRoleCode,
         active: oldUser.active,
       },
       newData: {
         email,
         branch,
+        stockBranchCode,
         roleCode,
         active,
         branches: finalBranches,
