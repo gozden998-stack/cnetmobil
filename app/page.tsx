@@ -632,7 +632,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'online' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -644,6 +644,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
     const allowedModes = [
       'ana_sayfa',
+      'online',
       'alim',
       'servis',
       'cep_tablet',
@@ -2951,11 +2952,6 @@ export default function CnetmobilCmrFinalUltimate() {
                       ) : (
                         <button
                           onClick={() => {
-                            if (item.id === 'online') {
-                              window.location.href = '/online';
-                              return;
-                            }
-
                             setAppMode(item.id as any);
                             setStep(1);
                             resetSelection();
@@ -2998,7 +2994,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
         <main
           className={`mx-auto w-full print:hidden ${
-            appMode === 'cihaz_talep' && step < 99
+            (appMode === 'cihaz_talep' || appMode === 'online') && step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
               : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
           }`}
@@ -3026,6 +3022,60 @@ export default function CnetmobilCmrFinalUltimate() {
               ) : (
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} />
               )
+          ) : appMode === 'online' && step < 99 && isSuperAdminUser ? (
+            <div className="w-full animate-in fade-in duration-300">
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-4 border-b border-slate-100 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                      SUPER ADMIN
+                    </div>
+                    <h2 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+                      ONLINE
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-500">
+                      N11 ürün, stok ve fiyat entegrasyonu bu ekran üzerinden yönetilecek.
+                    </p>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 self-start rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-black text-amber-700">
+                    N11 · TEST MODU
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-6 md:grid-cols-3 lg:p-8">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Kanal
+                    </div>
+                    <div className="mt-2 text-xl font-black text-slate-900">N11</div>
+                    <div className="mt-2 text-sm font-semibold text-amber-600">
+                      API bağlantısı sıradaki adım
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Stok
+                    </div>
+                    <div className="mt-2 text-xl font-black text-slate-900">—</div>
+                    <div className="mt-2 text-sm font-semibold text-slate-500">
+                      N11 stokları burada listelenecek
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Test
+                    </div>
+                    <div className="mt-2 text-xl font-black text-slate-900">Hazır</div>
+                    <div className="mt-2 text-sm font-semibold text-slate-500">
+                      Ürün açma ve stok düşürme eklenecek
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
