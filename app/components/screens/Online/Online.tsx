@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type OnlineChannel = {
   id: number;
@@ -205,6 +205,35 @@ type N11OrdersResponse = {
   checkedAt: string;
 };
 
+type BulkPreviewRow = {
+  rowNumber: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  salePrice: number | null;
+  listPrice: number | null;
+  valid: boolean;
+  errors: string[];
+};
+
+type BulkPreviewResponse = {
+  success: boolean;
+  error?: string;
+  previewOnly: boolean;
+  fileName: string;
+  sheetName: string;
+  totalRows: number;
+  validCount: number;
+  invalidCount: number;
+  canContinue: boolean;
+  rows: BulkPreviewRow[];
+  checkedAt: string;
+};
+
 const EMPTY_STATS: OnlineStats = {
   totalProducts: 0,
   totalStock: 0,
@@ -304,6 +333,11 @@ export default function Online() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterBrand, setFilterBrand] = useState("");
   const [filterMemory, setFilterMemory] = useState("");
+  const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [bulkPreview, setBulkPreview] = useState<BulkPreviewResponse | null>(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftError, setDraftError] = useState("");
@@ -488,6 +522,79 @@ export default function Online() {
   );
 
 
+
+
+  const chooseBulkExcel = useCallback(() => {
+    setBulkError("");
+    setBulkPreview(null);
+
+    if (bulkFileInputRef.current) {
+      bulkFileInputRef.current.value = "";
+      bulkFileInputRef.current.click();
+    }
+  }, []);
+
+  const handleBulkExcelFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+
+      if (!file) return;
+
+      setBulkLoading(true);
+      setBulkError("");
+      setBulkPreview(null);
+      setShowBulkModal(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+          "/api/online/n11/bulk-preview",
+          {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            body: formData,
+          }
+        );
+
+        const payload = (await response
+          .json()
+          .catch(() => null)) as BulkPreviewResponse | null;
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(
+            payload?.error ||
+              "Excel dosyası önizlenemedi."
+          );
+        }
+
+        setBulkPreview(payload);
+      } catch (err) {
+        setBulkError(
+          err instanceof Error
+            ? err.message
+            : "Excel dosyası önizlenemedi."
+        );
+      } finally {
+        setBulkLoading(false);
+      }
+    },
+    []
+  );
+
+  const closeBulkModal = useCallback(() => {
+    if (bulkLoading) return;
+
+    setShowBulkModal(false);
+    setBulkError("");
+    setBulkPreview(null);
+
+    if (bulkFileInputRef.current) {
+      bulkFileInputRef.current.value = "";
+    }
+  }, [bulkLoading]);
 
 
   const openCreateModal = useCallback(() => {
@@ -1101,12 +1208,18 @@ export default function Online() {
               </div>
 
               <div className="flex w-full flex-col gap-2 xl:w-auto xl:flex-row xl:items-center">
+                <input
+                  ref={bulkFileInputRef}
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={handleBulkExcelFile}
+                />
+
                 <button
                   type="button"
-                  onClick={() => {
-                    alert("Excel ile toplu cihaz ekleme ADIM 2'de bağlanacak.");
-                  }}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 text-[11px] font-black text-blue-700 transition hover:bg-blue-100"
+                  onClick={chooseBulkExcel}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 transition hover:bg-slate-50"
                 >
                   📄 EXCEL İLE TOPLU EKLE
                 </button>
@@ -1827,7 +1940,183 @@ export default function Online() {
           </div>
         ) : null}
 
-        {showCreateModal ? (
+        {showBulkModal ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+              <div>
+                <div className="text-[18px] font-black text-slate-900">
+                  Excel ile Toplu Cihaz Ekleme
+                </div>
+                <div className="mt-1 text-[12px] font-semibold text-slate-500">
+                  Dosya önce kontrol edilir. Bu ekranda henüz N11&apos;e ürün gönderilmez.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeBulkModal}
+                disabled={bulkLoading}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-black text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6">
+              {bulkLoading ? (
+                <div className="flex min-h-[320px] flex-col items-center justify-center">
+                  <div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+                  <div className="mt-4 text-[14px] font-black text-slate-700">
+                    Excel kontrol ediliyor...
+                  </div>
+                </div>
+              ) : bulkError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-[13px] font-bold text-red-700">
+                  {bulkError}
+                </div>
+              ) : bulkPreview ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Toplam Satır
+                      </div>
+                      <div className="mt-1 text-[22px] font-black text-slate-900">
+                        {bulkPreview.totalRows}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Geçerli
+                      </div>
+                      <div className="mt-1 text-[22px] font-black text-emerald-700">
+                        {bulkPreview.validCount}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Hatalı
+                      </div>
+                      <div className="mt-1 text-[22px] font-black text-red-600">
+                        {bulkPreview.invalidCount}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Dosya
+                      </div>
+                      <div className="mt-2 truncate text-[12px] font-black text-slate-800">
+                        {bulkPreview.fileName}
+                      </div>
+                    </div>
+                  </div>
+
+                  {bulkPreview.canContinue ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                      Excel temiz. Tüm satırlar N11 toplu yükleme için hazır.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                      Hatalı satırlar var. Önce Excel&apos;i düzeltip tekrar yükleyin.
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                    <div className="min-w-[1450px]">
+                      <div className="grid grid-cols-[0.45fr_1.15fr_0.75fr_1.2fr_0.7fr_0.75fr_0.55fr_0.75fr_0.8fr_0.8fr_1.5fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <div>Satır</div>
+                        <div>IMEI</div>
+                        <div>Marka</div>
+                        <div>Model</div>
+                        <div>Hafıza</div>
+                        <div>Renk</div>
+                        <div>Grade</div>
+                        <div>Garanti</div>
+                        <div>Satış</div>
+                        <div>Liste</div>
+                        <div>Kontrol</div>
+                      </div>
+
+                      {bulkPreview.rows.map((row) => (
+                        <div
+                          key={`${row.rowNumber}-${row.imei}`}
+                          className="grid grid-cols-[0.45fr_1.15fr_0.75fr_1.2fr_0.7fr_0.75fr_0.55fr_0.75fr_0.8fr_0.8fr_1.5fr] items-center border-t border-slate-100 px-4 py-3 text-[11px] font-semibold text-slate-700"
+                        >
+                          <div className="font-black text-slate-500">
+                            {row.rowNumber}
+                          </div>
+                          <div className="font-mono font-black text-slate-800">
+                            {row.imei || "—"}
+                          </div>
+                          <div>{row.brand || "—"}</div>
+                          <div>{row.model || "—"}</div>
+                          <div>{row.memory || "—"}</div>
+                          <div>{row.color || "—"}</div>
+                          <div>{row.grade || "—"}</div>
+                          <div>{row.warranty || "—"}</div>
+                          <div className="font-black">
+                            {row.salePrice === null
+                              ? "—"
+                              : formatMoney(row.salePrice)}
+                          </div>
+                          <div className="font-black">
+                            {row.listPrice === null
+                              ? "—"
+                              : formatMoney(row.listPrice)}
+                          </div>
+                          <div>
+                            {row.valid ? (
+                              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                                HAZIR
+                              </span>
+                            ) : (
+                              <div className="text-[10px] font-bold leading-5 text-red-600">
+                                {row.errors.join(" · ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <div className="text-[11px] font-semibold text-slate-500">
+                ADIM 13: yalnızca Excel okuma ve önizleme.
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={chooseBulkExcel}
+                  disabled={bulkLoading}
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  BAŞKA EXCEL SEÇ
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!bulkPreview?.canContinue}
+                  className="h-10 rounded-xl bg-slate-900 px-5 text-[11px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  title="N11 toplu gönderim bir sonraki adımda bağlanacak."
+                >
+                  TOPLU YÜKLEMEYE HAZIR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showCreateModal ? (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
             <div className="flex max-h-[94vh] w-full max-w-[1150px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
               <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
