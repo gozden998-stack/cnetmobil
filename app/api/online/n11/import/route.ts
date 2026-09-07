@@ -5,10 +5,11 @@
 // POST -> Gercek import/upsert: N11 urunlerini public.online_listings tablosuna yazar.
 //
 // Guvenlik:
-// - Sadece Super Admin
+// - Tarayicidan: sadece Super Admin
+// - Otomatik senkronizasyon: server-to-server Bearer N11_SYNC_SECRET
 // - N11 APP KEY / SECRET sadece server-side ENV
 // - Secret response/log'a yazilmaz
-// - POST origin kontrolu var
+// - Normal POST isteklerinde origin kontrolu var
 //
 // N11:
 // GET https://api.n11.com/ms/product-query
@@ -30,6 +31,7 @@ declare global {
 
 const COOKIE_NAME = 'cnet_auth';
 const N11_PRODUCT_QUERY_URL = 'https://api.n11.com/ms/product-query';
+const AUTO_SYNC_USERNAME = 'system:n11-auto-sync';
 const PAGE_SIZE = 50;
 const MAX_PAGES = 100;
 
@@ -248,6 +250,88 @@ async function requireSuperAdmin(request: NextRequest) {
   };
 }
 
+
+function safeEqualText(left: string, right: string) {
+  const leftBuffer = Buffer.from(left, 'utf8');
+  const rightBuffer = Buffer.from(right, 'utf8');
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getAutoSyncUser(request: NextRequest): ActiveUser | null {
+  const configuredSecret = String(
+    process.env.N11_SYNC_SECRET || ''
+  ).trim();
+
+  if (!configuredSecret) {
+    return null;
+  }
+
+  const authorization = String(
+    request.headers.get('authorization') || ''
+  ).trim();
+
+  if (!authorization.toLowerCase().startsWith('bearer ')) {
+    return null;
+  }
+
+  const receivedSecret = authorization.slice(7).trim();
+
+  if (
+    !receivedSecret ||
+    !safeEqualText(receivedSecret, configuredSecret)
+  ) {
+    return null;
+  }
+
+  return {
+    id: 0,
+    username: AUTO_SYNC_USERNAME,
+    isSuperAdmin: true,
+  };
+}
+
+async function authorizeImportPost(request: NextRequest) {
+  // Coolify cron / server-to-server otomatik senkronizasyon.
+  // Bu yol browser session ve Origin gerektirmez; Bearer secret zorunludur.
+  const autoSyncUser = getAutoSyncUser(request);
+
+  if (autoSyncUser) {
+    return {
+      user: autoSyncUser,
+      mode: 'AUTO_SYNC' as const,
+      response: null,
+    };
+  }
+
+  // Normal panel kullanimi eski guvenlik yapisini aynen korur.
+  if (!validateOrigin(request)) {
+    return {
+      user: null,
+      mode: 'PANEL' as const,
+      response: json(
+        {
+          success: false,
+          error: 'Geçersiz istek kaynağı.',
+        },
+        403
+      ),
+    };
+  }
+
+  const auth = await requireSuperAdmin(request);
+
+  return {
+    user: auth.user,
+    mode: 'PANEL' as const,
+    response: auth.response,
+  };
+}
+
 function validateOrigin(request: NextRequest) {
   if (request.method === 'GET') return true;
 
@@ -455,18 +539,7 @@ function parseStructuredFieldsFromTitle(
 }
 
 function deriveStructuredFields(product: N11Product) {
-  const title = stringOrNull(product.title, 1000) || '';
-
-  const brandFromAttribute = findAttributeValue(product, ['Marka', 'Brand']);
-
-  // N11 bazı iPhone kayıtlarında Marka attribute'unu "Diğer" döndürebiliyor.
-  // Başlık açıkça iPhone ise bunu güvenli şekilde Apple olarak normalize ediyoruz.
-  const brand =
-    (!brandFromAttribute ||
-      normalizeAttributeName(brandFromAttribute) === 'diğer') &&
-    /\b[iİ]phone\b/i.test(title)
-      ? 'Apple'
-      : brandFromAttribute;
+  const brand = findAttributeValue(product, ['Marka', 'Brand']);
 
   const modelFromAttribute = findAttributeValue(product, [
     'Model',
@@ -1013,17 +1086,7 @@ export async function GET(request: NextRequest) {
 // ============================================================
 export async function POST(request: NextRequest) {
   try {
-    if (!validateOrigin(request)) {
-      return json(
-        {
-          success: false,
-          error: 'Geçersiz istek kaynağı.',
-        },
-        403
-      );
-    }
-
-    const auth = await requireSuperAdmin(request);
+    const auth = await authorizeImportPost(request);
 
     if (auth.response || !auth.user) {
       return auth.response!;
@@ -1063,7 +1126,7 @@ export async function POST(request: NextRequest) {
 
     return json({
       success: true,
-      mode: 'IMPORT',
+      mode: auth.mode === 'AUTO_SYNC' ? 'AUTO_SYNC' : 'IMPORT',
       databaseChanged: true,
       message: 'N11 ürünleri PostgreSQL online_listings tablosuna aktarıldı.',
       reportedTotalElements: result.reportedTotalElements,
@@ -1075,6 +1138,7 @@ export async function POST(request: NextRequest) {
       skipped: importResult.skipped,
       durationMs: Date.now() - startedAt,
       importedBy: auth.user.username,
+      automatic: auth.mode === 'AUTO_SYNC',
     });
   } catch (error) {
     console.error('N11 IMPORT ERROR:', error);
