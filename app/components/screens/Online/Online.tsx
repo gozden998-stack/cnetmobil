@@ -86,6 +86,7 @@ type ListingDraftForm = {
   color: string;
   grade: string;
   warranty: string;
+  imageUrl: string;
   salePrice: string;
   listPrice: string;
 };
@@ -158,6 +159,7 @@ const EMPTY_DRAFT_FORM: ListingDraftForm = {
   color: "",
   grade: "",
   warranty: "",
+  imageUrl: "",
   salePrice: "",
   listPrice: "",
 };
@@ -347,6 +349,7 @@ export default function Online() {
           color: draftForm.color,
           grade: draftForm.grade,
           warranty: draftForm.warranty,
+          imageUrl: draftForm.imageUrl,
           salePrice: draftForm.salePrice,
           listPrice: draftForm.listPrice,
         }),
@@ -355,11 +358,11 @@ export default function Online() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || "Taslak kaydedilemedi.");
+        throw new Error(payload?.error || "N11 ürün oluşturulamadı.");
       }
 
       setDraftSuccess(
-        payload?.message || "N11 ürün taslağı PostgreSQL'e kaydedildi."
+        payload?.message || "N11 ürün oluşturma işlemi tamamlandı."
       );
 
       await loadData(true);
@@ -371,7 +374,7 @@ export default function Online() {
       }, 900);
     } catch (err) {
       setDraftError(
-        err instanceof Error ? err.message : "Taslak kaydedilemedi."
+        err instanceof Error ? err.message : "N11 ürün oluşturulamadı."
       );
     } finally {
       setDraftSaving(false);
@@ -1256,7 +1259,7 @@ export default function Online() {
                     Yeni Ürün Aç
                   </h3>
                   <p className="mt-1 text-[12px] font-semibold text-slate-500">
-                    Cihaz bilgilerini ve N11 fiyatlarını girin. Henüz N11 API&apos;ye gönderim yapılmaz.
+                    Cihaz bilgilerini ve N11 fiyatlarını girin. N11&apos;e gerçek ürün oluşturulur. stockCode otomatik olarak IMEI olur.
                   </p>
                 </div>
 
@@ -1393,6 +1396,26 @@ export default function Online() {
                     />
                   </label>
 
+                  <label className="md:col-span-2">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      N11 Görsel URL
+                    </div>
+                    <input
+                      value={draftForm.imageUrl}
+                      onChange={(event) =>
+                        setDraftForm((current) => ({
+                          ...current,
+                          imageUrl: event.target.value,
+                        }))
+                      }
+                      placeholder="https://...jpg  (catalogId/barcode yoksa gerekli)"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
+                    />
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                      Mevcut N11 ürünü catalogId/barcode taşımıyorsa, aynı cihazın HTTPS görsel adresini buraya yapıştır.
+                    </div>
+                  </label>
+
                   <label>
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       N11 Satış Fiyatı
@@ -1429,7 +1452,7 @@ export default function Online() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
-                  stockCode otomatik olarak IMEI olacaktır. N11 stok adedi otomatik 1 kaydedilir.
+                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. Uygun katalog varsa hızlı; yoksa görsel + kategori özellikleri ile normal N11 CreateProduct kullanılır.
                 </div>
 
                 {draftError ? (
@@ -1461,7 +1484,7 @@ export default function Online() {
                   disabled={draftSaving}
                   className="h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {draftSaving ? "KAYDEDİLİYOR..." : "TASLAĞI KAYDET"}
+                  {draftSaving ? "N11’E GÖNDERİLİYOR..." : "N11’E ÜRÜN AÇ"}
                 </button>
               </div>
             </div>
