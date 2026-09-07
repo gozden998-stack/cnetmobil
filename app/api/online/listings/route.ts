@@ -29,6 +29,8 @@ const N11_TASK_DETAILS_URL =
   'https://api.n11.com/ms/product/task-details/page-query';
 const N11_PRODUCT_QUERY_URL =
   'https://api.n11.com/ms/product-query';
+const N11_CATEGORY_ATTRIBUTE_BASE_URL =
+  'https://api.n11.com/cdn/category';
 const N11_INTEGRATOR = 'CNETMOBIL';
 
 type SessionPayload = {
@@ -467,9 +469,10 @@ async function findCatalogTemplate(params: {
   grade: string;
   warranty: string;
 }) {
-  // Önce doğrudan N11'den GÜNCEL ürünleri çekiyoruz.
-  // Böylece PostgreSQL'deki eski/eksik brand-model-memory-color ayrıştırmasına
-  // bağlı kalmıyoruz.
+  // Önce doğrudan N11'den güncel satıcı ürünlerini çekiyoruz.
+  // İki mod:
+  // QUICK = catalogId veya barcode var -> Hızlı Ürün Yükleme
+  // FULL  = catalogId/barcode yok ama aynı ürün var -> normal CreateProduct
   const liveProducts = await fetchLiveN11ProductsForTemplate();
 
   const wantedBrand = normalizeTemplateValue(params.brand);
@@ -484,10 +487,17 @@ async function findCatalogTemplate(params: {
     barcode: string | null;
     score: number;
     source: 'N11_LIVE' | 'POSTGRES';
+    createMode: 'QUICK' | 'FULL';
   };
 
-  const candidates: Candidate[] = [];
-  const nearMatches: Array<{ title: string; stockCode: string }> = [];
+  const quickCandidates: Candidate[] = [];
+  const fullCandidates: Candidate[] = [];
+  const nearMatches: Array<{
+    title: string;
+    stockCode: string;
+    hasCatalogId: boolean;
+    hasBarcode: boolean;
+  }> = [];
 
   for (const product of liveProducts) {
     const searchable = liveProductSearchText(product);
@@ -503,20 +513,12 @@ async function findCatalogTemplate(params: {
       searchable.includes(wantedBrand) ||
       (wantedBrand === 'apple' && searchable.includes('iphone'));
 
-    if (brandOk && modelOk && memoryOk) {
-      nearMatches.push({
-        title: String(product?.title || '').trim(),
-        stockCode: String(product?.stockCode || '').trim(),
-      });
-    }
-
     if (!brandOk || !modelOk || !memoryOk) {
       continue;
     }
 
-    if (wantedColor && !searchable.includes(wantedColor)) {
-      continue;
-    }
+    const colorOk =
+      !wantedColor || searchable.includes(wantedColor);
 
     const catalogId = positiveIntegerOrNull(product?.catalogId);
     const barcodeText =
@@ -524,11 +526,16 @@ async function findCatalogTemplate(params: {
       product?.barcode === undefined
         ? ''
         : String(product.barcode).trim();
-
     const barcode = barcodeText || null;
 
-    // Hızlı ürün yükleme için catalogId VEYA barcode şart.
-    if (!catalogId && !barcode) {
+    nearMatches.push({
+      title: String(product?.title || '').trim(),
+      stockCode: String(product?.stockCode || '').trim(),
+      hasCatalogId: Boolean(catalogId),
+      hasBarcode: Boolean(barcode),
+    });
+
+    if (!colorOk) {
       continue;
     }
 
@@ -547,13 +554,11 @@ async function findCatalogTemplate(params: {
       score += 20;
     }
 
-    if (
-      String(product?.status || '').trim() === 'Active'
-    ) {
+    if (String(product?.status || '').trim() === 'Active') {
       score += 5;
     }
 
-    candidates.push({
+    const candidate: Candidate = {
       row: {
         id: null,
         external_product_id:
@@ -578,26 +583,35 @@ async function findCatalogTemplate(params: {
       barcode,
       score,
       source: 'N11_LIVE',
-    });
+      createMode:
+        catalogId || barcode ? 'QUICK' : 'FULL',
+    };
+
+    if (candidate.createMode === 'QUICK') {
+      quickCandidates.push(candidate);
+    } else {
+      fullCandidates.push(candidate);
+    }
   }
 
-  candidates.sort((a, b) => b.score - a.score);
+  quickCandidates.sort((a, b) => b.score - a.score);
+  fullCandidates.sort((a, b) => b.score - a.score);
 
-  if (candidates[0]) {
-    const best = candidates[0];
+  const bestLive = quickCandidates[0] || fullCandidates[0];
 
+  if (bestLive) {
     return {
-      row: best.row,
-      rawProduct: best.rawProduct,
-      catalogId: best.catalogId,
-      barcode: best.barcode,
-      source: best.source,
+      row: bestLive.row,
+      rawProduct: bestLive.rawProduct,
+      catalogId: bestLive.catalogId,
+      barcode: bestLive.barcode,
+      source: bestLive.source,
+      createMode: bestLive.createMode,
       nearMatches,
     };
   }
 
-  // Canlı N11 cevabında tam eşleşme yoksa PostgreSQL'e de bak.
-  // Burada external_product_main_id zorunluluğunu kaldırdık.
+  // Canlı N11 cevabında tam eşleşme yoksa PostgreSQL'e bak.
   const result = await getPool().query(
     `
       SELECT *
@@ -652,16 +666,14 @@ async function findCatalogTemplate(params: {
 
     const barcode = barcodeText || null;
 
-    if (!catalogId && !barcode) {
-      continue;
-    }
-
     return {
       row,
       rawProduct,
       catalogId,
       barcode,
       source: 'POSTGRES' as const,
+      createMode:
+        catalogId || barcode ? ('QUICK' as const) : ('FULL' as const),
       nearMatches,
     };
   }
@@ -672,9 +684,258 @@ async function findCatalogTemplate(params: {
     catalogId: null,
     barcode: null,
     source: null,
+    createMode: null,
     nearMatches: nearMatches.slice(0, 5),
   };
 }
+
+function cleanHttpsImageUrl(value: unknown) {
+  const text = String(value ?? '').trim();
+
+  if (!text) return null;
+
+  try {
+    const url = new URL(text);
+
+    if (url.protocol !== 'https:') return null;
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractTemplateImageUrls(product: any, suppliedImageUrl: unknown) {
+  const urls: string[] = [];
+
+  const add = (value: unknown) => {
+    const cleaned = cleanHttpsImageUrl(value);
+    if (cleaned && !urls.includes(cleaned)) {
+      urls.push(cleaned);
+    }
+  };
+
+  add(suppliedImageUrl);
+
+  if (Array.isArray(product?.images)) {
+    product.images.forEach((item: any) => {
+      if (typeof item === 'string') {
+        add(item);
+      } else {
+        add(item?.url);
+        add(item?.imageUrl);
+      }
+    });
+  }
+
+  if (Array.isArray(product?.imageUrls)) {
+    product.imageUrls.forEach(add);
+  }
+
+  add(product?.imageUrl);
+  add(product?.image);
+
+  const description = String(product?.description || '');
+
+  const matches = description.match(
+    /https:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?/gi
+  );
+
+  if (Array.isArray(matches)) {
+    matches.forEach(add);
+  }
+
+  return urls.slice(0, 8);
+}
+
+async function fetchCategoryAttributes(categoryId: number) {
+  const credentials = getN11Credentials();
+
+  if (!credentials) {
+    throw new Error(
+      'N11_APP_KEY veya N11_APP_SECRET environment değişkeni eksik.'
+    );
+  }
+
+  const response = await fetch(
+    `${N11_CATEGORY_ATTRIBUTE_BASE_URL}/${categoryId}/attribute`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        appkey: credentials.appKey,
+        Accept: 'application/json',
+      },
+    }
+  );
+
+  const rawText = await response.text();
+
+  let payload: any = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = safeN11Message(payload, rawText);
+
+    throw new Error(
+      message
+        ? `N11 kategori özellikleri: ${message}`
+        : `N11 kategori özellikleri HTTP ${response.status} hatası döndürdü.`
+    );
+  }
+
+  const attributes = Array.isArray(payload?.categoryAttributes)
+    ? payload.categoryAttributes
+    : [];
+
+  if (attributes.length === 0) {
+    throw new Error(
+      `N11 kategori ${categoryId} için özellik listesi boş döndü.`
+    );
+  }
+
+  return attributes;
+}
+
+function getExistingAttributeValue(
+  productAttributes: any[],
+  attributeId: number
+) {
+  const found = productAttributes.find(
+    (item: any) =>
+      Number(item?.attributeId ?? item?.id) === attributeId
+  );
+
+  if (!found) return null;
+
+  const value =
+    found?.attributeValue ??
+    found?.value ??
+    found?.customValue ??
+    null;
+
+  if (value === null || value === undefined) return null;
+
+  const text = String(value).trim();
+
+  return text || null;
+}
+
+async function buildFullCreateAttributes(params: {
+  categoryId: number;
+  templateProduct: any;
+}) {
+  const definitions = await fetchCategoryAttributes(
+    params.categoryId
+  );
+
+  const productAttributes = Array.isArray(
+    params.templateProduct?.attributes
+  )
+    ? params.templateProduct.attributes
+    : [];
+
+  const output: Array<{
+    id: number;
+    valueId: number | null;
+    customValue: string | null;
+  }> = [];
+
+  const missingMandatory: string[] = [];
+
+  for (const definition of definitions) {
+    const attributeId = Number(definition?.attributeId);
+
+    if (!Number.isInteger(attributeId) || attributeId < 1) {
+      continue;
+    }
+
+    const isMandatory = Boolean(definition?.isMandatory);
+    const isCustomValue = Boolean(definition?.isCustomValue);
+
+    const currentValue = getExistingAttributeValue(
+      productAttributes,
+      attributeId
+    );
+
+    if (!currentValue) {
+      if (isMandatory) {
+        missingMandatory.push(
+          String(
+            definition?.attributeName ||
+              `Attribute ${attributeId}`
+          )
+        );
+      }
+
+      continue;
+    }
+
+    if (isCustomValue) {
+      output.push({
+        id: attributeId,
+        valueId: null,
+        customValue: currentValue,
+      });
+
+      continue;
+    }
+
+    const allowedValues = Array.isArray(
+      definition?.attributeValues
+    )
+      ? definition.attributeValues
+      : [];
+
+    const normalizedCurrent =
+      normalizeTemplateValue(currentValue);
+
+    const matchedValue = allowedValues.find(
+      (item: any) =>
+        normalizeTemplateValue(item?.value) ===
+        normalizedCurrent
+    );
+
+    const valueId = Number(matchedValue?.id);
+
+    if (!Number.isInteger(valueId) || valueId < 1) {
+      if (isMandatory) {
+        missingMandatory.push(
+          `${String(
+            definition?.attributeName ||
+              `Attribute ${attributeId}`
+          )}: ${currentValue}`
+        );
+      }
+
+      continue;
+    }
+
+    output.push({
+      id: attributeId,
+      valueId,
+      customValue: null,
+    });
+  }
+
+  if (missingMandatory.length > 0) {
+    throw new Error(
+      `N11 zorunlu kategori özellikleri otomatik eşleştirilemedi: ${missingMandatory.join(
+        ', '
+      )}`
+    );
+  }
+
+  return output;
+}
+
 
 async function sendN11ProductCreate(sku: Record<string, unknown>) {
   const credentials = getN11Credentials();
@@ -1170,6 +1431,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = body as Record<string, unknown>;
+    const imageUrl = String(data.imageUrl ?? '').trim();
 
     const imei = String(data.imei ?? '')
       .replace(/\s+/g, '')
@@ -1310,8 +1572,8 @@ export async function POST(request: NextRequest) {
           success: false,
           error:
             nearTitles.length > 0
-              ? `N11'de aynı Marka/Model/Hafıza bulundu ancak tam Renk/katalog eşleşmesi bulunamadı. Yakın N11 ürünleri: ${nearTitles.join(' | ')}`
-              : 'N11 canlı ürünlerinde aynı Marka/Model/Hafıza/Renk için catalogId veya barcode bulunan bir şablon bulunamadı.',
+              ? `N11'de aynı Marka/Model/Hafıza bulundu ancak tam Renk eşleşmesi bulunamadı. Yakın N11 ürünleri: ${nearTitles.join(' | ')}`
+              : 'N11 canlı ürünlerinde aynı Marka/Model/Hafıza/Renk için mevcut bir ürün bulunamadı.',
         },
         409
       );
@@ -1352,14 +1614,13 @@ export async function POST(request: NextRequest) {
       !preparingDay ||
       !shipmentTemplate ||
       !categoryId ||
-      !productMainId ||
-      (!template.catalogId && !template.barcode)
+      !productMainId
     ) {
       return json(
         {
           success: false,
           error:
-            'N11 şablonunda categoryId / hazırlık süresi / kargo şablonu veya catalogId-barcode bilgisi eksik.',
+            'N11 şablonunda categoryId / hazırlık süresi / kargo şablonu bilgisi eksik.',
         },
         409
       );
@@ -1461,6 +1722,8 @@ export async function POST(request: NextRequest) {
           templateCatalogId: template.catalogId,
           templateBarcode: template.barcode,
           templateSource: template.source,
+          templateCreateMode: template.createMode,
+          imageUrl: imageUrl || null,
           brand,
           model,
           memory,
@@ -1475,27 +1738,92 @@ export async function POST(request: NextRequest) {
 
     const listing = insertResult.rows[0];
 
-    const createSku = {
-      description:
-        templateRow.description ||
-        templateRaw?.description ||
-        `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
-      categoryId,
-      productMainId,
-      preparingDay,
-      shipmentTemplate,
-      maxPurchaseQuantity:
-        positiveIntegerOrNull(templateRaw?.maxPurchaseQuantity) || 1,
-      stockCode: imei,
-      catalogId: template.catalogId ?? null,
-      barcode: template.barcode ?? null,
-      quantity: 1,
-      images: [],
-      attributes: [],
-      salePrice,
-      listPrice,
-      vatRate,
-    };
+    let createSku: Record<string, unknown>;
+
+    if (template.createMode === 'QUICK') {
+      // Hızlı Ürün Yükleme:
+      // catalogId veya barcode var; attributes/images boş gönderilebilir.
+      createSku = {
+        description:
+          templateRow.description ||
+          templateRaw?.description ||
+          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
+        categoryId,
+        productMainId,
+        preparingDay,
+        shipmentTemplate,
+        maxPurchaseQuantity:
+          positiveIntegerOrNull(
+            templateRaw?.maxPurchaseQuantity
+          ) || 1,
+        stockCode: imei,
+        catalogId: template.catalogId ?? null,
+        barcode: template.barcode ?? null,
+        quantity: 1,
+        images: [],
+        attributes: [],
+        salePrice,
+        listPrice,
+        vatRate,
+      };
+    } else {
+      // Normal CreateProduct:
+      // catalogId/barcode yoksa görsel + zorunlu kategori özellikleri gerekir.
+      const imageUrls = extractTemplateImageUrls(
+        templateRaw,
+        imageUrl
+      );
+
+      if (imageUrls.length === 0) {
+        return json(
+          {
+            success: false,
+            requiresImageUrl: true,
+            error:
+              'Bu N11 ürünü catalogId/barcode taşımıyor; normal ürün oluşturma gerekiyor. N11 Görsel URL alanına aynı cihazın HTTPS görsel adresini girin.',
+          },
+          409
+        );
+      }
+
+      const fullAttributes =
+        await buildFullCreateAttributes({
+          categoryId,
+          templateProduct: templateRaw,
+        });
+
+      createSku = {
+        title:
+          templateRaw?.title ||
+          templateRow.title ||
+          `${brand} ${model} ${memory} ${color} ${grade}`,
+        description:
+          templateRow.description ||
+          templateRaw?.description ||
+          `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`,
+        categoryId,
+        currencyType: 'TL',
+        productMainId,
+        preparingDay,
+        shipmentTemplate,
+        maxPurchaseQuantity:
+          positiveIntegerOrNull(
+            templateRaw?.maxPurchaseQuantity
+          ) || 1,
+        stockCode: imei,
+        catalogId: null,
+        barcode: null,
+        quantity: 1,
+        images: imageUrls.map((url, order) => ({
+          url,
+          order,
+        })),
+        attributes: fullAttributes,
+        salePrice,
+        listPrice,
+        vatRate,
+      };
+    }
 
     let createResult: Awaited<ReturnType<typeof sendN11ProductCreate>>;
 
