@@ -1,7 +1,7 @@
 // app/api/online/route.ts
 // CNETMOBIL ONLINE - PostgreSQL okuma endpointi
-// N11 API BAGLI DEGIL.
-// Bu endpoint yalnizca mevcut PostgreSQL online tablolarini okur.
+// N11 API durumunu server-side ENV + son başarılı senkronizasyon kaydından gösterir.
+// Bu endpoint her ekran açılışında N11'e ekstra istek ATMAZ.
 // Sadece Super Admin erisebilir.
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -266,7 +266,15 @@ export async function GET(request: NextRequest) {
 
               COUNT(*) FILTER (
                 WHERE stock_device_id IS NULL
-              )::integer AS unmatched_device_count
+              )::integer AS unmatched_device_count,
+
+              COUNT(*) FILTER (
+                WHERE external_product_id IS NOT NULL
+              )::integer AS n11_synced_count,
+
+              COUNT(*) FILTER (
+                WHERE external_product_id IS NULL
+              )::integer AS local_draft_count
             FROM public.online_listings
             WHERE channel = 'N11'
           `
@@ -352,6 +360,22 @@ export async function GET(request: NextRequest) {
       ]);
 
     const statsRow = statsResult.rows[0] ?? {};
+    const channel = channelResult.rows[0] ?? null;
+
+    const apiConfigured = Boolean(
+      String(process.env.N11_APP_KEY || '').trim() &&
+      String(process.env.N11_APP_SECRET || '').trim()
+    );
+
+    // Bu ekran her açıldığında N11'e ping atıp kota/latency yaratmıyoruz.
+    // N11 bağlantısı daha önce gerçek API çağrısı + import ile doğrulandığı için,
+    // son başarılı N11 senkronizasyon kaydını bağlantı durumu olarak kullanıyoruz.
+    const apiConnected = Boolean(
+      apiConfigured &&
+      channel?.enabled === true &&
+      channel?.last_sync_status === 'SUCCESS' &&
+      channel?.last_sync_at
+    );
 
     return json({
       success: true,
@@ -362,10 +386,10 @@ export async function GET(request: NextRequest) {
         isSuperAdmin: user.isSuperAdmin,
       },
 
-      apiConnected: false,
-      apiConfigured: false,
+      apiConnected,
+      apiConfigured,
 
-      channel: channelResult.rows[0] ?? null,
+      channel,
 
       stats: {
         totalProducts: Number(statsRow.total_products || 0),
@@ -377,6 +401,8 @@ export async function GET(request: NextRequest) {
         activeProductCount: Number(statsRow.active_product_count || 0),
         matchedDeviceCount: Number(statsRow.matched_device_count || 0),
         unmatchedDeviceCount: Number(statsRow.unmatched_device_count || 0),
+        n11SyncedCount: Number(statsRow.n11_synced_count || 0),
+        localDraftCount: Number(statsRow.local_draft_count || 0),
       },
 
       listings: listingsResult.rows,
