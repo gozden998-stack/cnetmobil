@@ -91,15 +91,8 @@ type AvailableDevice = {
 
 type ListingDraftForm = {
   stockDeviceId: number | null;
-  title: string;
-  description: string;
-  categoryId: string;
   salePrice: string;
   listPrice: string;
-  vatRate: string;
-  preparingDay: string;
-  shipmentTemplate: string;
-  imagesText: string;
 };
 
 type OnlineTask = {
@@ -144,15 +137,8 @@ const EMPTY_STATS: OnlineStats = {
 
 const EMPTY_DRAFT_FORM: ListingDraftForm = {
   stockDeviceId: null,
-  title: "",
-  description: "",
-  categoryId: "",
   salePrice: "",
   listPrice: "",
-  vatRate: "20",
-  preparingDay: "1",
-  shipmentTemplate: "",
-  imagesText: "",
 };
 
 function formatMoney(value: number) {
@@ -317,19 +303,9 @@ export default function Online() {
   );
 
   const chooseDevice = useCallback((device: AvailableDevice) => {
-    const autoTitle = [
-      device.brand,
-      device.model,
-      device.memory,
-      device.color,
-    ]
-      .filter(Boolean)
-      .join(" ");
-
     setDraftForm((current) => ({
       ...current,
       stockDeviceId: device.id,
-      title: current.title || autoTitle,
     }));
   }, []);
 
@@ -359,15 +335,8 @@ export default function Online() {
         },
         body: JSON.stringify({
           stockDeviceId: draftForm.stockDeviceId,
-          title: draftForm.title,
-          description: draftForm.description,
-          categoryId: draftForm.categoryId,
           salePrice: draftForm.salePrice,
           listPrice: draftForm.listPrice,
-          vatRate: draftForm.vatRate,
-          preparingDay: draftForm.preparingDay,
-          shipmentTemplate: draftForm.shipmentTemplate,
-          images: imageUrls,
         }),
       });
 
@@ -834,7 +803,7 @@ export default function Online() {
                     Yeni Ürün Aç
                   </h3>
                   <p className="mt-1 text-[12px] font-semibold text-slate-500">
-                    Bu işlem sadece PostgreSQL taslağı oluşturur. N11 API'ye gönderim yapılmaz.
+                    Cihazı seçin ve sadece N11 satış / liste fiyatını girin. Bu işlem henüz N11 API'ye gönderim yapmaz.
                   </p>
                 </div>
 
@@ -928,10 +897,10 @@ export default function Online() {
 
                               <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black">
                                 <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
-                                  Pil: {device.battery_percent ?? "—"}%
+                                  Grade: {device.grade || "—"}
                                 </span>
                                 <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
-                                  Grade: {device.grade || "—"}
+                                  Garanti: {device.warranty || "—"}
                                 </span>
                                 <span className="rounded-lg bg-white px-2 py-1 text-slate-600 ring-1 ring-slate-200">
                                   {device.status || "—"}
@@ -947,28 +916,22 @@ export default function Online() {
 
                 <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
                   <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                    2. N11 Ürün Taslağı
+                    2. N11 Fiyat Bilgileri
                   </div>
 
                   {selectedDevice ? (
                     <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
                         <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">IMEI / stockCode</div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">IMEI</div>
                           <div className="mt-1 font-mono text-[12px] font-black text-slate-800">
                             {selectedDevice.imei}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Marka</div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Marka / Model</div>
                           <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.brand || "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Model</div>
-                          <div className="mt-1 text-[12px] font-black text-slate-800">
-                            {selectedDevice.model || "—"}
+                            {[selectedDevice.brand, selectedDevice.model].filter(Boolean).join(" ") || "—"}
                           </div>
                         </div>
                         <div>
@@ -984,7 +947,19 @@ export default function Online() {
                           </div>
                         </div>
                         <div>
-                          <div className="text-[9px] font-black uppercase text-slate-400">Stok</div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Grade</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.grade || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">Garanti</div>
+                          <div className="mt-1 text-[12px] font-black text-slate-800">
+                            {selectedDevice.warranty || "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase text-slate-400">N11 Stok</div>
                           <div className="mt-1 text-[12px] font-black text-slate-800">
                             1
                           </div>
@@ -998,65 +973,9 @@ export default function Online() {
                   )}
 
                   <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <label className="lg:col-span-2">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Ürün Başlığı
-                      </div>
-                      <input
-                        value={draftForm.title}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            title: event.target.value,
-                          }))
-                        }
-                        placeholder="Örn: Apple iPhone 15 Pro 256 GB Siyah"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
                     <label>
                       <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Kategori ID
-                      </div>
-                      <input
-                        value={draftForm.categoryId}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            categoryId: event.target.value,
-                          }))
-                        }
-                        inputMode="numeric"
-                        placeholder="N11 kategori ID"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        KDV
-                      </div>
-                      <select
-                        value={draftForm.vatRate}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            vatRate: event.target.value,
-                          }))
-                        }
-                        className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold outline-none"
-                      >
-                        <option value="0">%0</option>
-                        <option value="1">%1</option>
-                        <option value="10">%10</option>
-                        <option value="20">%20</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Satış Fiyatı
+                        N11 Satış Fiyatı
                       </div>
                       <input
                         value={draftForm.salePrice}
@@ -1073,7 +992,7 @@ export default function Online() {
 
                     <label>
                       <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Liste Fiyatı
+                        N11 Liste Fiyatı
                       </div>
                       <input
                         value={draftForm.listPrice}
@@ -1085,77 +1004,6 @@ export default function Online() {
                         }
                         placeholder="44999,00"
                         className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Hazırlık Süresi (Gün)
-                      </div>
-                      <input
-                        value={draftForm.preparingDay}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            preparingDay: event.target.value,
-                          }))
-                        }
-                        inputMode="numeric"
-                        placeholder="1"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label>
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Kargo Şablonu
-                      </div>
-                      <input
-                        value={draftForm.shipmentTemplate}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            shipmentTemplate: event.target.value,
-                          }))
-                        }
-                        placeholder="N11 teslimat şablonu adı"
-                        className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label className="lg:col-span-2">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Açıklama
-                      </div>
-                      <textarea
-                        value={draftForm.description}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            description: event.target.value,
-                          }))
-                        }
-                        rows={6}
-                        placeholder="Ürün açıklaması..."
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] font-semibold outline-none focus:border-blue-400"
-                      />
-                    </label>
-
-                    <label className="lg:col-span-2">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Görsel URL'leri
-                      </div>
-                      <textarea
-                        value={draftForm.imagesText}
-                        onChange={(event) =>
-                          setDraftForm((current) => ({
-                            ...current,
-                            imagesText: event.target.value,
-                          }))
-                        }
-                        rows={5}
-                        placeholder={"Her satıra bir https görsel adresi\nhttps://.../1.jpg\nhttps://.../2.jpg"}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 font-mono text-[12px] font-semibold outline-none focus:border-blue-400"
                       />
                     </label>
                   </div>
