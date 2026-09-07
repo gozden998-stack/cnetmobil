@@ -273,6 +273,7 @@ export default function Online() {
   const [error, setError] = useState("");
   const [data, setData] = useState<OnlineResponse | null>(null);
   const [ordersData, setOrdersData] = useState<N11OrdersResponse | null>(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [orderActionId, setOrderActionId] = useState("");
   const [orderActionMessage, setOrderActionMessage] = useState("");
@@ -304,7 +305,6 @@ export default function Online() {
     }
 
     setError("");
-    setOrdersError("");
 
     try {
       const response = await fetch("/api/online", {
@@ -322,37 +322,6 @@ export default function Online() {
       }
 
       setData(payload);
-
-      try {
-        const ordersResponse = await fetch(
-          "/api/online/n11/orders?status=Created",
-          {
-            method: "GET",
-            cache: "no-store",
-            credentials: "same-origin",
-          }
-        );
-
-        const ordersPayload = (await ordersResponse
-          .json()
-          .catch(() => null)) as N11OrdersResponse | null;
-
-        if (!ordersResponse.ok || !ordersPayload?.success) {
-          setOrdersData(null);
-          setOrdersError(
-            ordersPayload?.error || "N11 siparişleri alınamadı."
-          );
-        } else {
-          setOrdersData(ordersPayload);
-        }
-      } catch (ordersErr) {
-        setOrdersData(null);
-        setOrdersError(
-          ordersErr instanceof Error
-            ? ordersErr.message
-            : "N11 siparişleri alınamadı."
-        );
-      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "ONLINE verileri alınamadı."
@@ -362,6 +331,63 @@ export default function Online() {
       setRefreshing(false);
     }
   }, []);
+
+  const loadOrders = useCallback(async (silent = false) => {
+    if (!silent) {
+      setOrdersLoading(true);
+    }
+
+    setOrdersError("");
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      30_000
+    );
+
+    try {
+      const ordersResponse = await fetch(
+        "/api/online/n11/orders?status=Created",
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        }
+      );
+
+      const ordersPayload = (await ordersResponse
+        .json()
+        .catch(() => null)) as N11OrdersResponse | null;
+
+      if (!ordersResponse.ok || !ordersPayload?.success) {
+        throw new Error(
+          ordersPayload?.error || "N11 siparişleri alınamadı."
+        );
+      }
+
+      setOrdersData(ordersPayload);
+    } catch (ordersErr) {
+      if (
+        ordersErr instanceof Error &&
+        ordersErr.name === "AbortError"
+      ) {
+        setOrdersError(
+          "N11 sipariş servisi 30 saniye içinde yanıt vermedi."
+        );
+      } else {
+        setOrdersError(
+          ordersErr instanceof Error
+            ? ordersErr.message
+            : "N11 siparişleri alınamadı."
+        );
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+      setOrdersLoading(false);
+    }
+  }, []);
+
 
   const approveOrder = useCallback(
     async (order: N11Order) => {
@@ -427,7 +453,7 @@ export default function Online() {
           `${order.orderNumber || "Sipariş"} onaylandı. Hazırlanıyor durumuna geçti.`
         );
 
-        await loadData(true);
+        await loadOrders(true);
       } catch (err) {
         setOrdersError(
           err instanceof Error
@@ -438,44 +464,9 @@ export default function Online() {
         setOrderActionId("");
       }
     },
-    [loadData]
+    [loadOrders]
   );
 
-  const openCargoTracking = useCallback(
-    async (order: N11Order) => {
-      if (order.cargoTrackingLink) {
-        window.open(
-          order.cargoTrackingLink,
-          "_blank",
-          "noopener,noreferrer"
-        );
-        return;
-      }
-
-      if (order.cargoTrackingNumber) {
-        try {
-          await navigator.clipboard.writeText(
-            order.cargoTrackingNumber
-          );
-
-          setOrderActionMessage(
-            `Kargo kodu kopyalandı: ${order.cargoTrackingNumber}`
-          );
-        } catch {
-          setOrderActionMessage(
-            `Kargo kodu: ${order.cargoTrackingNumber}`
-          );
-        }
-
-        return;
-      }
-
-      setOrderActionMessage(
-        "Bu sipariş için henüz N11 kargo takip bilgisi oluşmamış."
-      );
-    },
-    []
-  );
 
 
 
@@ -750,6 +741,10 @@ export default function Online() {
     void loadData(false);
   }, [loadData]);
 
+  useEffect(() => {
+    void loadOrders(false);
+  }, [loadOrders]);
+
   const stats = data?.stats ?? EMPTY_STATS;
   const channel = data?.channel ?? null;
   const listings = data?.listings ?? [];
@@ -892,7 +887,10 @@ export default function Online() {
 
                   <button
                     type="button"
-                    onClick={() => void loadData(true)}
+                    onClick={() => {
+                      void loadData(true);
+                      void loadOrders(true);
+                    }}
                     disabled={refreshing}
                     className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 px-3 text-[11px] font-black uppercase tracking-wider text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -912,7 +910,7 @@ export default function Online() {
                 Siparişler
               </div>
               <div className="mt-1 text-[24px] font-black tracking-tight text-slate-900">
-                {orderCount}
+                {ordersLoading && !ordersData ? "…" : orderCount}
               </div>
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 Yeni N11 siparişleri
@@ -1013,7 +1011,7 @@ export default function Online() {
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
                 >
-                  🛒 Siparişler ({orderCount})
+                  🛒 Siparişler ({ordersLoading && !ordersData ? "…" : orderCount})
                 </button>
 
                 <button
@@ -1148,7 +1146,17 @@ export default function Online() {
 
           <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-100">
             {activeSection === "orders" ? (
-              ordersError ? (
+              ordersLoading && !ordersData ? (
+                <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+                  <div className="mt-4 text-[14px] font-black text-slate-700">
+                    N11 siparişleri yükleniyor...
+                  </div>
+                  <div className="mt-2 text-[11px] font-semibold text-slate-400">
+                    ONLINE ürün ekranı bu işlemden etkilenmez.
+                  </div>
+                </div>
+              ) : ordersError ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
                     !
@@ -1161,7 +1169,7 @@ export default function Online() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => void loadData(true)}
+                    onClick={() => void loadOrders(false)}
                     className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-[11px] font-black text-white"
                   >
                     TEKRAR DENE
@@ -1182,14 +1190,13 @@ export default function Online() {
               ) : (
                 <div className="overflow-x-auto">
                   <div className="min-w-[1500px]">
-                    <div className="grid grid-cols-[0.8fr_1fr_1.55fr_0.45fr_0.7fr_0.75fr_0.85fr_0.7fr_0.9fr_1.05fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <div className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       <div>Sipariş No</div>
                       <div>Müşteri</div>
                       <div>Ürün</div>
                       <div>Adet</div>
                       <div>Tutar</div>
                       <div>Şehir</div>
-                      <div>Kargo</div>
                       <div>Durum</div>
                       <div>Tarih</div>
                       <div>İşlem</div>
@@ -1198,7 +1205,7 @@ export default function Online() {
                     {orders.map((order, index) => (
                       <div
                         key={`${order.packageId || order.orderNumber || "order"}-${index}`}
-                        className="grid grid-cols-[0.8fr_1fr_1.55fr_0.45fr_0.7fr_0.75fr_0.85fr_0.7fr_0.9fr_1.05fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
+                        className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
                       >
                         <div>
                           <div className="font-mono text-[12px] font-black text-slate-900">
@@ -1246,15 +1253,6 @@ export default function Online() {
                           </div>
                         </div>
 
-                        <div className="min-w-0 pr-2">
-                          <div className="truncate text-[11px] font-bold text-slate-800">
-                            {order.cargoProviderName || "—"}
-                          </div>
-                          <div className="mt-1 truncate font-mono text-[9px] font-bold text-slate-400">
-                            {order.cargoTrackingNumber || "Takip kodu yok"}
-                          </div>
-                        </div>
-
                         <div>
                           <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
                             {order.shipmentPackageStatus || "Created"}
@@ -1268,7 +1266,7 @@ export default function Online() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div>
                           <button
                             type="button"
                             onClick={() => void approveOrder(order)}
@@ -1278,7 +1276,7 @@ export default function Online() {
                                 order.orderNumber ||
                                 "")
                             }
-                            className="h-9 rounded-xl bg-blue-600 px-3 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="h-9 rounded-xl bg-blue-600 px-4 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {orderActionId ===
                             (order.packageId ||
@@ -1286,14 +1284,6 @@ export default function Online() {
                               "")
                               ? "ONAYLANIYOR..."
                               : "ONAYLA"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void openCargoTracking(order)}
-                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:bg-slate-50"
-                          >
-                            KARGO
                           </button>
                         </div>
                       </div>
