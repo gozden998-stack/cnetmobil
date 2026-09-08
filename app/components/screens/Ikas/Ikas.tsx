@@ -179,6 +179,28 @@ export default function Ikas() {
     emptyState
   );
 
+  const [
+    createPreview,
+    setCreatePreview,
+  ] = useState<ApiState>(
+    emptyState
+  );
+
+  const [
+    createForm,
+    setCreateForm,
+  ] = useState({
+    imei: "",
+    brand: "Apple",
+    model: "",
+    memory: "",
+    color: "",
+    grade: "A",
+    warranty: "12 Ay",
+    salePrice: "",
+    listPrice: "",
+  });
+
   const testConnection =
     useCallback(async () => {
       setConnection({
@@ -485,6 +507,65 @@ export default function Ikas() {
       }
     }, []);
 
+  const previewCreateProduct =
+    useCallback(async () => {
+      setCreatePreview({
+        loading: true,
+        success: null,
+        error: "",
+        data: null,
+      });
+
+      try {
+        const response =
+          await fetch(
+            "/api/online/ikas/create-preview",
+            {
+              method: "POST",
+              cache: "no-store",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify(
+                  createForm
+                ),
+            }
+          );
+
+        const payload =
+          await response.json();
+
+        if (
+          !response.ok ||
+          !payload?.success
+        ) {
+          throw new Error(
+            payload?.error ||
+              "İkas ürün önizlemesi hazırlanamadı."
+          );
+        }
+
+        setCreatePreview({
+          loading: false,
+          success: true,
+          error: "",
+          data: payload,
+        });
+      } catch (error) {
+        setCreatePreview({
+          loading: false,
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "İkas ürün önizlemesi hazırlanamadı.",
+          data: null,
+        });
+      }
+    }, [createForm]);
+
   useEffect(() => {
     void testConnection();
   }, [testConnection]);
@@ -738,6 +819,12 @@ export default function Ikas() {
             </div>
           )}
 
+          {createPreview.error && (
+            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-bold text-rose-700">
+              {createPreview.error}
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
               <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -980,6 +1067,349 @@ export default function Ikas() {
                   : "Ürün Yapısını Doğrula"}
               </button>
             </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-indigo-200 bg-white">
+            <div className="border-b border-indigo-100 bg-indigo-50/60 px-5 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-indigo-700">
+                    ADIM 4.0 — DRY RUN
+                  </div>
+
+                  <div className="mt-1 text-base font-black text-slate-900">
+                    Yenilenmiş Ürün Ekleme Önizlemesi
+                  </div>
+
+                  <div className="mt-1 text-[9px] font-semibold text-slate-500">
+                    Form gerçek createProduct payload'ını hazırlar ama İkas'a HİÇBİR ürün göndermez.
+                  </div>
+                </div>
+
+                <span className="w-fit rounded-full bg-white px-3 py-1.5 text-[8px] font-black uppercase text-indigo-700 ring-1 ring-indigo-200">
+                  Yazma Kapalı
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5">
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  IMEI
+                </span>
+                <input
+                  value={createForm.imei}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        imei:
+                          event.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 15),
+                      })
+                    )
+                  }
+                  placeholder="15 haneli IMEI"
+                  inputMode="numeric"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Marka
+                </span>
+                <input
+                  value={createForm.brand}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        brand:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="Apple"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Model
+                </span>
+                <input
+                  value={createForm.model}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        model:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="iPhone 13"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Hafıza
+                </span>
+                <input
+                  value={createForm.memory}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        memory:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="128GB"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Renk
+                </span>
+                <input
+                  value={createForm.color}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        color:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="Siyah"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Grade
+                </span>
+                <select
+                  value={createForm.grade}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        grade:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                >
+                  <option value="A">
+                    A — Mükemmel
+                  </option>
+                  <option value="B">
+                    B — Çok İyi
+                  </option>
+                  <option value="C">
+                    C — İyi
+                  </option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Garanti
+                </span>
+                <select
+                  value={createForm.warranty}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        warranty:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                >
+                  <option value="3 Ay">3 Ay</option>
+                  <option value="6 Ay">6 Ay</option>
+                  <option value="12 Ay">12 Ay</option>
+                  <option value="18 Ay">18 Ay</option>
+                  <option value="24 Ay">24 Ay</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Satış Fiyatı
+                </span>
+                <input
+                  value={createForm.salePrice}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        salePrice:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="34999"
+                  inputMode="decimal"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Liste Fiyatı
+                </span>
+                <input
+                  value={createForm.listPrice}
+                  onChange={(event) =>
+                    setCreateForm(
+                      (current) => ({
+                        ...current,
+                        listPrice:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  placeholder="36999"
+                  inputMode="decimal"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-bold text-slate-800 outline-none transition focus:border-indigo-400"
+                />
+              </label>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void previewCreateProduct();
+                  }}
+                  disabled={
+                    createPreview.loading ||
+                    !productStructure.success
+                  }
+                  className="h-10 w-full rounded-xl bg-indigo-700 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {createPreview.loading
+                    ? "Taslak Hazırlanıyor..."
+                    : "Payload Önizle"}
+                </button>
+              </div>
+            </div>
+
+            {createPreview.success && (
+              <div className="border-t border-indigo-100 bg-indigo-50/30 p-5">
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-xl border border-indigo-100 bg-white p-4">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      Oluşacak Başlık
+                    </div>
+                    <div className="mt-2 text-[11px] font-black text-slate-900">
+                      {createPreview.data?.derived?.title || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-indigo-100 bg-white p-4">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      Master SKU
+                    </div>
+                    <div className="mt-2 break-all text-[11px] font-black text-indigo-700">
+                      {createPreview.data?.derived?.sku || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-indigo-100 bg-white p-4">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      Referans İkas Ürünü
+                    </div>
+                    <div className="mt-2 text-[11px] font-black text-slate-900">
+                      {createPreview.data?.derived?.referenceProduct?.name || "Eşleşme yok"}
+                    </div>
+                    <div className="mt-1 text-[8px] font-bold text-slate-400">
+                      Skor: {createPreview.data?.derived?.referenceProduct?.score ?? "-"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-indigo-300">
+                      CreateProduct Payload
+                    </div>
+                    <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-[8px] font-semibold leading-4 text-slate-200">
+                      {JSON.stringify(
+                        createPreview.data?.createProductPayloadPreview?.variables?.input ?? {},
+                        null,
+                        2
+                      )}
+                    </pre>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        Mevcut Benzer Ürünler
+                      </div>
+
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black uppercase text-slate-600">
+                        {createPreview.data?.derived?.duplicateCandidateCount ?? 0} aday
+                      </span>
+                    </div>
+
+                    <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+                      {(Array.isArray(
+                        createPreview.data?.duplicateCandidates
+                      )
+                        ? createPreview.data.duplicateCandidates
+                        : []
+                      ).map(
+                        (item: any, index: number) => (
+                          <div
+                            key={item?.id || index}
+                            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                          >
+                            <div className="text-[9px] font-black text-slate-800">
+                              {item?.name || "-"}
+                            </div>
+
+                            <div className="mt-1 break-all text-[7px] font-bold text-slate-400">
+                              {item?.id || "-"}
+                            </div>
+                          </div>
+                        )
+                      )}
+
+                      {(!Array.isArray(
+                        createPreview.data?.duplicateCandidates
+                      ) ||
+                        createPreview.data.duplicateCandidates.length === 0) && (
+                        <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-[8px] font-bold text-slate-400">
+                          Aynı modele yakın mevcut ürün bulunamadı.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                  GÜVENLİ MOD: Ürün oluşturulmadı. Stok ve fiyat değiştirilmedi.
+                </div>
+              </div>
+            )}
           </div>
 
           {discovery.success && (
