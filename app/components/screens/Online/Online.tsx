@@ -363,14 +363,20 @@ export default function Online() {
   const [editForm, setEditForm] = useState<ListingEditForm | null>(null);
   const [priceForm, setPriceForm] = useState<ListingPriceForm | null>(null);
 
-  const loadData = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+  const loadData = useCallback(
+    async (
+      silent = false,
+      background = false
+    ) => {
+      if (!background) {
+        if (silent) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
-    setError("");
+        setError("");
+      }
 
     try {
       const response = await fetch("/api/online", {
@@ -392,11 +398,69 @@ export default function Online() {
       setError(
         err instanceof Error ? err.message : "ONLINE verileri alınamadı."
       );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+      } finally {
+        if (!background) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    []
+  );
+
+  const syncN11Products = useCallback(
+    async () => {
+      const response = await fetch(
+        "/api/online/n11/import",
+        {
+          method: "POST",
+          cache: "no-store",
+          credentials: "same-origin",
+        }
+      );
+
+      const payload = await response
+        .json()
+        .catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          payload?.error ||
+            "N11 stok/fiyat senkronu başarısız."
+        );
+      }
+
+      return payload;
+    },
+    []
+  );
+
+  const syncN11OrderStock = useCallback(
+    async () => {
+      const response = await fetch(
+        "/api/online/n11/orders?status=Created&stockOnly=1",
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }
+      );
+
+      const payload = await response
+        .json()
+        .catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          payload?.error ||
+            "N11 sipariş stok kontrolü başarısız."
+        );
+      }
+
+      return payload;
+    },
+    []
+  );
 
   const loadOrders = useCallback(async (silent = false) => {
     if (!silent) {
@@ -433,6 +497,10 @@ export default function Online() {
       }
 
       setOrdersData(ordersPayload);
+
+      // Orders endpoint yeni siparişleri stok 0'a kilitlemiş olabilir.
+      // Satışa Açık / Kapalı listelerini hemen yerelden yenile.
+      await loadData(false, true);
     } catch (ordersErr) {
       if (
         ordersErr instanceof Error &&
@@ -452,7 +520,51 @@ export default function Online() {
       window.clearTimeout(timeoutId);
       setOrdersLoading(false);
     }
-  }, []);
+  }, [loadData]);
+
+
+  const refreshN11Now = useCallback(
+    async () => {
+      setRefreshing(true);
+      setError("");
+
+      try {
+        // Sıra önemli:
+        // 1) N11 canlı ürün/stok/fiyat bilgisini al.
+        // 2) Yeni siparişleri kontrol edip sipariş gelen stokları 0'a kilitle.
+        // 3) PostgreSQL'deki son durumu ekrana getir.
+        const productSync =
+          await syncN11Products();
+
+        const orderSync =
+          await syncN11OrderStock();
+
+        await loadData(false, true);
+        await loadOrders(true);
+
+        return {
+          productSync,
+          orderSync,
+        };
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "N11 canlı yenileme tamamlanamadı."
+        );
+
+        return null;
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [
+      loadData,
+      loadOrders,
+      syncN11OrderStock,
+      syncN11Products,
+    ]
+  );
 
 
   const approveOrder = useCallback(
@@ -624,67 +736,6 @@ export default function Online() {
     setDraftForm(EMPTY_DRAFT_FORM);
   }, [draftSaving]);
 
-  const waitForN11Create = useCallback(
-    async (imei: string) => {
-      for (
-        let attempt = 1;
-        attempt <= 20;
-        attempt += 1
-      ) {
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, 1500)
-        );
-
-        const response = await fetch(
-          `/api/online/listings?stockCode=${encodeURIComponent(
-            imei
-          )}&refreshN11=1`,
-          {
-            method: "GET",
-            cache: "no-store",
-            credentials: "same-origin",
-          }
-        );
-
-        const payload =
-          await response
-            .json()
-            .catch(() => null);
-
-        if (!response.ok) {
-          throw new Error(
-            payload?.error ||
-              "N11 ürün oluşturma sonucu alınamadı."
-          );
-        }
-
-        if (
-          payload?.created === true &&
-          payload?.listing
-            ?.external_product_id
-        ) {
-          return payload;
-        }
-
-        if (
-          payload?.pending !== true
-        ) {
-          throw new Error(
-            payload?.error ||
-              "N11 ürünü oluşturulamadı."
-          );
-        }
-      }
-
-      return {
-        success: true,
-        created: false,
-        pending: true,
-      };
-    },
-    []
-  );
-
   const saveDraft = useCallback(async () => {
     setDraftError("");
     setDraftSuccess("");
@@ -747,46 +798,32 @@ export default function Online() {
         );
       }
 
-      let finalPayload = payload;
-
       if (
-        payload?.created !== true ||
-        !payload?.listing
+        payload?.created === true &&
+        payload?.listing
           ?.external_product_id
       ) {
         setDraftSuccess(
           payload?.message ||
-            "N11 işlemi devam ediyor. Ürün kodu bekleniyor..."
+            `N11 ürünü açıldı. N11 ID: ${payload.listing.external_product_id}`
         );
-
-        finalPayload =
-          await waitForN11Create(imei);
-      }
-
-      if (
-        finalPayload?.created !== true ||
-        !finalPayload?.listing
-          ?.external_product_id
-      ) {
-        await loadData(true);
-
-        throw new Error(
-          "N11 işlemi henüz tamamlanmadı. Ürün N11 ID oluşana kadar satışa açık sayılmayacak. Biraz sonra tekrar kontrol edin."
+      } else {
+        setDraftSuccess(
+          payload?.message ||
+            "N11'e gönderildi. İşlem arka planda tamamlanıyor."
         );
       }
 
-      setDraftSuccess(
-        finalPayload?.message ||
-          `N11 ürünü açıldı. N11 ID: ${finalPayload.listing.external_product_id}`
-      );
-
+      // Kullanıcı N11 kuyruğunu beklemez.
+      // Kayıt panele hemen düşer; N11 ID oluşana kadar
+      // "N11 Bekleniyor" olarak kalır ve arka planda doğrulanır.
       await loadData(true);
 
       window.setTimeout(() => {
         setShowCreateModal(false);
         setDraftForm(EMPTY_DRAFT_FORM);
         setDraftSuccess("");
-      }, 900);
+      }, 500);
     } catch (err) {
       setDraftError(
         err instanceof Error ? err.message : "N11 ürün oluşturulamadı."
@@ -794,7 +831,7 @@ export default function Online() {
     } finally {
       setDraftSaving(false);
     }
-  }, [draftForm, loadData, waitForN11Create]);
+  }, [draftForm, loadData]);
 
 
   const openEditModal = useCallback((item: OnlineListing) => {
@@ -991,9 +1028,206 @@ export default function Online() {
     };
   }, [activeSection, loadOrders]);
 
+
+  // N11 ÜRÜN / STOK / FİYAT CANLI SENKRON
+  // Coolify/server-migration tarafında çalışır.
+  // İlk arka plan kontrolü 1 sn sonra, sonra 20 sn'de bir.
+  useEffect(() => {
+    let cancelled = false;
+    let running = false;
+
+    const run = async () => {
+      if (cancelled || running) {
+        return;
+      }
+
+      running = true;
+
+      try {
+        await syncN11Products();
+
+        if (!cancelled) {
+          await loadData(false, true);
+        }
+      } catch {
+        // Arka plan senkron hatası panel kullanımını durdurmaz.
+        // Manuel YENİLE hata detayını kullanıcıya gösterir.
+      } finally {
+        running = false;
+      }
+    };
+
+    const firstId = window.setTimeout(() => {
+      void run();
+    }, 1_000);
+
+    const intervalId =
+      window.setInterval(() => {
+        void run();
+      }, 20_000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(firstId);
+      window.clearInterval(intervalId);
+    };
+  }, [loadData, syncN11Products]);
+
+  // YENİ SİPARİŞ => STOK 0
+  // Created siparişleri daha sık kontrol edilir.
+  // Sipariş geldiğinde matching stockCode panelde hemen stok 0'a kilitlenir.
+  useEffect(() => {
+    let cancelled = false;
+    let running = false;
+
+    const run = async () => {
+      if (cancelled || running) {
+        return;
+      }
+
+      running = true;
+
+      try {
+        const result =
+          await syncN11OrderStock();
+
+        if (
+          !cancelled &&
+          Number(
+            result?.updatedListingCount ||
+              0
+          ) > 0
+        ) {
+          await loadData(false, true);
+        }
+      } catch {
+        // Arka plan kontrolü paneli bozmaz.
+      } finally {
+        running = false;
+      }
+    };
+
+    const firstId = window.setTimeout(() => {
+      void run();
+    }, 1_500);
+
+    const intervalId =
+      window.setInterval(() => {
+        void run();
+      }, 10_000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(firstId);
+      window.clearInterval(intervalId);
+    };
+  }, [
+    loadData,
+    syncN11OrderStock,
+  ]);
+
   const stats = data?.stats ?? EMPTY_STATS;
   const channel = data?.channel ?? null;
   const listings = data?.listings ?? [];
+
+  const pendingN11Listings = useMemo(
+    () =>
+      listings.filter((item) => {
+        const syncStatus = String(
+          item.sync_status || ""
+        ).toUpperCase();
+
+        return (
+          !item.external_product_id &&
+          [
+            "CREATING",
+            "IN_QUEUE",
+            "SYNCED_PENDING_QUERY",
+          ].includes(syncStatus) &&
+          Boolean(item.external_stock_code)
+        );
+      }),
+    [listings]
+  );
+
+  useEffect(() => {
+    if (pendingN11Listings.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    let running = false;
+
+    const reconcilePending = async () => {
+      if (cancelled || running) return;
+
+      running = true;
+      let shouldReload = false;
+
+      try {
+        // Aynı anda çok fazla N11 isteği atmayalım.
+        // En eski/yeni bekleyenlerden en fazla 5 tanesini kontrol ediyoruz.
+        const batch = pendingN11Listings.slice(0, 5);
+
+        for (const item of batch) {
+          const stockCode = String(
+            item.external_stock_code || ""
+          ).trim();
+
+          if (!stockCode) continue;
+
+          try {
+            const response = await fetch(
+              `/api/online/listings?stockCode=${encodeURIComponent(
+                stockCode
+              )}&refreshN11=1`,
+              {
+                method: "GET",
+                cache: "no-store",
+                credentials: "same-origin",
+              }
+            );
+
+            const payload = await response
+              .json()
+              .catch(() => null);
+
+            if (
+              payload?.created === true ||
+              payload?.state === "CREATED" ||
+              payload?.state === "ERROR" ||
+              response.status === 422
+            ) {
+              shouldReload = true;
+            }
+          } catch {
+            // Arka plan kontrolü kullanıcı akışını bozmaz.
+          }
+        }
+
+        if (shouldReload && !cancelled) {
+          await loadData(true);
+        }
+      } finally {
+        running = false;
+      }
+    };
+
+    // İlk kontrol kısa süre sonra; sonrası 10 saniyede bir.
+    const firstCheckId = window.setTimeout(() => {
+      void reconcilePending();
+    }, 3500);
+
+    const intervalId = window.setInterval(() => {
+      void reconcilePending();
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(firstCheckId);
+      window.clearInterval(intervalId);
+    };
+  }, [pendingN11Listings, loadData]);
 
   const openListings = useMemo(
     () =>
@@ -1173,8 +1407,7 @@ export default function Online() {
                   <button
                     type="button"
                     onClick={() => {
-                      void loadData(true);
-                      void loadOrders(true);
+                      void refreshN11Now();
                     }}
                     disabled={refreshing}
                     className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 px-3 text-[11px] font-black uppercase tracking-wider text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1267,7 +1500,7 @@ export default function Online() {
                 {data?.apiConnected ? "AKTİF" : "BEKLİYOR"}
               </span>
               <span className="text-[11px] font-semibold text-slate-500">
-                Kanal: {channel?.channel || "N11"} · Entegratör: {channel?.integrator_name || "CNETMOBIL"}
+                Kanal: {channel?.channel || "N11"} · Entegratör: {channel?.integrator_name || "CNETMOBIL"} · Stok/Fiyat: 20 sn · Yeni Sipariş: 10 sn
               </span>
             </div>
 
@@ -2438,7 +2671,7 @@ export default function Online() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
-                  Ürün durumu daima YENİLENMİŞ'tir. stockCode = IMEI ve stok = 1 açılır. Sistem önce daha önce doğrulanmış yenilenmiş katalog eşleşmesini kullanır; yoksa N11'de hızlı katalog araması yapar. Sıfır ürün kataloğuna bağlanmaz.
+                  Ürün durumu daima YENİLENMİŞ'tir. stockCode = IMEI'dir. N11'e gönderildikten sonra bu ekran sizi bekletmeden kapanır; ürün N11 ID oluşana kadar "N11 Bekleniyor" görünür ve arka planda otomatik doğrulanır. Sıfır ürün kataloğuna bağlanmaz.
                 </div>
 
                 {draftError ? (
