@@ -1584,6 +1584,50 @@ async function findRenewedCatalogFromLocalMemory(params: {
 }
 
 
+async function getN11RenewedPhoneCategoryId(pool: Pool) {
+  // KRİTİK:
+  // Yenilenmiş cihazlar N11'de sıfır "Cep Telefonu" kategorisinden
+  // farklı bir leaf category altında olabiliyor.
+  //
+  // Bizim N11 ürünlerimiz product-query ile PostgreSQL'e zaten
+  // category_id olarak senkronlandığı için, en güvenli kaynak
+  // kendi gerçek yenilenmiş ürünlerimizin kullandığı category_id'dir.
+  const result = await pool.query(
+    `
+      SELECT
+        category_id,
+        COUNT(*)::int AS product_count
+      FROM public.online_listings
+      WHERE channel = 'N11'
+        AND category_id IS NOT NULL
+        AND (
+          title ILIKE '%Yenilen%'
+          OR title ILIKE '%Renewed%'
+        )
+      GROUP BY category_id
+      ORDER BY product_count DESC, category_id ASC
+      LIMIT 1
+    `
+  );
+
+  const categoryId =
+    positiveIntegerOrNull(
+      result.rows[0]?.category_id
+    );
+
+  if (!categoryId) {
+    throw new Error(
+      'N11 yenilenmiş telefon kategori ID değeri mevcut senkron ürünlerden bulunamadı.'
+    );
+  }
+
+  return {
+    categoryId,
+    productCount:
+      Number(result.rows[0]?.product_count || 0),
+  };
+}
+
 async function getN11StoreDefaults() {
   const result = await getPool().query(
     `
@@ -2507,6 +2551,14 @@ export async function POST(request: NextRequest) {
     const normalizedMemory =
       renewedMemoryLabel(memory);
 
+    // YENİLENMİŞ ÜRÜNLER İÇİN GERÇEK N11 LEAF CATEGORY
+    // hard-code 1000476 kullanmıyoruz.
+    const renewedCategory =
+      await getN11RenewedPhoneCategoryId(pool);
+
+    const renewedCategoryId =
+      renewedCategory.categoryId;
+
     // 1) ÖNCE POSTGRESQL KATALOG HAFIZASI
     // Daha önce doğru yenilenmiş catalogId kullanıldıysa N11'e arama
     // isteği atmadan anında aynı katalog kullanılır.
@@ -2612,7 +2664,7 @@ export async function POST(request: NextRequest) {
             brand,
             title,
             categoryId:
-              N11_PHONE_CATEGORY_ID,
+              renewedCategoryId,
             maxPages: 1,
           })
         ),
@@ -2624,7 +2676,7 @@ export async function POST(request: NextRequest) {
           brand: '',
           title: exactN11Title,
           categoryId:
-            N11_PHONE_CATEGORY_ID,
+            renewedCategoryId,
           maxPages: 1,
         }),
       ];
@@ -2704,6 +2756,9 @@ export async function POST(request: NextRequest) {
               ? `YENİLENMİŞ ${brand} ${model} ${memory} ${color} ${normalizedGrade} ${normalizedWarranty} için güvenli katalog eşleşmesi bulunamadı. Sıfır ürün açılmadı.`
               : `YENİLENMİŞ ${brand} ${model} ${memory} ${color} için N11 katalog kaydı bulunamadı. Sıfır ürün açılmadı.`,
           catalogSource,
+          renewedCategoryId,
+          renewedCategoryProductCount:
+            renewedCategory.productCount,
           searchedTitles:
             typeof searchedTitles !== 'undefined'
               ? searchedTitles
@@ -2741,6 +2796,25 @@ export async function POST(request: NextRequest) {
       positiveIntegerOrNull(
         catalogProduct.catalogId
       );
+
+    if (
+      categoryId &&
+      categoryId !== renewedCategoryId
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            `N11 katalog eşleşmesi beklenen yenilenmiş kategoriyle uyuşmuyor. Beklenen: ${renewedCategoryId}, dönen: ${categoryId}. Ürün açılmadı.`,
+          renewedCategoryId,
+          selectedCategoryId:
+            categoryId,
+          selectedCatalogTitle:
+            catalogProduct.productTitle,
+        },
+        409
+      );
+    }
 
     if (!categoryId || !catalogId) {
       return json(
@@ -2880,6 +2954,9 @@ export async function POST(request: NextRequest) {
           catalogSource,
           productCondition:
             'YENILENMIS',
+          renewedCategoryId,
+          renewedCategoryProductCount:
+            renewedCategory.productCount,
           salePrice,
           listPrice,
         }),
