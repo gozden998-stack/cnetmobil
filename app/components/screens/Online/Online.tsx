@@ -355,6 +355,17 @@ export default function Online() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterBrand, setFilterBrand] = useState("");
   const [filterMemory, setFilterMemory] = useState("");
+  const [sortMode, setSortMode] = useState<
+    | "updated_desc"
+    | "updated_asc"
+    | "name_asc"
+    | "name_desc"
+    | "price_asc"
+    | "price_desc"
+    | "stock_asc"
+    | "stock_desc"
+  >("updated_desc");
+  const [stockExporting, setStockExporting] = useState(false);
   const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState("");
@@ -1615,6 +1626,232 @@ export default function Online() {
     search,
   ]);
 
+  const sortedListings = useMemo(() => {
+    const items = [...filteredListings];
+
+    const nameValue = (item: OnlineListing) =>
+      [
+        item.brand || item.device_brand || "",
+        item.model || item.device_model || "",
+        item.memory || item.device_memory || "",
+        item.color || item.device_color || "",
+      ]
+        .join(" ")
+        .toLocaleLowerCase("tr-TR");
+
+    items.sort((a, b) => {
+      if (sortMode === "name_asc") {
+        return nameValue(a).localeCompare(
+          nameValue(b),
+          "tr"
+        );
+      }
+
+      if (sortMode === "name_desc") {
+        return nameValue(b).localeCompare(
+          nameValue(a),
+          "tr"
+        );
+      }
+
+      if (sortMode === "price_asc") {
+        return (
+          Number(a.sale_price || 0) -
+          Number(b.sale_price || 0)
+        );
+      }
+
+      if (sortMode === "price_desc") {
+        return (
+          Number(b.sale_price || 0) -
+          Number(a.sale_price || 0)
+        );
+      }
+
+      if (sortMode === "stock_asc") {
+        return (
+          Number(a.quantity || 0) -
+          Number(b.quantity || 0)
+        );
+      }
+
+      if (sortMode === "stock_desc") {
+        return (
+          Number(b.quantity || 0) -
+          Number(a.quantity || 0)
+        );
+      }
+
+      const aTime =
+        new Date(
+          a.updated_at || a.created_at
+        ).getTime() || 0;
+
+      const bTime =
+        new Date(
+          b.updated_at || b.created_at
+        ).getTime() || 0;
+
+      return sortMode === "updated_asc"
+        ? aTime - bTime
+        : bTime - aTime;
+    });
+
+    return items;
+  }, [filteredListings, sortMode]);
+
+  const exportStockExcel = useCallback(async () => {
+    if (
+      activeSection === "orders" ||
+      sortedListings.length === 0
+    ) {
+      window.alert(
+        "Excel'e aktarılacak ürün bulunamadı."
+      );
+      return;
+    }
+
+    setStockExporting(true);
+
+    try {
+      const XLSX = await import("xlsx");
+
+      const exportRows = sortedListings.map(
+        (item, index) => ({
+          SIRA: index + 1,
+          N11_DURUM:
+            Number(item.quantity || 0) > 0
+              ? "SATIŞA AÇIK"
+              : "SATIŞA KAPALI",
+          MARKA:
+            item.brand ||
+            item.device_brand ||
+            "",
+          MODEL:
+            item.model ||
+            item.device_model ||
+            "",
+          HAFIZA:
+            item.memory ||
+            item.device_memory ||
+            "",
+          RENK:
+            item.color ||
+            item.device_color ||
+            "",
+          GRADE:
+            item.grade ||
+            item.device_grade ||
+            "",
+          GARANTI:
+            item.warranty ||
+            item.device_warranty ||
+            "",
+          IMEI_STOK_KODU:
+            item.external_stock_code ||
+            item.device_imei ||
+            "",
+          N11_URUN_ID:
+            item.external_product_id ||
+            "",
+          STOK:
+            Number(item.quantity || 0),
+          N11_SATIS_FIYATI:
+            Number(item.sale_price || 0),
+          N11_LISTE_FIYATI:
+            Number(item.list_price || 0),
+          SENKRON_DURUMU:
+            item.sync_status || "",
+          SON_GUNCELLEME:
+            item.updated_at
+              ? new Date(
+                  item.updated_at
+                ).toLocaleString("tr-TR")
+              : "",
+        })
+      );
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(
+          exportRows
+        );
+
+      worksheet["!cols"] = [
+        { wch: 7 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 16 },
+        { wch: 9 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 22 },
+      ];
+
+      const workbook =
+        XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        activeSection === "open"
+          ? "SATISA_ACIK"
+          : "SATISA_KAPALI"
+      );
+
+      const now = new Date();
+
+      const stamp = [
+        now.getFullYear(),
+        String(
+          now.getMonth() + 1
+        ).padStart(2, "0"),
+        String(
+          now.getDate()
+        ).padStart(2, "0"),
+        "_",
+        String(
+          now.getHours()
+        ).padStart(2, "0"),
+        String(
+          now.getMinutes()
+        ).padStart(2, "0"),
+      ].join("");
+
+      const sectionName =
+        activeSection === "open"
+          ? "SATISA_ACIK"
+          : "SATISA_KAPALI";
+
+      XLSX.writeFile(
+        workbook,
+        `CNETMOBIL_N11_STOK_${sectionName}_${stamp}.xlsx`
+      );
+    } catch (err) {
+      console.error(
+        "N11 STOCK EXCEL EXPORT ERROR:",
+        err
+      );
+
+      window.alert(
+        err instanceof Error
+          ? `Excel indirilemedi: ${err.message}`
+          : "Excel indirilemedi."
+      );
+    } finally {
+      setStockExporting(false);
+    }
+  }, [
+    activeSection,
+    sortedListings,
+  ]);
+
   if (loading) {
     return (
       <div className="flex min-h-[420px] w-full items-center justify-center">
@@ -1679,6 +1916,15 @@ export default function Online() {
                     className="inline-flex h-9 items-center justify-center rounded-xl bg-blue-600 px-4 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-blue-700"
                   >
                     + Yeni Ürün Aç
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={openBulkModal}
+                    disabled={bulkLoading || bulkUploading}
+                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wider text-slate-700 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    📄 Excel ile Toplu Ekle
                   </button>
 
                   <button
@@ -1845,13 +2091,22 @@ export default function Online() {
 
                 <button
                   type="button"
-                  onClick={openBulkModal}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => {
+                    void exportStockExcel();
+                  }}
+                  disabled={
+                    activeSection === "orders" ||
+                    stockExporting ||
+                    sortedListings.length === 0
+                  }
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  📄 EXCEL İLE TOPLU EKLE
+                  {stockExporting
+                    ? "EXCEL HAZIRLANIYOR..."
+                    : `⬇ EXCEL İNDİR (${sortedListings.length})`}
                 </button>
 
-                <div className="relative w-full xl:w-[360px]">
+                <div className="relative w-full xl:w-[390px]">
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -1876,6 +2131,50 @@ export default function Online() {
                 >
                   ⏷ FİLTRELE
                 </button>
+
+                <div className="relative">
+                  <select
+                    value={sortMode}
+                    onChange={(event) =>
+                      setSortMode(
+                        event.target
+                          .value as typeof sortMode
+                      )
+                    }
+                    disabled={activeSection === "orders"}
+                    className="h-12 min-w-[165px] cursor-pointer appearance-none rounded-2xl border border-slate-200 bg-white pl-4 pr-10 text-[11px] font-black text-slate-700 outline-none transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Ürünleri sırala"
+                  >
+                    <option value="updated_desc">
+                      ↕ SIRALA · En Yeni
+                    </option>
+                    <option value="updated_asc">
+                      En Eski
+                    </option>
+                    <option value="name_asc">
+                      Ürün A → Z
+                    </option>
+                    <option value="name_desc">
+                      Ürün Z → A
+                    </option>
+                    <option value="price_asc">
+                      Fiyat Düşük → Yüksek
+                    </option>
+                    <option value="price_desc">
+                      Fiyat Yüksek → Düşük
+                    </option>
+                    <option value="stock_desc">
+                      Stok Çok → Az
+                    </option>
+                    <option value="stock_asc">
+                      Stok Az → Çok
+                    </option>
+                  </select>
+
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                    ▼
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2176,7 +2475,7 @@ export default function Online() {
                   </div>
                 </div>
               )
-            ) : filteredListings.length === 0 ? (
+            ) : sortedListings.length === 0 ? (
               <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
                   ◫
@@ -2207,7 +2506,7 @@ export default function Online() {
                     <div>İşlemler</div>
                   </div>
 
-                  {filteredListings.map((item) => {
+                  {sortedListings.map((item) => {
                     const status = getStatusBadge(
                       item.product_status,
                       item.sale_status,
@@ -2298,14 +2597,6 @@ export default function Online() {
                             FİYAT
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => void setStockZero(item)}
-                            disabled={actionSaving || Number(item.quantity || 0) === 0}
-                            className="rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            STOK 0
-                          </button>
                         </div>
                       </div>
                     );
@@ -2347,7 +2638,7 @@ export default function Online() {
               <div>
                 Gösterilen:{" "}
                 <span className="font-black text-slate-800">
-                  {filteredListings.length}
+                  {sortedListings.length}
                 </span>
               </div>
 
