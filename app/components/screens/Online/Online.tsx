@@ -2059,153 +2059,209 @@ export default function Online() {
   return (
     <div className="w-full animate-in fade-in duration-300">
       <div className="space-y-4">
-        <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_35px_rgba(15,23,42,0.06)] sm:p-6">
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(440px,1.35fr)_repeat(4,minmax(180px,0.72fr))]">
-            <div className="flex min-h-[160px] items-center gap-4 rounded-[24px] border border-slate-100 bg-gradient-to-br from-white via-white to-violet-50/40 px-5 py-5 sm:px-6">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[26px] bg-violet-50 shadow-inner">
-                <div className="text-5xl font-black tracking-tight text-violet-700">
-                  n11
-                </div>
-              </div>
-
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h2 className="text-[28px] font-black tracking-tight text-slate-900">
-                    N11 Entegrasyonu
-                  </h2>
-
-                  {data?.apiConnected ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      API Bağlı
-                    </span>
-                  ) : data?.apiConfigured ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700 ring-1 ring-amber-200">
-                      <span className="h-2 w-2 rounded-full bg-amber-500" />
-                      Bağlantı Bekliyor
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600 ring-1 ring-slate-200">
-                      <span className="h-2 w-2 rounded-full bg-slate-400" />
-                      API Yapılandırılmadı
-                    </span>
-                  )}
+        <section className="rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.06)]">
+          <div className="overflow-hidden rounded-[22px] border border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-blue-100/70">
+            <div className="flex flex-col gap-5 px-5 py-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="flex h-[86px] w-[86px] shrink-0 items-center justify-center rounded-[22px] border border-violet-100 bg-white/90 shadow-sm">
+                  <span className="text-[42px] font-black tracking-[-0.08em] text-violet-700">
+                    n11
+                  </span>
                 </div>
 
-                <p className="mt-2 max-w-2xl text-[13px] font-semibold leading-6 text-slate-500">
-                  N11 ürünlerini, stok durumlarını ve sipariş akışını tek ekrandan yönetin.
-                </p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[25px] font-black tracking-[-0.03em] text-slate-950">
+                      N11 Entegrasyonu
+                    </h2>
 
-                <div className="mt-5 flex flex-wrap items-center gap-3 text-[12px] font-bold text-slate-500">
-                  <div className="inline-flex items-center gap-2">
-                    <span className="text-slate-400">Son senkronizasyon:</span>
-                    <span className="font-black text-slate-700">
-                      {formatDate(channel?.last_sync_at)}
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black ring-1 ${
+                        data?.apiConnected
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                          : data?.apiConfigured
+                          ? "bg-amber-50 text-amber-700 ring-amber-200"
+                          : "bg-slate-100 text-slate-600 ring-slate-200"
+                      }`}
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          data?.apiConnected
+                            ? "bg-emerald-500"
+                            : data?.apiConfigured
+                            ? "bg-amber-500"
+                            : "bg-slate-400"
+                        }`}
+                      />
+                      {data?.apiConnected
+                        ? "API Bağlı"
+                        : data?.apiConfigured
+                        ? "Bağlantı Bekliyor"
+                        : "API Yapılandırılmadı"}
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void refreshN11Now();
-                    }}
-                    disabled={refreshing}
-                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 px-3 text-[11px] font-black uppercase tracking-wider text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {refreshing ? "Yenileniyor..." : "Yenile"}
-                  </button>
+                  <p className="mt-1.5 max-w-2xl text-[12px] font-semibold leading-5 text-slate-500">
+                    N11 mağazanız ile ürünlerinizi senkronize edin, fiyat ve stoklarınızı tek panelden yönetin.
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500">
+                    <span>
+                      Mağaza:{" "}
+                      <b className="text-slate-800">
+                        Cnetmobil
+                      </b>
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span>
+                      Son Senkronizasyon:{" "}
+                      <b className="text-slate-800">
+                        {formatDate(channel?.last_sync_at)}
+                      </b>
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="rounded-[22px] border border-blue-100 bg-white p-4 text-left shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                  🛒
-                </div>
-              </div>
-              <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                Siparişler
-              </div>
-              <div className="mt-1 text-[24px] font-black tracking-tight text-slate-900">
-                {ordersLoading && !ordersData ? "…" : orderCount}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                Yeni N11 siparişleri
-              </div>
-            </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  + Yeni Ürün Aç
+                </button>
 
-            <div className="rounded-[22px] border border-emerald-100 bg-white p-4 text-left shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  ▶
-                </div>
-              </div>
-              <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                Satışa Açık
-              </div>
-              <div className="mt-1 text-[24px] font-black tracking-tight text-slate-900">
-                {openDeviceCount}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                Stokta ve yayında
-              </div>
-            </div>
+                <button
+                  type="button"
+                  onClick={openBulkModal}
+                  disabled={bulkLoading || bulkUploading}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Excel ile Toplu Ekle
+                </button>
 
-            <div className="rounded-[22px] border border-red-100 bg-white p-4 text-left shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl text-red-600">
-                  Ⅱ
-                </div>
-              </div>
-              <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                Satışa Kapalı
-              </div>
-              <div className="mt-1 text-[24px] font-black tracking-tight text-red-600">
-                {closedListings.length}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                Stok 0 / kapalı
-              </div>
-            </div>
-
-            <div className="rounded-[22px] border border-amber-100 bg-white p-4 shadow-sm">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-xl font-black text-amber-600">
-                ₺
-              </div>
-              <div className="mt-4 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                Ortalama Fiyat
-              </div>
-              <div className="mt-1 text-[24px] font-black tracking-tight text-slate-900">
-                {formatMoney(stats.averageSalePrice)}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                Satış fiyatı ortalaması
+                <button
+                  type="button"
+                  onClick={() => {
+                    void refreshN11Now();
+                  }}
+                  disabled={refreshing}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {refreshing ? "Yenileniyor..." : "Yenile"}
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                N11 Bağlantı
-              </span>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[18px] border border-blue-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-lg">
+                  ◇
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Toplam Ürün
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">
+                    {listings.length}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-400">
+                    N11 ilanı
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[18px] border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg">
+                  🛒
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Siparişler
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">
+                    {ordersLoading && !ordersData ? "…" : orderCount}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-400">
+                    Yeni N11 siparişi
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[18px] border border-emerald-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-700">
+                  ◉
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Yayındaki Ürün
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">
+                    {openDeviceCount}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-400">
+                    Fiziksel cihaz
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[18px] border border-violet-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-lg text-violet-700">
+                  ₺
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Ortalama Fiyat
+                  </div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">
+                    {formatMoney(stats.averageSalePrice)}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-400">
+                    N11 satış fiyatı
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-slate-100 bg-slate-50/70 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500">
               <span
-                className={`rounded-full px-3 py-1 text-[10px] font-black ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-black ${
                   data?.apiConnected
                     ? "bg-emerald-100 text-emerald-700"
                     : "bg-slate-200 text-slate-600"
                 }`}
               >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    data?.apiConnected
+                      ? "bg-emerald-500"
+                      : "bg-slate-400"
+                  }`}
+                />
                 {data?.apiConnected ? "AKTİF" : "BEKLİYOR"}
               </span>
-              <span className="text-[11px] font-semibold text-slate-500">
-                Kanal: {channel?.channel || "N11"} · Entegratör: {channel?.integrator_name || "CNETMOBIL"} · Stok/Fiyat: 20 sn · Yeni Sipariş: 10 sn
-              </span>
+              <span>Kanal: {channel?.channel || "N11"}</span>
+              <span>Entegratör: {channel?.integrator_name || "CNETMOBIL"}</span>
+              <span>Stok/Fiyat: 20 sn</span>
+              <span>Yeni Sipariş: 10 sn</span>
             </div>
 
-            <div className="text-[11px] font-semibold text-slate-500">
-              Toplam aktif cihaz: <b className="text-slate-800">{totalActiveDeviceCount}</b> · N11 ilan: <b className="text-slate-800">{listings.length}</b>
+            <div className="text-[10px] font-bold text-slate-500">
+              Toplam aktif cihaz:{" "}
+              <b className="text-slate-800">
+                {totalActiveDeviceCount}
+              </b>
             </div>
           </div>
         </section>
@@ -2216,48 +2272,48 @@ export default function Online() {
           </section>
         ) : null}
 
-        <section className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2.5">
+        <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setActiveSection("orders")}
-                  className={`rounded-2xl px-5 py-3 text-[12px] font-black transition ${
+                  className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
                     activeSection === "orders"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                      : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  🛒 Siparişler ({ordersLoading && !ordersData ? "…" : orderCount})
+                  Siparişler ({ordersLoading && !ordersData ? "…" : orderCount})
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveSection("open")}
-                  className={`rounded-2xl px-5 py-3 text-[12px] font-black transition ${
+                  className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
                     activeSection === "open"
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                      : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  ▶ Satışa Açık ({openDeviceCount})
+                  Satışa Açık ({openDeviceCount})
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveSection("closed")}
-                  className={`rounded-2xl px-5 py-3 text-[12px] font-black transition ${
+                  className={`rounded-xl px-4 py-2.5 text-[11px] font-black transition ${
                     activeSection === "closed"
-                      ? "bg-red-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      ? "bg-red-50 text-red-700 ring-1 ring-red-200"
+                      : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  Ⅱ Satışa Kapalı ({closedListings.length})
+                  Satışa Kapalı ({closedListings.length})
                 </button>
               </div>
 
-              <div className="flex w-full flex-wrap gap-2 xl:w-auto xl:flex-row xl:items-center xl:justify-end">
+              <div className="flex w-full flex-wrap items-center gap-2 2xl:w-auto 2xl:justify-end">
                 <input
                   ref={bulkFileInputRef}
                   type="file"
@@ -2265,23 +2321,6 @@ export default function Online() {
                   className="hidden"
                   onChange={handleBulkExcelFile}
                 />
-
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-3.5 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
-                >
-                  + Yeni Ürün Aç
-                </button>
-
-                <button
-                  type="button"
-                  onClick={openBulkModal}
-                  disabled={bulkLoading || bulkUploading}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3.5 text-[10px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Excel Toplu Ekle
-                </button>
 
                 <button
                   type="button"
@@ -2293,22 +2332,22 @@ export default function Online() {
                     stockExporting ||
                     sortedListings.length === 0
                   }
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[10px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {stockExporting
-                    ? "EXCEL HAZIRLANIYOR..."
-                    : `⬇ EXCEL İNDİR (${activeSection === "open" ? sortedListings.reduce((t, item) => t + Math.max(0, Number(item.quantity || 0)), 0) : sortedListings.length})`}
+                    ? "Hazırlanıyor..."
+                    : "Excel İndir"}
                 </button>
 
-                <div className="relative w-full xl:w-[230px]">
+                <div className="relative w-full sm:w-[280px]">
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     disabled={activeSection === "orders"}
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-3 pr-9 text-[11px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                    placeholder="Ürün, IMEI veya N11 ID ara..."
+                    className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-3 pr-8 text-[11px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    placeholder="Marka, model, IMEI veya SKU ara..."
                   />
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                     ⌕
                   </span>
                 </div>
@@ -2317,13 +2356,13 @@ export default function Online() {
                   type="button"
                   onClick={() => setShowFilterPanel((current) => !current)}
                   disabled={activeSection === "orders"}
-                  className={`inline-flex h-10 shrink-0 items-center justify-center rounded-xl border px-3 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`inline-flex h-9 items-center justify-center rounded-xl border px-3 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     showFilterPanel
                       ? "border-slate-300 bg-slate-900 text-white"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  ⏷ FİLTRELE
+                  Filtrele
                 </button>
 
                 <div className="relative">
@@ -2331,41 +2370,23 @@ export default function Online() {
                     value={sortMode}
                     onChange={(event) =>
                       setSortMode(
-                        event.target
-                          .value as typeof sortMode
+                        event.target.value as typeof sortMode
                       )
                     }
                     disabled={activeSection === "orders"}
-                    className="h-10 w-[122px] cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-3 pr-7 text-[10px] font-black text-slate-700 outline-none transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-label="Ürünleri sırala"
+                    className="h-9 w-[120px] cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-3 pr-7 text-[10px] font-black text-slate-700 outline-none transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <option value="updated_desc">
-                      ↕ En Yeni
-                    </option>
-                    <option value="updated_asc">
-                      En Eski
-                    </option>
-                    <option value="name_asc">
-                      Ürün A → Z
-                    </option>
-                    <option value="name_desc">
-                      Ürün Z → A
-                    </option>
-                    <option value="price_asc">
-                      Fiyat Düşük → Yüksek
-                    </option>
-                    <option value="price_desc">
-                      Fiyat Yüksek → Düşük
-                    </option>
-                    <option value="stock_desc">
-                      Stok Çok → Az
-                    </option>
-                    <option value="stock_asc">
-                      Stok Az → Çok
-                    </option>
+                    <option value="updated_desc">En Yeni</option>
+                    <option value="updated_asc">En Eski</option>
+                    <option value="name_asc">Ürün A → Z</option>
+                    <option value="name_desc">Ürün Z → A</option>
+                    <option value="price_asc">Fiyat ↑</option>
+                    <option value="price_desc">Fiyat ↓</option>
+                    <option value="stock_desc">Stok ↓</option>
+                    <option value="stock_asc">Stok ↑</option>
                   </select>
 
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">
                     ▼
                   </span>
                 </div>
@@ -2373,28 +2394,28 @@ export default function Online() {
             </div>
 
             {showFilterPanel && activeSection !== "orders" ? (
-              <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_1fr_auto]">
+              <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]">
                 <label>
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <div className="mb-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
                     Marka
                   </div>
                   <input
                     value={filterBrand}
                     onChange={(event) => setFilterBrand(event.target.value)}
                     placeholder="Örn. Apple"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-300"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold outline-none focus:border-blue-300"
                   />
                 </label>
 
                 <label>
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <div className="mb-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
                     Hafıza
                   </div>
                   <input
                     value={filterMemory}
                     onChange={(event) => setFilterMemory(event.target.value)}
                     placeholder="Örn. 128 GB"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold outline-none focus:border-blue-300"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold outline-none focus:border-blue-300"
                   />
                 </label>
 
@@ -2406,30 +2427,13 @@ export default function Online() {
                       setFilterMemory("");
                       setSearch("");
                     }}
-                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-600 hover:bg-slate-100"
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-600 hover:bg-slate-100"
                   >
                     TEMİZLE
                   </button>
                 </div>
               </div>
             ) : null}
-
-            <div>
-              <div className="text-[15px] font-black text-slate-900">
-                {activeSection === "orders"
-                  ? "Siparişler"
-                  : activeSection === "open"
-                  ? "Satışa Açık Ürünler"
-                  : "Satışa Kapalı Ürünler"}
-              </div>
-              <div className="mt-1 text-[12px] font-semibold text-slate-500">
-                {activeSection === "orders"
-                  ? "Yeni sipariş, hazırlanan, kargodaki ve teslim edilen N11 siparişlerini takip edin."
-                  : activeSection === "open"
-                  ? `${openListings.length} N11 ilanında toplam ${openDeviceCount} fiziksel cihaz stokta.`
-                  : "Stok adedi 0 olan, satışa kapalı N11 ürünleri."}
-              </div>
-            </div>
           </div>
 
           {activeSection === "orders" ? (
@@ -2545,148 +2549,8 @@ export default function Online() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <div className="min-w-[1500px]">
-                    <div className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      <div>Sipariş No</div>
-                      <div>Müşteri</div>
-                      <div>Ürün</div>
-                      <div>Adet</div>
-                      <div>Tutar</div>
-                      <div>Şehir</div>
-                      <div>Durum</div>
-                      <div>Tarih</div>
-                      <div>İşlem</div>
-                    </div>
-
-                    {selectedOrders.map((order, index) => (
-                      <div
-                        key={`${order.packageId || order.orderNumber || "order"}-${index}`}
-                        className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center border-t border-slate-100 px-4 py-4 text-[12px] font-semibold text-slate-700 hover:bg-blue-50/30"
-                      >
-                        <div>
-                          <div className="font-mono text-[12px] font-black text-slate-900">
-                            {order.orderNumber || "—"}
-                          </div>
-                          <div className="mt-1 text-[9px] font-bold text-slate-400">
-                            Paket: {order.packageId || "—"}
-                          </div>
-                        </div>
-
-                        <div className="min-w-0 pr-3">
-                          <div className="truncate text-[15px] font-black tracking-[-0.01em] text-slate-900">
-                            {order.customerFullName || "—"}
-                          </div>
-                          <div className="mt-1 truncate text-[10px] font-semibold text-slate-400">
-                            {order.customerEmail || "—"}
-                          </div>
-                        </div>
-
-                        <div className="min-w-0 pr-4">
-                          <div className="line-clamp-2 text-[12px] font-bold leading-5 text-slate-800">
-                            {order.productSummary || "—"}
-                          </div>
-                          {order.lines?.[0]?.stockCode ? (
-                            <div className="mt-1 font-mono text-[10px] font-bold text-slate-400">
-                              Stok: {order.lines[0].stockCode}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="text-[14px] font-black text-slate-900">
-                          {order.totalQuantity}
-                        </div>
-
-                        <div className="text-[14px] font-black text-slate-900">
-                          {formatMoney(Number(order.totalAmount || 0))}
-                        </div>
-
-                        <div>
-                          <div className="font-bold text-slate-800">
-                            {order.city || "—"}
-                          </div>
-                          <div className="mt-1 text-[10px] font-semibold text-slate-400">
-                            {order.district || "—"}
-                          </div>
-                        </div>
-
-                        <div>
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black ring-1 ${
-                              orderSection === "new"
-                                ? "bg-blue-50 text-blue-700 ring-blue-100"
-                                : orderSection === "preparing"
-                                ? "bg-amber-50 text-amber-700 ring-amber-100"
-                                : orderSection === "shipped"
-                                ? "bg-violet-50 text-violet-700 ring-violet-100"
-                                : "bg-emerald-50 text-emerald-700 ring-emerald-100"
-                            }`}
-                          >
-                            {orderSection === "new"
-                              ? "Yeni Sipariş"
-                              : orderSection === "preparing"
-                              ? "Kargoya Hazırlanıyor"
-                              : orderSection === "shipped"
-                              ? "Kargoda"
-                              : "Teslim Edildi"}
-                          </span>
-                        </div>
-
-                        <div className="text-[11px] font-bold text-slate-600">
-                          {formatDate(
-                            order.agreedDeliveryDate ||
-                              order.lastModifiedDate
-                          )}
-                        </div>
-
-                        <div>
-                          {orderSection === "new" ? (
-                            <button
-                              type="button"
-                              onClick={() => void approveOrder(order)}
-                              disabled={
-                                orderActionId ===
-                                (order.packageId ||
-                                  order.orderNumber ||
-                                  "")
-                              }
-                              className="h-9 rounded-xl bg-blue-600 px-4 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {orderActionId ===
-                              (order.packageId ||
-                                order.orderNumber ||
-                                "")
-                                ? "ONAYLANIYOR..."
-                                : "ONAYLA"}
-                            </button>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400">
-                              —
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            ) : sortedListings.length === 0 ? (
-              <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl text-slate-400">
-                  ◫
-                </div>
-                <div className="mt-4 text-[15px] font-black text-slate-800">
-                  Ürün bulunamadı
-                </div>
-                <div className="mt-2 max-w-lg text-[12px] font-semibold leading-5 text-slate-500">
-                  {activeSection === "open"
-                    ? "Satışa açık, stoklu ürün bulunamadı."
-                    : "Satışa kapalı, stok 0 ürün bulunamadı."}
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <div className="min-w-[1280px]">
-                  <div className="grid grid-cols-[minmax(560px,2.8fr)_0.55fr_0.78fr_0.9fr_0.9fr_1.25fr] items-center rounded-t-2xl border-b border-slate-200 bg-slate-50/90 px-6 py-4 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                <div className="min-w-[1160px]">
+                  <div className="grid grid-cols-[minmax(500px,2.5fr)_0.5fr_0.7fr_0.85fr_0.85fr_1.15fr] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-3 text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">
                     <div>Ürün</div>
                     <div>Stok</div>
                     <div>Durum</div>
@@ -2708,7 +2572,6 @@ export default function Online() {
                     const memory = item.memory || item.device_memory || "—";
                     const color = item.color || item.device_color || "—";
                     const gradeRaw = item.grade || item.device_grade || "—";
-                    const warranty = item.warranty || item.device_warranty || "—";
 
                     const gradeText = (() => {
                       const normalized = String(gradeRaw)
@@ -2754,119 +2617,112 @@ export default function Online() {
                     return (
                       <div
                         key={item.id}
-                        className="grid min-h-[104px] grid-cols-[minmax(560px,2.8fr)_0.55fr_0.78fr_0.9fr_0.9fr_1.25fr] items-center border-b border-slate-100 px-6 py-5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50/70"
+                        className="grid min-h-[78px] grid-cols-[minmax(500px,2.5fr)_0.5fr_0.7fr_0.85fr_0.85fr_1.15fr] items-center border-b border-slate-100 px-4 py-3 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50/70"
                       >
-                        <div className="min-w-0 pr-8">
-                          <div className="truncate text-[15px] font-black tracking-[-0.01em] text-slate-900">
-                            {productTitle}
+                        <div className="flex min-w-0 items-center gap-3 pr-5">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100 text-[25px] shadow-sm">
+                            📱
                           </div>
 
-                          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
-                              {gradeText}
-                            </span>
+                          <div className="min-w-0">
+                            <div className="truncate text-[12px] font-black text-slate-950">
+                              {productTitle}
+                            </div>
 
-                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
-                              {color}
-                            </span>
-
-                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
-                              {memory}
-                            </span>
-
-                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
-                              Yenilenmiş
-                            </span>
-
-                            {warranty !== "—" ? (
-                              <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
-                                {warranty}
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">
+                                {gradeText}
                               </span>
-                            ) : null}
-                          </div>
-
-                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold text-slate-400">
-                            <span>
-                              IMEI / SKU:{" "}
-                              <span className="font-mono text-slate-500">
-                                {item.external_stock_code ||
-                                  item.device_imei ||
-                                  "—"}
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">
+                                {color}
                               </span>
-                            </span>
-
-                            <span className="text-slate-300">|</span>
-
-                            <span>
-                              N11 ID:{" "}
-                              <span className="font-mono text-slate-500">
-                                {item.external_product_id || "Henüz yok"}
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">
+                                {memory}
                               </span>
-                            </span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">
+                                Yenilenmiş
+                              </span>
+                            </div>
+
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[8px] font-bold text-slate-400">
+                              <span>
+                                SKU:{" "}
+                                <span className="font-mono text-slate-500">
+                                  {item.external_stock_code || "—"}
+                                </span>
+                              </span>
+                              <span className="text-slate-300">|</span>
+                              <span>
+                                IMEI:{" "}
+                                <span className="font-mono text-slate-500">
+                                  {item.device_imei ||
+                                    item.external_stock_code ||
+                                    "—"}
+                                </span>
+                              </span>
+                              <span className="text-slate-300">|</span>
+                              <span>
+                                N11 ID:{" "}
+                                <span className="font-mono text-slate-500">
+                                  {item.external_product_id || "Henüz yok"}
+                                </span>
+                              </span>
+                            </div>
                           </div>
                         </div>
 
                         <div>
-                          <div
-                            className={`text-[17px] font-black ${
-                              Number(item.quantity || 0) <= 0
-                                ? "text-red-600"
-                                : "text-slate-900"
-                            }`}
-                          >
+                          <div className="text-[14px] font-black text-slate-950">
                             {Number(item.quantity || 0)}
                           </div>
-                          <div className="mt-1 text-[10px] font-bold text-slate-400">
+                          <div className="text-[8px] font-bold text-slate-400">
                             Adet
                           </div>
                         </div>
 
                         <div>
                           <span
-                            className={`inline-flex items-center rounded-xl px-3.5 py-1.5 text-[10px] font-black ring-1 ${status.className}`}
+                            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[9px] font-black ring-1 ${status.className}`}
                           >
                             {status.label}
                           </span>
-                          <div className="mt-1.5 text-[10px] font-semibold text-slate-400">
-                            {formatDate(item.updated_at)}
-                          </div>
                         </div>
 
                         <div>
-                          <div className="text-[14px] font-black text-slate-900">
+                          <div className="text-[12px] font-black text-slate-950">
                             {formatMoney(Number(item.sale_price || 0))}
                           </div>
-                          <div className="mt-1 text-[10px] font-bold text-slate-400">
+                          <div className="mt-0.5 text-[8px] font-bold text-slate-400">
                             N11 Satış Fiyatı
                           </div>
                         </div>
 
                         <div>
-                          <div className="text-[14px] font-black text-slate-900">
+                          <div className="text-[12px] font-black text-slate-950">
                             {formatMoney(Number(item.list_price || 0))}
                           </div>
-                          <div className="mt-1 text-[10px] font-bold text-slate-400">
+                          <div className="mt-0.5 text-[8px] font-bold text-slate-400">
                             N11 Liste Fiyatı
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => openEditModal(item)}
                             disabled={actionSaving}
-                            className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 text-[10px] font-black text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           >
-                            DÜZENLE
+                            Düzenle
                           </button>
 
                           <button
                             type="button"
                             onClick={() => openPriceModal(item)}
                             disabled={actionSaving}
-                            className="inline-flex h-9 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-3.5 text-[10px] font-black text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:opacity-50"
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-[9px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                           >
-                            FİYAT
+                            Fiyat
                           </button>
                         </div>
                       </div>
