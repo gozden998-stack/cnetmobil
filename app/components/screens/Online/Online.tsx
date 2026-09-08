@@ -762,7 +762,7 @@ export default function Online() {
     }
 
     const confirmed = window.confirm(
-      `${rows.length} cihaz tekli ürün ekleme ile AYNI N11 akışından gönderilecek.\n\nDevam edilsin mi?`
+      `${rows.length} cihaz tekli ürün ekleme ile AYNI N11 akışından gönderilecek.\n\nAynı varyantın farklı IMEI'leri sırayla işlenecek ve N11 stok adedi tek tek artırılacak.\n\nDevam edilsin mi?`
     );
 
     if (!confirmed) return;
@@ -773,98 +773,197 @@ export default function Online() {
     setBulkUploadResults([]);
 
     const results: BulkUploadResult[] = new Array(rows.length);
-    let nextIndex = 0;
     let completed = 0;
 
-    const worker = async () => {
-      while (true) {
-        const index = nextIndex;
-        nextIndex += 1;
+    // KRİTİK:
+    // Aynı varyantın farklı IMEI'lerini PARALEL göndermiyoruz.
+    //
+    // Örnek:
+    // iPhone 13 / 128GB / Siyah / A / 12AY
+    // IMEI-1
+    // IMEI-2
+    //
+    // Eski yapıda 3 worker aynı anda çalıştığı için iki satır da
+    // mevcut stoğu "1" görüp ikisi de "2" gönderebiliyordu.
+    // Sonuç: 2 yeni IMEI olmasına rağmen N11 stok sadece +1 artıyordu.
+    //
+    // Yeni yapı:
+    // - Aynı varyant kendi grubunda SIRALI işlenir.
+    // - Farklı varyant grupları yine paralel çalışabilir.
+    const normalizeBulkVariantPart = (
+      value: unknown
+    ) =>
+      String(value ?? "")
+        .trim()
+        .toLocaleLowerCase("tr-TR")
+        .replace(/\s+/g, "");
 
-        if (index >= rows.length) {
+    const groupedRows = new Map<
+      string,
+      Array<{
+        row: (typeof rows)[number];
+        index: number;
+      }>
+    >();
+
+    rows.forEach((row, index) => {
+      const variantKey = [
+        row.brand,
+        row.model,
+        row.memory,
+        row.color,
+        row.grade,
+        row.warranty,
+      ]
+        .map(normalizeBulkVariantPart)
+        .join("|");
+
+      const group =
+        groupedRows.get(variantKey) || [];
+
+      group.push({
+        row,
+        index,
+      });
+
+      groupedRows.set(
+        variantKey,
+        group
+      );
+    });
+
+    const groups =
+      Array.from(
+        groupedRows.values()
+      );
+
+    let nextGroupIndex = 0;
+
+    const processRow = async (
+      row: (typeof rows)[number],
+      index: number
+    ) => {
+      try {
+        const response = await fetch(
+          "/api/online/listings",
+          {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imei: row.imei,
+              brand: row.brand,
+              model: row.model,
+              memory: row.memory,
+              color: row.color,
+              grade: row.grade,
+              warranty: row.warranty,
+              salePrice: row.salePrice,
+              listPrice: row.listPrice,
+            }),
+          }
+        );
+
+        const payload = await response
+          .json()
+          .catch(() => null);
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(
+            payload?.error ||
+              "N11 ürün işlemi başarısız."
+          );
+        }
+
+        results[index] = {
+          rowNumber: row.rowNumber,
+          imei: row.imei,
+          status: "success",
+          message:
+            payload?.message ||
+            "N11'e gönderildi.",
+          pooled: Boolean(payload?.pooled),
+          n11ProductId:
+            payload?.listing?.external_product_id
+              ? String(
+                  payload.listing.external_product_id
+                )
+              : null,
+        };
+      } catch (err) {
+        results[index] = {
+          rowNumber: row.rowNumber,
+          imei: row.imei,
+          status: "error",
+          message:
+            err instanceof Error
+              ? err.message
+              : "N11 ürün işlemi başarısız.",
+          pooled: false,
+          n11ProductId: null,
+        };
+      } finally {
+        completed += 1;
+
+        setBulkCompleted(
+          completed
+        );
+
+        setBulkUploadResults(
+          results.filter(Boolean)
+        );
+      }
+    };
+
+    const groupWorker = async () => {
+      while (true) {
+        const groupIndex =
+          nextGroupIndex;
+
+        nextGroupIndex += 1;
+
+        if (
+          groupIndex >=
+          groups.length
+        ) {
           return;
         }
 
-        const row = rows[index];
+        const group =
+          groups[groupIndex];
 
-        try {
-          const response = await fetch(
-            "/api/online/listings",
-            {
-              method: "POST",
-              cache: "no-store",
-              credentials: "same-origin",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                imei: row.imei,
-                brand: row.brand,
-                model: row.model,
-                memory: row.memory,
-                color: row.color,
-                grade: row.grade,
-                warranty: row.warranty,
-                salePrice: row.salePrice,
-                listPrice: row.listPrice,
-              }),
-            }
-          );
-
-          const payload = await response
-            .json()
-            .catch(() => null);
-
-          if (!response.ok || !payload?.success) {
-            throw new Error(
-              payload?.error ||
-                "N11 ürün işlemi başarısız."
-            );
-          }
-
-          results[index] = {
-            rowNumber: row.rowNumber,
-            imei: row.imei,
-            status: "success",
-            message:
-              payload?.message ||
-              "N11'e gönderildi.",
-            pooled: Boolean(payload?.pooled),
-            n11ProductId:
-              payload?.listing?.external_product_id
-                ? String(payload.listing.external_product_id)
-                : null,
-          };
-        } catch (err) {
-          results[index] = {
-            rowNumber: row.rowNumber,
-            imei: row.imei,
-            status: "error",
-            message:
-              err instanceof Error
-                ? err.message
-                : "N11 ürün işlemi başarısız.",
-            pooled: false,
-            n11ProductId: null,
-          };
-        } finally {
-          completed += 1;
-          setBulkCompleted(completed);
-          setBulkUploadResults(
-            results.filter(Boolean)
+        // Aynı varyant içindeki IMEI'ler MUTLAKA sırayla.
+        for (const item of group) {
+          await processRow(
+            item.row,
+            item.index
           );
         }
       }
     };
 
     try {
-      // N11'e aşırı yük bindirmeden aynı anda 3 cihaz işlenir.
-      const workerCount = Math.min(3, rows.length);
+      // Farklı ürün/varyant grupları performans için paralel kalabilir.
+      // Aynı varyant grubu ise tek worker içinde sırayla gider.
+      const workerCount =
+        Math.min(
+          3,
+          groups.length
+        );
 
       await Promise.all(
         Array.from(
-          { length: workerCount },
-          () => worker()
+          {
+            length:
+              Math.max(
+                1,
+                workerCount
+              ),
+          },
+          () => groupWorker()
         )
       );
 
