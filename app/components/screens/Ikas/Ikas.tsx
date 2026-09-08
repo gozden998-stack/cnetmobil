@@ -58,6 +58,72 @@ function countArray(
     : 0;
 }
 
+
+function objectTitle(
+  value: any
+) {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return String(
+      value ?? "-"
+    );
+  }
+
+  const candidates = [
+    value.name,
+    value.title,
+    value.label,
+    value.displayName,
+    value.code,
+    value.value,
+    value.id,
+  ];
+
+  for (
+    const candidate of candidates
+  ) {
+    const text =
+      String(
+        candidate ?? ""
+      ).trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return "Kayıt";
+}
+
+function scalarEntries(
+  value: any
+) {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return [];
+  }
+
+  return Object.entries(
+    value
+  )
+    .filter(
+      ([, item]) =>
+        item === null ||
+        [
+          "string",
+          "number",
+          "boolean",
+        ].includes(
+          typeof item
+        )
+    )
+    .slice(0, 8);
+}
+
 export default function Ikas() {
   const [
     connection,
@@ -98,6 +164,13 @@ export default function Ikas() {
     inventorySearch,
     setInventorySearch,
   ] = useState("");
+
+  const [
+    structure,
+    setStructure,
+  ] = useState<ApiState>(
+    emptyState
+  );
 
   const testConnection =
     useCallback(async () => {
@@ -298,6 +371,57 @@ export default function Ikas() {
             error instanceof Error
               ? error.message
               : "İkas tüm stok okunamadı.",
+          data: null,
+        });
+      }
+    }, []);
+
+  const loadStructure =
+    useCallback(async () => {
+      setStructure({
+        loading: true,
+        success: null,
+        error: "",
+        data: null,
+      });
+
+      try {
+        const response =
+          await fetch(
+            "/api/online/ikas/structure",
+            {
+              method: "GET",
+              cache: "no-store",
+            }
+          );
+
+        const payload =
+          await response.json();
+
+        if (
+          !response.ok ||
+          !payload?.success
+        ) {
+          throw new Error(
+            payload?.error ||
+              "İkas yapı bilgileri okunamadı."
+          );
+        }
+
+        setStructure({
+          loading: false,
+          success: true,
+          error: "",
+          data: payload,
+        });
+      } catch (error) {
+        setStructure({
+          loading: false,
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "İkas yapı bilgileri okunamadı.",
           data: null,
         });
       }
@@ -544,6 +668,12 @@ export default function Ikas() {
             </div>
           )}
 
+          {structure.error && (
+            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-bold text-rose-700">
+              {structure.error}
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
               <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -716,6 +846,42 @@ export default function Ikas() {
             </div>
           </div>
 
+          <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-700">
+                  ADIM 3.2
+                </div>
+
+                <div className="mt-2 text-base font-black text-slate-900">
+                  Lokasyon + Fiyat + Grade / Garanti Yapısı
+                </div>
+
+                <p className="mt-2 max-w-3xl text-[10px] font-semibold leading-5 text-slate-500">
+                  Stok lokasyonlarının gerçek isimlerini, fiyat listelerini ve İkas Product Attribute alanlarını read-only okuyacağız.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void loadStructure();
+                }}
+                disabled={
+                  structure.loading ||
+                  !inventory.success
+                }
+                className="w-fit rounded-xl bg-cyan-700 px-4 py-2.5 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {structure.loading
+                  ? "Yapı Okunuyor..."
+                  : structure.success
+                  ? "Yapıyı Yenile"
+                  : "Yapıyı Oku"}
+              </button>
+            </div>
+          </div>
+
           {discovery.success && (
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
               <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -769,6 +935,231 @@ export default function Ikas() {
             </div>
           )}
 
+
+          {structure.success && (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-cyan-200 bg-white">
+              <div className="border-b border-cyan-100 bg-cyan-50/60 px-5 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-700">
+                      İkas Yapı Analizi
+                    </div>
+
+                    <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                      Sadece okunmuştur. Ürün, stok, fiyat veya attribute değiştirilmedi.
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-cyan-700 ring-1 ring-cyan-200">
+                      Lokasyon: {structure.data?.analysis?.stockLocationCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-blue-700 ring-1 ring-blue-200">
+                      Fiyat Listesi: {structure.data?.analysis?.priceListCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-violet-700 ring-1 ring-violet-200">
+                      Attribute: {structure.data?.analysis?.productAttributeCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-emerald-700 ring-1 ring-emerald-200">
+                      Grade Adayı: {structure.data?.analysis?.gradeCandidateCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-amber-700 ring-1 ring-amber-200">
+                      Garanti Adayı: {structure.data?.analysis?.warrantyCandidateCount ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-px bg-slate-200 xl:grid-cols-3">
+                <div className="bg-white p-5">
+                  <div className="mb-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Stok Lokasyonları
+                  </div>
+
+                  <div className="space-y-2">
+                    {(Array.isArray(
+                      structure.data?.stockLocations?.data
+                    )
+                      ? structure.data.stockLocations.data
+                      : []
+                    ).map(
+                      (item: any, index: number) => (
+                        <div
+                          key={item?.id || index}
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                        >
+                          <div className="text-[10px] font-black text-slate-800">
+                            {objectTitle(item)}
+                          </div>
+
+                          <div className="mt-1 space-y-0.5">
+                            {scalarEntries(item).map(
+                              ([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-3 text-[7px] font-bold text-slate-400"
+                                >
+                                  <span>{key}</span>
+                                  <span className="max-w-[65%] break-all text-right text-slate-600">
+                                    {String(value ?? "-")}
+                                  </span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {(!Array.isArray(
+                      structure.data?.stockLocations?.data
+                    ) ||
+                      structure.data.stockLocations.data.length === 0) && (
+                      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[9px] font-bold text-slate-400">
+                        Lokasyon verisi bulunamadı.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5">
+                  <div className="mb-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Fiyat Listeleri
+                  </div>
+
+                  <div className="space-y-2">
+                    {(Array.isArray(
+                      structure.data?.priceLists?.data
+                    )
+                      ? structure.data.priceLists.data
+                      : []
+                    ).map(
+                      (item: any, index: number) => (
+                        <div
+                          key={item?.id || index}
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                        >
+                          <div className="text-[10px] font-black text-slate-800">
+                            {objectTitle(item)}
+                          </div>
+
+                          <div className="mt-1 space-y-0.5">
+                            {scalarEntries(item).map(
+                              ([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-3 text-[7px] font-bold text-slate-400"
+                                >
+                                  <span>{key}</span>
+                                  <span className="max-w-[65%] break-all text-right text-slate-600">
+                                    {String(value ?? "-")}
+                                  </span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {(!Array.isArray(
+                      structure.data?.priceLists?.data
+                    ) ||
+                      structure.data.priceLists.data.length === 0) && (
+                      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[9px] font-bold text-slate-400">
+                        Fiyat listesi verisi bulunamadı.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5">
+                  <div className="mb-3 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Product Attribute
+                  </div>
+
+                  <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                    {(Array.isArray(
+                      structure.data?.productAttributes?.data
+                    )
+                      ? structure.data.productAttributes.data
+                      : []
+                    ).map(
+                      (item: any, index: number) => (
+                        <div
+                          key={item?.id || index}
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                        >
+                          <div className="text-[10px] font-black text-slate-800">
+                            {objectTitle(item)}
+                          </div>
+
+                          <div className="mt-1 space-y-0.5">
+                            {scalarEntries(item).map(
+                              ([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-3 text-[7px] font-bold text-slate-400"
+                                >
+                                  <span>{key}</span>
+                                  <span className="max-w-[65%] break-all text-right text-slate-600">
+                                    {String(value ?? "-")}
+                                  </span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {(!Array.isArray(
+                      structure.data?.productAttributes?.data
+                    ) ||
+                      structure.data.productAttributes.data.length === 0) && (
+                      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[9px] font-bold text-slate-400">
+                        Product Attribute verisi bulunamadı.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-px border-t border-slate-200 bg-slate-200 lg:grid-cols-2">
+                <div className="bg-emerald-50/60 p-5">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                    Grade / Kalite Adayları
+                  </div>
+
+                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-100 bg-white p-3 text-[8px] font-semibold leading-4 text-slate-600">
+                    {JSON.stringify(
+                      structure.data?.analysis?.gradeCandidates ?? [],
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+
+                <div className="bg-amber-50/60 p-5">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-700">
+                    Garanti Adayları
+                  </div>
+
+                  <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl border border-amber-100 bg-white p-3 text-[8px] font-semibold leading-4 text-slate-600">
+                    {JSON.stringify(
+                      structure.data?.analysis?.warrantyCandidates ?? [],
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
 
           {inventory.success && (
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
