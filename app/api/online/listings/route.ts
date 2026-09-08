@@ -2998,6 +2998,11 @@ export async function POST(request: NextRequest) {
 
     const pool = getPool();
 
+    // Önceki denemede N11 reddetmiş ama yerel kayıt kalmış olabilir.
+    // Böyle bir kayıt varsa yeni denemede aynı satırı REUSE edeceğiz;
+    // "Önceki create başarısız" deyip kullanıcıyı kilitlemeyeceğiz.
+    let retryListingId: number | null = null;
+
     const duplicate = await pool.query(
       `
         SELECT
@@ -3021,54 +3026,73 @@ export async function POST(request: NextRequest) {
       const existing =
         duplicate.rows[0];
 
-      if (!existing.external_product_id) {
-        const reconciliation =
-          await reconcilePendingN11Listing(
-            existing
-          );
+      if (existing.external_product_id) {
+        return json(
+          {
+            success: false,
+            error:
+              'Bu IMEI için N11 ürünü zaten mevcut.',
+            existingListing:
+              existing,
+          },
+          409
+        );
+      }
 
-        if (
-          reconciliation.state ===
-          'CREATED'
-        ) {
-          return json(
-            {
-              success: true,
-              n11Requested: true,
-              created: true,
-              pending: false,
-              recoveredExisting:
-                true,
-              message:
-                `Cihaz N11’de mevcut. N11 ürün kodu panele işlendi. IMEI/Stok Kodu: ${imei}`,
-              listing:
-                reconciliation.listing,
-            },
-            200
-          );
-        }
+      const reconciliation =
+        await reconcilePendingN11Listing(
+          existing
+        );
 
-        if (
-          reconciliation.state ===
-          'ERROR'
-        ) {
-          return json(
-            {
-              success: false,
-              n11Requested: true,
-              created: false,
-              pending: false,
-              recoveredExisting:
-                false,
-              error:
-                `Önceki N11 create işlemi başarısız: ${reconciliation.error}`,
-              existingListing:
-                reconciliation.listing,
-            },
-            422
-          );
-        }
+      if (
+        reconciliation.state ===
+        'CREATED'
+      ) {
+        return json(
+          {
+            success: true,
+            n11Requested: true,
+            created: true,
+            pending: false,
+            recoveredExisting:
+              true,
+            message:
+              `Cihaz N11’de mevcut. N11 ürün kodu panele işlendi. IMEI/Stok Kodu: ${imei}`,
+            listing:
+              reconciliation.listing,
+          },
+          200
+        );
+      }
 
+      if (
+        reconciliation.state ===
+        'ERROR'
+      ) {
+        // Önceki create bitmiş ve reddedilmiş.
+        // Aynı IMEI yeni denemede KİLİTLENMEZ.
+        // Eski listing satırı reuse edilerek yeni catalog seçimi ve
+        // yeni create işlemi aşağıda devam eder.
+        retryListingId =
+          Number(existing.id);
+
+        await pool.query(
+          `
+            UPDATE public.online_listings
+            SET
+              quantity = 0,
+              sync_status = 'RETRY_READY',
+              last_task_id = NULL,
+              last_task_status = NULL,
+              last_error = NULL,
+              updated_at = now()
+            WHERE id = $1
+              AND external_product_id IS NULL
+          `,
+          [retryListingId]
+        );
+      } else {
+        // Gerçekten hâlâ IN_QUEUE / PENDING ise ikinci create atma.
         return json(
           {
             success: true,
@@ -3087,16 +3111,6 @@ export async function POST(request: NextRequest) {
           202
         );
       }
-
-      return json(
-        {
-          success: false,
-          error:
-            'Bu IMEI için N11 ürünü zaten mevcut.',
-          existingListing: existing,
-        },
-        409
-      );
     }
 
     const channel = await getN11StoreDefaults();
@@ -3669,121 +3683,192 @@ export async function POST(request: NextRequest) {
     const description =
       `Yenilenmiş ${brand} ${model} ${normalizedMemory} ${color} ${normalizedGrade} ${normalizedWarranty}`;
 
-    // Önce yerel kayıt açılır.
-    // N11 create başarısızsa ERROR nedeni burada saklanır.
-    const insertResult = await pool.query(
-      `
-        INSERT INTO public.online_listings (
-          stock_device_id,
-          channel,
-          external_product_id,
-          external_stock_code,
-          external_product_main_id,
-          category_id,
-          title,
-          description,
-          brand,
-          model,
-          memory,
-          color,
-          grade,
-          warranty,
-          sale_price,
-          list_price,
-          quantity,
-          product_status,
-          sale_status,
-          sync_status,
-          preparing_day,
-          shipment_template,
-          currency_type,
-          vat_rate,
-          raw_data,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          NULL,
-          'N11',
-          NULL,
-          $1,
-          $2,
-          $3::bigint,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9,
-          $10,
-          $11,
-          $12,
-          $13,
-          0,
-          NULL,
-          NULL,
-          'CREATING',
-          $14,
-          $15,
-          'TL',
-          $16,
-          $17::jsonb,
-          now(),
-          now()
-        )
-        RETURNING *
-      `,
-      [
+    // Yerel kayıt:
+    // - İlk denemeyse INSERT
+    // - Aynı IMEI'nin önceki denemesi REJECT/ERROR ise aynı satırı UPDATE/REUSE
+    // Böylece eski başarısız task kullanıcıyı sonsuza kadar kilitlemez.
+    let listing: any;
+
+    const listingParams = [
+      imei,
+      productMainId,
+      categoryId,
+      title,
+      description,
+      brand,
+      model,
+      memory,
+      color,
+      normalizedGrade,
+      normalizedWarranty,
+      salePrice,
+      listPrice,
+      preparingDay,
+      shipmentTemplate,
+      vatRate,
+      JSON.stringify({
+        draftSource:
+          'PANEL_N11_RENEWED_SEARCH_CATALOG_CREATE',
+        createdBy: auth.user.username,
         imei,
-        productMainId,
-        categoryId,
-        title,
-        description,
+        catalogSearchTitle,
+        selectedCatalogId: catalogId,
+        selectedCatalogCategoryId:
+          categoryId,
+        selectedCatalogTitle:
+          catalogProduct.productTitle,
+        selectedCatalogUsc:
+          catalogProduct.usc,
         brand,
         model,
         memory,
         color,
-        normalizedGrade,
-        normalizedWarranty,
+        grade:
+          normalizedGrade,
+        warranty:
+          normalizedWarranty,
+        catalogSource,
+        productCondition:
+          'YENILENMIS',
+        renewedCategoryId,
+        renewedCategoryProductCount:
+          renewedCategory.productCount,
         salePrice,
         listPrice,
-        preparingDay,
-        shipmentTemplate,
-        vatRate,
-        JSON.stringify({
-          draftSource:
-            'PANEL_N11_RENEWED_SEARCH_CATALOG_CREATE',
-          createdBy: auth.user.username,
-          imei,
-          catalogSearchTitle,
-          selectedCatalogId: catalogId,
-          selectedCatalogCategoryId:
-            categoryId,
-          selectedCatalogTitle:
-            catalogProduct.productTitle,
-          selectedCatalogUsc:
-            catalogProduct.usc,
-          brand,
-          model,
-          memory,
-          color,
-          grade:
-            normalizedGrade,
-          warranty:
-            normalizedWarranty,
-          catalogSource,
-          productCondition:
-            'YENILENMIS',
-          renewedCategoryId,
-          renewedCategoryProductCount:
-            renewedCategory.productCount,
-          salePrice,
-          listPrice,
-        }),
-      ]
-    );
+        retriedFromPreviousFailure:
+          Boolean(retryListingId),
+      }),
+    ];
 
-    const listing = insertResult.rows[0];
+    if (retryListingId) {
+      const retryResult =
+        await pool.query(
+          `
+            UPDATE public.online_listings
+            SET
+              stock_device_id = NULL,
+              channel = 'N11',
+              external_product_id = NULL,
+              external_stock_code = $1,
+              external_product_main_id = $2,
+              category_id = $3::bigint,
+              title = $4,
+              description = $5,
+              brand = $6,
+              model = $7,
+              memory = $8,
+              color = $9,
+              grade = $10,
+              warranty = $11,
+              sale_price = $12,
+              list_price = $13,
+              quantity = 0,
+              product_status = NULL,
+              sale_status = NULL,
+              sync_status = 'CREATING',
+              preparing_day = $14,
+              shipment_template = $15,
+              currency_type = 'TL',
+              vat_rate = $16,
+              raw_data = $17::jsonb,
+              last_task_id = NULL,
+              last_task_status = NULL,
+              last_error = NULL,
+              last_synced_at = NULL,
+              updated_at = now()
+            WHERE id = $18
+              AND external_product_id IS NULL
+            RETURNING *
+          `,
+          [
+            ...listingParams,
+            retryListingId,
+          ]
+        );
+
+      listing =
+        retryResult.rows[0];
+
+      if (!listing) {
+        return json(
+          {
+            success: false,
+            error:
+              'Önceki başarısız N11 kaydı yeniden kullanılamadı. Lütfen paneli yenileyip tekrar deneyin.',
+          },
+          409
+        );
+      }
+    } else {
+      const insertResult =
+        await pool.query(
+          `
+            INSERT INTO public.online_listings (
+              stock_device_id,
+              channel,
+              external_product_id,
+              external_stock_code,
+              external_product_main_id,
+              category_id,
+              title,
+              description,
+              brand,
+              model,
+              memory,
+              color,
+              grade,
+              warranty,
+              sale_price,
+              list_price,
+              quantity,
+              product_status,
+              sale_status,
+              sync_status,
+              preparing_day,
+              shipment_template,
+              currency_type,
+              vat_rate,
+              raw_data,
+              created_at,
+              updated_at
+            )
+            VALUES (
+              NULL,
+              'N11',
+              NULL,
+              $1,
+              $2,
+              $3::bigint,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9,
+              $10,
+              $11,
+              $12,
+              $13,
+              0,
+              NULL,
+              NULL,
+              'CREATING',
+              $14,
+              $15,
+              'TL',
+              $16,
+              $17::jsonb,
+              now(),
+              now()
+            )
+            RETURNING *
+          `,
+          listingParams
+        );
+
+      listing =
+        insertResult.rows[0];
+    }
 
     // SearchCatalog catalogId bulduğunda N11'in HIZLI ÜRÜN YÜKLEME
     // akışını kullanıyoruz. images ve attributes boş gönderilebilir.
