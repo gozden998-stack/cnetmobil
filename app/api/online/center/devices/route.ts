@@ -1,20 +1,38 @@
-// app/api/online/center/devices/route.ts
-// CNETMOBIL - MERKEZ ADIM 1
+// app/api/online/center/devices/create/route.ts
+// CNETMOBIL - MERKEZ ADIM 2A
 //
-// READ ONLY.
-// Merkezi fiziksel IMEI stok ekranı.
+// Güvenli tekli cihaz girişi.
 //
-// Kaynaklar:
-// - public.stock_devices         : fiziksel cihaz / IMEI source of truth
-// - public.online_channel_devices: kanal bazlı IMEI üyeliği (varsa)
-// - public.online_listings       : N11 eski availableImeis kayıtlarından
-//                                  read-only fallback kanal durumu
+// UI alanları:
+// - IMEI
+// - Marka
+// - Model
+// - Hafıza
+// - Renk
+// - Grade
+// - Garanti
+//
+// UI'da özellikle YOK:
+// - Durum
+// - Mağaza
+// - Pil
+// - Değişen parça
+// - Kutu / fatura
+//
+// Teknik kayıt:
+// - current_branch_code = CNET
+// - status = AVAILABLE
+// - battery_percent = NULL
+// - changed_parts = NULL
+// - box_invoice = NULL
 //
 // Bu route:
-// - hiçbir marketplace API'sine yazmaz
-// - stok değiştirmez
-// - ürün oluşturmaz
-// - aynı IMEI'nin N11 / IKAS / IDEFIX durumunu döndürür
+// - N11'e yazmaz
+// - İkas'a yazmaz
+// - İdefix'e yazmaz
+// - online_listings oluşturmaz
+// - online_channel_devices oluşturmaz
+// - mevcut /api/stock/devices route'unu değiştirmez
 
 import {
   NextRequest,
@@ -22,6 +40,7 @@ import {
 } from "next/server";
 import {
   Pool,
+  type PoolClient,
 } from "pg";
 import crypto from "crypto";
 
@@ -35,13 +54,16 @@ export const revalidate = 0;
 
 declare global {
   // eslint-disable-next-line no-var
-  var cnetCenterDevicesPool:
+  var cnetCenterCreatePool:
     | Pool
     | undefined;
 }
 
 const COOKIE_NAME =
   "cnet_auth";
+
+const CENTER_BRANCH_CODE =
+  "CNET";
 
 type SessionPayload = {
   userId: number | null;
@@ -53,18 +75,10 @@ type SessionPayload = {
   legacy?: boolean;
 };
 
-type ChannelCode =
-  | "N11"
-  | "IKAS"
-  | "IDEFIX";
-
-type ChannelStatus = {
-  channel: ChannelCode;
-  status: string | null;
-  listingId: number | null;
-  salePrice: number | null;
-  listPrice: number | null;
-  source: string | null;
+type ActiveUser = {
+  id: number;
+  username: string;
+  isSuperAdmin: boolean;
 };
 
 function json(
@@ -102,10 +116,10 @@ function getPool() {
 
   if (
     !global
-      .cnetCenterDevicesPool
+      .cnetCenterCreatePool
   ) {
     global
-      .cnetCenterDevicesPool =
+      .cnetCenterCreatePool =
       new Pool({
         connectionString,
         max: 4,
@@ -117,7 +131,21 @@ function getPool() {
   }
 
   return global
-    .cnetCenterDevicesPool;
+    .cnetCenterCreatePool;
+}
+
+function getSessionSecret() {
+  const secret =
+    process.env
+      .SESSION_SECRET;
+
+  if (!secret) {
+    throw new Error(
+      "SESSION_SECRET bulunamadı."
+    );
+  }
+
+  return secret;
 }
 
 function verifySession(
@@ -136,19 +164,11 @@ function verifySession(
       return null;
     }
 
-    const secret =
-      process.env
-        .SESSION_SECRET;
-
-    if (!secret) {
-      return null;
-    }
-
     const expected =
       crypto
         .createHmac(
           "sha256",
-          secret
+          getSessionSecret()
         )
         .update(encoded)
         .digest(
@@ -206,23 +226,70 @@ function verifySession(
   }
 }
 
-async function requireSuperAdmin(
+function validateOrigin(
   request: NextRequest
 ) {
+  const origin =
+    request.headers.get(
+      "origin"
+    );
+
+  const expectedAppUrl =
+    process.env.APP_URL;
+
+  if (!origin) {
+    return false;
+  }
+
+  if (expectedAppUrl) {
+    try {
+      return (
+        origin ===
+        new URL(
+          expectedAppUrl
+        ).origin
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  const host =
+    request.headers.get(
+      "host"
+    );
+
+  const proto =
+    request.headers.get(
+      "x-forwarded-proto"
+    ) ||
+    request.nextUrl.protocol.replace(
+      ":",
+      ""
+    );
+
+  if (!host) {
+    return false;
+  }
+
+  return (
+    origin ===
+    `${proto}://${host}`
+  );
+}
+
+async function getSuperAdmin(
+  request: NextRequest
+): Promise<
+  ActiveUser | null
+> {
   const token =
     request.cookies.get(
       COOKIE_NAME
     )?.value;
 
   if (!token) {
-    return json(
-      {
-        success: false,
-        error:
-          "Oturum gerekli.",
-      },
-      401
-    );
+    return null;
   }
 
   const session =
@@ -231,20 +298,15 @@ async function requireSuperAdmin(
   if (
     !session?.userId
   ) {
-    return json(
-      {
-        success: false,
-        error:
-          "Geçersiz oturum.",
-      },
-      401
-    );
+    return null;
   }
 
   const result =
     await getPool().query(
       `
         SELECT
+          u.id,
+          u.username,
           u.active,
           EXISTS (
             SELECT 1
@@ -273,75 +335,138 @@ async function requireSuperAdmin(
     row.is_super_admin !==
       true
   ) {
-    return json(
-      {
-        success: false,
-        error:
-          "Merkez ekranı yalnızca Super Admin içindir.",
-      },
-      403
-    );
+    return null;
   }
 
-  return null;
+  return {
+    id: Number(row.id),
+    username: String(
+      row.username
+    ),
+    isSuperAdmin: true,
+  };
 }
 
-function text(
+function collapseSpaces(
   value: unknown
 ) {
   return String(
     value ?? ""
-  ).trim();
+  )
+    .trim()
+    .replace(
+      /\s+/g,
+      " "
+    );
 }
 
-function numberOrNull(
-  value: unknown
+function cleanRequired(
+  value: unknown,
+  label: string,
+  maxLength: number
 ) {
-  if (
-    value === null ||
-    value === undefined ||
-    text(value) === ""
-  ) {
-    return null;
+  const result =
+    collapseSpaces(value);
+
+  if (!result) {
+    throw new Error(
+      `${label} zorunludur.`
+    );
   }
 
-  const number =
-    Number(value);
+  if (
+    result.length >
+    maxLength
+  ) {
+    throw new Error(
+      `${label} çok uzun.`
+    );
+  }
 
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : null;
+  return result;
 }
 
-function normalizePart(
+function normalizeImei(
   value: unknown
 ) {
-  return text(value)
-    .toLocaleUpperCase(
-      "tr-TR"
-    )
-    .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      ""
-    )
-    .replace(
-      /[^A-Z0-9]+/g,
-      ""
+  return String(
+    value ?? ""
+  )
+    .replace(/\D/g, "")
+    .trim();
+}
+
+function normalizeMemory(
+  value: unknown
+) {
+  const raw =
+    collapseSpaces(value);
+
+  if (!raw) {
+    throw new Error(
+      "Hafıza zorunludur."
     );
+  }
+
+  const compact =
+    raw
+      .toLocaleUpperCase(
+        "tr-TR"
+      )
+      .replace(/\s+/g, "");
+
+  const match =
+    compact.match(
+      /^(\d+(?:[.,]\d+)?)(GB|TB)$/
+    );
+
+  if (match) {
+    const amount =
+      match[1].replace(
+        ",",
+        "."
+      );
+
+    return `${amount} ${match[2]}`;
+  }
+
+  if (
+    raw.length > 50
+  ) {
+    throw new Error(
+      "Hafıza çok uzun."
+    );
+  }
+
+  return raw;
 }
 
 function normalizeGrade(
   value: unknown
 ) {
   const raw =
-    normalizePart(value);
+    collapseSpaces(value)
+      .toLocaleUpperCase(
+        "tr-TR"
+      );
+
+  const folded =
+    raw
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .replace(
+        /[^A-Z0-9]+/g,
+        ""
+      );
 
   if (
-    raw === "A" ||
-    raw.includes(
+    folded === "A" ||
+    folded ===
+      "AKALITE" ||
+    folded.includes(
       "MUKEMMEL"
     )
   ) {
@@ -349,8 +474,10 @@ function normalizeGrade(
   }
 
   if (
-    raw === "B" ||
-    raw.includes(
+    folded === "B" ||
+    folded ===
+      "BKALITE" ||
+    folded.includes(
       "COKIYI"
     )
   ) {
@@ -358,132 +485,362 @@ function normalizeGrade(
   }
 
   if (
-    raw === "C" ||
-    raw === "IYI"
+    folded === "C" ||
+    folded ===
+      "CKALITE" ||
+    folded === "IYI"
   ) {
     return "C";
   }
 
-  return (
-    text(value) || "-"
+  throw new Error(
+    "Grade yalnızca A, B veya C olabilir."
   );
 }
 
-function groupKey(
-  device: any
+function normalizeWarranty(
+  value: unknown
 ) {
-  return [
-    normalizePart(
-      device?.brand
-    ),
-    normalizePart(
-      device?.model
-    ),
-    normalizePart(
-      device?.memory
-    ),
-    normalizePart(
-      device?.color
-    ),
-    normalizePart(
-      normalizeGrade(
-        device?.grade
+  const raw =
+    collapseSpaces(value);
+
+  if (!raw) {
+    throw new Error(
+      "Garanti zorunludur."
+    );
+  }
+
+  const folded =
+    raw
+      .toLocaleLowerCase(
+        "tr-TR"
       )
-    ),
-    normalizePart(
-      device?.warranty
-    ),
-  ].join("|");
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replace(
+        /garantili/g,
+        ""
+      );
+
+  const monthMatch =
+    folded.match(
+      /^(\d{1,2})ay$/
+    );
+
+  if (monthMatch) {
+    return `${Number(
+      monthMatch[1]
+    )} Ay`;
+  }
+
+  const yearMatch =
+    folded.match(
+      /^(\d{1,2})yil$/
+    );
+
+  if (yearMatch) {
+    return `${
+      Number(
+        yearMatch[1]
+      ) * 12
+    } Ay`;
+  }
+
+  if (
+    raw.length > 100
+  ) {
+    throw new Error(
+      "Garanti çok uzun."
+    );
+  }
+
+  return raw;
 }
 
-function emptyChannel(
-  channel: ChannelCode
-): ChannelStatus {
-  return {
-    channel,
-    status: null,
-    listingId: null,
-    salePrice: null,
-    listPrice: null,
-    source: null,
-  };
-}
-
-function statusPriority(
-  status: unknown
+async function ensureCenterBranch(
+  client: PoolClient
 ) {
-  const value =
-    text(status)
-      .toUpperCase();
-
-  if (value === "SOLD") {
-    return 100;
-  }
-
-  if (
-    value === "RESERVED"
-  ) {
-    return 90;
-  }
-
-  if (
-    value === "LISTED"
-  ) {
-    return 80;
-  }
+  const result =
+    await client.query(
+      `
+        SELECT
+          code,
+          name
+        FROM public.branches
+        WHERE code = $1
+          AND is_active = TRUE
+        LIMIT 1
+      `,
+      [
+        CENTER_BRANCH_CODE,
+      ]
+    );
 
   if (
-    value ===
-    "PENDING_CREATE"
+    result.rowCount !== 1
   ) {
-    return 70;
+    throw new Error(
+      "CNET merkez stok kodu aktif değil. Cihaz kaydı yapılmadı."
+    );
   }
-
-  if (
-    value === "ERROR"
-  ) {
-    return 60;
-  }
-
-  return 10;
 }
 
-export async function GET(
+export async function POST(
   request: NextRequest
 ) {
+  let client:
+    | PoolClient
+    | null = null;
+
   try {
-    const authError =
-      await requireSuperAdmin(
+    if (
+      !validateOrigin(
+        request
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek kaynağı.",
+        },
+        403
+      );
+    }
+
+    const user =
+      await getSuperAdmin(
         request
       );
 
-    if (authError) {
-      return authError;
+    if (!user) {
+      return json(
+        {
+          success: false,
+          error:
+            "Merkez cihaz girişi yalnızca Super Admin içindir.",
+        },
+        403
+      );
     }
 
-    const pool =
-      getPool();
-
-    const schemaResult =
-      await pool.query(
-        `
-          SELECT
-            to_regclass(
-              'public.online_channel_devices'
-            ) IS NOT NULL AS has_channel_devices
-        `
+    const contentLength =
+      Number(
+        request.headers.get(
+          "content-length"
+        ) || 0
       );
 
-    const hasChannelDevices =
-      schemaResult.rows[0]
-        ?.has_channel_devices ===
-      true;
+    if (
+      contentLength >
+      50_000
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "İstek çok büyük.",
+        },
+        413
+      );
+    }
 
-    const devicesResult =
-      await pool.query(
+    const body =
+      await request
+        .json()
+        .catch(
+          () => null
+        );
+
+    if (
+      !body ||
+      typeof body !==
+        "object" ||
+      Array.isArray(body)
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek.",
+        },
+        400
+      );
+    }
+
+    const data =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const imei =
+      normalizeImei(
+        data.imei
+      );
+
+    if (
+      !/^[0-9]{15}$/.test(
+        imei
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "IMEI tam 15 hane ve yalnızca rakam olmalıdır.",
+        },
+        400
+      );
+    }
+
+    let brand: string;
+    let model: string;
+    let memory: string;
+    let color: string;
+    let grade: string;
+    let warranty: string;
+
+    try {
+      brand =
+        cleanRequired(
+          data.brand,
+          "Marka",
+          100
+        );
+
+      model =
+        cleanRequired(
+          data.model,
+          "Model",
+          180
+        );
+
+      memory =
+        normalizeMemory(
+          data.memory
+        );
+
+      color =
+        cleanRequired(
+          data.color,
+          "Renk",
+          100
+        );
+
+      grade =
+        normalizeGrade(
+          data.grade
+        );
+
+      warranty =
+        normalizeWarranty(
+          data.warranty
+        );
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error:
+            error instanceof
+              Error
+              ? error.message
+              : "Cihaz bilgileri geçersiz.",
+        },
+        400
+      );
+    }
+
+    client =
+      await getPool().connect();
+
+    await client.query(
+      "BEGIN"
+    );
+
+    await ensureCenterBranch(
+      client
+    );
+
+    const duplicate =
+      await client.query(
         `
           SELECT
             id,
+            imei,
+            brand,
+            model,
+            current_branch_code,
+            status
+          FROM public.stock_devices
+          WHERE imei = $1
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [imei]
+      );
+
+    if (
+      duplicate.rowCount
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      const existing =
+        duplicate.rows[0];
+
+      return json(
+        {
+          success: false,
+          error:
+            `Bu IMEI zaten sistemde kayıtlı. ` +
+            `${String(
+              existing?.brand ||
+                ""
+            )} ${String(
+              existing?.model ||
+                ""
+            )}`.trim() +
+            ` · Durum: ${String(
+              existing?.status ||
+                "-"
+            )}.`,
+          duplicate: {
+            id: Number(
+              existing.id
+            ),
+            imei: String(
+              existing.imei
+            ),
+            branch:
+              String(
+                existing
+                  .current_branch_code ||
+                  ""
+              ),
+            status:
+              String(
+                existing.status ||
+                  ""
+              ),
+          },
+        },
+        409
+      );
+    }
+
+    const insertResult =
+      await client.query(
+        `
+          INSERT INTO public.stock_devices (
             imei,
             brand,
             model,
@@ -497,644 +854,169 @@ export async function GET(
             current_branch_code,
             status,
             source,
+            details_completed_at,
+            details_completed_by,
+            created_by
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            NULL,
+            $6,
+            $7,
+            NULL,
+            NULL,
+            $8,
+            'AVAILABLE',
+            'MANUAL',
+            NULL,
+            NULL,
+            $9
+          )
+          RETURNING
+            id,
+            imei,
+            brand,
+            model,
+            memory,
+            color,
+            grade,
+            warranty,
+            current_branch_code,
+            status,
+            source,
             created_at,
             updated_at
-          FROM public.stock_devices
-          WHERE status <> 'PASSIVE'
-          ORDER BY
-            CASE status
-              WHEN 'AVAILABLE'
-                THEN 1
-              WHEN 'DETAILS_PENDING'
-                THEN 2
-              WHEN 'REQUESTED'
-                THEN 3
-              WHEN 'TRANSFER_WAITING'
-                THEN 4
-              WHEN 'SOLD'
-                THEN 5
-              ELSE 6
-            END,
-            updated_at DESC,
-            id DESC
-        `
-      );
-
-    const channelRows =
-      hasChannelDevices
-        ? (
-            await pool.query(
-              `
-                SELECT
-                  stock_device_id,
-                  imei,
-                  channel,
-                  online_listing_id,
-                  membership_status,
-                  channel_sale_price,
-                  channel_list_price,
-                  source_channel,
-                  updated_at
-                FROM public.online_channel_devices
-                WHERE channel IN (
-                  'N11',
-                  'IKAS',
-                  'IDEFIX'
-                )
-              `
-            )
-          ).rows
-        : [];
-
-    // Eski N11 yapısında online_channel_devices üyeliği henüz yazılmamış
-    // olabilir. raw_data.availableImeis üzerinden sadece ekranda LISTED
-    // fallback gösteriyoruz. Hiçbir DB kaydı değiştirilmez.
-    const n11FallbackResult =
-      await pool.query(
-        `
-          SELECT
-            id,
-            sale_price,
-            list_price,
-            raw_data
-          FROM public.online_listings
-          WHERE channel = 'N11'
-            AND jsonb_typeof(
-              raw_data->'availableImeis'
-            ) = 'array'
-        `
-      );
-
-    const channelByDeviceId =
-      new Map<
-        number,
-        Map<
-          ChannelCode,
-          ChannelStatus
-        >
-      >();
-
-    const channelByImei =
-      new Map<
-        string,
-        Map<
-          ChannelCode,
-          ChannelStatus
-        >
-      >();
-
-    const setStatus = (
-      deviceId: number | null,
-      imei: string,
-      next: ChannelStatus
-    ) => {
-      if (
-        deviceId &&
-        Number.isFinite(
-          deviceId
-        )
-      ) {
-        if (
-          !channelByDeviceId.has(
-            deviceId
-          )
-        ) {
-          channelByDeviceId.set(
-            deviceId,
-            new Map()
-          );
-        }
-
-        const map =
-          channelByDeviceId.get(
-            deviceId
-          )!;
-
-        const existing =
-          map.get(
-            next.channel
-          );
-
-        if (
-          !existing ||
-          statusPriority(
-            next.status
-          ) >=
-            statusPriority(
-              existing.status
-            )
-        ) {
-          map.set(
-            next.channel,
-            next
-          );
-        }
-      }
-
-      if (imei) {
-        if (
-          !channelByImei.has(
-            imei
-          )
-        ) {
-          channelByImei.set(
-            imei,
-            new Map()
-          );
-        }
-
-        const map =
-          channelByImei.get(
-            imei
-          )!;
-
-        const existing =
-          map.get(
-            next.channel
-          );
-
-        if (
-          !existing ||
-          statusPriority(
-            next.status
-          ) >=
-            statusPriority(
-              existing.status
-            )
-        ) {
-          map.set(
-            next.channel,
-            next
-          );
-        }
-      }
-    };
-
-    for (
-      const row of
-        channelRows
-    ) {
-      const channel =
-        text(
-          row?.channel
-        ).toUpperCase() as
-          ChannelCode;
-
-      if (
-        ![
-          "N11",
-          "IKAS",
-          "IDEFIX",
-        ].includes(
-          channel
-        )
-      ) {
-        continue;
-      }
-
-      setStatus(
-        Number(
-          row
-            ?.stock_device_id
-        ),
-        text(
-          row?.imei
-        ),
-        {
-          channel,
-          status:
-            text(
-              row
-                ?.membership_status
-            ) || null,
-          listingId:
-            numberOrNull(
-              row
-                ?.online_listing_id
-            ),
-          salePrice:
-            numberOrNull(
-              row
-                ?.channel_sale_price
-            ),
-          listPrice:
-            numberOrNull(
-              row
-                ?.channel_list_price
-            ),
-          source:
-            text(
-              row
-                ?.source_channel
-            ) || "CHANNEL_DEVICE",
-        }
-      );
-    }
-
-    for (
-      const listing of
-        n11FallbackResult.rows
-    ) {
-      const availableImeis =
-        Array.isArray(
-          listing?.raw_data
-            ?.availableImeis
-        )
-          ? listing
-              .raw_data
-              .availableImeis
-          : [];
-
-      for (
-        const rawImei of
-          availableImeis
-      ) {
-        const imei =
-          text(rawImei);
-
-        if (!imei) {
-          continue;
-        }
-
-        const current =
-          channelByImei
-            .get(imei)
-            ?.get("N11");
-
-        if (current) {
-          continue;
-        }
-
-        setStatus(
-          null,
+        `,
+        [
           imei,
-          {
-            channel: "N11",
-            status: "LISTED",
-            listingId:
-              numberOrNull(
-                listing?.id
-              ),
-            salePrice:
-              numberOrNull(
-                listing
-                  ?.sale_price
-              ),
-            listPrice:
-              numberOrNull(
-                listing
-                  ?.list_price
-              ),
-            source:
-              "N11_AVAILABLE_IMEI",
-          }
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          CENTER_BRANCH_CODE,
+          user.username,
+        ]
+      );
+
+    const device =
+      insertResult.rows[0];
+
+    await client.query(
+      `
+        INSERT INTO public.stock_events (
+          device_id,
+          imei,
+          event_type,
+          to_branch_code,
+          old_status,
+          new_status,
+          performed_by,
+          metadata
+        )
+        VALUES (
+          $1,
+          $2,
+          'DEVICE_ADDED',
+          $3,
+          NULL,
+          'AVAILABLE',
+          $4,
+          $5::jsonb
+        )
+      `,
+      [
+        device.id,
+        imei,
+        CENTER_BRANCH_CODE,
+        user.username,
+        JSON.stringify({
+          source:
+            "CENTER_MANUAL",
+          entry:
+            "ONLINE_CENTER",
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          marketplaceWrite:
+            false,
+        }),
+      ]
+    );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return json(
+      {
+        success: true,
+        message:
+          "Cihaz Merkez stoğuna eklendi.",
+        device,
+        safety: {
+          n11Write: false,
+          ikasWrite: false,
+          idefixWrite:
+            false,
+          onlineListingWrite:
+            false,
+          channelMembershipWrite:
+            false,
+        },
+      },
+      201
+    );
+  } catch (error: any) {
+    if (client) {
+      try {
+        await client.query(
+          "ROLLBACK"
         );
+      } catch {
+        // rollback failure ignored
       }
     }
 
-    const devices =
-      devicesResult.rows.map(
-        (device: any) => {
-          const id =
-            Number(
-              device?.id
-            );
-
-          const imei =
-            text(
-              device?.imei
-            );
-
-          const idMap =
-            channelByDeviceId.get(
-              id
-            );
-
-          const imeiMap =
-            channelByImei.get(
-              imei
-            );
-
-          const getChannel = (
-            channel: ChannelCode
-          ) =>
-            idMap?.get(
-              channel
-            ) ||
-            imeiMap?.get(
-              channel
-            ) ||
-            emptyChannel(
-              channel
-            );
-
-          const channels = {
-            N11:
-              getChannel(
-                "N11"
-              ),
-            IKAS:
-              getChannel(
-                "IKAS"
-              ),
-            IDEFIX:
-              getChannel(
-                "IDEFIX"
-              ),
-          };
-
-          return {
-            ...device,
-            id,
-            grade:
-              normalizeGrade(
-                device?.grade
-              ),
-            groupKey:
-              groupKey(
-                device
-              ),
-            channels,
-          };
-        }
-      );
-
-    const groupsMap =
-      new Map<
-        string,
-        any
-      >();
-
-    for (
-      const device of
-        devices
+    if (
+      error?.code ===
+      "23505"
     ) {
-      const key =
-        device.groupKey;
-
-      if (
-        !groupsMap.has(
-          key
-        )
-      ) {
-        groupsMap.set(
-          key,
-          {
-            key,
-            brand:
-              text(
-                device.brand
-              ) || "-",
-            model:
-              text(
-                device.model
-              ) || "-",
-            memory:
-              text(
-                device.memory
-              ) || "-",
-            color:
-              text(
-                device.color
-              ) || "-",
-            grade:
-              text(
-                device.grade
-              ) || "-",
-            warranty:
-              text(
-                device.warranty
-              ) || "-",
-            devices: [],
-          }
-        );
-      }
-
-      groupsMap
-        .get(key)!
-        .devices.push(
-          device
-        );
+      return json(
+        {
+          success: false,
+          error:
+            "Bu IMEI zaten sistemde kayıtlı.",
+        },
+        409
+      );
     }
 
-    const groups =
-      Array.from(
-        groupsMap.values()
-      )
-        .map(
-          (group: any) => {
-            const groupDevices =
-              group.devices;
-
-            const countStatus = (
-              channel: ChannelCode,
-              statuses: string[]
-            ) =>
-              groupDevices.filter(
-                (
-                  device: any
-                ) =>
-                  statuses.includes(
-                    text(
-                      device
-                        ?.channels?.[
-                        channel
-                      ]?.status
-                    ).toUpperCase()
-                  )
-              ).length;
-
-            return {
-              ...group,
-              total:
-                groupDevices.length,
-              available:
-                groupDevices.filter(
-                  (
-                    device: any
-                  ) =>
-                    device.status ===
-                    "AVAILABLE"
-                ).length,
-
-              channelSummary: {
-                N11: {
-                  sent:
-                    countStatus(
-                      "N11",
-                      [
-                        "LISTED",
-                        "RESERVED",
-                        "SOLD",
-                      ]
-                    ),
-                  preparing:
-                    countStatus(
-                      "N11",
-                      [
-                        "PENDING_CREATE",
-                      ]
-                    ),
-                },
-                IKAS: {
-                  sent:
-                    countStatus(
-                      "IKAS",
-                      [
-                        "LISTED",
-                        "RESERVED",
-                        "SOLD",
-                      ]
-                    ),
-                  preparing:
-                    countStatus(
-                      "IKAS",
-                      [
-                        "PENDING_CREATE",
-                      ]
-                    ),
-                },
-                IDEFIX: {
-                  sent:
-                    countStatus(
-                      "IDEFIX",
-                      [
-                        "LISTED",
-                        "RESERVED",
-                        "SOLD",
-                      ]
-                    ),
-                  preparing:
-                    countStatus(
-                      "IDEFIX",
-                      [
-                        "PENDING_CREATE",
-                      ]
-                    ),
-                },
-              },
-            };
-          }
-        )
-        .sort(
-          (
-            a: any,
-            b: any
-          ) =>
-            b.available -
-              a.available ||
-            b.total -
-              a.total ||
-            `${a.brand} ${a.model}`.localeCompare(
-              `${b.brand} ${b.model}`,
-              "tr"
-            )
-        );
-
-    const activeDevices =
-      devices.filter(
-        (device: any) =>
-          ![
-            "SOLD",
-            "PASSIVE",
-          ].includes(
-            text(
-              device?.status
-            ).toUpperCase()
-          )
-      );
-
-    const listedCount = (
-      channel: ChannelCode
-    ) =>
-      devices.filter(
-        (device: any) =>
-          [
-            "LISTED",
-            "RESERVED",
-            "SOLD",
-            "PENDING_CREATE",
-          ].includes(
-            text(
-              device
-                ?.channels?.[
-                channel
-              ]?.status
-            ).toUpperCase()
-          )
-      ).length;
-
-    return json({
-      success: true,
-      readOnly: true,
-
-      summary: {
-        totalDevices:
-          devices.length,
-        activePhysicalStock:
-          activeDevices.length,
-        availableDevices:
-          devices.filter(
-            (device: any) =>
-              device.status ===
-              "AVAILABLE"
-          ).length,
-        soldDevices:
-          devices.filter(
-            (device: any) =>
-              device.status ===
-              "SOLD"
-          ).length,
-        groupCount:
-          groups.length,
-        n11:
-          listedCount(
-            "N11"
-          ),
-        ikas:
-          listedCount(
-            "IKAS"
-          ),
-        idefix:
-          listedCount(
-            "IDEFIX"
-          ),
-      },
-
-      channelMembershipTableReady:
-        hasChannelDevices,
-
-      groups,
-      devices,
-
-      safety: {
-        marketplaceWrite:
-          false,
-        stockWrite:
-          false,
-        deviceStatusWrite:
-          false,
-      },
-
-      checkedAt:
-        new Date().toISOString(),
-    });
-  } catch (error) {
     console.error(
-      "CENTER DEVICES ERROR:",
+      "CENTER DEVICE CREATE ERROR:",
       error
     );
 
     return json(
       {
         success: false,
-        readOnly: true,
         error:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
-            : "Merkez stok listesi alınamadı.",
+            : "Cihaz Merkez stoğuna eklenemedi.",
       },
       500
     );
+  } finally {
+    client?.release();
   }
 }
