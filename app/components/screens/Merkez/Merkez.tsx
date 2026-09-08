@@ -39,6 +39,21 @@ const EMPTY_ADD_DEVICE_FORM: AddDeviceForm = {
   warranty: "12 Ay",
 };
 
+type BulkPreviewError = {
+  imei: string;
+  reason: string;
+  type: string;
+};
+
+type BulkPreview = {
+  total: number;
+  valid: number;
+  invalid: number;
+  canCommit: boolean;
+  errors: BulkPreviewError[];
+};
+
+
 function formatDateTime(
   value: unknown
 ) {
@@ -313,6 +328,55 @@ export default function Merkez() {
     setAddSuccess,
   ] = useState("");
 
+  const [
+    bulkOpen,
+    setBulkOpen,
+  ] = useState(false);
+
+  const [
+    bulkForm,
+    setBulkForm,
+  ] = useState<
+    Omit<
+      AddDeviceForm,
+      "imei"
+    >
+  >({
+    brand: "",
+    model: "",
+    memory: "",
+    color: "",
+    grade: "A",
+    warranty: "12 Ay",
+  });
+
+  const [
+    bulkImeis,
+    setBulkImeis,
+  ] = useState("");
+
+  const [
+    bulkPreview,
+    setBulkPreview,
+  ] = useState<
+    BulkPreview | null
+  >(null);
+
+  const [
+    bulkLoading,
+    setBulkLoading,
+  ] = useState(false);
+
+  const [
+    bulkError,
+    setBulkError,
+  ] = useState("");
+
+  const [
+    bulkSuccess,
+    setBulkSuccess,
+  ] = useState("");
+
   const loadCenter =
     useCallback(
       async (
@@ -513,6 +577,134 @@ export default function Merkez() {
       [
         addForm,
         addSaving,
+        loadCenter,
+      ]
+    );
+
+  const runBulkDevice =
+    useCallback(
+      async (
+        mode:
+          | "preview"
+          | "commit"
+      ) => {
+        if (
+          bulkLoading
+        ) {
+          return;
+        }
+
+        setBulkError("");
+        setBulkSuccess("");
+        setBulkLoading(true);
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/center/devices",
+              {
+                method:
+                  "PUT",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    mode,
+                    ...bulkForm,
+                    imeis:
+                      bulkImeis,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez toplu cihaz API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            if (
+              payload?.preview
+            ) {
+              setBulkPreview(
+                payload.preview
+              );
+            }
+
+            throw new Error(
+              payload?.error ||
+                "Toplu cihaz işlemi başarısız."
+            );
+          }
+
+          if (
+            mode ===
+            "preview"
+          ) {
+            setBulkPreview(
+              payload.preview
+            );
+
+            if (
+              payload?.preview
+                ?.canCommit
+            ) {
+              setBulkSuccess(
+                `${payload.preview.total} IMEI temiz. Kayda hazır.`
+              );
+            }
+
+            return;
+          }
+
+          setBulkPreview(
+            null
+          );
+
+          setBulkSuccess(
+            payload?.message ||
+              "Toplu cihaz kaydı tamamlandı."
+          );
+
+          setBulkImeis("");
+
+          await loadCenter(
+            true
+          );
+        } catch (error) {
+          setBulkError(
+            error instanceof
+              Error
+              ? error.message
+              : "Toplu cihaz işlemi başarısız."
+          );
+        } finally {
+          setBulkLoading(false);
+        }
+      },
+      [
+        bulkForm,
+        bulkImeis,
+        bulkLoading,
         loadCenter,
       ]
     );
@@ -807,6 +999,21 @@ export default function Merkez() {
                 className="h-10 rounded-xl border border-white/15 bg-white px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
               >
                 + Cihaz Ekle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkError("");
+                  setBulkSuccess("");
+                  setBulkPreview(
+                    null
+                  );
+                  setBulkOpen(true);
+                }}
+                className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-white/15"
+              >
+                + Toplu Cihaz Ekle
               </button>
 
               <button
@@ -1241,9 +1448,330 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 2A · Tekli cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
+          MERKEZ ADIM 2B · Tekli + toplu cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
         </div>
       </div>
+
+      {bulkOpen && (
+        <div
+          className="fixed inset-0 z-[125] flex items-start justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+                event.currentTarget &&
+              !bulkLoading
+            ) {
+              setBulkOpen(false);
+            }
+          }}
+        >
+          <div className="my-4 w-full max-w-[1040px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
+              <div>
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                  Online · Merkez
+                </div>
+
+                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  Toplu Cihaz Ekle
+                </h3>
+
+                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                  Ortak ürün bilgilerini bir kez gir, IMEI'leri topluca yapıştır. Önce kontrol edilir; hata varsa hiçbir cihaz kaydedilmez.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={bulkLoading}
+                onClick={() =>
+                  setBulkOpen(false)
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-6 sm:px-7">
+              {bulkError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                  {bulkError}
+                </div>
+              )}
+
+              {bulkSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                  ✓ {bulkSuccess}
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Marka
+                  </label>
+                  <input
+                    value={bulkForm.brand}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        brand: event.target.value,
+                      }));
+                    }}
+                    placeholder="Apple"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Model
+                  </label>
+                  <input
+                    value={bulkForm.model}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        model: event.target.value,
+                      }));
+                    }}
+                    placeholder="iPhone 15 Pro"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Hafıza
+                  </label>
+                  <input
+                    value={bulkForm.memory}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        memory: event.target.value,
+                      }));
+                    }}
+                    placeholder="256 GB"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Renk
+                  </label>
+                  <input
+                    value={bulkForm.color}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        color: event.target.value,
+                      }));
+                    }}
+                    placeholder="Siyah"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Grade
+                  </label>
+                  <select
+                    value={bulkForm.grade}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        grade: event.target.value as "A" | "B" | "C",
+                      }));
+                    }}
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                  </select>
+                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                    A → Mükemmel · B → Çok İyi · C → İyi
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Garanti
+                  </label>
+                  <input
+                    value={bulkForm.warranty}
+                    onChange={(event) => {
+                      setBulkPreview(null);
+                      setBulkForm((current) => ({
+                        ...current,
+                        warranty: event.target.value,
+                      }));
+                    }}
+                    placeholder="12 Ay"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-end justify-between gap-3">
+                  <label className="block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    IMEI Listesi
+                  </label>
+
+                  <span className="text-[7px] font-bold text-slate-400">
+                    Her satıra 1 IMEI · En fazla 500
+                  </span>
+                </div>
+
+                <textarea
+                  value={bulkImeis}
+                  onChange={(event) => {
+                    setBulkImeis(
+                      event.target.value
+                    );
+                    setBulkPreview(
+                      null
+                    );
+                    setBulkSuccess(
+                      ""
+                    );
+                  }}
+                  rows={10}
+                  placeholder={"356111111111111\n356222222222222\n356333333333333"}
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-[10px] font-black leading-7 text-slate-800 outline-none transition placeholder:text-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+
+              {bulkPreview && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-slate-400">
+                        Toplam
+                      </div>
+                      <div className="mt-1 text-xl font-black text-slate-900">
+                        {bulkPreview.total}
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                        Geçerli
+                      </div>
+                      <div className="mt-1 text-xl font-black text-emerald-700">
+                        {bulkPreview.valid}
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-rose-600">
+                        Hatalı
+                      </div>
+                      <div className="mt-1 text-xl font-black text-rose-700">
+                        {bulkPreview.invalid}
+                      </div>
+                    </div>
+                  </div>
+
+                  {bulkPreview.errors.length > 0 ? (
+                    <div className="max-h-56 overflow-y-auto divide-y divide-rose-100">
+                      {bulkPreview.errors.map(
+                        (
+                          item,
+                          index
+                        ) => (
+                          <div
+                            key={`${item.imei}-${index}`}
+                            className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[170px_1fr]"
+                          >
+                            <div className="font-mono text-[8px] font-black text-rose-800">
+                              {item.imei || "Boş"}
+                            </div>
+                            <div className="text-[8px] font-bold text-rose-700">
+                              {item.reason}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
+                      ✓ Tüm IMEI'ler temiz. Toplu kayıt yapılabilir.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[8px] font-black text-slate-700">
+                  Güvenli toplu kayıt
+                </div>
+                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                  Önizlemede hatalı veya daha önce kayıtlı tek bir IMEI bile varsa toplu kayıt açılmaz. Kayıt anında da tekrar kontrol edilir ve işlem tek transaction içinde tamamlanır.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+              <button
+                type="button"
+                disabled={bulkLoading}
+                onClick={() =>
+                  setBulkOpen(false)
+                }
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                disabled={bulkLoading}
+                onClick={() => {
+                  void runBulkDevice(
+                    "preview"
+                  );
+                }}
+                className="h-11 rounded-xl border border-blue-200 bg-blue-50 px-6 text-[8px] font-black uppercase tracking-wide text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                {bulkLoading
+                  ? "Kontrol Ediliyor..."
+                  : "Önizle / Kontrol Et"}
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  bulkLoading ||
+                  !bulkPreview?.canCommit
+                }
+                onClick={() => {
+                  void runBulkDevice(
+                    "commit"
+                  );
+                }}
+                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {bulkLoading
+                  ? "Kaydediliyor..."
+                  : bulkPreview?.canCommit
+                  ? `${bulkPreview.total} Cihazı Merkeze Ekle`
+                  : "Önce Kontrol Et"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {addOpen && (
         <div
