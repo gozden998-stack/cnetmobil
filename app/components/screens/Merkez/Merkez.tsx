@@ -19,6 +19,26 @@ type ChannelCode =
   | "IKAS"
   | "IDEFIX";
 
+type AddDeviceForm = {
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: "A" | "B" | "C";
+  warranty: string;
+};
+
+const EMPTY_ADD_DEVICE_FORM: AddDeviceForm = {
+  imei: "",
+  brand: "",
+  model: "",
+  memory: "",
+  color: "",
+  grade: "A",
+  warranty: "12 Ay",
+};
+
 function formatDateTime(
   value: unknown
 ) {
@@ -266,6 +286,33 @@ export default function Merkez() {
     string | null
   >(null);
 
+  const [
+    addOpen,
+    setAddOpen,
+  ] = useState(false);
+
+  const [
+    addForm,
+    setAddForm,
+  ] = useState<AddDeviceForm>(
+    EMPTY_ADD_DEVICE_FORM
+  );
+
+  const [
+    addSaving,
+    setAddSaving,
+  ] = useState(false);
+
+  const [
+    addError,
+    setAddError,
+  ] = useState("");
+
+  const [
+    addSuccess,
+    setAddSuccess,
+  ] = useState("");
+
   const loadCenter =
     useCallback(
       async (
@@ -347,6 +394,128 @@ export default function Merkez() {
   useEffect(() => {
     void loadCenter();
   }, [loadCenter]);
+
+  const saveSingleDevice =
+    useCallback(
+      async () => {
+        if (
+          addSaving
+        ) {
+          return;
+        }
+
+        setAddError("");
+        setAddSuccess("");
+
+        const imei =
+          addForm.imei.replace(
+            /\D/g,
+            ""
+          );
+
+        if (
+          !/^[0-9]{15}$/.test(
+            imei
+          )
+        ) {
+          setAddError(
+            "IMEI tam 15 hane olmalıdır."
+          );
+          return;
+        }
+
+        if (
+          !addForm.brand.trim() ||
+          !addForm.model.trim() ||
+          !addForm.memory.trim() ||
+          !addForm.color.trim() ||
+          !addForm.grade.trim() ||
+          !addForm.warranty.trim()
+        ) {
+          setAddError(
+            "Tüm cihaz bilgilerini doldur."
+          );
+          return;
+        }
+
+        setAddSaving(true);
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/center/devices/create",
+              {
+                method:
+                  "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    ...addForm,
+                    imei,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Cihaz ekleme API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "Cihaz eklenemedi."
+            );
+          }
+
+          setAddSuccess(
+            `${imei} Merkez stoğuna eklendi.`
+          );
+
+          setAddForm(
+            EMPTY_ADD_DEVICE_FORM
+          );
+
+          await loadCenter(
+            true
+          );
+        } catch (error) {
+          setAddError(
+            error instanceof
+              Error
+              ? error.message
+              : "Cihaz eklenemedi."
+          );
+        } finally {
+          setAddSaving(false);
+        }
+      },
+      [
+        addForm,
+        addSaving,
+        loadCenter,
+      ]
+    );
 
   const groups =
     useMemo(
@@ -627,6 +796,18 @@ export default function Merkez() {
                   )}
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAddError("");
+                  setAddSuccess("");
+                  setAddOpen(true);
+                }}
+                className="h-10 rounded-xl border border-white/15 bg-white px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
+              >
+                + Cihaz Ekle
+              </button>
 
               <button
                 type="button"
@@ -1060,9 +1241,280 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 1 · Salt okunur · Sonraki adım: IMEI seçimi + kanal bazlı gönderim ve fiyat ekranı
+          MERKEZ ADIM 2A · Tekli cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
         </div>
       </div>
+
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              if (!addSaving) {
+                setAddOpen(false);
+              }
+            }
+          }}
+        >
+          <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
+              <div>
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                  Online · Merkez
+                </div>
+
+                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  Cihaz Ekle
+                </h3>
+
+                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                  Cihaz bilgilerini gir. Kayıt yalnızca Merkez stoğuna eklenir; N11, İkas veya başka bir kanala gönderilmez.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={() =>
+                  setAddOpen(false)
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-6 sm:px-7">
+              {addError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                  {addError}
+                </div>
+              )}
+
+              {addSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                  ✓ {addSuccess}
+                </div>
+              )}
+
+              <div>
+                <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  IMEI
+                </label>
+
+                <input
+                  inputMode="numeric"
+                  autoFocus
+                  maxLength={15}
+                  value={addForm.imei}
+                  onChange={(event) => {
+                    const value =
+                      event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 15);
+
+                    setAddForm(
+                      (current) => ({
+                        ...current,
+                        imei: value,
+                      })
+                    );
+                  }}
+                  placeholder="15 haneli IMEI"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-mono text-[10px] font-black text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Marka
+                  </label>
+
+                  <input
+                    value={addForm.brand}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          brand:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Apple"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Model
+                  </label>
+
+                  <input
+                    value={addForm.model}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          model:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="iPhone 15 Pro"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Hafıza
+                  </label>
+
+                  <input
+                    value={addForm.memory}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          memory:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="256 GB"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Renk
+                  </label>
+
+                  <input
+                    value={addForm.color}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          color:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Siyah"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Grade
+                  </label>
+
+                  <select
+                    value={addForm.grade}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          grade:
+                            event.target
+                              .value as
+                              | "A"
+                              | "B"
+                              | "C",
+                        })
+                      )
+                    }
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  >
+                    <option value="A">
+                      A
+                    </option>
+                    <option value="B">
+                      B
+                    </option>
+                    <option value="C">
+                      C
+                    </option>
+                  </select>
+
+                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                    A → Mükemmel · B → Çok İyi · C → İyi
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Garanti
+                  </label>
+
+                  <input
+                    value={addForm.warranty}
+                    onChange={(event) =>
+                      setAddForm(
+                        (current) => ({
+                          ...current,
+                          warranty:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="12 Ay"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+
+                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                    12 AY / 12 Ay / 1 Yıl → 12 Ay olarak standartlaştırılır.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[8px] font-black text-slate-700">
+                  Bu adımda yalnızca cihaz kaydı yapılır.
+                </div>
+                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                  Fiyat ve N11 / İkas / İdefix gönderimi daha sonra kanal seçildiğinde girilecek. Pil, mağaza, değişen parça ve kutu/fatura cihaz giriş formunda kullanılmaz.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={() =>
+                  setAddOpen(false)
+                }
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={() => {
+                  void saveSingleDevice();
+                }}
+                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+              >
+                {addSaving
+                  ? "Kaydediliyor..."
+                  : "Cihazı Merkeze Ekle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
