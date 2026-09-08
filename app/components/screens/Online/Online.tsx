@@ -2069,7 +2069,7 @@ export default function Online() {
               </div>
 
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <h2 className="text-[28px] font-black tracking-tight text-slate-900">
                     N11 Entegrasyonu
                   </h2>
@@ -2186,7 +2186,7 @@ export default function Online() {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50/70 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 N11 Bağlantı
               </span>
@@ -2219,7 +2219,7 @@ export default function Online() {
         <section className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_35px_rgba(15,23,42,0.05)] sm:p-5">
           <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setActiveSection("orders")}
@@ -2573,7 +2573,7 @@ export default function Online() {
                         </div>
 
                         <div className="min-w-0 pr-3">
-                          <div className="truncate text-[13px] font-black text-slate-900">
+                          <div className="truncate text-[15px] font-black tracking-[-0.01em] text-slate-900">
                             {order.customerFullName || "—"}
                           </div>
                           <div className="mt-1 truncate text-[10px] font-semibold text-slate-400">
@@ -2596,7 +2596,7 @@ export default function Online() {
                           {order.totalQuantity}
                         </div>
 
-                        <div className="font-black text-slate-900">
+                        <div className="text-[14px] font-black text-slate-900">
                           {formatMoney(Number(order.totalAmount || 0))}
                         </div>
 
@@ -2685,8 +2685,8 @@ export default function Online() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <div className="min-w-[1180px]">
-                  <div className="grid grid-cols-[minmax(520px,2.5fr)_0.55fr_0.75fr_0.85fr_0.85fr_1.35fr] items-center bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <div className="min-w-[1280px]">
+                  <div className="grid grid-cols-[minmax(560px,2.8fr)_0.55fr_0.78fr_0.9fr_0.9fr_1.25fr] items-center rounded-t-2xl border-b border-slate-200 bg-slate-50/90 px-6 py-4 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                     <div>Ürün</div>
                     <div>Stok</div>
                     <div>Durum</div>
@@ -2754,38 +2754,38 @@ export default function Online() {
                     return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[minmax(520px,2.5fr)_0.55fr_0.75fr_0.85fr_0.85fr_1.35fr] items-center border-t border-slate-100 px-4 py-3 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50/60"
+                        className="grid min-h-[104px] grid-cols-[minmax(560px,2.8fr)_0.55fr_0.78fr_0.9fr_0.9fr_1.25fr] items-center border-b border-slate-100 px-6 py-5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50/70"
                       >
-                        <div className="min-w-0 pr-5">
-                          <div className="truncate text-[13px] font-black text-slate-900">
+                        <div className="min-w-0 pr-8">
+                          <div className="truncate text-[15px] font-black tracking-[-0.01em] text-slate-900">
                             {productTitle}
                           </div>
 
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
                               {gradeText}
                             </span>
 
-                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
                               {color}
                             </span>
 
-                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
                               {memory}
                             </span>
 
-                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                            <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
                               Yenilenmiş
                             </span>
 
                             {warranty !== "—" ? (
-                              <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                              <span className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm">
                                 {warranty}
                               </span>
                             ) : null}
                           </div>
 
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-400">
+                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold text-slate-400">
                             <span>
                               IMEI / SKU:{" "}
                               <span className="font-mono text-slate-500">
@@ -2808,7 +2808,7 @@ export default function Online() {
 
                         <div>
                           <div
-                            className={`text-[14px] font-black ${
+                            className={`text-[17px] font-black ${
                               Number(item.quantity || 0) <= 0
                                 ? "text-red-600"
                                 : "text-slate-900"
@@ -2816,46 +2816,46 @@ export default function Online() {
                           >
                             {Number(item.quantity || 0)}
                           </div>
-                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                          <div className="mt-1 text-[10px] font-bold text-slate-400">
                             Adet
                           </div>
                         </div>
 
                         <div>
                           <span
-                            className={`inline-flex items-center rounded-xl px-3 py-1 text-[10px] font-black ring-1 ${status.className}`}
+                            className={`inline-flex items-center rounded-xl px-3.5 py-1.5 text-[10px] font-black ring-1 ${status.className}`}
                           >
                             {status.label}
                           </span>
-                          <div className="mt-1 text-[9px] font-semibold text-slate-400">
+                          <div className="mt-1.5 text-[10px] font-semibold text-slate-400">
                             {formatDate(item.updated_at)}
                           </div>
                         </div>
 
                         <div>
-                          <div className="font-black text-slate-900">
+                          <div className="text-[14px] font-black text-slate-900">
                             {formatMoney(Number(item.sale_price || 0))}
                           </div>
-                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                          <div className="mt-1 text-[10px] font-bold text-slate-400">
                             N11 Satış Fiyatı
                           </div>
                         </div>
 
                         <div>
-                          <div className="font-black text-slate-900">
+                          <div className="text-[14px] font-black text-slate-900">
                             {formatMoney(Number(item.list_price || 0))}
                           </div>
-                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                          <div className="mt-1 text-[10px] font-bold text-slate-400">
                             N11 Liste Fiyatı
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2.5">
                           <button
                             type="button"
                             onClick={() => openEditModal(item)}
                             disabled={actionSaving}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                            className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 text-[10px] font-black text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
                           >
                             DÜZENLE
                           </button>
@@ -2864,7 +2864,7 @@ export default function Online() {
                             type="button"
                             onClick={() => openPriceModal(item)}
                             disabled={actionSaving}
-                            className="rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                            className="inline-flex h-9 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-3.5 text-[10px] font-black text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:opacity-50"
                           >
                             FİYAT
                           </button>
@@ -3397,7 +3397,7 @@ export default function Online() {
                 Toplu yükleme, tekli ürün ekleme ile aynı /api/online/listings motorunu kullanır.
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={downloadBulkTemplate}
