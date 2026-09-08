@@ -293,10 +293,22 @@ function getStatusBadge(
     };
   }
 
-  if (syncStatus === "READY" || syncStatus === "CREATING") {
+  if (
+    syncStatus === "READY" ||
+    syncStatus === "CREATING" ||
+    syncStatus === "IN_QUEUE" ||
+    syncStatus === "SYNCED_PENDING_QUERY"
+  ) {
     return {
-      label: "Gönderim Bekliyor",
+      label: "N11 Bekleniyor",
       className: "bg-amber-50 text-amber-700 ring-amber-100",
+    };
+  }
+
+  if (syncStatus === "ERROR") {
+    return {
+      label: "N11 Hata",
+      className: "bg-red-50 text-red-700 ring-red-100",
     };
   }
 
@@ -612,6 +624,67 @@ export default function Online() {
     setDraftForm(EMPTY_DRAFT_FORM);
   }, [draftSaving]);
 
+  const waitForN11Create = useCallback(
+    async (imei: string) => {
+      for (
+        let attempt = 1;
+        attempt <= 20;
+        attempt += 1
+      ) {
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 1500)
+        );
+
+        const response = await fetch(
+          `/api/online/listings?stockCode=${encodeURIComponent(
+            imei
+          )}&refreshN11=1`,
+          {
+            method: "GET",
+            cache: "no-store",
+            credentials: "same-origin",
+          }
+        );
+
+        const payload =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error ||
+              "N11 ürün oluşturma sonucu alınamadı."
+          );
+        }
+
+        if (
+          payload?.created === true &&
+          payload?.listing
+            ?.external_product_id
+        ) {
+          return payload;
+        }
+
+        if (
+          payload?.pending !== true
+        ) {
+          throw new Error(
+            payload?.error ||
+              "N11 ürünü oluşturulamadı."
+          );
+        }
+      }
+
+      return {
+        success: true,
+        created: false,
+        pending: true,
+      };
+    },
+    []
+  );
+
   const saveDraft = useCallback(async () => {
     setDraftError("");
     setDraftSuccess("");
@@ -668,11 +741,43 @@ export default function Online() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || "N11 ürün oluşturulamadı.");
+        throw new Error(
+          payload?.error ||
+            "N11 ürün oluşturulamadı."
+        );
+      }
+
+      let finalPayload = payload;
+
+      if (
+        payload?.created !== true ||
+        !payload?.listing
+          ?.external_product_id
+      ) {
+        setDraftSuccess(
+          payload?.message ||
+            "N11 işlemi devam ediyor. Ürün kodu bekleniyor..."
+        );
+
+        finalPayload =
+          await waitForN11Create(imei);
+      }
+
+      if (
+        finalPayload?.created !== true ||
+        !finalPayload?.listing
+          ?.external_product_id
+      ) {
+        await loadData(true);
+
+        throw new Error(
+          "N11 işlemi henüz tamamlanmadı. Ürün N11 ID oluşana kadar satışa açık sayılmayacak. Biraz sonra tekrar kontrol edin."
+        );
       }
 
       setDraftSuccess(
-        payload?.message || "N11 ürün oluşturma işlemi tamamlandı."
+        finalPayload?.message ||
+          `N11 ürünü açıldı. N11 ID: ${finalPayload.listing.external_product_id}`
       );
 
       await loadData(true);
@@ -689,7 +794,7 @@ export default function Online() {
     } finally {
       setDraftSaving(false);
     }
-  }, [draftForm, loadData]);
+  }, [draftForm, loadData, waitForN11Create]);
 
 
   const openEditModal = useCallback((item: OnlineListing) => {
@@ -891,12 +996,24 @@ export default function Online() {
   const listings = data?.listings ?? [];
 
   const openListings = useMemo(
-    () => listings.filter((item) => Number(item.quantity || 0) > 0),
+    () =>
+      listings.filter(
+        (item) =>
+          Boolean(item.external_product_id) &&
+          item.sync_status === "SYNCED" &&
+          Number(item.quantity || 0) > 0
+      ),
     [listings]
   );
 
   const closedListings = useMemo(
-    () => listings.filter((item) => Number(item.quantity || 0) <= 0),
+    () =>
+      listings.filter(
+        (item) =>
+          !item.external_product_id ||
+          item.sync_status !== "SYNCED" ||
+          Number(item.quantity || 0) <= 0
+      ),
     [listings]
   );
 
