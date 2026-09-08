@@ -2128,7 +2128,7 @@ export default function Online() {
                     Yeni Ürün Aç
                   </h3>
                   <p className="mt-1 text-[12px] font-semibold text-slate-500">
-                    Cihaz bilgilerini ve N11 fiyatlarını girin. N11 genel kataloğunda otomatik aranır ve yeni IMEI ile gerçek ürün oluşturulur.
+                    Cihaz bilgilerini ve N11 fiyatlarını girin. Ürün otomatik olarak YENİLENMİŞ statüsünde aranır ve yeni IMEI ile açılır.
                   </p>
                 </div>
 
@@ -2144,6 +2144,20 @@ export default function Online() {
 
               <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Ürün Durumu
+                    </div>
+                    <div className="flex h-12 w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4">
+                      <span className="text-[13px] font-black text-emerald-700">
+                        YENİLENMİŞ
+                      </span>
+                      <span className="rounded-lg bg-white px-2.5 py-1 text-[10px] font-black text-slate-500 ring-1 ring-emerald-100">
+                        SABİT
+                      </span>
+                    </div>
+                  </div>
+
                   <label className="md:col-span-2">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       IMEI
@@ -2243,9 +2257,12 @@ export default function Online() {
                           grade: event.target.value,
                         }))
                       }
-                      placeholder="Mükemmel"
+                      placeholder="A"
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
+                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                      A → A Kalite · B → B Kalite · C → C Kalite otomatik çevrilir.
+                    </div>
                   </label>
 
                   <label>
@@ -2263,6 +2280,9 @@ export default function Online() {
                       placeholder="12 Ay"
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
+                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                      12AY / 12 Ay → 12 Ay Garantili olarak otomatik kullanılır.
+                    </div>
                   </label>
 
                   <label>
@@ -2301,7 +2321,7 @@ export default function Online() {
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
-                  stockCode otomatik olarak IMEI olacaktır. Stok 1 açılır. N11 genel kataloğunda Marka / Model / Hafıza / Renk otomatik aranır. catalogId bulunursa yeni IMEI ile stok 1 ürün açılır.
+                  Ürün durumu daima YENİLENMİŞ'tir. stockCode = IMEI ve stok = 1 açılır. Sistem önce daha önce doğrulanmış yenilenmiş katalog eşleşmesini kullanır; yoksa N11'de hızlı katalog araması yapar. Sıfır ürün kataloğuna bağlanmaz.
                 </div>
 
                 {draftError ? (
