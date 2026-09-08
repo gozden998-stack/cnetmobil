@@ -1025,6 +1025,7 @@ function buildSearchCatalogXml(params: {
   title: string;
   brand: string;
   categoryId: number;
+  currentPage: number;
 }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.n11.com/ws/schemas">
@@ -1040,7 +1041,7 @@ function buildSearchCatalogXml(params: {
       <uscs></uscs>
       <brandName>${xmlEscape(params.brand)}</brandName>
       <catalogIds></catalogIds>
-      <currentPage>0</currentPage>
+      <currentPage>${params.currentPage}</currentPage>
     </sch:SearchCatalogRequest>
   </soapenv:Body>
 </soapenv:Envelope>`;
@@ -1050,6 +1051,7 @@ async function searchN11Catalog(params: {
   brand: string;
   title: string;
   categoryId: number;
+  maxPages?: number;
 }) {
   const credentials = getN11Credentials();
 
@@ -1059,57 +1061,118 @@ async function searchN11Catalog(params: {
     );
   }
 
-  const xml = buildSearchCatalogXml({
-    appKey: credentials.appKey,
-    appSecret: credentials.appSecret,
-    title: params.title,
-    brand: params.brand,
-    categoryId: params.categoryId,
-  });
+  const maxPages = Math.max(
+    1,
+    Math.min(Number(params.maxPages || 8), 12)
+  );
 
   let lastError = '';
 
   for (const endpoint of N11_CATALOG_SOAP_ENDPOINTS) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      20_000
-    );
+    const collected: N11CatalogProduct[] = [];
+    const seenCatalogIds = new Set<string>();
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          Accept: 'text/xml, application/xml',
-          SOAPAction: '',
-        },
-        body: xml,
-        signal: controller.signal,
+    let endpointFailed = false;
+
+    for (
+      let currentPage = 0;
+      currentPage < maxPages;
+      currentPage += 1
+    ) {
+      const xml = buildSearchCatalogXml({
+        appKey: credentials.appKey,
+        appSecret: credentials.appSecret,
+        title: params.title,
+        brand: params.brand,
+        categoryId: params.categoryId,
+        currentPage,
       });
 
-      const rawText = await response.text();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        20_000
+      );
 
-      if (!response.ok) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+            Accept: 'text/xml, application/xml',
+            SOAPAction: '',
+          },
+          body: xml,
+          signal: controller.signal,
+        });
+
+        const rawText = await response.text();
+
+        if (!response.ok) {
+          lastError =
+            xmlTagValue(rawText, 'faultstring') ||
+            xmlTagValue(rawText, 'errorMessage') ||
+            `HTTP ${response.status}`;
+
+          endpointFailed = true;
+          break;
+        }
+
+        const pageProducts =
+          parseSearchCatalogProducts(rawText);
+
+        if (pageProducts.length === 0) {
+          break;
+        }
+
+        let newProductCount = 0;
+
+        for (const product of pageProducts) {
+          const key = String(
+            product.catalogId ||
+              `${product.productTitle}|${product.usc}`
+          ).trim();
+
+          if (!key || seenCatalogIds.has(key)) {
+            continue;
+          }
+
+          seenCatalogIds.add(key);
+          collected.push(product);
+          newProductCount += 1;
+        }
+
+        // N11 bazı durumlarda currentPage'i dikkate almayıp
+        // aynı ilk sayfayı döndürebiliyor. Sonsuz tekrar olmasın.
+        if (newProductCount === 0) {
+          break;
+        }
+
+        // SearchCatalog pratikte 10'luk sayfalar döndürüyor.
+        // 10'dan az geldiyse son sayfa kabul ediyoruz.
+        if (pageProducts.length < 10) {
+          break;
+        }
+      } catch (error) {
         lastError =
-          xmlTagValue(rawText, 'faultstring') ||
-          xmlTagValue(rawText, 'errorMessage') ||
-          `HTTP ${response.status}`;
-        continue;
+          error instanceof Error
+            ? error.message
+            : 'SOAP bağlantı hatası';
+
+        endpointFailed = true;
+        break;
+      } finally {
+        clearTimeout(timeoutId);
       }
+    }
 
-      const products =
-        parseSearchCatalogProducts(rawText);
+    if (collected.length > 0) {
+      return collected;
+    }
 
-      return products;
-    } catch (error) {
-      lastError =
-        error instanceof Error
-          ? error.message
-          : 'SOAP bağlantı hatası';
-    } finally {
-      clearTimeout(timeoutId);
+    if (!endpointFailed) {
+      return [];
     }
   }
 
@@ -1266,21 +1329,43 @@ function chooseCatalogProduct(params: {
         return null;
       }
 
-      // A/B/C kalite bilgisi verilmişse yanlış kalite kataloğuna bağlanma.
+      // Katalog başlığında kalite bilgisi varsa yanlış kaliteyi ASLA seçme.
+      // Kalite başlıkta hiç yoksa sadece skorlamada kullan.
+      const candidateHasKnownGrade =
+        normalizedTitle.includes('akalite') ||
+        normalizedTitle.includes('bkalite') ||
+        normalizedTitle.includes('ckalite');
+
       if (
         wantedGrade &&
         ['akalite', 'bkalite', 'ckalite'].includes(
           wantedGrade
         ) &&
+        candidateHasKnownGrade &&
         !normalizedTitle.includes(wantedGrade)
       ) {
         return null;
       }
 
-      // Garanti bilgisi katalog başlığında mevcutsa eşleşmeyi güçlendir.
-      // Örn: "12 Ay Garantili".
+      // Katalog başlığında garanti süresi varsa yanlış süreyi ASLA seçme.
+      // "12AY" -> "12ay", başlıktaki "12 Ay Garantili" -> "12aygarantili".
+      const warrantyTokens = [
+        '3ay',
+        '6ay',
+        '12ay',
+        '18ay',
+        '24ay',
+        '36ay',
+      ];
+
+      const candidateWarrantyToken =
+        warrantyTokens.find((token) =>
+          normalizedTitle.includes(token)
+        );
+
       if (
         wantedWarranty &&
+        candidateWarrantyToken &&
         !normalizedTitle.includes(wantedWarranty)
       ) {
         return null;
@@ -2261,18 +2346,20 @@ export async function POST(request: NextRequest) {
       brand,
       model,
       memory,
+      color,
     ]
       .filter(Boolean)
       .join(' ');
 
-    const catalogProducts =
+    let catalogProducts =
       await searchN11Catalog({
         brand,
         title: catalogSearchTitle,
         categoryId: N11_PHONE_CATEGORY_ID,
+        maxPages: 8,
       });
 
-    const catalogProduct =
+    let catalogProduct =
       chooseCatalogProduct({
         products: catalogProducts,
         brand,
@@ -2283,9 +2370,78 @@ export async function POST(request: NextRequest) {
         warranty,
       });
 
+    // İlk arama N11 arama motoru yüzünden sonuçları daraltmış olabilir.
+    // İkinci arama daha geniştir; ancak chooseCatalogProduct yine
+    // "Yenilenmiş" olmayan katalogları kesinlikle reddeder.
     if (!catalogProduct) {
-      const sampleTitles = catalogProducts
-        .slice(0, 8)
+      const broadSearchTitle = [
+        brand,
+        model,
+        memory,
+        color,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const broadProducts =
+        await searchN11Catalog({
+          brand,
+          title: broadSearchTitle,
+          categoryId: N11_PHONE_CATEGORY_ID,
+          maxPages: 12,
+        });
+
+      const merged = [
+        ...catalogProducts,
+        ...broadProducts,
+      ];
+
+      const uniqueByCatalog = new Map<
+        string,
+        N11CatalogProduct
+      >();
+
+      for (const item of merged) {
+        const key = String(
+          item.catalogId ||
+            `${item.productTitle}|${item.usc}`
+        );
+
+        if (!uniqueByCatalog.has(key)) {
+          uniqueByCatalog.set(key, item);
+        }
+      }
+
+      catalogProducts = Array.from(
+        uniqueByCatalog.values()
+      );
+
+      catalogProduct =
+        chooseCatalogProduct({
+          products: catalogProducts,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+        });
+    }
+
+    if (!catalogProduct) {
+      const renewedSamples =
+        catalogProducts.filter((item) =>
+          isRenewedCatalogTitle(
+            String(item.productTitle || '')
+          )
+        );
+
+      const sampleTitles = (
+        renewedSamples.length > 0
+          ? renewedSamples
+          : catalogProducts
+      )
+        .slice(0, 12)
         .map((item) => item.productTitle)
         .filter(Boolean);
 
