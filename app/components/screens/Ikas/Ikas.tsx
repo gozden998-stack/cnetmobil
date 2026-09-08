@@ -228,6 +228,42 @@ function locationNames(
   ).join(", ");
 }
 
+function productColors(
+  product: any
+) {
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  const colors =
+    variants.flatMap(
+      (variant: any) =>
+        (
+          Array.isArray(
+            variant?.variantValues
+          )
+            ? variant.variantValues
+            : []
+        )
+          .map(
+            (item: any) =>
+              String(
+                item?.variantValueName ||
+                  item?.value ||
+                  ""
+              ).trim()
+          )
+          .filter(Boolean)
+    );
+
+  return Array.from(
+    new Set(colors)
+  );
+}
+
 function qualityLabel(
   name: unknown
 ) {
@@ -936,6 +972,35 @@ export default function Ikas() {
                               {product?.id ||
                                 "-"}
                             </span>
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[7px] font-black uppercase tracking-wide text-slate-400">
+                              Renkler:
+                            </span>
+
+                            {productColors(product).length > 0 ? (
+                              productColors(product)
+                                .slice(0, 8)
+                                .map((color) => (
+                                  <span
+                                    key={color}
+                                    className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[7px] font-black text-slate-600"
+                                  >
+                                    {color}
+                                  </span>
+                                ))
+                            ) : (
+                              <span className="text-[8px] font-bold text-slate-400">
+                                Renk bilgisi yok
+                              </span>
+                            )}
+
+                            {productColors(product).length > 8 && (
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black text-slate-500">
+                                +{productColors(product).length - 8}
+                              </span>
+                            )}
                           </div>
                         </div>
 
