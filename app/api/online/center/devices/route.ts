@@ -2277,6 +2277,50 @@ export async function PUT(
         unknown
       >;
 
+    const action =
+      String(
+        data.action || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      action ===
+      "channel_preview"
+    ) {
+      client =
+        await getPool().connect();
+
+      try {
+        const preview =
+          await previewCenterChannelSend(
+            client,
+            data
+          );
+
+        return json({
+          success: true,
+          action:
+            "channel_preview",
+          preview,
+        });
+      } catch (error) {
+        return json(
+          {
+            success: false,
+            action:
+              "channel_preview",
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : "Kanal ön kontrolü yapılamadı.",
+          },
+          400
+        );
+      }
+    }
+
     const mode =
       String(
         data.mode ||
@@ -2980,6 +3024,665 @@ async function validateExcelRows(
       errors.length === 0 &&
       validRows.length ===
         normalized.total,
+  };
+}
+
+
+type CenterChannelCode =
+  | "N11"
+  | "IKAS"
+  | "IDEFIX";
+
+function normalizeCenterChannel(
+  value: unknown
+): CenterChannelCode {
+  const channel =
+    String(
+      value ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    channel === "N11" ||
+    channel === "IKAS" ||
+    channel === "IDEFIX"
+  ) {
+    return channel;
+  }
+
+  throw new Error(
+    "Geçersiz kanal."
+  );
+}
+
+function parseCenterMoney(
+  value: unknown,
+  label: string
+) {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(value)
+  ) {
+    if (value <= 0) {
+      throw new Error(
+        `${label} 0'dan büyük olmalıdır.`
+      );
+    }
+
+    return Math.round(
+      value * 100
+    ) / 100;
+  }
+
+  let raw =
+    String(
+      value ?? ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replace(
+        /₺|TL/gi,
+        ""
+      );
+
+  if (!raw) {
+    throw new Error(
+      `${label} zorunludur.`
+    );
+  }
+
+  if (
+    raw.includes(",") &&
+    raw.includes(".")
+  ) {
+    raw =
+      raw
+        .replace(/\./g, "")
+        .replace(",", ".");
+  } else if (
+    raw.includes(",")
+  ) {
+    raw =
+      raw.replace(",", ".");
+  } else {
+    const dotMatch =
+      raw.match(
+        /^(\d{1,3})\.(\d{3})$/
+      );
+
+    if (dotMatch) {
+      raw =
+        `${dotMatch[1]}${dotMatch[2]}`;
+    }
+  }
+
+  const number =
+    Number(raw);
+
+  if (
+    !Number.isFinite(
+      number
+    ) ||
+    number <= 0
+  ) {
+    throw new Error(
+      `${label} geçerli bir tutar olmalıdır.`
+    );
+  }
+
+  if (
+    number >
+    10_000_000
+  ) {
+    throw new Error(
+      `${label} çok yüksek.`
+    );
+  }
+
+  return Math.round(
+    number * 100
+  ) / 100;
+}
+
+async function previewCenterChannelSend(
+  client: PoolClient,
+  data: Record<
+    string,
+    unknown
+  >
+) {
+  const channel =
+    normalizeCenterChannel(
+      data.channel
+    );
+
+  if (
+    !Array.isArray(
+      data.deviceIds
+    )
+  ) {
+    throw new Error(
+      "Seçili cihazlar bulunamadı."
+    );
+  }
+
+  const rawIds =
+    data.deviceIds
+      .map(
+        (value) =>
+          Number(value)
+      )
+      .filter(
+        (value) =>
+          Number.isInteger(
+            value
+          ) &&
+          value > 0
+      );
+
+  const deviceIds =
+    Array.from(
+      new Set(rawIds)
+    );
+
+  if (
+    deviceIds.length === 0
+  ) {
+    throw new Error(
+      "En az 1 IMEI seç."
+    );
+  }
+
+  if (
+    deviceIds.length > 200
+  ) {
+    throw new Error(
+      "Tek seferde en fazla 200 IMEI kanala hazırlanabilir."
+    );
+  }
+
+  const salePrice =
+    parseCenterMoney(
+      data.salePrice,
+      "Satış fiyatı"
+    );
+
+  const listPrice =
+    parseCenterMoney(
+      data.listPrice,
+      "Liste fiyatı"
+    );
+
+  if (
+    listPrice <
+    salePrice
+  ) {
+    throw new Error(
+      "Liste fiyatı satış fiyatından düşük olamaz."
+    );
+  }
+
+  const tableCheck =
+    await client.query(
+      `
+        SELECT
+          to_regclass(
+            'public.online_channel_devices'
+          ) IS NOT NULL AS ready
+      `
+    );
+
+  if (
+    tableCheck.rows[0]
+      ?.ready !== true
+  ) {
+    throw new Error(
+      "online_channel_devices tablosu bulunamadı. Kanal IMEI migration tamamlanmadan gönderim hazırlanamaz."
+    );
+  }
+
+  const devicesResult =
+    await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          current_branch_code,
+          status
+        FROM public.stock_devices
+        WHERE id = ANY(
+          $1::bigint[]
+        )
+        ORDER BY id
+      `,
+      [deviceIds]
+    );
+
+  const foundIds =
+    new Set(
+      devicesResult.rows.map(
+        (row) =>
+          Number(row.id)
+      )
+    );
+
+  const membershipResult =
+    await client.query(
+      `
+        SELECT
+          stock_device_id,
+          imei,
+          channel,
+          membership_status,
+          online_listing_id
+        FROM public.online_channel_devices
+        WHERE channel = $1
+          AND stock_device_id = ANY(
+            $2::bigint[]
+          )
+      `,
+      [
+        channel,
+        deviceIds,
+      ]
+    );
+
+  const membershipByDevice =
+    new Map<
+      number,
+      any
+    >();
+
+  for (
+    const row of
+      membershipResult.rows
+  ) {
+    membershipByDevice.set(
+      Number(
+        row.stock_device_id
+      ),
+      row
+    );
+  }
+
+  const listingLinkResult =
+    await client.query(
+      `
+        SELECT
+          stock_device_id,
+          id,
+          product_status,
+          sale_status,
+          sync_status
+        FROM public.online_listings
+        WHERE channel = $1
+          AND stock_device_id = ANY(
+            $2::bigint[]
+          )
+      `,
+      [
+        channel,
+        deviceIds,
+      ]
+    );
+
+  const linkedListingByDevice =
+    new Map<
+      number,
+      any
+    >();
+
+  for (
+    const row of
+      listingLinkResult.rows
+  ) {
+    if (
+      row.stock_device_id
+    ) {
+      linkedListingByDevice.set(
+        Number(
+          row.stock_device_id
+        ),
+        row
+      );
+    }
+  }
+
+  const n11LegacyImeis =
+    new Set<string>();
+
+  if (
+    channel === "N11"
+  ) {
+    const imeis =
+      devicesResult.rows
+        .map(
+          (row) =>
+            String(
+              row.imei ||
+                ""
+            ).trim()
+        )
+        .filter(Boolean);
+
+    if (
+      imeis.length > 0
+    ) {
+      const legacyResult =
+        await client.query(
+          `
+            SELECT DISTINCT
+              item.imei
+            FROM public.online_listings l
+            CROSS JOIN LATERAL
+              jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    l.raw_data->'availableImeis'
+                  ) = 'array'
+                  THEN l.raw_data->'availableImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS item(imei)
+            WHERE l.channel = 'N11'
+              AND item.imei = ANY(
+                $1::text[]
+              )
+          `,
+          [imeis]
+        );
+
+      for (
+        const row of
+          legacyResult.rows
+      ) {
+        n11LegacyImeis.add(
+          String(
+            row.imei
+          )
+        );
+      }
+    }
+  }
+
+  const items:
+    Array<{
+      deviceId: number;
+      imei: string;
+      brand: string;
+      model: string;
+      memory: string;
+      color: string;
+      grade: string;
+      warranty: string;
+      status: string;
+      eligible: boolean;
+      errors: string[];
+      existingChannelStatus:
+        string | null;
+    }> = [];
+
+  for (
+    const id of
+      deviceIds
+  ) {
+    if (
+      !foundIds.has(id)
+    ) {
+      items.push({
+        deviceId: id,
+        imei: "-",
+        brand: "-",
+        model: "-",
+        memory: "-",
+        color: "-",
+        grade: "-",
+        warranty: "-",
+        status:
+          "NOT_FOUND",
+        eligible: false,
+        errors: [
+          "Cihaz Merkez stokta bulunamadı.",
+        ],
+        existingChannelStatus:
+          null,
+      });
+      continue;
+    }
+
+    const row =
+      devicesResult.rows.find(
+        (deviceRow) =>
+          Number(
+            deviceRow.id
+          ) === id
+      );
+
+    const errors:
+      string[] = [];
+
+    const imei =
+      String(
+        row?.imei ||
+          ""
+      ).trim();
+
+    const status =
+      String(
+        row?.status ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[0-9]{15}$/.test(
+        imei
+      )
+    ) {
+      errors.push(
+        "IMEI 15 hane değil."
+      );
+    }
+
+    if (
+      status !==
+      "AVAILABLE"
+    ) {
+      errors.push(
+        `Cihaz durumu AVAILABLE değil: ${status || "-"}.`
+      );
+    }
+
+    const requiredFields:
+      Array<
+        [
+          string,
+          unknown
+        ]
+      > = [
+        [
+          "Marka",
+          row?.brand,
+        ],
+        [
+          "Model",
+          row?.model,
+        ],
+        [
+          "Hafıza",
+          row?.memory,
+        ],
+        [
+          "Renk",
+          row?.color,
+        ],
+        [
+          "Grade",
+          row?.grade,
+        ],
+        [
+          "Garanti",
+          row?.warranty,
+        ],
+      ];
+
+    for (
+      const [
+        label,
+        value,
+      ] of
+        requiredFields
+    ) {
+      if (
+        !String(
+          value ?? ""
+        ).trim()
+      ) {
+        errors.push(
+          `${label} eksik.`
+        );
+      }
+    }
+
+    const membership =
+      membershipByDevice.get(
+        id
+      );
+
+    const linkedListing =
+      linkedListingByDevice.get(
+        id
+      );
+
+    let existingStatus:
+      string | null = null;
+
+    if (membership) {
+      existingStatus =
+        String(
+          membership
+            .membership_status ||
+            "KAYITLI"
+        );
+
+      errors.push(
+        `${channel} kanalında zaten kayıtlı: ${existingStatus}.`
+      );
+    }
+
+    if (
+      linkedListing &&
+      !membership
+    ) {
+      existingStatus =
+        "LISTING_VAR";
+
+      errors.push(
+        `${channel} kanalında bu cihaza bağlı listing zaten var.`
+      );
+    }
+
+    if (
+      channel === "N11" &&
+      n11LegacyImeis.has(
+        imei
+      ) &&
+      !membership
+    ) {
+      existingStatus =
+        "LISTED";
+
+      errors.push(
+        "IMEI eski N11 stok havuzunda zaten gönderilmiş."
+      );
+    }
+
+    items.push({
+      deviceId:
+        Number(row.id),
+      imei,
+      brand:
+        String(
+          row.brand ||
+            ""
+        ),
+      model:
+        String(
+          row.model ||
+            ""
+        ),
+      memory:
+        String(
+          row.memory ||
+            ""
+        ),
+      color:
+        String(
+          row.color ||
+            ""
+        ),
+      grade:
+        String(
+          row.grade ||
+            ""
+        ),
+      warranty:
+        String(
+          row.warranty ||
+            ""
+        ),
+      status,
+      eligible:
+        errors.length === 0,
+      errors,
+      existingChannelStatus:
+        existingStatus,
+    });
+  }
+
+  const eligibleCount =
+    items.filter(
+      (item) =>
+        item.eligible
+    ).length;
+
+  return {
+    channel,
+    salePrice,
+    listPrice,
+    total:
+      items.length,
+    eligible:
+      eligibleCount,
+    blocked:
+      items.length -
+      eligibleCount,
+    canProceed:
+      items.length > 0 &&
+      eligibleCount ===
+        items.length,
+    items,
+    safety: {
+      previewOnly: true,
+      databaseWrite:
+        false,
+      n11Write: false,
+      ikasWrite: false,
+      idefixWrite:
+        false,
+    },
   };
 }
 
