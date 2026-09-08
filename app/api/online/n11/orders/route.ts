@@ -441,15 +441,89 @@ async function fetchN11Orders(params: {
 }
 
 
+
+function orderRawObject(
+  value: unknown
+): Record<string, any> {
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<string, any>;
+  }
+
+  return {};
+}
+
+function orderUniqueStrings(
+  value: unknown
+) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) =>
+          String(item ?? '').trim()
+        )
+        .filter(Boolean)
+    )
+  );
+}
+
+function orderNonNegativeInt(
+  value: unknown,
+  fallback = 0
+) {
+  const parsed = Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0
+  ) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+}
+
+function buildOrderLineKey(
+  order: N11Order,
+  line: N11OrderLine
+) {
+  const lineId = String(
+    line.orderLineId || ''
+  ).trim();
+
+  if (lineId) {
+    return `N11-LINE:${lineId}`;
+  }
+
+  return [
+    'N11-FALLBACK',
+    order.packageId || '',
+    order.orderNumber || '',
+    line.stockCode || '',
+    line.productId || '',
+    String(line.quantity || 0),
+  ].join(':');
+}
+
 async function applyOrderStockLocks(
   orders: N11Order[]
 ) {
-  const byStockCode = new Map<
+  const events = new Map<
     string,
     {
+      eventKey: string;
       stockCode: string;
+      quantity: number;
       orderNumber: string | null;
       packageId: string | null;
+      orderLineId: string | null;
       status: string | null;
       productName: string | null;
     }
@@ -463,27 +537,48 @@ async function applyOrderStockLocks(
 
       if (!stockCode) continue;
 
-      if (!byStockCode.has(stockCode)) {
-        byStockCode.set(stockCode, {
-          stockCode,
-          orderNumber:
-            order.orderNumber || null,
-          packageId:
-            order.packageId || null,
-          status:
-            order.shipmentPackageStatus ||
-            null,
-          productName:
-            line.productName || null,
-        });
+      const eventKey =
+        buildOrderLineKey(
+          order,
+          line
+        );
+
+      if (events.has(eventKey)) {
+        continue;
       }
+
+      events.set(eventKey, {
+        eventKey,
+        stockCode,
+        quantity:
+          Math.max(
+            1,
+            orderNonNegativeInt(
+              line.quantity,
+              1
+            )
+          ),
+        orderNumber:
+          order.orderNumber || null,
+        packageId:
+          order.packageId || null,
+        orderLineId:
+          line.orderLineId || null,
+        status:
+          order.shipmentPackageStatus ||
+          null,
+        productName:
+          line.productName || null,
+      });
     }
   }
 
-  if (byStockCode.size === 0) {
+  if (events.size === 0) {
     return {
       matchedStockCodeCount: 0,
       updatedListingCount: 0,
+      processedOrderLineCount: 0,
+      skippedProcessedCount: 0,
       stockCodes: [] as string[],
     };
   }
@@ -492,59 +587,252 @@ async function applyOrderStockLocks(
     await getPool().connect();
 
   let updatedListingCount = 0;
+  let processedOrderLineCount = 0;
+  let skippedProcessedCount = 0;
+
+  const touchedStockCodes =
+    new Set<string>();
 
   try {
     await client.query('BEGIN');
 
-    for (const item of byStockCode.values()) {
-      const result = await client.query(
-        `
-          UPDATE public.online_listings
-          SET
-            quantity = 0,
-            sale_status = 'ORDER_RECEIVED',
-            raw_data =
-              COALESCE(
-                raw_data,
-                '{}'::jsonb
-              )
-              || jsonb_build_object(
-                'orderStockLock',
-                true,
-                'lastOrderNumber',
-                $2::text,
-                'lastOrderPackageId',
-                $3::text,
-                'lastOrderStatus',
-                $4::text,
-                'lastOrderSeenAt',
-                now()::text
-              ),
-            updated_at = now()
-          WHERE channel = 'N11'
-            AND external_stock_code = $1
-          RETURNING id
-        `,
-        [
-          item.stockCode,
-          item.orderNumber,
-          item.packageId,
-          item.status,
-        ]
-      );
+    for (const item of events.values()) {
+      const listingResult =
+        await client.query(
+          `
+            SELECT *
+            FROM public.online_listings
+            WHERE channel = 'N11'
+              AND external_stock_code = $1
+            LIMIT 1
+            FOR UPDATE
+          `,
+          [item.stockCode]
+        );
 
-      updatedListingCount +=
-        result.rowCount || 0;
+      const listing =
+        listingResult.rows[0];
+
+      if (!listing) {
+        continue;
+      }
+
+      const raw =
+        orderRawObject(
+          listing.raw_data
+        );
+
+      let processedKeys =
+        orderUniqueStrings(
+          raw.processedOrderLineKeys
+        );
+
+      if (
+        processedKeys.includes(
+          item.eventKey
+        )
+      ) {
+        skippedProcessedCount += 1;
+        continue;
+      }
+
+      const poolEnabled =
+        raw.poolEnabled === true;
+
+      let pooledImeis =
+        orderUniqueStrings(
+          raw.pooledImeis
+        );
+
+      let availableImeis =
+        orderUniqueStrings(
+          raw.availableImeis
+        );
+
+      let soldImeis =
+        orderUniqueStrings(
+          raw.soldImeis
+        );
+
+      let legacyUnmappedQuantity =
+        orderNonNegativeInt(
+          raw.legacyUnmappedQuantity,
+          0
+        );
+
+      const currentQuantity =
+        orderNonNegativeInt(
+          listing.quantity,
+          0
+        );
+
+      // Pool varsa fiziksel stok kaynağımız raw_data içindeki
+      // legacy + available IMEI havuzudur.
+      // Böylece N11 product-query siparişi bizden önce yansıtsa bile
+      // quantity'yi ikinci kez düşürmeyiz.
+      let poolQuantityBefore =
+        legacyUnmappedQuantity +
+        availableImeis.length;
+
+      if (
+        poolEnabled &&
+        currentQuantity >
+          poolQuantityBefore
+      ) {
+        legacyUnmappedQuantity +=
+          currentQuantity -
+          poolQuantityBefore;
+
+        poolQuantityBefore =
+          legacyUnmappedQuantity +
+          availableImeis.length;
+      }
+
+      let remaining =
+        item.quantity;
+
+      const consumedImeis: string[] =
+        [];
+
+      if (poolEnabled) {
+        const legacyConsumed =
+          Math.min(
+            legacyUnmappedQuantity,
+            remaining
+          );
+
+        legacyUnmappedQuantity -=
+          legacyConsumed;
+
+        remaining -=
+          legacyConsumed;
+
+        while (
+          remaining > 0 &&
+          availableImeis.length > 0
+        ) {
+          const consumed =
+            availableImeis.shift();
+
+          if (consumed) {
+            consumedImeis.push(
+              consumed
+            );
+
+            if (
+              !soldImeis.includes(
+                consumed
+              )
+            ) {
+              soldImeis.push(
+                consumed
+              );
+            }
+          }
+
+          remaining -= 1;
+        }
+      }
+
+      const newQuantity =
+        poolEnabled
+          ? Math.max(
+              0,
+              legacyUnmappedQuantity +
+                availableImeis.length
+            )
+          : Math.max(
+              0,
+              currentQuantity -
+                item.quantity
+            );
+
+      processedKeys = Array.from(
+        new Set([
+          ...processedKeys,
+          item.eventKey,
+        ])
+      ).slice(-500);
+
+      const updatedRaw = {
+        ...raw,
+        poolEnabled:
+          poolEnabled ||
+          raw.poolEnabled === true,
+        pooledImeis,
+        availableImeis,
+        soldImeis,
+        legacyUnmappedQuantity,
+        processedOrderLineKeys:
+          processedKeys,
+        orderStockLock: true,
+        orderExpectedMaxQuantity:
+          newQuantity,
+        lastOrderNumber:
+          item.orderNumber,
+        lastOrderPackageId:
+          item.packageId,
+        lastOrderLineId:
+          item.orderLineId,
+        lastOrderStatus:
+          item.status,
+        lastOrderQuantity:
+          item.quantity,
+        lastOrderConsumedImeis:
+          consumedImeis,
+        lastOrderSeenAt:
+          new Date().toISOString(),
+      };
+
+      const updateResult =
+        await client.query(
+          `
+            UPDATE public.online_listings
+            SET
+              quantity = $2,
+              sale_status =
+                CASE
+                  WHEN $2 <= 0
+                    THEN 'ORDER_RECEIVED'
+                  ELSE 'ORDER_RECEIVED_PARTIAL'
+                END,
+              raw_data = $3::jsonb,
+              updated_at = now()
+            WHERE id = $1
+            RETURNING id
+          `,
+          [
+            Number(listing.id),
+            newQuantity,
+            JSON.stringify(
+              updatedRaw
+            ),
+          ]
+        );
+
+      if (
+        updateResult.rowCount
+      ) {
+        updatedListingCount += 1;
+        processedOrderLineCount += 1;
+        touchedStockCodes.add(
+          item.stockCode
+        );
+      }
     }
 
     await client.query('COMMIT');
 
     return {
       matchedStockCodeCount:
-        byStockCode.size,
+        touchedStockCodes.size,
       updatedListingCount,
+      processedOrderLineCount,
+      skippedProcessedCount,
       stockCodes:
-        Array.from(byStockCode.keys()),
+        Array.from(
+          touchedStockCodes
+        ),
     };
   } catch (error) {
     await client
@@ -745,13 +1033,14 @@ export async function GET(request: NextRequest) {
     ];
 
     // KRİTİK:
-    // Sipariş N11'den görüldüğü anda stockCode eşleşen
-    // ONLINE listing panelde stok 0 olur.
-    // raw_data.orderStockLock=true olduğu için sonraki canlı
-    // product-query senkronu yanlışlıkla tekrar stok 1 yapamaz.
+    // Yalnızca YENİ (Created) siparişler stok motoruna girer.
+    // Tek cihazda quantity 1 -> 0 olur.
+    // Aynı varyant IMEI havuzu varsa quantity sadece sipariş adedi kadar azalır.
+    // processedOrderLineKeys aynı sipariş satırının ikinci kez düşmesini engeller.
+    // orderExpectedMaxQuantity canlı product-query gecikmesine karşı geçici üst sınırdır.
     const stockLockResult =
       await applyOrderStockLocks(
-        allOrders
+        created.orders
       );
 
     if (stockOnly) {
@@ -806,6 +1095,12 @@ export async function GET(request: NextRequest) {
         updatedListingCount:
           stockLockResult
             .updatedListingCount,
+        processedOrderLineCount:
+          stockLockResult
+            .processedOrderLineCount,
+        skippedProcessedCount:
+          stockLockResult
+            .skippedProcessedCount,
       },
       checkedAt: new Date().toISOString(),
       checkedBy: user.username,
