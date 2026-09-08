@@ -440,6 +440,123 @@ async function fetchN11Orders(params: {
   return allOrders;
 }
 
+
+async function applyOrderStockLocks(
+  orders: N11Order[]
+) {
+  const byStockCode = new Map<
+    string,
+    {
+      stockCode: string;
+      orderNumber: string | null;
+      packageId: string | null;
+      status: string | null;
+      productName: string | null;
+    }
+  >();
+
+  for (const order of orders) {
+    for (const line of order.lines || []) {
+      const stockCode = String(
+        line.stockCode || ''
+      ).trim();
+
+      if (!stockCode) continue;
+
+      if (!byStockCode.has(stockCode)) {
+        byStockCode.set(stockCode, {
+          stockCode,
+          orderNumber:
+            order.orderNumber || null,
+          packageId:
+            order.packageId || null,
+          status:
+            order.shipmentPackageStatus ||
+            null,
+          productName:
+            line.productName || null,
+        });
+      }
+    }
+  }
+
+  if (byStockCode.size === 0) {
+    return {
+      matchedStockCodeCount: 0,
+      updatedListingCount: 0,
+      stockCodes: [] as string[],
+    };
+  }
+
+  const client =
+    await getPool().connect();
+
+  let updatedListingCount = 0;
+
+  try {
+    await client.query('BEGIN');
+
+    for (const item of byStockCode.values()) {
+      const result = await client.query(
+        `
+          UPDATE public.online_listings
+          SET
+            quantity = 0,
+            sale_status = 'ORDER_RECEIVED',
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || jsonb_build_object(
+                'orderStockLock',
+                true,
+                'lastOrderNumber',
+                $2::text,
+                'lastOrderPackageId',
+                $3::text,
+                'lastOrderStatus',
+                $4::text,
+                'lastOrderSeenAt',
+                now()::text
+              ),
+            updated_at = now()
+          WHERE channel = 'N11'
+            AND external_stock_code = $1
+          RETURNING id
+        `,
+        [
+          item.stockCode,
+          item.orderNumber,
+          item.packageId,
+          item.status,
+        ]
+      );
+
+      updatedListingCount +=
+        result.rowCount || 0;
+    }
+
+    await client.query('COMMIT');
+
+    return {
+      matchedStockCodeCount:
+        byStockCode.size,
+      updatedListingCount,
+      stockCodes:
+        Array.from(byStockCode.keys()),
+    };
+  } catch (error) {
+    await client
+      .query('ROLLBACK')
+      .catch(() => undefined);
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 // ============================================================
 // GET /api/online/n11/orders
 // READ-ONLY.
@@ -488,6 +605,9 @@ export async function GET(request: NextRequest) {
     const requestedStatus = String(
       url.searchParams.get('status') || 'ALL'
     ).trim();
+
+    const stockOnly =
+      url.searchParams.get('stockOnly') === '1';
 
     const supportedStatuses = [
       'Created',
@@ -624,6 +744,37 @@ export async function GET(request: NextRequest) {
       ...delivered.orders,
     ];
 
+    // KRİTİK:
+    // Sipariş N11'den görüldüğü anda stockCode eşleşen
+    // ONLINE listing panelde stok 0 olur.
+    // raw_data.orderStockLock=true olduğu için sonraki canlı
+    // product-query senkronu yanlışlıkla tekrar stok 1 yapamaz.
+    const stockLockResult =
+      await applyOrderStockLocks(
+        allOrders
+      );
+
+    if (stockOnly) {
+      return json({
+        success: true,
+        channel: 'N11',
+        stockOnly: true,
+        requestedStatus,
+        orderCount:
+          allOrders.length,
+        matchedStockCodeCount:
+          stockLockResult
+            .matchedStockCodeCount,
+        updatedListingCount:
+          stockLockResult
+            .updatedListingCount,
+        checkedAt:
+          new Date().toISOString(),
+        checkedBy:
+          user.username,
+      });
+    }
+
     return json({
       success: true,
       channel: 'N11',
@@ -648,6 +799,14 @@ export async function GET(request: NextRequest) {
       },
       count: allOrders.length,
       orders: allOrders,
+      stockSync: {
+        matchedStockCodeCount:
+          stockLockResult
+            .matchedStockCodeCount,
+        updatedListingCount:
+          stockLockResult
+            .updatedListingCount,
+      },
       checkedAt: new Date().toISOString(),
       checkedBy: user.username,
     });
