@@ -59,6 +59,7 @@ type OnlineListing = {
   last_task_status: string | null;
   last_error: string | null;
   attributes: unknown;
+  raw_data?: Record<string, unknown> | null;
   last_synced_at: string | null;
   created_at: string;
   updated_at: string;
@@ -1539,6 +1540,34 @@ export default function Online() {
     [listings]
   );
 
+  const openDeviceCount = useMemo(
+    () =>
+      openListings.reduce(
+        (total, item) =>
+          total +
+          Math.max(
+            0,
+            Number(item.quantity || 0)
+          ),
+        0
+      ),
+    [openListings]
+  );
+
+  const totalActiveDeviceCount = useMemo(
+    () =>
+      listings.reduce(
+        (total, item) =>
+          total +
+          Math.max(
+            0,
+            Number(item.quantity || 0)
+          ),
+        0
+      ),
+    [listings]
+  );
+
   const newOrders =
     ordersData?.groups?.Created?.orders ?? [];
   const preparingOrders =
@@ -1714,62 +1743,226 @@ export default function Online() {
     setStockExporting(true);
 
     try {
-      const XLSX = await import("xlsx");
-
-      const exportRows = sortedListings.map(
-        (item, index) => ({
-          SIRA: index + 1,
-          N11_DURUM:
-            Number(item.quantity || 0) > 0
-              ? "SATIŞA AÇIK"
-              : "SATIŞA KAPALI",
-          MARKA:
-            item.brand ||
-            item.device_brand ||
-            "",
-          MODEL:
-            item.model ||
-            item.device_model ||
-            "",
-          HAFIZA:
-            item.memory ||
-            item.device_memory ||
-            "",
-          RENK:
-            item.color ||
-            item.device_color ||
-            "",
-          GRADE:
-            item.grade ||
-            item.device_grade ||
-            "",
-          GARANTI:
-            item.warranty ||
-            item.device_warranty ||
-            "",
-          IMEI_STOK_KODU:
-            item.external_stock_code ||
-            item.device_imei ||
-            "",
-          N11_URUN_ID:
-            item.external_product_id ||
-            "",
-          STOK:
-            Number(item.quantity || 0),
-          N11_SATIS_FIYATI:
-            Number(item.sale_price || 0),
-          N11_LISTE_FIYATI:
-            Number(item.list_price || 0),
-          SENKRON_DURUMU:
-            item.sync_status || "",
-          SON_GUNCELLEME:
-            item.updated_at
-              ? new Date(
-                  item.updated_at
-                ).toLocaleString("tr-TR")
-              : "",
-        })
+      const detailResponse = await fetch(
+        "/api/online/listings",
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }
       );
+
+      const detailPayload =
+        await detailResponse
+          .json()
+          .catch(() => null);
+
+      if (
+        !detailResponse.ok ||
+        !detailPayload?.success
+      ) {
+        throw new Error(
+          detailPayload?.error ||
+            "IMEI havuzu alınamadı."
+        );
+      }
+
+      const detailMap = new Map<number, any>(
+        (
+          Array.isArray(
+            detailPayload?.listings
+          )
+            ? detailPayload.listings
+            : []
+        ).map((item: any) => [
+          Number(item.id),
+          item,
+        ])
+      );
+
+      const isImei = (
+        value: unknown
+      ) =>
+        /^[0-9]{15}$/.test(
+          String(value ?? "").trim()
+        );
+
+      const uniqueStrings = (
+        value: unknown
+      ) => {
+        if (!Array.isArray(value)) {
+          return [] as string[];
+        }
+
+        return Array.from(
+          new Set(
+            value
+              .map((item) =>
+                String(
+                  item ?? ""
+                ).trim()
+              )
+              .filter(Boolean)
+          )
+        );
+      };
+
+      const exportRows: Array<
+        Record<string, string | number>
+      > = [];
+
+      for (
+        const item of sortedListings
+      ) {
+        const detail =
+          detailMap.get(
+            Number(item.id)
+          ) || item;
+
+        const raw =
+          detail?.raw_data &&
+          typeof detail.raw_data ===
+            "object" &&
+          !Array.isArray(
+            detail.raw_data
+          )
+            ? detail.raw_data
+            : {};
+
+        const quantity =
+          Math.max(
+            0,
+            Number(
+              detail?.quantity ??
+                item.quantity ??
+                0
+            )
+          );
+
+        let imeis: string[] = [];
+
+        if (
+          activeSection === "open"
+        ) {
+          imeis = uniqueStrings(
+            raw?.availableImeis
+          ).filter(isImei);
+        } else {
+          imeis = uniqueStrings(
+            raw?.soldImeis
+          ).filter(isImei);
+        }
+
+        if (imeis.length === 0) {
+          const stockCode =
+            String(
+              detail?.external_stock_code ||
+                item.external_stock_code ||
+                ""
+            ).trim();
+
+          const deviceImei =
+            String(
+              detail?.device_imei ||
+                item.device_imei ||
+                ""
+            ).trim();
+
+          if (isImei(stockCode)) {
+            imeis = [stockCode];
+          } else if (
+            isImei(deviceImei)
+          ) {
+            imeis = [deviceImei];
+          }
+        }
+
+        const expectedRowCount =
+          activeSection === "open"
+            ? Math.max(
+                quantity,
+                imeis.length
+              )
+            : Math.max(
+                1,
+                imeis.length
+              );
+
+        for (
+          let imeiIndex = 0;
+          imeiIndex <
+          expectedRowCount;
+          imeiIndex += 1
+        ) {
+          const imei =
+            imeis[imeiIndex] || "";
+
+          exportRows.push({
+            SIRA:
+              exportRows.length + 1,
+            IMEI:
+              imei ||
+              "IMEI_BILINMIYOR",
+            N11_DURUM:
+              activeSection ===
+              "open"
+                ? "SATIŞA AÇIK"
+                : "SATIŞA KAPALI",
+            MARKA:
+              item.brand ||
+              item.device_brand ||
+              "",
+            MODEL:
+              item.model ||
+              item.device_model ||
+              "",
+            HAFIZA:
+              item.memory ||
+              item.device_memory ||
+              "",
+            RENK:
+              item.color ||
+              item.device_color ||
+              "",
+            GRADE:
+              item.grade ||
+              item.device_grade ||
+              "",
+            GARANTI:
+              item.warranty ||
+              item.device_warranty ||
+              "",
+            N11_STOK_KODU:
+              item.external_stock_code ||
+              "",
+            N11_URUN_ID:
+              item.external_product_id ||
+              "",
+            STOK: 1,
+            N11_SATIS_FIYATI:
+              Number(
+                item.sale_price || 0
+              ),
+            N11_LISTE_FIYATI:
+              Number(
+                item.list_price || 0
+              ),
+            SENKRON_DURUMU:
+              item.sync_status || "",
+            SON_GUNCELLEME:
+              item.updated_at
+                ? new Date(
+                    item.updated_at
+                  ).toLocaleString(
+                    "tr-TR"
+                  )
+                : "",
+          });
+        }
+      }
+
+      const XLSX =
+        await import("xlsx");
 
       const worksheet =
         XLSX.utils.json_to_sheet(
@@ -1778,6 +1971,7 @@ export default function Online() {
 
       worksheet["!cols"] = [
         { wch: 7 },
+        { wch: 20 },
         { wch: 16 },
         { wch: 16 },
         { wch: 24 },
@@ -1912,23 +2106,6 @@ export default function Online() {
 
                   <button
                     type="button"
-                    onClick={openCreateModal}
-                    className="inline-flex h-9 items-center justify-center rounded-xl bg-blue-600 px-4 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-blue-700"
-                  >
-                    + Yeni Ürün Aç
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={openBulkModal}
-                    disabled={bulkLoading || bulkUploading}
-                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wider text-slate-700 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    📄 Excel ile Toplu Ekle
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => {
                       void refreshN11Now();
                     }}
@@ -1968,7 +2145,7 @@ export default function Online() {
                 Satışa Açık
               </div>
               <div className="mt-1 text-[24px] font-black tracking-tight text-slate-900">
-                {openListings.length}
+                {openDeviceCount}
               </div>
               <div className="mt-1 text-[11px] font-semibold text-slate-500">
                 Stokta ve yayında
@@ -2028,7 +2205,7 @@ export default function Online() {
             </div>
 
             <div className="text-[11px] font-semibold text-slate-500">
-              Toplam ürün: <b className="text-slate-800">{listings.length}</b>
+              Toplam aktif cihaz: <b className="text-slate-800">{totalActiveDeviceCount}</b> · N11 ilan: <b className="text-slate-800">{listings.length}</b>
             </div>
           </div>
         </section>
@@ -2064,7 +2241,7 @@ export default function Online() {
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
                 >
-                  ▶ Satışa Açık ({openListings.length})
+                  ▶ Satışa Açık ({openDeviceCount})
                 </button>
 
                 <button
@@ -2080,7 +2257,7 @@ export default function Online() {
                 </button>
               </div>
 
-              <div className="flex w-full flex-col gap-2 xl:w-auto xl:flex-row xl:items-center">
+              <div className="flex w-full flex-wrap gap-2 xl:w-auto xl:flex-row xl:items-center xl:justify-end">
                 <input
                   ref={bulkFileInputRef}
                   type="file"
@@ -2088,6 +2265,23 @@ export default function Online() {
                   className="hidden"
                   onChange={handleBulkExcelFile}
                 />
+
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-3.5 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  + Yeni Ürün Aç
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openBulkModal}
+                  disabled={bulkLoading || bulkUploading}
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3.5 text-[10px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Excel Toplu Ekle
+                </button>
 
                 <button
                   type="button"
@@ -2099,20 +2293,20 @@ export default function Online() {
                     stockExporting ||
                     sortedListings.length === 0
                   }
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[10px] font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {stockExporting
                     ? "EXCEL HAZIRLANIYOR..."
-                    : `⬇ EXCEL İNDİR (${sortedListings.length})`}
+                    : `⬇ EXCEL İNDİR (${activeSection === "open" ? sortedListings.reduce((t, item) => t + Math.max(0, Number(item.quantity || 0)), 0) : sortedListings.length})`}
                 </button>
 
-                <div className="relative w-full xl:w-[390px]">
+                <div className="relative w-full xl:w-[230px]">
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     disabled={activeSection === "orders"}
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-4 pr-11 text-[13px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                    placeholder="Ürün, IMEI, stok kodu veya N11 ID ara..."
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-3 pr-9 text-[11px] font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                    placeholder="Ürün, IMEI veya N11 ID ara..."
                   />
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                     ⌕
@@ -2123,7 +2317,7 @@ export default function Online() {
                   type="button"
                   onClick={() => setShowFilterPanel((current) => !current)}
                   disabled={activeSection === "orders"}
-                  className={`inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`inline-flex h-10 shrink-0 items-center justify-center rounded-xl border px-3 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     showFilterPanel
                       ? "border-slate-300 bg-slate-900 text-white"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -2142,11 +2336,11 @@ export default function Online() {
                       )
                     }
                     disabled={activeSection === "orders"}
-                    className="h-12 min-w-[165px] cursor-pointer appearance-none rounded-2xl border border-slate-200 bg-white pl-4 pr-10 text-[11px] font-black text-slate-700 outline-none transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-10 w-[122px] cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-3 pr-7 text-[10px] font-black text-slate-700 outline-none transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Ürünleri sırala"
                   >
                     <option value="updated_desc">
-                      ↕ SIRALA · En Yeni
+                      ↕ En Yeni
                     </option>
                     <option value="updated_asc">
                       En Eski
@@ -2232,7 +2426,7 @@ export default function Online() {
                 {activeSection === "orders"
                   ? "Yeni sipariş, hazırlanan, kargodaki ve teslim edilen N11 siparişlerini takip edin."
                   : activeSection === "open"
-                  ? "Stok adedi 1 ve üzeri olan, yayındaki N11 ürünleri."
+                  ? `${openListings.length} N11 ilanında toplam ${openDeviceCount} fiziksel cihaz stokta.`
                   : "Stok adedi 0 olan, satışa kapalı N11 ürünleri."}
               </div>
             </div>
