@@ -1237,6 +1237,23 @@ function renewedGradeToken(value: string) {
   return normalized;
 }
 
+function renewedMemoryLabel(value: string) {
+  const raw = String(value || '').trim();
+  const normalized = normalizeTemplateValue(raw);
+
+  const gbMatch = normalized.match(/^(\d+)gb$/);
+  if (gbMatch) {
+    return `${gbMatch[1]} GB`;
+  }
+
+  const tbMatch = normalized.match(/^(\d+)tb$/);
+  if (tbMatch) {
+    return `${tbMatch[1]} TB`;
+  }
+
+  return raw;
+}
+
 function renewedGradeLabel(value: string) {
   const token = renewedGradeToken(value);
 
@@ -2487,6 +2504,9 @@ export async function POST(request: NextRequest) {
     const normalizedWarranty =
       renewedWarrantyLabel(warranty);
 
+    const normalizedMemory =
+      renewedMemoryLabel(memory);
+
     // 1) ÖNCE POSTGRESQL KATALOG HAFIZASI
     // Daha önce doğru yenilenmiş catalogId kullanıldıysa N11'e arama
     // isteği atmadan anında aynı katalog kullanılır.
@@ -2500,7 +2520,7 @@ export async function POST(request: NextRequest) {
         pool,
         brand,
         model,
-        memory,
+        memory: normalizedMemory,
         color,
         grade: normalizedGrade,
         warranty: normalizedWarranty,
@@ -2519,51 +2539,100 @@ export async function POST(request: NextRequest) {
     let catalogProducts: N11CatalogProduct[] =
       catalogProduct ? [catalogProduct] : [];
 
-    // 2) HAFIZADA YOKSA SADECE 2 PARALEL, TEK SAYFALIK ARAMA
-    // 8-12 sayfa uzun tarama YOK.
+    // 2) HAFIZADA YOKSA N11'E PARALEL / TEK SAYFALIK
+    // HEDEFLİ ARAMALAR ATILIR.
+    //
+    // N11 SearchCatalog kelime sırasına duyarlı davranabildiği için
+    // gerçek N11 başlık sırasını da birebir deniyoruz:
+    // "Yenilenmiş Apple iPhone 11 64 GB A Kalite
+    //  (12 Ay Garantili) Siyah"
+    //
+    // Tüm çağrılar PARALEL gider; uzun sayfa taraması yok.
+    let searchedTitles: string[] = [];
+
     if (!catalogProduct) {
       catalogSource =
         'N11_SEARCH_CATALOG';
 
-      const preciseTitle = [
+      const exactN11Title = [
         'Yenilenmiş',
         brand,
         model,
-        memory,
+        normalizedMemory,
+        normalizedGrade,
+        `(${normalizedWarranty})`,
         color,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const exactNoParentheses = [
+        'Yenilenmiş',
+        brand,
+        model,
+        normalizedMemory,
         normalizedGrade,
         normalizedWarranty,
-      ]
-        .filter(Boolean)
-        .join(' ');
-
-      const compactTitle = [
-        'Yenilenmiş',
-        brand,
-        model,
-        memory,
         color,
       ]
         .filter(Boolean)
         .join(' ');
 
+      const renewedModelTitle = [
+        'Yenilenmiş',
+        brand,
+        model,
+        normalizedMemory,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      const renewedColorTitle = [
+        'Yenilenmiş',
+        brand,
+        model,
+        normalizedMemory,
+        color,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      searchedTitles = Array.from(
+        new Set([
+          exactN11Title,
+          exactNoParentheses,
+          renewedModelTitle,
+          renewedColorTitle,
+        ])
+      );
+
+      const searchJobs = [
+        ...searchedTitles.map((title) =>
+          searchN11Catalog({
+            brand,
+            title,
+            categoryId:
+              N11_PHONE_CATEGORY_ID,
+            maxPages: 1,
+          })
+        ),
+
+        // Bazı kataloglarda brandName filtresi beklenmedik şekilde
+        // sonucu daraltabiliyor. Tam başlığı bir kez de brand filtresiz
+        // arıyoruz. Bu da diğerleriyle paralel çalışır.
+        searchN11Catalog({
+          brand: '',
+          title: exactN11Title,
+          categoryId:
+            N11_PHONE_CATEGORY_ID,
+          maxPages: 1,
+        }),
+      ];
+
       const searchResults =
-        await Promise.allSettled([
-          searchN11Catalog({
-            brand,
-            title: preciseTitle,
-            categoryId:
-              N11_PHONE_CATEGORY_ID,
-            maxPages: 1,
-          }),
-          searchN11Catalog({
-            brand,
-            title: compactTitle,
-            categoryId:
-              N11_PHONE_CATEGORY_ID,
-            maxPages: 1,
-          }),
-        ]);
+        await Promise.allSettled(
+          searchJobs
+        );
 
       const merged: N11CatalogProduct[] =
         [];
@@ -2599,7 +2668,7 @@ export async function POST(request: NextRequest) {
           products: catalogProducts,
           brand,
           model,
-          memory,
+          memory: normalizedMemory,
           color,
           grade: normalizedGrade,
           warranty: normalizedWarranty,
@@ -2635,6 +2704,10 @@ export async function POST(request: NextRequest) {
               ? `YENİLENMİŞ ${brand} ${model} ${memory} ${color} ${normalizedGrade} ${normalizedWarranty} için güvenli katalog eşleşmesi bulunamadı. Sıfır ürün açılmadı.`
               : `YENİLENMİŞ ${brand} ${model} ${memory} ${color} için N11 katalog kaydı bulunamadı. Sıfır ürün açılmadı.`,
           catalogSource,
+          searchedTitles:
+            typeof searchedTitles !== 'undefined'
+              ? searchedTitles
+              : [],
         },
         409
       );
@@ -2691,7 +2764,7 @@ export async function POST(request: NextRequest) {
       'Yenilenmiş',
       brand,
       model,
-      memory,
+      normalizedMemory,
       color,
       normalizedGrade,
       normalizedWarranty,
@@ -2700,7 +2773,7 @@ export async function POST(request: NextRequest) {
       .join(' ');
 
     const description =
-      `Yenilenmiş ${brand} ${model} ${memory} ${color} ${normalizedGrade} ${normalizedWarranty}`;
+      `Yenilenmiş ${brand} ${model} ${normalizedMemory} ${color} ${normalizedGrade} ${normalizedWarranty}`;
 
     // Önce yerel kayıt açılır.
     // N11 create başarısızsa ERROR nedeni burada saklanır.
