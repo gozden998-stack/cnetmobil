@@ -397,7 +397,7 @@ function AdminDynamicSheetEditor({
       }
 
       setRows((current) =>
-        current.map((item) => {
+        current.map((item: any) => {
           if (item.row_number !== editingRow) return item;
 
           return {
@@ -2634,7 +2634,7 @@ export default function CnetmobilCmrFinalUltimate() {
               menuGroups
                 .flatMap((g: any) => g.items)
                 .filter((i: any) => i.visible)
-                .map((item) => {
+                .map((item: any) => {
                   const isActive =
                     appMode === item.id ||
                     (item.subItems &&
@@ -2821,7 +2821,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                               </div>
 
-                              {item.branchItems.map((branchItem) => {
+                              {item.branchItems.map((branchItem: any) => {
                                 const branchActive =
                                   appMode === 'cihaz_talep' &&
                                   cihazTalepSourceBranch === branchItem.code;
@@ -2887,7 +2887,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 Cihaz Talep · Mağaza Seç
                               </div>
 
-                              {item.branchItems.map((branchItem) => (
+                              {item.branchItems.map((branchItem: any) => (
                                 <button
                                   key={branchItem.code}
                                   type="button"
@@ -3203,7 +3203,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                               </div>
 
-                              {item.subItems.map((sub) => (
+                              {item.subItems.map((sub: any) => (
                                 <button
                                   type="button"
                                   key={sub.id}
@@ -3236,7 +3236,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                           {mobileSubMenuOpen && (
                             <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
-                              {item.subItems.map((sub) => (
+                              {item.subItems.map((sub: any) => (
                                 <button
                                   key={sub.id}
                                   onClick={() => {
