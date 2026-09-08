@@ -1554,6 +1554,32 @@ export default function Online() {
     [openListings]
   );
 
+  // N11 kartlarında sadece gerçekten N11 ürün kodu oluşmuş ilanları say.
+  // DRAFT / ERROR local kayıtlar "Toplam N11 İlanı" sayısına girmez.
+  const n11ListingCount = useMemo(
+    () =>
+      listings.filter((item) =>
+        Boolean(item.external_product_id)
+      ).length,
+    [listings]
+  );
+
+  const openN11ListingCount = openListings.length;
+
+  // Ortalama fiyatı da yalnızca satışta olan gerçek N11 ilanlarından hesapla.
+  const liveAverageSalePrice = useMemo(() => {
+    const prices = openListings
+      .map((item) => Number(item.sale_price || 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+
+    if (prices.length === 0) return 0;
+
+    return (
+      prices.reduce((total, value) => total + value, 0) /
+      prices.length
+    );
+  }, [openListings]);
+
   const totalActiveDeviceCount = useMemo(
     () =>
       listings.reduce(
@@ -2144,14 +2170,14 @@ export default function Online() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-[18px] border border-blue-100 bg-white px-4 py-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-lg">◇</div>
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Toplam Ürün</div>
-                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{listings.length}</div>
-                  <div className="text-[10px] font-semibold text-slate-400">N11 ilanı</div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Toplam N11 İlanı</div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{n11ListingCount}</div>
+                  <div className="text-[10px] font-semibold text-slate-400">N11 ürün kodu oluşmuş</div>
                 </div>
               </div>
             </div>
@@ -2167,13 +2193,24 @@ export default function Online() {
               </div>
             </div>
 
+            <div className="rounded-[18px] border border-cyan-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-lg text-cyan-700">◎</div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Satıştaki İlan</div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{openN11ListingCount}</div>
+                  <div className="text-[10px] font-semibold text-slate-400">N11 On Sale ilanı</div>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-[18px] border border-emerald-100 bg-white px-4 py-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-700">◉</div>
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Yayındaki Ürün</div>
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Fiziksel Stok</div>
                   <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{openDeviceCount}</div>
-                  <div className="text-[10px] font-semibold text-slate-400">Fiziksel cihaz</div>
+                  <div className="text-[10px] font-semibold text-slate-400">Satıştaki toplam cihaz</div>
                 </div>
               </div>
             </div>
@@ -2183,8 +2220,8 @@ export default function Online() {
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-lg text-violet-700">₺</div>
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Ortalama Fiyat</div>
-                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{formatMoney(stats.averageSalePrice)}</div>
-                  <div className="text-[10px] font-semibold text-slate-400">N11 satış fiyatı</div>
+                  <div className="mt-1 text-[22px] font-black tracking-tight text-slate-950">{formatMoney(liveAverageSalePrice)}</div>
+                  <div className="text-[10px] font-semibold text-slate-400">Satıştaki N11 ilanları</div>
                 </div>
               </div>
             </div>
@@ -2203,7 +2240,7 @@ export default function Online() {
             </div>
 
             <div className="text-[10px] font-bold text-slate-500">
-              Toplam aktif cihaz: <b className="text-slate-800">{totalActiveDeviceCount}</b>
+              Fiziksel aktif stok: <b className="text-slate-800">{totalActiveDeviceCount}</b>
             </div>
           </div>
         </section>
@@ -2239,7 +2276,7 @@ export default function Online() {
                       : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  Satışa Açık ({openDeviceCount})
+                  Satışa Açık ({openN11ListingCount} ilan · {openDeviceCount} cihaz)
                 </button>
 
                 <button
