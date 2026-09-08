@@ -329,6 +329,16 @@ export default function Ikas() {
   });
 
   const [
+    centralPool,
+    setCentralPool,
+  ] = useState<InventoryState>({
+    loading: false,
+    success: false,
+    error: "",
+    data: null,
+  });
+
+  const [
     stockBusyId,
     setStockBusyId,
   ] = useState<string | null>(
@@ -429,6 +439,60 @@ export default function Ikas() {
                   : "İkas stoğu okunamadı.",
             })
           );
+        }
+      },
+      []
+    );
+
+  const bootstrapCentralPool =
+    useCallback(
+      async () => {
+        setCentralPool({
+          loading: true,
+          success: false,
+          error: "",
+          data: null,
+        });
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/pools/bootstrap",
+              {
+                method: "POST",
+                cache: "no-store",
+              }
+            );
+
+          const payload =
+            await response.json();
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "Merkezi IMEI havuzu hazırlanamadı."
+            );
+          }
+
+          setCentralPool({
+            loading: false,
+            success: true,
+            error: "",
+            data: payload,
+          });
+        } catch (error) {
+          setCentralPool({
+            loading: false,
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Merkezi IMEI havuzu hazırlanamadı.",
+            data: null,
+          });
         }
       },
       []
@@ -984,6 +1048,22 @@ export default function Ikas() {
                   ? "Eşleştiriliyor..."
                   : "PostgreSQL Eşleştir"}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void bootstrapCentralPool();
+                }}
+                disabled={
+                  centralPool.loading ||
+                  inventory.loading
+                }
+                className="h-10 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-50"
+              >
+                {centralPool.loading
+                  ? "IMEI Havuzu..."
+                  : "Merkezi IMEI Havuzu"}
+              </button>
             </div>
           </div>
         </div>
@@ -1024,6 +1104,50 @@ export default function Ikas() {
               <span>
                 IMEI Bağlı: {dbSync.data?.postgres?.imeiLinkedCount ?? 0}
               </span>
+            </div>
+          </div>
+        )}
+
+        {centralPool.error && (
+          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700 sm:px-6">
+            Merkezi IMEI Havuzu: {centralPool.error}
+          </div>
+        )}
+
+        {centralPool.success && (
+          <div className="border-b border-cyan-200 bg-cyan-50 px-5 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[8px] font-black uppercase tracking-wide text-cyan-800">
+              <span>
+                Merkezi IMEI Havuzu Hazır
+              </span>
+
+              <span>
+                AVAILABLE IMEI: {centralPool.data?.centralPool?.totalAvailableDeviceCount ?? 0}
+              </span>
+
+              <span>
+                Havuz: {centralPool.data?.centralPool?.totalActivePoolCount ?? 0}
+              </span>
+
+              <span>
+                Eksik Detay: {centralPool.data?.centralPool?.skippedIncompleteDeviceCount ?? 0}
+              </span>
+
+              <span>
+                N11 Bağlı Listing: {centralPool.data?.channels?.n11?.totalLinkedListingCount ?? 0}
+              </span>
+
+              <span>
+                N11 Yeni Bağlanan: {centralPool.data?.channels?.n11?.linked ?? 0}
+              </span>
+
+              <span>
+                İkas Bağlı Listing: {centralPool.data?.channels?.ikas?.totalLinkedListingCount ?? 0}
+              </span>
+            </div>
+
+            <div className="mt-1 text-[8px] font-bold text-cyan-700">
+              N11 bağlantısı yalnızca gerçek availableImeis → stock_devices eşleşmesi varsa yapılır. İkas bu adımda otomatik bağlanmaz.
             </div>
           </div>
         )}
