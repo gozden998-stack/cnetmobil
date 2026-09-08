@@ -12,6 +12,7 @@ import TeknikServis from './components/screens/TeknikServis';
 import CihazAlim from './components/screens/CihazAlim';
 import CihazTalep from './components/screens/CihazTalep/CihazTalep';
 import Online from './components/screens/Online/Online';
+import Ikas from './components/screens/Ikas/Ikas';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -3443,70 +3444,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : appMode === 'online' && step < 99 && isSuperAdminUser ? (
             <Online />
           ) : appMode === 'ikas' && step < 99 && isSuperAdminUser ? (
-            <div className="animate-in fade-in duration-300">
-              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-gradient-to-r from-violet-950 via-slate-950 to-slate-900 px-6 py-7 text-white sm:px-8">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200/75">
-                        Entegrasyonlar / İkas
-                      </div>
-                      <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                        İkas Entegrasyonu
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-[11px] font-semibold leading-5 text-slate-300">
-                        Yenilenmiş cihazlarda ürün, varyant, stok, IMEI havuzu ve sipariş yönetimi
-                        bu ekranda kurulacak.
-                      </p>
-                    </div>
-
-                    <span className="w-fit rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-wide text-amber-200">
-                      Kurulum Aşaması
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-5 sm:p-6">
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-600">
-                        ADIM 1
-                      </div>
-                      <div className="mt-2 text-base font-black text-slate-900">
-                        API Bağlantısı
-                      </div>
-                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
-                        Client ID ve Client Secret Coolify ENV üzerinden bağlanacak.
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
-                        ADIM 2
-                      </div>
-                      <div className="mt-2 text-base font-black text-slate-900">
-                        Read Only Keşif
-                      </div>
-                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
-                        Mevcut ürün, SKU, varyant, kategori, depo ve stok yapısı okunacak.
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
-                        ADIM 3+
-                      </div>
-                      <div className="mt-2 text-base font-black text-slate-900">
-                        Merkezi Stok
-                      </div>
-                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
-                        İkas ve N11 aynı PostgreSQL / IMEI havuzu üzerinden senkronlanacak.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Ikas />
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
