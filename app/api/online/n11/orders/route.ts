@@ -1,9 +1,9 @@
 // app/api/online/n11/orders/route.ts
-// CNETMOBIL ONLINE - N11 GERCEK SIPARIS LISTESI
-// READ-ONLY.
+// CNETMOBIL ONLINE - N11 SIPARIS + STOK SENKRON MOTORU
 // SADECE SUPER ADMIN.
-// N11 REST GetShipmentPackages kullanir.
-// Varsayilan: son 30 gun + Created statulu yeni siparisler.
+// Yeni siparis görüldüğünde PostgreSQL stok/IMEI havuzu düşer
+// ve kalan quantity N11 price-stock-update ile N11'e gönderilir.
+// Eski orderStockLock kayıtları da otomatik tekrar senkronlanır.
 //
 // N11:
 // GET https://api.n11.com/rest/delivery/v1/shipmentPackages
@@ -27,6 +27,9 @@ const N11_ORDERS_URL =
   'https://api.n11.com/rest/delivery/v1/shipmentPackages';
 const N11_ORDER_UPDATE_URL =
   'https://api.n11.com/rest/order/v1/update';
+const N11_PRICE_STOCK_UPDATE_URL =
+  'https://api.n11.com/ms/product/tasks/price-stock-update';
+const N11_INTEGRATOR = 'CNETMOBIL';
 
 type SessionPayload = {
   userId: number | null;
@@ -442,6 +445,509 @@ async function fetchN11Orders(params: {
 
 
 
+
+type OrderN11StockSyncResult = {
+  success: boolean;
+  stockCode: string;
+  targetQuantity: number;
+  taskId: string | null;
+  taskStatus: string;
+  reasons: string[];
+  error: string | null;
+};
+
+function n11StockUpdateMessage(
+  payload: any,
+  rawText: string
+) {
+  const values = [
+    payload?.message,
+    payload?.error,
+    payload?.errorMessage,
+    payload?.reason,
+    Array.isArray(payload?.reasons)
+      ? payload.reasons.join(' | ')
+      : null,
+  ];
+
+  for (const value of values) {
+    const text =
+      String(value ?? '').trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return rawText
+    .slice(0, 500)
+    .trim();
+}
+
+async function sendN11OrderStockQuantity(
+  params: {
+    stockCode: string;
+    quantity: number;
+  }
+): Promise<OrderN11StockSyncResult> {
+  const credentials =
+    getN11Credentials();
+
+  const stockCode =
+    String(
+      params.stockCode || ''
+    ).trim();
+
+  const targetQuantity =
+    Math.max(
+      0,
+      Math.floor(
+        Number(
+          params.quantity || 0
+        )
+      )
+    );
+
+  if (!credentials) {
+    return {
+      success: false,
+      stockCode,
+      targetQuantity,
+      taskId: null,
+      taskStatus: 'CONFIG_ERROR',
+      reasons: [],
+      error:
+        'N11_APP_KEY veya N11_APP_SECRET eksik.',
+    };
+  }
+
+  const requestPayload = {
+    payload: {
+      integrator:
+        N11_INTEGRATOR,
+      skus: [
+        {
+          stockCode,
+          quantity:
+            targetQuantity,
+        },
+      ],
+    },
+  };
+
+  const controller =
+    new AbortController();
+
+  const timeoutId =
+    setTimeout(
+      () =>
+        controller.abort(),
+      20_000
+    );
+
+  try {
+    const response =
+      await fetch(
+        N11_PRICE_STOCK_UPDATE_URL,
+        {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            appkey:
+              credentials.appKey,
+            appsecret:
+              credentials.appSecret,
+            Accept:
+              'application/json',
+            'Content-Type':
+              'application/json',
+          },
+          body:
+            JSON.stringify(
+              requestPayload
+            ),
+          signal:
+            controller.signal,
+        }
+      );
+
+    const rawText =
+      await response.text();
+
+    let payload: any = null;
+
+    if (rawText) {
+      try {
+        payload =
+          JSON.parse(rawText);
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!response.ok) {
+      return {
+        success: false,
+        stockCode,
+        targetQuantity,
+        taskId: null,
+        taskStatus:
+          `HTTP_${response.status}`,
+        reasons: [],
+        error:
+          n11StockUpdateMessage(
+            payload,
+            rawText
+          ) ||
+          `N11 HTTP ${response.status}`,
+      };
+    }
+
+    const taskId =
+      payload?.id === null ||
+      payload?.id === undefined
+        ? null
+        : String(
+            payload.id
+          );
+
+    const taskStatus =
+      String(
+        payload?.status ||
+          ''
+      )
+        .trim()
+        .toUpperCase();
+
+    const reasons =
+      Array.isArray(
+        payload?.reasons
+      )
+        ? payload.reasons.map(
+            String
+          )
+        : [];
+
+    if (
+      taskStatus === 'REJECT'
+    ) {
+      return {
+        success: false,
+        stockCode,
+        targetQuantity,
+        taskId,
+        taskStatus,
+        reasons,
+        error:
+          reasons.join(' | ') ||
+          'N11 stok güncellemesini reddetti.',
+      };
+    }
+
+    if (
+      !taskId ||
+      taskStatus !==
+        'IN_QUEUE'
+    ) {
+      return {
+        success: false,
+        stockCode,
+        targetQuantity,
+        taskId,
+        taskStatus:
+          taskStatus ||
+          'UNKNOWN',
+        reasons,
+        error:
+          `N11 stok güncellemesi beklenmeyen cevap döndürdü: ${
+            taskStatus ||
+            'STATUS YOK'
+          }`,
+      };
+    }
+
+    return {
+      success: true,
+      stockCode,
+      targetQuantity,
+      taskId,
+      taskStatus,
+      reasons,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      stockCode,
+      targetQuantity,
+      taskId: null,
+      taskStatus:
+        'REQUEST_ERROR',
+      reasons: [],
+      error:
+        error instanceof Error
+          ? error.message
+          : 'N11 stok güncelleme bağlantı hatası.',
+    };
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+async function saveOrderN11StockSyncResult(
+  result: OrderN11StockSyncResult
+) {
+  const patch = {
+    orderN11StockSyncPending:
+      true,
+    orderN11StockTargetQuantity:
+      result.targetQuantity,
+    orderN11StockTaskId:
+      result.taskId,
+    orderN11StockTaskStatus:
+      result.taskStatus,
+    orderN11StockLastSentAt:
+      new Date().toISOString(),
+    orderN11StockLastError:
+      result.error,
+  };
+
+  await getPool().query(
+    `
+      UPDATE public.online_listings
+      SET
+        raw_data =
+          COALESCE(
+            raw_data,
+            '{}'::jsonb
+          )
+          || $2::jsonb,
+        updated_at = now()
+      WHERE channel = 'N11'
+        AND external_stock_code = $1
+    `,
+    [
+      result.stockCode,
+      JSON.stringify(
+        patch
+      ),
+    ]
+  );
+}
+
+async function syncOrderTargetsToN11(
+  targets: Array<{
+    stockCode: string;
+    quantity: number;
+  }>
+) {
+  const unique =
+    new Map<
+      string,
+      number
+    >();
+
+  for (const target of targets) {
+    const stockCode =
+      String(
+        target.stockCode ||
+          ''
+      ).trim();
+
+    if (!stockCode) {
+      continue;
+    }
+
+    unique.set(
+      stockCode,
+      Math.max(
+        0,
+        Math.floor(
+          Number(
+            target.quantity ||
+              0
+          )
+        )
+      )
+    );
+  }
+
+  const entries =
+    Array.from(
+      unique.entries()
+    );
+
+  const results:
+    OrderN11StockSyncResult[] =
+    [];
+
+  let nextIndex = 0;
+
+  const worker =
+    async () => {
+      while (true) {
+        const index =
+          nextIndex;
+
+        nextIndex += 1;
+
+        if (
+          index >=
+          entries.length
+        ) {
+          return;
+        }
+
+        const [
+          stockCode,
+          quantity,
+        ] = entries[index];
+
+        const syncResult =
+          await sendN11OrderStockQuantity(
+            {
+              stockCode,
+              quantity,
+            }
+          );
+
+        results.push(
+          syncResult
+        );
+
+        await saveOrderN11StockSyncResult(
+          syncResult
+        ).catch(
+          () => undefined
+        );
+      }
+    };
+
+  const workerCount =
+    Math.min(
+      3,
+      entries.length
+    );
+
+  if (workerCount > 0) {
+    await Promise.all(
+      Array.from(
+        {
+          length:
+            workerCount,
+        },
+        () => worker()
+      )
+    );
+  }
+
+  return results;
+}
+
+function orderStockSentRecently(
+  value: unknown
+) {
+  const time =
+    new Date(
+      String(
+        value ?? ''
+      )
+    ).getTime();
+
+  return (
+    Number.isFinite(time) &&
+    Date.now() - time <
+      45_000
+  );
+}
+
+async function repairPendingOrderStockLocks() {
+  const result =
+    await getPool().query(
+      `
+        SELECT
+          external_stock_code,
+          quantity,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'N11'
+          AND COALESCE(
+            raw_data->>'orderStockLock',
+            'false'
+          ) = 'true'
+          AND external_stock_code IS NOT NULL
+        ORDER BY updated_at ASC
+        LIMIT 100
+      `
+    );
+
+  const targets: Array<{
+    stockCode: string;
+    quantity: number;
+  }> = [];
+
+  let skippedRecent = 0;
+
+  for (const row of result.rows) {
+    const raw =
+      orderRawObject(
+        row.raw_data
+      );
+
+    if (
+      orderStockSentRecently(
+        raw.orderN11StockLastSentAt
+      )
+    ) {
+      skippedRecent += 1;
+      continue;
+    }
+
+    targets.push({
+      stockCode:
+        String(
+          row.external_stock_code
+        ).trim(),
+      quantity:
+        orderNonNegativeInt(
+          raw.orderExpectedMaxQuantity,
+          orderNonNegativeInt(
+            row.quantity,
+            0
+          )
+        ),
+    });
+  }
+
+  const results =
+    targets.length
+      ? await syncOrderTargetsToN11(
+          targets
+        )
+      : [];
+
+  return {
+    lockedCount:
+      result.rows.length,
+    attemptedCount:
+      targets.length,
+    skippedRecent,
+    successCount:
+      results.filter(
+        (item) =>
+          item.success
+      ).length,
+    errorCount:
+      results.filter(
+        (item) =>
+          !item.success
+      ).length,
+    results,
+  };
+}
+
 function orderRawObject(
   value: unknown
 ): Record<string, any> {
@@ -579,6 +1085,12 @@ async function applyOrderStockLocks(
       updatedListingCount: 0,
       processedOrderLineCount: 0,
       skippedProcessedCount: 0,
+      n11StockSync: {
+        attemptedCount: 0,
+        successCount: 0,
+        errorCount: 0,
+        results: [] as OrderN11StockSyncResult[],
+      },
       stockCodes: [] as string[],
     };
   }
@@ -592,6 +1104,12 @@ async function applyOrderStockLocks(
 
   const touchedStockCodes =
     new Set<string>();
+
+  const n11StockTargets =
+    new Map<
+      string,
+      number
+    >();
 
   try {
     await client.query('BEGIN');
@@ -818,10 +1336,32 @@ async function applyOrderStockLocks(
         touchedStockCodes.add(
           item.stockCode
         );
+
+        n11StockTargets.set(
+          item.stockCode,
+          newQuantity
+        );
       }
     }
 
     await client.query('COMMIT');
+
+    const n11SyncResults =
+      n11StockTargets.size > 0
+        ? await syncOrderTargetsToN11(
+            Array.from(
+              n11StockTargets.entries()
+            ).map(
+              ([
+                stockCode,
+                quantity,
+              ]) => ({
+                stockCode,
+                quantity,
+              })
+            )
+          )
+        : [];
 
     return {
       matchedStockCodeCount:
@@ -829,6 +1369,22 @@ async function applyOrderStockLocks(
       updatedListingCount,
       processedOrderLineCount,
       skippedProcessedCount,
+      n11StockSync: {
+        attemptedCount:
+          n11SyncResults.length,
+        successCount:
+          n11SyncResults.filter(
+            (item) =>
+              item.success
+          ).length,
+        errorCount:
+          n11SyncResults.filter(
+            (item) =>
+              !item.success
+          ).length,
+        results:
+          n11SyncResults,
+      },
       stockCodes:
         Array.from(
           touchedStockCodes
@@ -1043,6 +1599,9 @@ export async function GET(request: NextRequest) {
         created.orders
       );
 
+    const stockRepairResult =
+      await repairPendingOrderStockLocks();
+
     if (stockOnly) {
       return json({
         success: true,
@@ -1057,6 +1616,11 @@ export async function GET(request: NextRequest) {
         updatedListingCount:
           stockLockResult
             .updatedListingCount,
+        n11StockSync:
+          stockLockResult
+            .n11StockSync,
+        stockRepair:
+          stockRepairResult,
         checkedAt:
           new Date().toISOString(),
         checkedBy:
@@ -1101,6 +1665,11 @@ export async function GET(request: NextRequest) {
         skippedProcessedCount:
           stockLockResult
             .skippedProcessedCount,
+        n11StockSync:
+          stockLockResult
+            .n11StockSync,
+        repair:
+          stockRepairResult,
       },
       checkedAt: new Date().toISOString(),
       checkedBy: user.username,
