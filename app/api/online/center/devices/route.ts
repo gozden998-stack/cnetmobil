@@ -3272,30 +3272,100 @@ async function previewCenterChannelSend(
     );
   }
 
+  const selectedImeis =
+    devicesResult.rows
+      .map(
+        (row) =>
+          String(
+            row.imei ||
+              ""
+          ).trim()
+      )
+      .filter(Boolean);
+
   const listingLinkResult =
     await client.query(
       `
         SELECT
           stock_device_id,
           id,
+          external_stock_code,
+          external_product_id,
           product_status,
           sale_status,
-          sync_status
+          sync_status,
+          last_task_status,
+          quantity,
+          raw_data
         FROM public.online_listings
         WHERE channel = $1
-          AND stock_device_id = ANY(
-            $2::bigint[]
+          AND (
+            stock_device_id = ANY(
+              $2::bigint[]
+            )
+            OR external_stock_code = ANY(
+              $3::text[]
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pooledImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pooledImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pool_imei(value)
+              WHERE pool_imei.value = ANY(
+                $3::text[]
+              )
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'availableImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'availableImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS available_imei(value)
+              WHERE available_imei.value = ANY(
+                $3::text[]
+              )
+            )
           )
       `,
       [
         channel,
         deviceIds,
+        selectedImeis,
       ]
     );
 
   const linkedListingByDevice =
     new Map<
       number,
+      any
+    >();
+
+  const linkedListingByImei =
+    new Map<
+      string,
       any
     >();
 
@@ -3312,6 +3382,70 @@ async function previewCenterChannelSend(
         ),
         row
       );
+    }
+
+    const stockCode =
+      String(
+        row.external_stock_code ||
+          ""
+      ).trim();
+
+    if (
+      stockCode &&
+      selectedImeis.includes(
+        stockCode
+      )
+    ) {
+      linkedListingByImei.set(
+        stockCode,
+        row
+      );
+    }
+
+    const raw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
+
+    const poolImeis =
+      Array.isArray(
+        raw?.pooledImeis
+      )
+        ? raw.pooledImeis
+        : [];
+
+    const availableImeis =
+      Array.isArray(
+        raw?.availableImeis
+      )
+        ? raw.availableImeis
+        : [];
+
+    for (
+      const poolImei of
+        [
+          ...poolImeis,
+          ...availableImeis,
+        ]
+    ) {
+      const normalized =
+        String(
+          poolImei || ""
+        ).trim();
+
+      if (
+        normalized &&
+        selectedImeis.includes(
+          normalized
+        )
+      ) {
+        linkedListingByImei.set(
+          normalized,
+          row
+        );
+      }
     }
   }
 
@@ -3520,6 +3654,9 @@ async function previewCenterChannelSend(
     const linkedListing =
       linkedListingByDevice.get(
         id
+      ) ||
+      linkedListingByImei.get(
+        imei
       );
 
     let existingStatus:
@@ -3545,8 +3682,17 @@ async function previewCenterChannelSend(
       existingStatus =
         "LISTING_VAR";
 
+      const listingState =
+        String(
+          linkedListing
+            ?.sync_status ||
+            linkedListing
+              ?.last_task_status ||
+            "KAYITLI"
+        );
+
       errors.push(
-        `${channel} kanalında bu cihaza bağlı listing zaten var.`
+        `${channel} kanalında bu IMEI için listing zaten var: ${listingState}.`
       );
     }
 
@@ -3638,6 +3784,450 @@ async function previewCenterChannelSend(
       ikasWrite: false,
       idefixWrite:
         false,
+    },
+  };
+}
+
+
+function n11MembershipStatusFromListing(
+  listing: any
+) {
+  const externalProductId =
+    String(
+      listing
+        ?.external_product_id ||
+        ""
+    ).trim();
+
+  const syncStatus =
+    String(
+      listing?.sync_status ||
+        ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const taskStatus =
+    String(
+      listing
+        ?.last_task_status ||
+        ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    syncStatus === "ERROR" ||
+    taskStatus === "REJECT" ||
+    taskStatus === "FAILED" ||
+    taskStatus === "FAIL"
+  ) {
+    return "ERROR";
+  }
+
+  if (
+    syncStatus ===
+      "CREATING" ||
+    syncStatus ===
+      "IN_QUEUE" ||
+    syncStatus ===
+      "SYNCED_PENDING_QUERY" ||
+    taskStatus ===
+      "IN_QUEUE"
+  ) {
+    return "PENDING_CREATE";
+  }
+
+  if (
+    externalProductId
+  ) {
+    return "LISTED";
+  }
+
+  return "PENDING_CREATE";
+}
+
+async function commitN11CenterMembership(
+  client: PoolClient,
+  data: Record<
+    string,
+    unknown
+  >
+) {
+  const deviceId =
+    Number(
+      data.deviceId
+    );
+
+  if (
+    !Number.isInteger(
+      deviceId
+    ) ||
+    deviceId < 1
+  ) {
+    throw new Error(
+      "Geçersiz cihaz ID."
+    );
+  }
+
+  const deviceResult =
+    await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          status
+        FROM public.stock_devices
+        WHERE id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [deviceId]
+    );
+
+  const device =
+    deviceResult.rows[0];
+
+  if (!device) {
+    throw new Error(
+      "Merkez cihaz kaydı bulunamadı."
+    );
+  }
+
+  const imei =
+    String(
+      device.imei || ""
+    ).trim();
+
+  if (
+    !/^[0-9]{15}$/.test(
+      imei
+    )
+  ) {
+    throw new Error(
+      "Merkez cihaz IMEI bilgisi geçersiz."
+    );
+  }
+
+  const listingResult =
+    await client.query(
+      `
+        SELECT *
+        FROM public.online_listings
+        WHERE channel = 'N11'
+          AND (
+            external_stock_code = $1
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pooledImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pooledImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pool_imei(value)
+              WHERE pool_imei.value = $1
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'availableImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'availableImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS available_imei(value)
+              WHERE available_imei.value = $1
+            )
+          )
+        ORDER BY
+          CASE
+            WHEN external_product_id
+              IS NOT NULL
+              THEN 0
+            ELSE 1
+          END,
+          updated_at DESC,
+          id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [imei]
+    );
+
+  const listing =
+    listingResult.rows[0];
+
+  if (!listing) {
+    throw new Error(
+      "N11 işlemi sonrası bu IMEI'ye ait online listing bulunamadı. Kanal üyeliği yazılmadı."
+    );
+  }
+
+  const membershipStatus =
+    n11MembershipStatusFromListing(
+      listing
+    );
+
+  if (
+    membershipStatus ===
+    "ERROR"
+  ) {
+    throw new Error(
+      `N11 listing hata durumunda: ${String(
+        listing.last_error ||
+          listing.sync_status ||
+          listing.last_task_status ||
+          "ERROR"
+      )}`
+    );
+  }
+
+  const salePrice =
+    numberOrNull(
+      listing.sale_price
+    );
+
+  const listPrice =
+    numberOrNull(
+      listing.list_price
+    );
+
+  const existingMembership =
+    await client.query(
+      `
+        SELECT
+          id,
+          membership_status
+        FROM public.online_channel_devices
+        WHERE channel = 'N11'
+          AND stock_device_id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [deviceId]
+    );
+
+  const metadata =
+    JSON.stringify({
+      source:
+        "CENTER_N11_SEND",
+      imei,
+      listingId:
+        Number(listing.id),
+      externalProductId:
+        listing
+          .external_product_id ??
+        null,
+      externalStockCode:
+        listing
+          .external_stock_code ??
+        null,
+      syncStatus:
+        listing.sync_status ??
+        null,
+      lastTaskId:
+        listing.last_task_id ??
+        null,
+      lastTaskStatus:
+        listing
+          .last_task_status ??
+        null,
+      committedAt:
+        new Date().toISOString(),
+    });
+
+  let membership:
+    any;
+
+  if (
+    existingMembership.rowCount
+  ) {
+    const update =
+      await client.query(
+        `
+          UPDATE public.online_channel_devices
+          SET
+            imei = $2,
+            online_listing_id = $3,
+            membership_status = $4,
+            channel_sale_price = $5,
+            channel_list_price = $6,
+            source_channel = 'CENTER',
+            source_listing_id = $3,
+            metadata =
+              COALESCE(
+                metadata,
+                '{}'::jsonb
+              )
+              || $7::jsonb,
+            listed_at =
+              CASE
+                WHEN $4 = 'LISTED'
+                  THEN COALESCE(
+                    listed_at,
+                    now()
+                  )
+                ELSE listed_at
+              END,
+            updated_at = now()
+          WHERE id = $1
+          RETURNING *
+        `,
+        [
+          Number(
+            existingMembership
+              .rows[0].id
+          ),
+          imei,
+          Number(
+            listing.id
+          ),
+          membershipStatus,
+          salePrice,
+          listPrice,
+          metadata,
+        ]
+      );
+
+    membership =
+      update.rows[0];
+  } else {
+    const insert =
+      await client.query(
+        `
+          INSERT INTO public.online_channel_devices (
+            stock_device_id,
+            imei,
+            channel,
+            online_listing_id,
+            membership_status,
+            channel_sale_price,
+            channel_list_price,
+            source_channel,
+            source_listing_id,
+            metadata,
+            listed_at,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $1,
+            $2,
+            'N11',
+            $3,
+            $4,
+            $5,
+            $6,
+            'CENTER',
+            $3,
+            $7::jsonb,
+            CASE
+              WHEN $4 = 'LISTED'
+                THEN now()
+              ELSE NULL
+            END,
+            now(),
+            now()
+          )
+          RETURNING *
+        `,
+        [
+          deviceId,
+          imei,
+          Number(
+            listing.id
+          ),
+          membershipStatus,
+          salePrice,
+          listPrice,
+          metadata,
+        ]
+      );
+
+    membership =
+      insert.rows[0];
+  }
+
+  return {
+    device: {
+      id:
+        Number(device.id),
+      imei,
+      brand:
+        String(
+          device.brand || ""
+        ),
+      model:
+        String(
+          device.model || ""
+        ),
+    },
+    listing: {
+      id:
+        Number(listing.id),
+      externalProductId:
+        listing
+          .external_product_id ??
+        null,
+      externalStockCode:
+        listing
+          .external_stock_code ??
+        null,
+      quantity:
+        numberOrNull(
+          listing.quantity
+        ),
+      syncStatus:
+        listing.sync_status ??
+        null,
+      lastTaskId:
+        listing.last_task_id ??
+        null,
+      lastTaskStatus:
+        listing
+          .last_task_status ??
+        null,
+      salePrice,
+      listPrice,
+    },
+    membership: {
+      id:
+        Number(
+          membership.id
+        ),
+      status:
+        String(
+          membership
+            .membership_status
+        ),
+      onlineListingId:
+        numberOrNull(
+          membership
+            .online_listing_id
+        ),
     },
   };
 }
@@ -3771,6 +4361,59 @@ export async function PATCH(
                 : "Kanal ön kontrolü yapılamadı.",
           },
           400
+        );
+      }
+    }
+
+    if (
+      action ===
+      "n11_membership_commit"
+    ) {
+      client =
+        await getPool().connect();
+
+      try {
+        await client.query(
+          "BEGIN"
+        );
+
+        const result =
+          await commitN11CenterMembership(
+            client,
+            data
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return json({
+          success: true,
+          action:
+            "n11_membership_commit",
+          result,
+        });
+      } catch (error) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {
+          // rollback failure ignored
+        }
+
+        return json(
+          {
+            success: false,
+            action:
+              "n11_membership_commit",
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : "N11 kanal üyeliği kaydedilemedi.",
+          },
+          409
         );
       }
     }
