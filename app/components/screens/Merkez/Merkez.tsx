@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -53,6 +54,835 @@ type BulkPreview = {
   errors: BulkPreviewError[];
 };
 
+
+type ExcelDeviceRow = {
+  rowNumber: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+};
+
+type ExcelPreviewError = {
+  rowNumber: number;
+  imei: string;
+  reason: string;
+  type: string;
+};
+
+type ExcelPreview = {
+  total: number;
+  valid: number;
+  invalid: number;
+  canCommit: boolean;
+  errors: ExcelPreviewError[];
+};
+
+
+
+
+function normalizeExcelHeader(
+  value: unknown
+) {
+  return String(
+    value ?? ""
+  )
+    .trim()
+    .toLocaleUpperCase(
+      "tr-TR"
+    )
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .replace(
+      /[^A-Z0-9]+/g,
+      ""
+    );
+}
+
+function excelColumnIndex(
+  cellRef: string
+) {
+  const letters =
+    cellRef
+      .replace(
+        /[^A-Za-z]/g,
+        ""
+      )
+      .toUpperCase();
+
+  let value = 0;
+
+  for (
+    let index = 0;
+    index <
+    letters.length;
+    index += 1
+  ) {
+    value =
+      value * 26 +
+      (
+        letters.charCodeAt(
+          index
+        ) -
+        64
+      );
+  }
+
+  return value - 1;
+}
+
+function readUint16LE(
+  view: DataView,
+  offset: number
+) {
+  return view.getUint16(
+    offset,
+    true
+  );
+}
+
+function readUint32LE(
+  view: DataView,
+  offset: number
+) {
+  return view.getUint32(
+    offset,
+    true
+  );
+}
+
+async function unzipXlsxEntries(
+  buffer: ArrayBuffer
+) {
+  const view =
+    new DataView(
+      buffer
+    );
+
+  let eocd = -1;
+
+  const minOffset =
+    Math.max(
+      0,
+      buffer.byteLength -
+        65_557
+    );
+
+  for (
+    let offset =
+      buffer.byteLength -
+      22;
+    offset >= minOffset;
+    offset -= 1
+  ) {
+    if (
+      readUint32LE(
+        view,
+        offset
+      ) === 0x06054b50
+    ) {
+      eocd = offset;
+      break;
+    }
+  }
+
+  if (eocd < 0) {
+    throw new Error(
+      "Excel ZIP yapısı okunamadı."
+    );
+  }
+
+  const totalEntries =
+    readUint16LE(
+      view,
+      eocd + 10
+    );
+
+  const centralOffset =
+    readUint32LE(
+      view,
+      eocd + 16
+    );
+
+  const decoder =
+    new TextDecoder(
+      "utf-8"
+    );
+
+  const entries =
+    new Map<
+      string,
+      {
+        method: number;
+        compressedSize: number;
+        localOffset: number;
+      }
+    >();
+
+  let offset =
+    centralOffset;
+
+  for (
+    let index = 0;
+    index <
+    totalEntries;
+    index += 1
+  ) {
+    if (
+      readUint32LE(
+        view,
+        offset
+      ) !== 0x02014b50
+    ) {
+      throw new Error(
+        "Excel merkezi ZIP dizini bozuk."
+      );
+    }
+
+    const method =
+      readUint16LE(
+        view,
+        offset + 10
+      );
+
+    const compressedSize =
+      readUint32LE(
+        view,
+        offset + 20
+      );
+
+    const fileNameLength =
+      readUint16LE(
+        view,
+        offset + 28
+      );
+
+    const extraLength =
+      readUint16LE(
+        view,
+        offset + 30
+      );
+
+    const commentLength =
+      readUint16LE(
+        view,
+        offset + 32
+      );
+
+    const localOffset =
+      readUint32LE(
+        view,
+        offset + 42
+      );
+
+    const fileNameBytes =
+      new Uint8Array(
+        buffer,
+        offset + 46,
+        fileNameLength
+      );
+
+    const fileName =
+      decoder.decode(
+        fileNameBytes
+      );
+
+    entries.set(
+      fileName,
+      {
+        method,
+        compressedSize,
+        localOffset,
+      }
+    );
+
+    offset +=
+      46 +
+      fileNameLength +
+      extraLength +
+      commentLength;
+  }
+
+  const readEntry =
+    async (
+      name: string
+    ) => {
+      const entry =
+        entries.get(name);
+
+      if (!entry) {
+        return null;
+      }
+
+      const local =
+        entry.localOffset;
+
+      if (
+        readUint32LE(
+          view,
+          local
+        ) !== 0x04034b50
+      ) {
+        throw new Error(
+          `Excel ZIP kaydı okunamadı: ${name}`
+        );
+      }
+
+      const fileNameLength =
+        readUint16LE(
+          view,
+          local + 26
+        );
+
+      const extraLength =
+        readUint16LE(
+          view,
+          local + 28
+        );
+
+      const dataStart =
+        local +
+        30 +
+        fileNameLength +
+        extraLength;
+
+      const compressed =
+        new Uint8Array(
+          buffer,
+          dataStart,
+          entry.compressedSize
+        );
+
+      let bytes:
+        Uint8Array;
+
+      if (
+        entry.method === 0
+      ) {
+        bytes =
+          compressed;
+      } else if (
+        entry.method === 8
+      ) {
+        if (
+          typeof DecompressionStream ===
+          "undefined"
+        ) {
+          throw new Error(
+            "Tarayıcı Excel sıkıştırmasını desteklemiyor."
+          );
+        }
+
+        const stream =
+          new Blob([
+            compressed,
+          ])
+            .stream()
+            .pipeThrough(
+              new DecompressionStream(
+                "deflate-raw" as any
+              )
+            );
+
+        bytes =
+          new Uint8Array(
+            await new Response(
+              stream
+            ).arrayBuffer()
+          );
+      } else {
+        throw new Error(
+          `Desteklenmeyen Excel sıkıştırma tipi: ${entry.method}`
+        );
+      }
+
+      return decoder.decode(
+        bytes
+      );
+    };
+
+  return {
+    readEntry,
+  };
+}
+
+function parseExcelSheetXml(
+  sheetXml: string,
+  sharedStrings: string[]
+) {
+  const parser =
+    new DOMParser();
+
+  const xml =
+    parser.parseFromString(
+      sheetXml,
+      "application/xml"
+    );
+
+  if (
+    xml.querySelector(
+      "parsererror"
+    )
+  ) {
+    throw new Error(
+      "Excel sayfası XML olarak okunamadı."
+    );
+  }
+
+  const rows:
+    Array<{
+      rowNumber: number;
+      cells: string[];
+    }> = [];
+
+  const rowNodes =
+    Array.from(
+      xml.getElementsByTagName(
+        "row"
+      )
+    );
+
+  for (
+    const rowNode of
+      rowNodes
+  ) {
+    const rowNumber =
+      Number(
+        rowNode.getAttribute(
+          "r"
+        ) || 0
+      );
+
+    const cells:
+      string[] = [];
+
+    const cellNodes =
+      Array.from(
+        rowNode.getElementsByTagName(
+          "c"
+        )
+      );
+
+    for (
+      const cell of
+        cellNodes
+    ) {
+      const ref =
+        cell.getAttribute(
+          "r"
+        ) || "";
+
+      const column =
+        excelColumnIndex(
+          ref
+        );
+
+      if (column < 0) {
+        continue;
+      }
+
+      const type =
+        cell.getAttribute(
+          "t"
+        ) || "";
+
+      let value = "";
+
+      if (
+        type ===
+        "inlineStr"
+      ) {
+        value =
+          Array.from(
+            cell.getElementsByTagName(
+              "t"
+            )
+          )
+            .map(
+              (node) =>
+                node.textContent ||
+                ""
+            )
+            .join("");
+      } else {
+        const valueNode =
+          cell.getElementsByTagName(
+            "v"
+          )[0];
+
+        const rawValue =
+          valueNode?.textContent ||
+          "";
+
+        if (
+          type === "s"
+        ) {
+          const index =
+            Number(
+              rawValue
+            );
+
+          value =
+            sharedStrings[
+              index
+            ] || "";
+        } else if (
+          type === "b"
+        ) {
+          value =
+            rawValue === "1"
+              ? "TRUE"
+              : "FALSE";
+        } else {
+          value =
+            rawValue;
+        }
+      }
+
+      cells[column] =
+        String(
+          value ?? ""
+        ).trim();
+    }
+
+    rows.push({
+      rowNumber,
+      cells,
+    });
+  }
+
+  return rows;
+}
+
+async function parseCenterExcelFile(
+  file: File
+): Promise<
+  ExcelDeviceRow[]
+> {
+  const lowerName =
+    file.name.toLowerCase();
+
+  if (
+    !lowerName.endsWith(
+      ".xlsx"
+    )
+  ) {
+    throw new Error(
+      "Şimdilik yalnızca .xlsx Excel dosyası yüklenebilir."
+    );
+  }
+
+  if (
+    file.size >
+    10 * 1024 * 1024
+  ) {
+    throw new Error(
+      "Excel dosyası en fazla 10 MB olabilir."
+    );
+  }
+
+  const buffer =
+    await file.arrayBuffer();
+
+  const zip =
+    await unzipXlsxEntries(
+      buffer
+    );
+
+  const sheetXml =
+    await zip.readEntry(
+      "xl/worksheets/sheet1.xml"
+    );
+
+  if (!sheetXml) {
+    throw new Error(
+      "Excel dosyasının ilk sayfası bulunamadı."
+    );
+  }
+
+  const sharedXml =
+    await zip.readEntry(
+      "xl/sharedStrings.xml"
+    );
+
+  let sharedStrings:
+    string[] = [];
+
+  if (sharedXml) {
+    const parser =
+      new DOMParser();
+
+    const xml =
+      parser.parseFromString(
+        sharedXml,
+        "application/xml"
+      );
+
+    sharedStrings =
+      Array.from(
+        xml.getElementsByTagName(
+          "si"
+        )
+      ).map(
+        (node) =>
+          Array.from(
+            node.getElementsByTagName(
+              "t"
+            )
+          )
+            .map(
+              (textNode) =>
+                textNode.textContent ||
+                ""
+            )
+            .join("")
+      );
+  }
+
+  const rawRows =
+    parseExcelSheetXml(
+      sheetXml,
+      sharedStrings
+    );
+
+  if (
+    rawRows.length < 2
+  ) {
+    throw new Error(
+      "Excel dosyasında cihaz satırı bulunamadı."
+    );
+  }
+
+  const headerRow =
+    rawRows.find(
+      (row) =>
+        row.cells.some(
+          (cell) =>
+            normalizeExcelHeader(
+              cell
+            ) === "IMEI"
+        )
+    ) ||
+    rawRows[0];
+
+  const headerMap =
+    new Map<
+      string,
+      number
+    >();
+
+  headerRow.cells.forEach(
+    (
+      cell,
+      index
+    ) => {
+      const key =
+        normalizeExcelHeader(
+          cell
+        );
+
+      if (key) {
+        headerMap.set(
+          key,
+          index
+        );
+      }
+    }
+  );
+
+  const findColumn =
+    (
+      keys: string[]
+    ) => {
+      for (
+        const key of keys
+      ) {
+        const index =
+          headerMap.get(
+            key
+          );
+
+        if (
+          index !==
+          undefined
+        ) {
+          return index;
+        }
+      }
+
+      return -1;
+    };
+
+  const columns = {
+    imei:
+      findColumn([
+        "IMEI",
+      ]),
+    brand:
+      findColumn([
+        "MARKA",
+        "BRAND",
+      ]),
+    model:
+      findColumn([
+        "MODEL",
+      ]),
+    memory:
+      findColumn([
+        "HAFIZA",
+        "MEMORY",
+        "KAPASITE",
+      ]),
+    color:
+      findColumn([
+        "RENK",
+        "COLOR",
+      ]),
+    grade:
+      findColumn([
+        "GRADE",
+        "KALITE",
+      ]),
+    warranty:
+      findColumn([
+        "GARANTI",
+        "WARRANTY",
+      ]),
+  };
+
+  const missing =
+    Object.entries(
+      columns
+    )
+      .filter(
+        (
+          [, index]
+        ) =>
+          index < 0
+      )
+      .map(
+        ([key]) =>
+          key
+      );
+
+  if (
+    missing.length > 0
+  ) {
+    throw new Error(
+      "Excel başlıkları eksik. Gerekli kolonlar: IMEI, Marka, Model, Hafıza, Renk, Grade, Garanti."
+    );
+  }
+
+  const rows:
+    ExcelDeviceRow[] = [];
+
+  for (
+    const rawRow of
+      rawRows
+  ) {
+    if (
+      rawRow.rowNumber <=
+      headerRow.rowNumber
+    ) {
+      continue;
+    }
+
+    const get =
+      (
+        index: number
+      ) =>
+        String(
+          rawRow.cells[
+            index
+          ] ?? ""
+        ).trim();
+
+    const imei =
+      get(
+        columns.imei
+      );
+
+    const brand =
+      get(
+        columns.brand
+      );
+
+    const model =
+      get(
+        columns.model
+      );
+
+    const memory =
+      get(
+        columns.memory
+      );
+
+    const color =
+      get(
+        columns.color
+      );
+
+    const grade =
+      get(
+        columns.grade
+      );
+
+    const warranty =
+      get(
+        columns.warranty
+      );
+
+    if (
+      ![
+        imei,
+        brand,
+        model,
+        memory,
+        color,
+        grade,
+        warranty,
+      ].some(Boolean)
+    ) {
+      continue;
+    }
+
+    rows.push({
+      rowNumber:
+        rawRow.rowNumber,
+      imei,
+      brand,
+      model,
+      memory,
+      color,
+      grade,
+      warranty,
+    });
+  }
+
+  if (
+    rows.length === 0
+  ) {
+    throw new Error(
+      "Excel dosyasında cihaz satırı bulunamadı."
+    );
+  }
+
+  if (
+    rows.length > 500
+  ) {
+    throw new Error(
+      "Tek Excel dosyasında en fazla 500 cihaz yüklenebilir."
+    );
+  }
+
+  return rows;
+}
 
 function formatDateTime(
   value: unknown
@@ -375,6 +1205,51 @@ export default function Merkez() {
   const [
     bulkSuccess,
     setBulkSuccess,
+  ] = useState("");
+
+
+  const excelInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  const [
+    excelOpen,
+    setExcelOpen,
+  ] = useState(false);
+
+  const [
+    excelFileName,
+    setExcelFileName,
+  ] = useState("");
+
+  const [
+    excelRows,
+    setExcelRows,
+  ] = useState<
+    ExcelDeviceRow[]
+  >([]);
+
+  const [
+    excelPreview,
+    setExcelPreview,
+  ] = useState<
+    ExcelPreview | null
+  >(null);
+
+  const [
+    excelLoading,
+    setExcelLoading,
+  ] = useState(false);
+
+  const [
+    excelError,
+    setExcelError,
+  ] = useState("");
+
+  const [
+    excelSuccess,
+    setExcelSuccess,
   ] = useState("");
 
   const loadCenter =
@@ -709,6 +1584,187 @@ export default function Merkez() {
       ]
     );
 
+  const runExcelDevice =
+    useCallback(
+      async (
+        mode:
+          | "preview"
+          | "commit"
+      ) => {
+        if (
+          excelLoading
+        ) {
+          return;
+        }
+
+        if (
+          excelRows.length ===
+          0
+        ) {
+          setExcelError(
+            "Önce Excel dosyası seç."
+          );
+          return;
+        }
+
+        setExcelError("");
+        setExcelSuccess("");
+        setExcelLoading(true);
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/center/devices",
+              {
+                method:
+                  "PATCH",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    mode,
+                    rows:
+                      excelRows,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez Excel API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            if (
+              payload?.preview
+            ) {
+              setExcelPreview(
+                payload.preview
+              );
+            }
+
+            throw new Error(
+              payload?.error ||
+                "Excel cihaz işlemi başarısız."
+            );
+          }
+
+          if (
+            mode ===
+            "preview"
+          ) {
+            setExcelPreview(
+              payload.preview
+            );
+
+            if (
+              payload?.preview
+                ?.canCommit
+            ) {
+              setExcelSuccess(
+                `${payload.preview.total} Excel satırı temiz. Kayda hazır.`
+              );
+            }
+
+            return;
+          }
+
+          setExcelPreview(
+            null
+          );
+
+          setExcelSuccess(
+            payload?.message ||
+              "Excel cihaz kaydı tamamlandı."
+          );
+
+          setExcelRows([]);
+
+          await loadCenter(
+            true
+          );
+        } catch (error) {
+          setExcelError(
+            error instanceof
+              Error
+              ? error.message
+              : "Excel cihaz işlemi başarısız."
+          );
+        } finally {
+          setExcelLoading(false);
+        }
+      },
+      [
+        excelRows,
+        excelLoading,
+        loadCenter,
+      ]
+    );
+
+  const handleExcelFile =
+    useCallback(
+      async (
+        file: File
+      ) => {
+        setExcelError("");
+        setExcelSuccess("");
+        setExcelPreview(
+          null
+        );
+        setExcelRows([]);
+        setExcelFileName(
+          file.name
+        );
+        setExcelLoading(true);
+
+        try {
+          const rows =
+            await parseCenterExcelFile(
+              file
+            );
+
+          setExcelRows(
+            rows
+          );
+          setExcelOpen(
+            true
+          );
+        } catch (error) {
+          setExcelError(
+            error instanceof
+              Error
+              ? error.message
+              : "Excel dosyası okunamadı."
+          );
+          setExcelOpen(
+            true
+          );
+        } finally {
+          setExcelLoading(false);
+        }
+      },
+      []
+    );
+
   const groups =
     useMemo(
       () =>
@@ -1014,6 +2070,42 @@ export default function Merkez() {
                 className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-white/15"
               >
                 + Toplu Cihaz Ekle
+              </button>
+
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(event) => {
+                  const file =
+                    event.target
+                      .files?.[0];
+
+                  event.currentTarget.value =
+                    "";
+
+                  if (file) {
+                    void handleExcelFile(
+                      file
+                    );
+                  }
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setExcelError("");
+                  setExcelSuccess("");
+                  setExcelPreview(
+                    null
+                  );
+                  excelInputRef.current?.click();
+                }}
+                className="h-10 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-400/15"
+              >
+                Excel ile Yükle
               </button>
 
               <button
@@ -1448,9 +2540,280 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 2B · Tekli + toplu cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
+          MERKEZ ADIM 2C · Tekli + toplu + Excel cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
         </div>
       </div>
+
+      {excelOpen && (
+        <div
+          className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+                event.currentTarget &&
+              !excelLoading
+            ) {
+              setExcelOpen(false);
+            }
+          }}
+        >
+          <div className="my-4 w-full max-w-[1100px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
+              <div>
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600">
+                  Online · Merkez
+                </div>
+
+                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  Excel ile Cihaz Yükle
+                </h3>
+
+                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                  Aynı Excel içinde farklı marka, model, hafıza, renk ve grade cihazlar olabilir. Önce tüm satırlar kontrol edilir.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={excelLoading}
+                onClick={() =>
+                  setExcelOpen(false)
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-6 sm:px-7">
+              {excelError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                  {excelError}
+                </div>
+              )}
+
+              {excelSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                  ✓ {excelSuccess}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
+                    Seçili Dosya
+                  </div>
+                  <div className="mt-1 text-[10px] font-black text-slate-800">
+                    {excelFileName || "Dosya seçilmedi"}
+                  </div>
+                  <div className="mt-1 text-[8px] font-semibold text-slate-500">
+                    Okunan cihaz satırı: {excelRows.length}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={excelLoading}
+                  onClick={() =>
+                    excelInputRef.current?.click()
+                  }
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[8px] font-black uppercase text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                >
+                  Başka Excel Seç
+                </button>
+              </div>
+
+              {excelRows.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[930px]">
+                      <div className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                        <div>Satır</div>
+                        <div>IMEI</div>
+                        <div>Marka</div>
+                        <div>Model</div>
+                        <div>Hafıza</div>
+                        <div>Renk</div>
+                        <div>Grade</div>
+                        <div>Garanti</div>
+                      </div>
+
+                      {excelRows
+                        .slice(
+                          0,
+                          12
+                        )
+                        .map(
+                          (row) => (
+                            <div
+                              key={`${row.rowNumber}-${row.imei}`}
+                              className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-100 px-3 py-2.5 text-[8px] last:border-0"
+                            >
+                              <div className="font-black text-slate-400">
+                                {row.rowNumber}
+                              </div>
+                              <div className="font-mono font-black text-slate-900">
+                                {row.imei || "-"}
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {row.brand || "-"}
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {row.model || "-"}
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {row.memory || "-"}
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {row.color || "-"}
+                              </div>
+                              <div className="font-black text-slate-700">
+                                {row.grade || "-"}
+                              </div>
+                              <div className="font-bold text-slate-700">
+                                {row.warranty || "-"}
+                              </div>
+                            </div>
+                          )
+                        )}
+
+                      {excelRows.length > 12 && (
+                        <div className="bg-slate-50 px-4 py-3 text-center text-[8px] font-black text-slate-500">
+                          + {excelRows.length - 12} satır daha
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {excelPreview && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-slate-400">
+                        Toplam
+                      </div>
+                      <div className="mt-1 text-xl font-black text-slate-900">
+                        {excelPreview.total}
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                        Geçerli
+                      </div>
+                      <div className="mt-1 text-xl font-black text-emerald-700">
+                        {excelPreview.valid}
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-rose-600">
+                        Hatalı
+                      </div>
+                      <div className="mt-1 text-xl font-black text-rose-700">
+                        {excelPreview.invalid}
+                      </div>
+                    </div>
+                  </div>
+
+                  {excelPreview.errors.length > 0 ? (
+                    <div className="max-h-60 overflow-y-auto divide-y divide-rose-100">
+                      {excelPreview.errors.map(
+                        (
+                          item,
+                          index
+                        ) => (
+                          <div
+                            key={`${item.rowNumber}-${item.imei}-${index}`}
+                            className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[70px_170px_1fr]"
+                          >
+                            <div className="text-[8px] font-black text-rose-500">
+                              Satır {item.rowNumber || "-"}
+                            </div>
+                            <div className="font-mono text-[8px] font-black text-rose-800">
+                              {item.imei || "-"}
+                            </div>
+                            <div className="text-[8px] font-bold text-rose-700">
+                              {item.reason}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
+                      ✓ Excel'deki tüm cihazlar temiz. Kayıt yapılabilir.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[8px] font-black text-slate-700">
+                  Zorunlu Excel kolonları
+                </div>
+                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                  IMEI · Marka · Model · Hafıza · Renk · Grade · Garanti. Durum, mağaza, pil, fiyat, değişen parça ve kutu/fatura bu dosyada kullanılmaz.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+              <button
+                type="button"
+                disabled={excelLoading}
+                onClick={() =>
+                  setExcelOpen(false)
+                }
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  excelLoading ||
+                  excelRows.length ===
+                    0
+                }
+                onClick={() => {
+                  void runExcelDevice(
+                    "preview"
+                  );
+                }}
+                className="h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-6 text-[8px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                {excelLoading
+                  ? "Kontrol Ediliyor..."
+                  : "Excel'i Kontrol Et"}
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  excelLoading ||
+                  !excelPreview?.canCommit
+                }
+                onClick={() => {
+                  void runExcelDevice(
+                    "commit"
+                  );
+                }}
+                className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {excelLoading
+                  ? "Kaydediliyor..."
+                  : excelPreview?.canCommit
+                  ? `${excelPreview.total} Cihazı Excel'den Ekle`
+                  : "Önce Kontrol Et"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {bulkOpen && (
         <div
