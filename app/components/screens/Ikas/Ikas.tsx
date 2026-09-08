@@ -230,17 +230,17 @@ function locationNames(
 
 function productColors(
   product: any
-) {
-  const variants =
+): string[] {
+  const variants: any[] =
     Array.isArray(
       product?.variants
     )
       ? product.variants
       : [];
 
-  const colors =
+  const colors: string[] =
     variants.flatMap(
-      (variant: any) =>
+      (variant: any): string[] =>
         (
           Array.isArray(
             variant?.variantValues
@@ -249,18 +249,25 @@ function productColors(
             : []
         )
           .map(
-            (item: any) =>
+            (item: any): string =>
               String(
                 item?.variantValueName ||
                   item?.value ||
                   ""
               ).trim()
           )
-          .filter(Boolean)
+          .filter(
+            (
+              value: string
+            ): value is string =>
+              value.length > 0
+          )
     );
 
   return Array.from(
-    new Set(colors)
+    new Set<string>(
+      colors
+    )
   );
 }
 
@@ -982,7 +989,7 @@ export default function Ikas() {
                             {productColors(product).length > 0 ? (
                               productColors(product)
                                 .slice(0, 8)
-                                .map((color) => (
+                                .map((color: string) => (
                                   <span
                                     key={color}
                                     className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[7px] font-black text-slate-600"
