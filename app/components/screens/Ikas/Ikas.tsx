@@ -1087,7 +1087,7 @@ export default function Ikas() {
                 </div>
 
                 <span className="w-fit rounded-full bg-white px-3 py-1.5 text-[8px] font-black uppercase text-indigo-700 ring-1 ring-indigo-200">
-                  Yazma Kapalı
+                  Dry Run — Ürün Göndermez
                 </span>
               </div>
             </div>
@@ -1299,8 +1299,7 @@ export default function Ikas() {
                     void previewCreateProduct();
                   }}
                   disabled={
-                    createPreview.loading ||
-                    !productStructure.success
+                    createPreview.loading
                   }
                   className="h-10 w-full rounded-xl bg-indigo-700 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
