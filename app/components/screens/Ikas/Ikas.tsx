@@ -329,6 +329,30 @@ export default function Ikas() {
   });
 
   const [
+    stockBusyId,
+    setStockBusyId,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    stockDrafts,
+    setStockDrafts,
+  ] = useState<
+    Record<string, string>
+  >({});
+
+  const [
+    stockMessage,
+    setStockMessage,
+  ] = useState<{
+    type:
+      | "success"
+      | "error";
+    text: string;
+  } | null>(null);
+
+  const [
     search,
     setSearch,
   ] = useState("");
@@ -408,6 +432,146 @@ export default function Ikas() {
         }
       },
       []
+    );
+
+  const runStockAction =
+    useCallback(
+      async (
+        productId: string,
+        variantId: string,
+        action:
+          | "decrement"
+          | "zero"
+          | "set",
+        currentQuantity: number
+      ) => {
+        const key =
+          `${productId}:${variantId}`;
+
+        setStockBusyId(key);
+        setStockMessage(null);
+
+        try {
+          const body: {
+            productId: string;
+            variantId: string;
+            action:
+              | "decrement"
+              | "zero"
+              | "set";
+            quantity?: number;
+          } = {
+            productId,
+            variantId,
+            action,
+          };
+
+          if (
+            action === "set"
+          ) {
+            const raw =
+              stockDrafts[
+                key
+              ] ??
+              String(
+                currentQuantity
+              );
+
+            const quantity =
+              Number(raw);
+
+            if (
+              !Number.isInteger(
+                quantity
+              ) ||
+              quantity < 0
+            ) {
+              throw new Error(
+                "Stok 0 veya daha büyük tam sayı olmalı."
+              );
+            }
+
+            if (
+              quantity >
+              currentQuantity
+            ) {
+              throw new Error(
+                "Stok artırma bu aşamada kapalı. Yeni adet IMEI girişi ile eklenecek."
+              );
+            }
+
+            body.quantity =
+              quantity;
+          }
+
+          const response =
+            await fetch(
+              "/api/online/ikas/variant-stock",
+              {
+                method: "POST",
+                cache: "no-store",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify(
+                    body
+                  ),
+              }
+            );
+
+          const payload =
+            await response.json();
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "İkas stok işlemi başarısız."
+            );
+          }
+
+          setStockMessage({
+            type: "success",
+            text:
+              payload?.message ||
+              `Stok ${payload?.quantity ?? 0} olarak güncellendi.`,
+          });
+
+          setStockDrafts(
+            (current) => ({
+              ...current,
+              [key]:
+                String(
+                  payload?.quantity ??
+                    0
+                ),
+            })
+          );
+
+          await loadInventory(
+            true
+          );
+        } catch (error) {
+          setStockMessage({
+            type: "error",
+            text:
+              error instanceof
+                Error
+                ? error.message
+                : "İkas stok işlemi başarısız.",
+          });
+        } finally {
+          setStockBusyId(null);
+        }
+      },
+      [
+        loadInventory,
+        stockDrafts,
+      ]
     );
 
   const syncPostgres =
@@ -864,6 +1028,23 @@ export default function Ikas() {
           </div>
         )}
 
+        {stockMessage && (
+          <div
+            className={`border-b px-5 py-3 text-[9px] font-black sm:px-6 ${
+              stockMessage.type ===
+              "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+            }`}
+          >
+            {stockMessage.text}
+          </div>
+        )}
+
+        <div className="border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-[8px] font-bold text-amber-800 sm:px-6">
+          Geçiş güvenliği: panelden stok azaltma / 0 yapma açık. Stok artırma kapalıdır; yeni stok fiziksel IMEI girişi ile eklenecek.
+        </div>
+
         <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4 sm:p-6">
           {kpis.map(
             (
@@ -1171,13 +1352,15 @@ export default function Ikas() {
                       </button>
 
                       {isOpen && (
-                        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                          <div className="grid grid-cols-[minmax(180px,1.3fr)_100px_150px_150px_minmax(130px,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                          <div className="min-w-[980px]">
+                          <div className="grid grid-cols-[minmax(180px,1.3fr)_80px_135px_135px_minmax(120px,1fr)_310px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
                             <div>Varyant</div>
                             <div>Stok</div>
                             <div>Satış Fiyatı</div>
                             <div>İndirimli Fiyat</div>
                             <div>Lokasyon</div>
+                            <div>Stok İşlemi</div>
                           </div>
 
                           {(Array.isArray(
@@ -1203,7 +1386,7 @@ export default function Ikas() {
                                     variant?.id ||
                                     index
                                   }
-                                  className="grid grid-cols-[minmax(180px,1.3fr)_100px_150px_150px_minmax(130px,1fr)] gap-3 border-b border-slate-100 px-4 py-3 text-[9px] last:border-0"
+                                  className="grid grid-cols-[minmax(180px,1.3fr)_80px_135px_135px_minmax(120px,1fr)_310px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[9px] last:border-0"
                                 >
                                   <div>
                                     <div className="font-black text-slate-800">
@@ -1257,10 +1440,144 @@ export default function Ikas() {
                                     ) ||
                                       "Ana Depo"}
                                   </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void runStockAction(
+                                          String(
+                                            product?.id ||
+                                              ""
+                                          ),
+                                          String(
+                                            variant?.id ||
+                                              ""
+                                          ),
+                                          "decrement",
+                                          Number(
+                                            variant?.stockCount ||
+                                              0
+                                          )
+                                        );
+                                      }}
+                                      disabled={
+                                        stockBusyId ===
+                                          `${product?.id}:${variant?.id}` ||
+                                        Number(
+                                          variant?.stockCount ||
+                                            0
+                                        ) <= 0
+                                      }
+                                      className="h-8 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[8px] font-black text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      -1
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void runStockAction(
+                                          String(
+                                            product?.id ||
+                                              ""
+                                          ),
+                                          String(
+                                            variant?.id ||
+                                              ""
+                                          ),
+                                          "zero",
+                                          Number(
+                                            variant?.stockCount ||
+                                              0
+                                          )
+                                        );
+                                      }}
+                                      disabled={
+                                        stockBusyId ===
+                                          `${product?.id}:${variant?.id}` ||
+                                        Number(
+                                          variant?.stockCount ||
+                                            0
+                                        ) <= 0
+                                      }
+                                      className="h-8 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-[8px] font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      0 Yap
+                                    </button>
+
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={Number(
+                                        variant?.stockCount ||
+                                          0
+                                      )}
+                                      step={1}
+                                      value={
+                                        stockDrafts[
+                                          `${product?.id}:${variant?.id}`
+                                        ] ??
+                                        String(
+                                          Number(
+                                            variant?.stockCount ||
+                                              0
+                                          )
+                                        )
+                                      }
+                                      onChange={(
+                                        event
+                                      ) => {
+                                        const key =
+                                          `${product?.id}:${variant?.id}`;
+
+                                        setStockDrafts(
+                                          (current) => ({
+                                            ...current,
+                                            [key]:
+                                              event.target.value,
+                                          })
+                                        );
+                                      }}
+                                      className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center text-[8px] font-black text-slate-800 outline-none focus:border-violet-400"
+                                    />
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void runStockAction(
+                                          String(
+                                            product?.id ||
+                                              ""
+                                          ),
+                                          String(
+                                            variant?.id ||
+                                              ""
+                                          ),
+                                          "set",
+                                          Number(
+                                            variant?.stockCount ||
+                                              0
+                                          )
+                                        );
+                                      }}
+                                      disabled={
+                                        stockBusyId ===
+                                        `${product?.id}:${variant?.id}`
+                                      }
+                                      className="h-8 rounded-lg bg-slate-950 px-3 text-[8px] font-black text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-50"
+                                    >
+                                      {stockBusyId ===
+                                      `${product?.id}:${variant?.id}`
+                                        ? "..."
+                                        : "Kaydet"}
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             }
                           )}
+                          </div>
                         </div>
                       )}
                     </div>
