@@ -50,7 +50,7 @@ function getRangeFromSheetRows(
   const result = rows
     .filter((item) => item.row_number >= startRow && item.row_number <= endRow)
     .sort((a, b) => a.row_number - b.row_number)
-    .map((item) => {
+    .map((item: any) => {
       const rowData = Array.isArray(item.data) ? item.data : [];
       return trimTrailingEmptyCells(rowData.slice(startCol, endColExclusive));
     });
@@ -1767,7 +1767,10 @@ export default function CnetmobilCmrFinalUltimate() {
     window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
   };
 
-  const menuGroups = [
+  // Menü elemanları farklı yapılara sahip:
+  // normal item / subItems / branchItems / integrationItems.
+  // Burada sadece UI config tutulduğu için heterojen yapıyı bilinçli olarak any[] bırakıyoruz.
+  const menuGroups: any[] = [
     {
       title: "ANA MODÜLLER",
       items: [
@@ -2629,16 +2632,16 @@ export default function CnetmobilCmrFinalUltimate() {
           <div className="mx-auto flex max-w-[1920px] items-stretch justify-start overflow-x-auto px-2 no-scrollbar lg:justify-center lg:px-5">
             {step < 99 &&
               menuGroups
-                .flatMap((g) => g.items)
-                .filter((i) => i.visible)
+                .flatMap((g: any) => g.items)
+                .filter((i: any) => i.visible)
                 .map((item) => {
                   const isActive =
                     appMode === item.id ||
                     (item.subItems &&
-                      item.subItems.some((sub) => sub.id === appMode)) ||
+                      item.subItems.some((sub: any) => sub.id === appMode)) ||
                     (item.integrationItems &&
                       item.integrationItems.some(
-                        (sub) => sub.enabled && sub.id === appMode
+                        (sub: any) => sub.enabled && sub.id === appMode
                       ));
 
                   const openIntegrationsMenu = () => {
@@ -2995,7 +2998,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                               </div>
 
-                              {item.integrationItems.map((integrationItem) => {
+                              {item.integrationItems.map((integrationItem: any) => {
                                 const integrationActive =
                                   integrationItem.enabled &&
                                   appMode === integrationItem.id;
@@ -3076,7 +3079,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                 </div>
                               </div>
 
-                              {item.integrationItems.map((integrationItem) => (
+                              {item.integrationItems.map((integrationItem: any) => (
                                 <button
                                   key={integrationItem.id}
                                   type="button"
