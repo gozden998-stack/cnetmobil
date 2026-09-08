@@ -914,24 +914,86 @@ async function importProducts(
             sale_price = EXCLUDED.sale_price,
             list_price = EXCLUDED.list_price,
 
-            -- Sipariş gelmiş cihazı N11 product-query geçici olarak
-            -- quantity=1 döndürse bile tekrar satışa açma.
+            -- ------------------------------------------------
+            -- CANLI STOK KORUMASI
+            --
+            -- 1) Sipariş panelde N11 product-query'den önce görüldüyse:
+            --    orderExpectedMaxQuantity üst sınırını koru.
+            --
+            -- 2) Aynı varyanta yeni IMEI eklendi ve N11 task henüz
+            --    product-query'ye yansımadıysa en fazla 2 dakika
+            --    poolStockTargetQuantity'yi koru.
+            --
+            -- Sonra tekrar N11 product-query authoritative olur.
+            -- ------------------------------------------------
             quantity = CASE
               WHEN COALESCE(
                 ol.raw_data->>'orderStockLock',
                 'false'
               ) = 'true'
-              THEN 0
+              THEN LEAST(
+                EXCLUDED.quantity,
+                CASE
+                  WHEN COALESCE(
+                    ol.raw_data->>'orderExpectedMaxQuantity',
+                    ''
+                  ) ~ '^[0-9]+$'
+                  THEN (
+                    ol.raw_data->>'orderExpectedMaxQuantity'
+                  )::integer
+                  ELSE 0
+                END
+              )
+
+              WHEN COALESCE(
+                ol.raw_data->>'poolStockIncreasePending',
+                'false'
+              ) = 'true'
+              AND COALESCE(
+                ol.raw_data->>'poolStockPendingUntil',
+                ''
+              ) <> ''
+              AND now() <
+                (
+                  ol.raw_data->>'poolStockPendingUntil'
+                )::timestamptz
+              THEN GREATEST(
+                EXCLUDED.quantity,
+                CASE
+                  WHEN COALESCE(
+                    ol.raw_data->>'poolStockTargetQuantity',
+                    ''
+                  ) ~ '^[0-9]+$'
+                  THEN (
+                    ol.raw_data->>'poolStockTargetQuantity'
+                  )::integer
+                  ELSE EXCLUDED.quantity
+                END
+              )
+
               ELSE EXCLUDED.quantity
             END,
 
-            product_status = EXCLUDED.product_status,
+            product_status =
+              EXCLUDED.product_status,
 
             sale_status = CASE
               WHEN COALESCE(
                 ol.raw_data->>'orderStockLock',
                 'false'
               ) = 'true'
+              AND (
+                CASE
+                  WHEN COALESCE(
+                    ol.raw_data->>'orderExpectedMaxQuantity',
+                    ''
+                  ) ~ '^[0-9]+$'
+                  THEN (
+                    ol.raw_data->>'orderExpectedMaxQuantity'
+                  )::integer
+                  ELSE 0
+                END
+              ) <= 0
               THEN COALESCE(
                 ol.sale_status,
                 'ORDER_RECEIVED'
@@ -940,12 +1002,17 @@ async function importProducts(
             END,
 
             sync_status = 'SYNCED',
-            preparing_day = EXCLUDED.preparing_day,
-            shipment_template = EXCLUDED.shipment_template,
-            currency_type = EXCLUDED.currency_type,
-            attributes = EXCLUDED.attributes,
+            preparing_day =
+              EXCLUDED.preparing_day,
+            shipment_template =
+              EXCLUDED.shipment_template,
+            currency_type =
+              EXCLUDED.currency_type,
+            attributes =
+              EXCLUDED.attributes,
 
-            -- N11 canlı raw_data güncellensin fakat sipariş kilidi kaybolmasın.
+            -- N11 raw_data güncellenirken bizim IMEI pool alanlarımız
+            -- COALESCE(ol.raw_data) sayesinde korunur.
             raw_data =
               (
                 COALESCE(
@@ -962,15 +1029,94 @@ async function importProducts(
                 ) = 'true'
                 THEN jsonb_build_object(
                   'orderStockLock',
-                  true,
+                  CASE
+                    WHEN EXCLUDED.quantity >
+                      (
+                        CASE
+                          WHEN COALESCE(
+                            ol.raw_data->>'orderExpectedMaxQuantity',
+                            ''
+                          ) ~ '^[0-9]+$'
+                          THEN (
+                            ol.raw_data->>'orderExpectedMaxQuantity'
+                          )::integer
+                          ELSE 0
+                        END
+                      )
+                    THEN true
+                    ELSE false
+                  END,
+                  'orderExpectedMaxQuantity',
+                  CASE
+                    WHEN COALESCE(
+                      ol.raw_data->>'orderExpectedMaxQuantity',
+                      ''
+                    ) ~ '^[0-9]+$'
+                    THEN (
+                      ol.raw_data->>'orderExpectedMaxQuantity'
+                    )::integer
+                    ELSE 0
+                  END,
                   'lastOrderNumber',
                   ol.raw_data->'lastOrderNumber',
                   'lastOrderPackageId',
                   ol.raw_data->'lastOrderPackageId',
+                  'lastOrderLineId',
+                  ol.raw_data->'lastOrderLineId',
                   'lastOrderStatus',
                   ol.raw_data->'lastOrderStatus',
                   'lastOrderSeenAt',
                   ol.raw_data->'lastOrderSeenAt'
+                )
+                ELSE '{}'::jsonb
+              END
+              ||
+              CASE
+                WHEN COALESCE(
+                  ol.raw_data->>'poolStockIncreasePending',
+                  'false'
+                ) = 'true'
+                THEN jsonb_build_object(
+                  'poolStockIncreasePending',
+                  CASE
+                    WHEN (
+                      COALESCE(
+                        ol.raw_data->>'poolStockTargetQuantity',
+                        ''
+                      ) ~ '^[0-9]+$'
+                      AND EXCLUDED.quantity >=
+                        (
+                          ol.raw_data->>'poolStockTargetQuantity'
+                        )::integer
+                    )
+                    OR (
+                      COALESCE(
+                        ol.raw_data->>'poolStockPendingUntil',
+                        ''
+                      ) <> ''
+                      AND now() >=
+                        (
+                          ol.raw_data->>'poolStockPendingUntil'
+                        )::timestamptz
+                    )
+                    THEN false
+                    ELSE true
+                  END,
+                  'poolStockTargetQuantity',
+                  CASE
+                    WHEN COALESCE(
+                      ol.raw_data->>'poolStockTargetQuantity',
+                      ''
+                    ) ~ '^[0-9]+$'
+                    THEN (
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    )::integer
+                    ELSE EXCLUDED.quantity
+                  END,
+                  'poolStockPendingUntil',
+                  ol.raw_data->'poolStockPendingUntil',
+                  'poolStockTaskId',
+                  ol.raw_data->'poolStockTaskId'
                 )
                 ELSE '{}'::jsonb
               END,
