@@ -2304,6 +2304,289 @@ async function finalizeCreatedListing(
   );
 }
 
+
+function taskReasonList(matched: any) {
+  const reasons: string[] = [];
+
+  const add = (value: unknown) => {
+    if (
+      typeof value === 'string' &&
+      value.trim() &&
+      !reasons.includes(value.trim())
+    ) {
+      reasons.push(value.trim());
+    }
+  };
+
+  if (Array.isArray(matched?.reasons)) {
+    matched.reasons.forEach(add);
+  }
+
+  if (Array.isArray(matched?.sku?.reasons)) {
+    matched.sku.reasons.forEach(add);
+  }
+
+  return reasons;
+}
+
+async function reconcilePendingN11Listing(listing: any) {
+  const pool = getPool();
+
+  const listingId = Number(listing?.id);
+  const stockCode = String(
+    listing?.external_stock_code || ''
+  ).trim();
+
+  const taskId = String(
+    listing?.last_task_id || ''
+  ).trim();
+
+  if (!listingId || !stockCode) {
+    return {
+      state: 'ERROR' as const,
+      created: false,
+      pending: false,
+      error:
+        'Yerel N11 kaydında listing id veya stockCode eksik.',
+      listing,
+    };
+  }
+
+  // En güvenilir kontrol: ürün N11 product-query'de gerçekten var mı?
+  const product =
+    await queryN11ProductByStockCode(stockCode);
+
+  if (product) {
+    await finalizeCreatedListing(
+      listingId,
+      stockCode,
+      taskId || 'NO_TASK',
+      product
+    );
+
+    const finalResult = await pool.query(
+      `
+        SELECT *
+        FROM public.online_listings
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [listingId]
+    );
+
+    return {
+      state: 'CREATED' as const,
+      created: true,
+      pending: false,
+      error: null,
+      listing: finalResult.rows[0],
+      product,
+    };
+  }
+
+  if (!taskId) {
+    const errorMessage =
+      'N11 ürün kodu oluşmamış ve create taskId bulunmuyor. Ürün N11’de oluşturulmamış.';
+
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          quantity = 0,
+          sync_status = 'ERROR',
+          last_task_status = COALESCE(last_task_status, 'NO_TASK'),
+          last_error = $2,
+          updated_at = now()
+        WHERE id = $1
+      `,
+      [listingId, errorMessage]
+    );
+
+    return {
+      state: 'ERROR' as const,
+      created: false,
+      pending: false,
+      error: errorMessage,
+      listing: {
+        ...listing,
+        quantity: 0,
+        sync_status: 'ERROR',
+        last_error: errorMessage,
+      },
+    };
+  }
+
+  const task = await getN11TaskOnce(taskId);
+
+  if (task.overallStatus === 'REJECT') {
+    const errorMessage =
+      'N11 create task reddedildi.';
+
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          quantity = 0,
+          sync_status = 'ERROR',
+          last_task_status = 'REJECT',
+          last_error = $2,
+          updated_at = now()
+        WHERE id = $1
+      `,
+      [listingId, errorMessage]
+    );
+
+    return {
+      state: 'ERROR' as const,
+      created: false,
+      pending: false,
+      error: errorMessage,
+      listing: {
+        ...listing,
+        quantity: 0,
+        sync_status: 'ERROR',
+        last_task_status: 'REJECT',
+        last_error: errorMessage,
+      },
+    };
+  }
+
+  if (task.overallStatus === 'PROCESSED') {
+    const matched =
+      task.content.find(
+        (item: any) =>
+          String(item?.itemCode || '').trim() === stockCode
+      ) ||
+      (task.content.length === 1
+        ? task.content[0]
+        : null);
+
+    const skuStatus = String(
+      matched?.status || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const reasons =
+      taskReasonList(matched);
+
+    if (skuStatus === 'SUCCESS') {
+      // Task başarıyla işlendi ama product-query henüz ürünü göstermiyor.
+      // Bu durumda panelde ASLA satışa açık saymayız.
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            quantity = 0,
+            sync_status = 'SYNCED_PENDING_QUERY',
+            last_task_status = 'SUCCESS',
+            last_error = NULL,
+            updated_at = now()
+          WHERE id = $1
+        `,
+        [listingId]
+      );
+
+      return {
+        state: 'PENDING_QUERY' as const,
+        created: false,
+        pending: true,
+        error: null,
+        taskStatus: 'SUCCESS',
+        reasons,
+        listing: {
+          ...listing,
+          quantity: 0,
+          sync_status:
+            'SYNCED_PENDING_QUERY',
+          last_task_status: 'SUCCESS',
+          last_error: null,
+        },
+      };
+    }
+
+    const errorMessage =
+      reasons.join(' | ') ||
+      `N11 create task sonucu: ${
+        skuStatus || 'FAIL'
+      }`;
+
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          quantity = 0,
+          sync_status = 'ERROR',
+          last_task_status = $2,
+          last_error = $3,
+          updated_at = now()
+        WHERE id = $1
+      `,
+      [
+        listingId,
+        skuStatus || 'FAIL',
+        errorMessage,
+      ]
+    );
+
+    return {
+      state: 'ERROR' as const,
+      created: false,
+      pending: false,
+      error: errorMessage,
+      taskStatus:
+        skuStatus || 'FAIL',
+      reasons,
+      listing: {
+        ...listing,
+        quantity: 0,
+        sync_status: 'ERROR',
+        last_task_status:
+          skuStatus || 'FAIL',
+        last_error: errorMessage,
+      },
+    };
+  }
+
+  // Kuyrukta / henüz işleniyor.
+  await pool.query(
+    `
+      UPDATE public.online_listings
+      SET
+        quantity = 0,
+        sync_status = 'IN_QUEUE',
+        last_task_status = $2,
+        last_error = NULL,
+        updated_at = now()
+      WHERE id = $1
+    `,
+    [
+      listingId,
+      task.overallStatus ||
+        'IN_QUEUE',
+    ]
+  );
+
+  return {
+    state: 'IN_QUEUE' as const,
+    created: false,
+    pending: true,
+    error: null,
+    taskStatus:
+      task.overallStatus ||
+      'IN_QUEUE',
+    listing: {
+      ...listing,
+      quantity: 0,
+      sync_status: 'IN_QUEUE',
+      last_task_status:
+        task.overallStatus ||
+        'IN_QUEUE',
+      last_error: null,
+    },
+  };
+}
+
 // ============================================================
 // GET /api/online/listings
 // Mevcut N11 taslaklarini/listinglerini PostgreSQL'den okur.
@@ -2313,6 +2596,96 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireSuperAdmin(request);
     if (auth.response) return auth.response;
+
+    const requestUrl =
+      new URL(request.url);
+
+    const refreshN11 =
+      requestUrl.searchParams.get(
+        'refreshN11'
+      ) === '1';
+
+    const stockCode = String(
+      requestUrl.searchParams.get(
+        'stockCode'
+      ) || ''
+    ).trim();
+
+    if (refreshN11 && stockCode) {
+      const existingResult =
+        await getPool().query(
+          `
+            SELECT *
+            FROM public.online_listings
+            WHERE channel = 'N11'
+              AND external_stock_code = $1
+            LIMIT 1
+          `,
+          [stockCode]
+        );
+
+      const existing =
+        existingResult.rows[0];
+
+      if (!existing) {
+        return json(
+          {
+            success: false,
+            created: false,
+            pending: false,
+            error:
+              'Bu IMEI / stockCode için yerel N11 kaydı bulunamadı.',
+          },
+          404
+        );
+      }
+
+      const reconciliation =
+        await reconcilePendingN11Listing(
+          existing
+        );
+
+      if (
+        reconciliation.state ===
+        'ERROR'
+      ) {
+        return json(
+          {
+            success: false,
+            created: false,
+            pending: false,
+            state:
+              reconciliation.state,
+            error:
+              reconciliation.error,
+            listing:
+              reconciliation.listing,
+          },
+          422
+        );
+      }
+
+      return json({
+        success: true,
+        created:
+          reconciliation.created,
+        pending:
+          reconciliation.pending,
+        state:
+          reconciliation.state,
+        taskStatus:
+          'taskStatus' in
+          reconciliation
+            ? reconciliation.taskStatus
+            : null,
+        reasons:
+          'reasons' in reconciliation
+            ? reconciliation.reasons
+            : [],
+        listing:
+          reconciliation.listing,
+      });
+    }
 
     const result = await getPool().query(
       `
@@ -2476,7 +2849,15 @@ export async function POST(request: NextRequest) {
 
     const duplicate = await pool.query(
       `
-        SELECT id, external_stock_code, sync_status, external_product_id
+        SELECT
+          id,
+          external_stock_code,
+          external_product_id,
+          quantity,
+          sync_status,
+          last_task_id,
+          last_task_status,
+          last_error
         FROM public.online_listings
         WHERE channel = 'N11'
           AND external_stock_code = $1
@@ -2486,11 +2867,82 @@ export async function POST(request: NextRequest) {
     );
 
     if (duplicate.rowCount) {
+      const existing =
+        duplicate.rows[0];
+
+      if (!existing.external_product_id) {
+        const reconciliation =
+          await reconcilePendingN11Listing(
+            existing
+          );
+
+        if (
+          reconciliation.state ===
+          'CREATED'
+        ) {
+          return json(
+            {
+              success: true,
+              n11Requested: true,
+              created: true,
+              pending: false,
+              recoveredExisting:
+                true,
+              message:
+                `Cihaz N11’de mevcut. N11 ürün kodu panele işlendi. IMEI/Stok Kodu: ${imei}`,
+              listing:
+                reconciliation.listing,
+            },
+            200
+          );
+        }
+
+        if (
+          reconciliation.state ===
+          'ERROR'
+        ) {
+          return json(
+            {
+              success: false,
+              n11Requested: true,
+              created: false,
+              pending: false,
+              recoveredExisting:
+                false,
+              error:
+                `Önceki N11 create işlemi başarısız: ${reconciliation.error}`,
+              existingListing:
+                reconciliation.listing,
+            },
+            422
+          );
+        }
+
+        return json(
+          {
+            success: true,
+            n11Requested: true,
+            created: false,
+            pending: true,
+            recoveredExisting:
+              true,
+            state:
+              reconciliation.state,
+            message:
+              'N11 ürün oluşturma işlemi hâlâ işleniyor. Ürün kodu oluşana kadar satışa açık sayılmayacak.',
+            existingListing:
+              reconciliation.listing,
+          },
+          202
+        );
+      }
+
       return json(
         {
           success: false,
-          error: 'Bu IMEI için zaten N11 ONLINE kaydı bulunuyor.',
-          existingListing: duplicate.rows[0],
+          error:
+            'Bu IMEI için N11 ürünü zaten mevcut.',
+          existingListing: existing,
         },
         409
       );
@@ -2899,7 +3351,7 @@ export async function POST(request: NextRequest) {
           $11,
           $12,
           $13,
-          1,
+          0,
           NULL,
           NULL,
           'CREATING',
@@ -3121,12 +3573,14 @@ export async function POST(request: NextRequest) {
           success: true,
           n11Requested: true,
           created: false,
+          pending: true,
           taskId: createResult.taskId,
           taskStatus: 'IN_QUEUE',
           message:
-            `Ürün N11’e gönderildi. Task #${createResult.taskId} hâlâ kuyrukta; otomatik N11 senkronizasyonu ürünü panele çekecek.`,
+            `N11 işlemi devam ediyor. Task #${createResult.taskId}. N11 ürün kodu oluşana kadar ürün satışa açık sayılmayacak.`,
           listing: {
             ...listing,
+            quantity: 0,
             sync_status: 'IN_QUEUE',
             last_task_id: createResult.taskId,
           },
@@ -3259,6 +3713,7 @@ export async function POST(request: NextRequest) {
       `
         UPDATE public.online_listings
         SET
+          quantity = 0,
           sync_status = 'SYNCED_PENDING_QUERY',
           last_task_status = 'SUCCESS',
           last_error = NULL,
@@ -3272,13 +3727,15 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         n11Requested: true,
-        created: true,
+        created: false,
+        pending: true,
         taskId: createResult.taskId,
         taskStatus: 'SUCCESS',
         message:
-          `N11 ürün oluşturma SUCCESS. IMEI ${imei}. N11 ürün kodu otomatik senkronizasyonda panele alınacak.`,
+          `N11 task SUCCESS ancak ürün kodu henüz product-query’de görünmüyor. IMEI ${imei}. Ürün kodu doğrulanana kadar satışa açık sayılmayacak.`,
         listing: {
           ...listing,
+          quantity: 0,
           sync_status: 'SYNCED_PENDING_QUERY',
           last_task_id: createResult.taskId,
           last_task_status: 'SUCCESS',
