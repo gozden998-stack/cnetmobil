@@ -172,6 +172,13 @@ export default function Ikas() {
     emptyState
   );
 
+  const [
+    productStructure,
+    setProductStructure,
+  ] = useState<ApiState>(
+    emptyState
+  );
+
   const testConnection =
     useCallback(async () => {
       setConnection({
@@ -427,6 +434,57 @@ export default function Ikas() {
       }
     }, []);
 
+  const loadProductStructure =
+    useCallback(async () => {
+      setProductStructure({
+        loading: true,
+        success: null,
+        error: "",
+        data: null,
+      });
+
+      try {
+        const response =
+          await fetch(
+            "/api/online/ikas/product-structure",
+            {
+              method: "GET",
+              cache: "no-store",
+            }
+          );
+
+        const payload =
+          await response.json();
+
+        if (
+          !response.ok ||
+          !payload?.success
+        ) {
+          throw new Error(
+            payload?.error ||
+              "İkas ürün yapısı doğrulanamadı."
+          );
+        }
+
+        setProductStructure({
+          loading: false,
+          success: true,
+          error: "",
+          data: payload,
+        });
+      } catch (error) {
+        setProductStructure({
+          loading: false,
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "İkas ürün yapısı doğrulanamadı.",
+          data: null,
+        });
+      }
+    }, []);
+
   useEffect(() => {
     void testConnection();
   }, [testConnection]);
@@ -674,6 +732,12 @@ export default function Ikas() {
             </div>
           )}
 
+          {productStructure.error && (
+            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-bold text-rose-700">
+              {productStructure.error}
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
               <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -878,6 +942,42 @@ export default function Ikas() {
                   : structure.success
                   ? "Yapıyı Yenile"
                   : "Yapıyı Oku"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-fuchsia-200 bg-fuchsia-50/50 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fuchsia-700">
+                  ADIM 3.3
+                </div>
+
+                <div className="mt-2 text-base font-black text-slate-900">
+                  Yenilenmiş Ürün Yapısını Doğrula
+                </div>
+
+                <p className="mt-2 max-w-3xl text-[10px] font-semibold leading-5 text-slate-500">
+                  Canlı İkas hesabından stoklu bir yenilenmiş ürün seçip marka, kategori, varyant, fiyat, stok lokasyonu ve satış kanalı yapısını kesinleştirir.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void loadProductStructure();
+                }}
+                disabled={
+                  productStructure.loading ||
+                  !structure.success
+                }
+                className="w-fit rounded-xl bg-fuchsia-700 px-4 py-2.5 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-fuchsia-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {productStructure.loading
+                  ? "Doğrulanıyor..."
+                  : productStructure.success
+                  ? "Tekrar Doğrula"
+                  : "Ürün Yapısını Doğrula"}
               </button>
             </div>
           </div>
@@ -1156,6 +1256,281 @@ export default function Ikas() {
                       2
                     )}
                   </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {productStructure.success && (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-fuchsia-200 bg-white">
+              <div className="border-b border-fuchsia-100 bg-fuchsia-50/60 px-5 py-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-fuchsia-700">
+                      Doğrulanan Yenilenmiş Ürün
+                    </div>
+
+                    <div className="mt-1 text-[14px] font-black text-slate-900">
+                      {productStructure.data?.sampleProduct?.name || "Ürün bulunamadı"}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-fuchsia-700 ring-1 ring-fuchsia-200">
+                      Varyant: {productStructure.data?.analysis?.variantCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-blue-700 ring-1 ring-blue-200">
+                      Fiyat Satırı: {productStructure.data?.analysis?.priceRowCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-emerald-700 ring-1 ring-emerald-200">
+                      Stok Satırı: {productStructure.data?.analysis?.stockRowCount ?? 0}
+                    </span>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black uppercase text-cyan-700 ring-1 ring-cyan-200">
+                      Satış Kanalı: {productStructure.data?.analysis?.salesChannelCount ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-px bg-slate-200 xl:grid-cols-4">
+                <div className="bg-white p-5">
+                  <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    Marka
+                  </div>
+
+                  <div className="mt-2 text-[12px] font-black text-slate-900">
+                    {productStructure.data?.analysis?.brandName || "-"}
+                  </div>
+
+                  <div className="mt-1 break-all text-[7px] font-bold text-slate-400">
+                    {productStructure.data?.analysis?.brandId || "-"}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5">
+                  <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    Kategori
+                  </div>
+
+                  <div className="mt-2 space-y-1">
+                    {(Array.isArray(
+                      productStructure.data?.analysis?.categories
+                    )
+                      ? productStructure.data.analysis.categories
+                      : []
+                    ).map(
+                      (category: any, index: number) => (
+                        <div
+                          key={category?.id || index}
+                          className="rounded-lg bg-slate-50 px-2.5 py-2"
+                        >
+                          <div className="text-[9px] font-black text-slate-800">
+                            {category?.name || "-"}
+                          </div>
+
+                          <div className="mt-0.5 break-all text-[7px] font-bold text-slate-400">
+                            {category?.id || "-"}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5">
+                  <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    Stok Lokasyonu
+                  </div>
+
+                  <div className="mt-2 space-y-1">
+                    {(Array.isArray(
+                      productStructure.data?.stockLocations?.data
+                    )
+                      ? productStructure.data.stockLocations.data
+                      : []
+                    ).map(
+                      (item: any, index: number) => (
+                        <div
+                          key={item?.id || index}
+                          className="rounded-lg bg-slate-50 px-2.5 py-2"
+                        >
+                          <div className="text-[9px] font-black text-slate-800">
+                            {item?.name || item?.title || item?.id || "-"}
+                          </div>
+
+                          <div className="mt-0.5 break-all text-[7px] font-bold text-slate-400">
+                            {item?.id || "-"}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5">
+                  <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    Satış Kanalları
+                  </div>
+
+                  <div className="mt-2 space-y-1">
+                    {(Array.isArray(
+                      productStructure.data?.salesChannels?.data
+                    )
+                      ? productStructure.data.salesChannels.data
+                      : []
+                    ).map(
+                      (channel: any, index: number) => (
+                        <div
+                          key={channel?.id || index}
+                          className="rounded-lg bg-slate-50 px-2.5 py-2"
+                        >
+                          <div className="text-[9px] font-black text-slate-800">
+                            {channel?.name || channel?.title || channel?.id || "-"}
+                          </div>
+
+                          <div className="mt-0.5 break-all text-[7px] font-bold text-slate-400">
+                            {channel?.id || "-"}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {(!Array.isArray(
+                      productStructure.data?.salesChannels?.data
+                    ) ||
+                      productStructure.data.salesChannels.data.length === 0) && (
+                      <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-[8px] font-bold text-slate-400">
+                        Satış kanalı verisi gelmedi.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200">
+                <div className="border-b border-slate-100 bg-slate-50 px-5 py-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                    Varyant / Fiyat / Stok
+                  </div>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {(Array.isArray(
+                    productStructure.data?.sampleProduct?.variants
+                  )
+                    ? productStructure.data.sampleProduct.variants
+                    : []
+                  ).map(
+                    (variant: any, index: number) => (
+                      <div
+                        key={variant?.id || index}
+                        className="grid gap-4 px-5 py-4 lg:grid-cols-[1.2fr_1fr_1fr]"
+                      >
+                        <div>
+                          <div className="text-[9px] font-black text-slate-900">
+                            SKU: {variant?.sku || "-"}
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {(Array.isArray(
+                              variant?.variantValues
+                            )
+                              ? variant.variantValues
+                              : []
+                            ).map(
+                              (value: any, valueIndex: number) => (
+                                <span
+                                  key={`${value?.variantTypeName || "tip"}-${valueIndex}`}
+                                  className="rounded-full bg-slate-100 px-2 py-1 text-[8px] font-bold text-slate-600"
+                                >
+                                  {value?.variantTypeName || "Özellik"}:{" "}
+                                  {value?.variantValueName || "-"}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[8px] font-black uppercase tracking-wide text-blue-600">
+                            Fiyat
+                          </div>
+
+                          <div className="mt-2 space-y-1">
+                            {(Array.isArray(
+                              variant?.prices
+                            )
+                              ? variant.prices
+                              : []
+                            ).map(
+                              (price: any, priceIndex: number) => (
+                                <div
+                                  key={`${price?.priceListId || "default"}-${priceIndex}`}
+                                  className="rounded-lg border border-blue-100 bg-blue-50/50 px-2.5 py-2 text-[8px] font-bold text-slate-600"
+                                >
+                                  <div>
+                                    Satış: {String(price?.sellPrice ?? "-")}
+                                  </div>
+                                  <div>
+                                    İndirim: {String(price?.discountPrice ?? "-")}
+                                  </div>
+                                  <div className="mt-1 break-all text-[7px] text-slate-400">
+                                    PriceList: {String(price?.priceListId ?? "-")}
+                                  </div>
+                                </div>
+                              )
+                            )}
+
+                            {(!Array.isArray(
+                              variant?.prices
+                            ) ||
+                              variant.prices.length === 0) && (
+                              <div className="text-[8px] font-bold text-slate-400">
+                                Fiyat satırı yok
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[8px] font-black uppercase tracking-wide text-emerald-600">
+                            Stok
+                          </div>
+
+                          <div className="mt-2 space-y-1">
+                            {(Array.isArray(
+                              variant?.stocks
+                            )
+                              ? variant.stocks
+                              : []
+                            ).map(
+                              (stock: any, stockIndex: number) => (
+                                <div
+                                  key={stock?.id || stockIndex}
+                                  className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-2.5 py-2"
+                                >
+                                  <div className="text-[8px] font-black text-slate-700">
+                                    {stock?.stockLocationName || "Lokasyon"}
+                                  </div>
+
+                                  <div className="mt-1 text-[11px] font-black text-emerald-700">
+                                    {stock?.stockCount ?? 0} adet
+                                  </div>
+
+                                  <div className="mt-1 break-all text-[7px] font-bold text-slate-400">
+                                    {stock?.stockLocationId || "-"}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             </div>
