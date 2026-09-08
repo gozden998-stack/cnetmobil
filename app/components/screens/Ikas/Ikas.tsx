@@ -319,6 +319,16 @@ export default function Ikas() {
   });
 
   const [
+    dbSync,
+    setDbSync,
+  ] = useState<InventoryState>({
+    loading: false,
+    success: false,
+    error: "",
+    data: null,
+  });
+
+  const [
     search,
     setSearch,
   ] = useState("");
@@ -395,6 +405,61 @@ export default function Ikas() {
                   : "İkas stoğu okunamadı.",
             })
           );
+        }
+      },
+      []
+    );
+
+  const syncPostgres =
+    useCallback(
+      async () => {
+        setDbSync({
+          loading: true,
+          success: false,
+          error: "",
+          data: null,
+        });
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/ikas/sync-db",
+              {
+                method: "POST",
+                cache: "no-store",
+              }
+            );
+
+          const payload =
+            await response.json();
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "PostgreSQL eşleştirmesi başarısız."
+            );
+          }
+
+          setDbSync({
+            loading: false,
+            success: true,
+            error: "",
+            data: payload,
+          });
+        } catch (error) {
+          setDbSync({
+            loading: false,
+            success: false,
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : "PostgreSQL eşleştirmesi başarısız.",
+            data: null,
+          });
         }
       },
       []
@@ -739,6 +804,22 @@ export default function Ikas() {
                   ? "Stok Çekiliyor..."
                   : "Stoku Yenile"}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void syncPostgres();
+                }}
+                disabled={
+                  dbSync.loading ||
+                  inventory.loading
+                }
+                className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-white/15 disabled:cursor-wait disabled:opacity-50"
+              >
+                {dbSync.loading
+                  ? "Eşleştiriliyor..."
+                  : "PostgreSQL Eşleştir"}
+              </button>
             </div>
           </div>
         </div>
@@ -746,6 +827,40 @@ export default function Ikas() {
         {inventory.error && (
           <div className="border-b border-rose-200 bg-rose-50 px-6 py-3 text-[9px] font-bold text-rose-700">
             {inventory.error}
+          </div>
+        )}
+
+        {dbSync.error && (
+          <div className="border-b border-rose-200 bg-rose-50 px-6 py-3 text-[9px] font-bold text-rose-700">
+            PostgreSQL: {dbSync.error}
+          </div>
+        )}
+
+        {dbSync.success && (
+          <div className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[8px] font-black uppercase tracking-wide text-emerald-700">
+              <span>
+                PostgreSQL Eşleşti
+              </span>
+              <span>
+                İkas Ürün: {dbSync.data?.source?.renewedProductCount ?? 0}
+              </span>
+              <span>
+                Varyant: {dbSync.data?.source?.renewedVariantCount ?? 0}
+              </span>
+              <span>
+                Fiziksel Stok: {dbSync.data?.source?.renewedPhysicalStock ?? 0}
+              </span>
+              <span>
+                Yeni: {dbSync.data?.postgres?.inserted ?? 0}
+              </span>
+              <span>
+                Güncel: {dbSync.data?.postgres?.updated ?? 0}
+              </span>
+              <span>
+                IMEI Bağlı: {dbSync.data?.postgres?.imeiLinkedCount ?? 0}
+              </span>
+            </div>
           </div>
         )}
 
