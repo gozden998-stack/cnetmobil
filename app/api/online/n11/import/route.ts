@@ -913,15 +913,68 @@ async function importProducts(
             description = EXCLUDED.description,
             sale_price = EXCLUDED.sale_price,
             list_price = EXCLUDED.list_price,
-            quantity = EXCLUDED.quantity,
+
+            -- Sipariş gelmiş cihazı N11 product-query geçici olarak
+            -- quantity=1 döndürse bile tekrar satışa açma.
+            quantity = CASE
+              WHEN COALESCE(
+                ol.raw_data->>'orderStockLock',
+                'false'
+              ) = 'true'
+              THEN 0
+              ELSE EXCLUDED.quantity
+            END,
+
             product_status = EXCLUDED.product_status,
-            sale_status = EXCLUDED.sale_status,
+
+            sale_status = CASE
+              WHEN COALESCE(
+                ol.raw_data->>'orderStockLock',
+                'false'
+              ) = 'true'
+              THEN COALESCE(
+                ol.sale_status,
+                'ORDER_RECEIVED'
+              )
+              ELSE EXCLUDED.sale_status
+            END,
+
             sync_status = 'SYNCED',
             preparing_day = EXCLUDED.preparing_day,
             shipment_template = EXCLUDED.shipment_template,
             currency_type = EXCLUDED.currency_type,
             attributes = EXCLUDED.attributes,
-            raw_data = EXCLUDED.raw_data,
+
+            -- N11 canlı raw_data güncellensin fakat sipariş kilidi kaybolmasın.
+            raw_data =
+              (
+                COALESCE(
+                  ol.raw_data,
+                  '{}'::jsonb
+                )
+                || EXCLUDED.raw_data
+              )
+              ||
+              CASE
+                WHEN COALESCE(
+                  ol.raw_data->>'orderStockLock',
+                  'false'
+                ) = 'true'
+                THEN jsonb_build_object(
+                  'orderStockLock',
+                  true,
+                  'lastOrderNumber',
+                  ol.raw_data->'lastOrderNumber',
+                  'lastOrderPackageId',
+                  ol.raw_data->'lastOrderPackageId',
+                  'lastOrderStatus',
+                  ol.raw_data->'lastOrderStatus',
+                  'lastOrderSeenAt',
+                  ol.raw_data->'lastOrderSeenAt'
+                )
+                ELSE '{}'::jsonb
+              END,
+
             last_synced_at = now(),
 
             -- Manuel girilmis duzenli alanlari silme.
@@ -1128,7 +1181,7 @@ export async function POST(request: NextRequest) {
       success: true,
       mode: auth.mode === 'AUTO_SYNC' ? 'AUTO_SYNC' : 'IMPORT',
       databaseChanged: true,
-      message: 'N11 ürünleri PostgreSQL online_listings tablosuna aktarıldı.',
+      message: 'N11 canlı ürün/stok/fiyat verileri PostgreSQL online_listings tablosuna senkronlandı.',
       reportedTotalElements: result.reportedTotalElements,
       fetchedPages: result.fetchedPages,
       fetchedUniqueProducts: result.products.length,
