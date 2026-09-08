@@ -2889,6 +2889,682 @@ export async function GET(request: NextRequest) {
   }
 }
 
+
+function safeObject(
+  value: unknown
+): Record<string, any> {
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<string, any>;
+  }
+
+  return {};
+}
+
+function uniqueStringArray(
+  value: unknown
+) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) =>
+          String(item ?? '').trim()
+        )
+        .filter(Boolean)
+    )
+  );
+}
+
+function nonNegativeInt(
+  value: unknown,
+  fallback = 0
+) {
+  const parsed = Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0
+  ) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+}
+
+function isImeiStockCode(
+  value: unknown
+) {
+  return /^[0-9]{15}$/.test(
+    String(value ?? '').trim()
+  );
+}
+
+function listingVariantMatches(
+  listing: any,
+  params: {
+    brand: string;
+    model: string;
+    memory: string;
+    color: string;
+    grade: string;
+    warranty: string;
+  }
+) {
+  const title = String(
+    listing?.title || ''
+  );
+
+  const searchable =
+    normalizeTemplateValue(
+      [
+        listing?.brand,
+        listing?.model,
+        listing?.memory,
+        listing?.color,
+        listing?.grade,
+        listing?.warranty,
+        title,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    );
+
+  const wanted = {
+    brand:
+      normalizeTemplateValue(
+        params.brand
+      ),
+    model:
+      normalizeTemplateValue(
+        params.model
+      ),
+    memory:
+      normalizeTemplateValue(
+        params.memory
+      ),
+    color:
+      normalizeTemplateValue(
+        params.color
+      ),
+    grade:
+      normalizeTemplateValue(
+        params.grade
+      ),
+    warranty:
+      normalizeTemplateValue(
+        params.warranty
+      ),
+  };
+
+  const exactOrContained = (
+    current: unknown,
+    expected: string
+  ) => {
+    if (!expected) return true;
+
+    const currentNormalized =
+      normalizeTemplateValue(
+        current
+      );
+
+    if (currentNormalized) {
+      return (
+        currentNormalized ===
+          expected ||
+        currentNormalized.includes(
+          expected
+        ) ||
+        expected.includes(
+          currentNormalized
+        )
+      );
+    }
+
+    return searchable.includes(
+      expected
+    );
+  };
+
+  if (
+    !exactOrContained(
+      listing?.brand,
+      wanted.brand
+    ) ||
+    !exactOrContained(
+      listing?.model,
+      wanted.model
+    ) ||
+    !exactOrContained(
+      listing?.memory,
+      wanted.memory
+    ) ||
+    !exactOrContained(
+      listing?.color,
+      wanted.color
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    containsUnexpectedModelVariant(
+      params.model,
+      title
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    wanted.grade &&
+    !exactOrContained(
+      listing?.grade,
+      wanted.grade
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    wanted.warranty &&
+    !exactOrContained(
+      listing?.warranty,
+      wanted.warranty
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+async function findExistingSameVariantListing(
+  pool: Pool,
+  params: {
+    brand: string;
+    model: string;
+    memory: string;
+    color: string;
+    grade: string;
+    warranty: string;
+  }
+) {
+  const result = await pool.query(
+    `
+      SELECT *
+      FROM public.online_listings
+      WHERE channel = 'N11'
+        AND external_product_id IS NOT NULL
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 500
+    `
+  );
+
+  return (
+    result.rows.find((row) =>
+      listingVariantMatches(
+        row,
+        params
+      )
+    ) || null
+  );
+}
+
+async function addImeiToExistingN11Listing(
+  params: {
+    pool: Pool;
+    listing: any;
+    imei: string;
+    requestedBy: string;
+    retryListingId?: number | null;
+  }
+) {
+  const {
+    pool,
+    listing,
+    imei,
+    requestedBy,
+  } = params;
+
+  const listingId =
+    Number(listing?.id);
+
+  const stockCode = String(
+    listing?.external_stock_code ||
+      ''
+  ).trim();
+
+  if (
+    !listingId ||
+    !stockCode ||
+    !listing?.external_product_id
+  ) {
+    throw new Error(
+      'Mevcut N11 ürünü stok havuzuna uygun değil.'
+    );
+  }
+
+  // Aynı IMEI başka N11 listing/pool içinde var mı?
+  const imeiCheck =
+    await pool.query(
+      `
+        SELECT
+          id,
+          external_product_id,
+          external_stock_code,
+          title,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'N11'
+          AND (
+            external_stock_code = $1
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pooledImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pooledImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pool_imei(value)
+              WHERE pool_imei.value = $1
+            )
+          )
+        ORDER BY
+          CASE WHEN id = $2 THEN 0 ELSE 1 END,
+          id
+        LIMIT 1
+      `,
+      [imei, listingId]
+    );
+
+  const imeiExisting =
+    imeiCheck.rows[0];
+
+  if (
+    imeiExisting &&
+    Number(imeiExisting.id) !==
+      listingId
+  ) {
+    // Önceki başarısız local kayıt bu IMEI'yi tutuyor olabilir.
+    // Retry satırı ise aşağıda arşivlenecek; gerçek N11 ürünü ise blokla.
+    const retryId =
+      Number(
+        params.retryListingId || 0
+      );
+
+    if (
+      !retryId ||
+      Number(imeiExisting.id) !==
+        retryId
+    ) {
+      return {
+        success: false as const,
+        status: 409,
+        error:
+          'Bu IMEI başka bir N11 ürününe veya stok havuzuna zaten bağlı.',
+        existingListing:
+          imeiExisting,
+      };
+    }
+  }
+
+  const freshResult =
+    await pool.query(
+      `
+        SELECT *
+        FROM public.online_listings
+        WHERE id = $1
+          AND channel = 'N11'
+          AND external_product_id IS NOT NULL
+        LIMIT 1
+      `,
+      [listingId]
+    );
+
+  const fresh =
+    freshResult.rows[0];
+
+  if (!fresh) {
+    throw new Error(
+      'Mevcut N11 ürünü yeniden okunamadı.'
+    );
+  }
+
+  const raw =
+    safeObject(fresh.raw_data);
+
+  let pooledImeis =
+    uniqueStringArray(
+      raw.pooledImeis
+    );
+
+  let availableImeis =
+    uniqueStringArray(
+      raw.availableImeis
+    );
+
+  let soldImeis =
+    uniqueStringArray(
+      raw.soldImeis
+    );
+
+  const currentQuantity =
+    nonNegativeInt(
+      fresh.quantity,
+      0
+    );
+
+  let legacyUnmappedQuantity =
+    nonNegativeInt(
+      raw.legacyUnmappedQuantity,
+      0
+    );
+
+  const poolWasEnabled =
+    raw.poolEnabled === true;
+
+  // İlk defa pool'a çevrilen mevcut N11 ürünü:
+  // - stockCode IMEI ise o IMEI'yi fiziksel cihaz olarak biliyoruz.
+  // - stockCode IMEI değilse mevcut stok "legacy / IMEI'si bilinmeyen" stoktur.
+  if (!poolWasEnabled) {
+    if (
+      isImeiStockCode(
+        stockCode
+      )
+    ) {
+      if (
+        !pooledImeis.includes(
+          stockCode
+        )
+      ) {
+        pooledImeis.push(
+          stockCode
+        );
+      }
+
+      if (
+        currentQuantity > 0
+      ) {
+        if (
+          !availableImeis.includes(
+            stockCode
+          )
+        ) {
+          availableImeis.push(
+            stockCode
+          );
+        }
+
+        legacyUnmappedQuantity =
+          Math.max(
+            0,
+            currentQuantity - 1
+          );
+      } else {
+        if (
+          !soldImeis.includes(
+            stockCode
+          )
+        ) {
+          soldImeis.push(
+            stockCode
+          );
+        }
+
+        legacyUnmappedQuantity = 0;
+      }
+    } else {
+      legacyUnmappedQuantity =
+        Math.max(
+          legacyUnmappedQuantity,
+          currentQuantity
+        );
+    }
+  } else {
+    // N11 canlı quantity pool bilgisinden büyükse farkı legacy stok say.
+    const knownCurrent =
+      availableImeis.length +
+      legacyUnmappedQuantity;
+
+    if (
+      currentQuantity >
+      knownCurrent
+    ) {
+      legacyUnmappedQuantity +=
+        currentQuantity -
+        knownCurrent;
+    }
+  }
+
+  if (
+    pooledImeis.includes(imei) ||
+    soldImeis.includes(imei)
+  ) {
+    return {
+      success: true as const,
+      alreadyLinked: true,
+      listing: fresh,
+      targetQuantity:
+        currentQuantity,
+      message:
+        `IMEI ${imei} zaten bu N11 ürününün stok havuzuna bağlı.`,
+    };
+  }
+
+  pooledImeis = Array.from(
+    new Set([
+      ...pooledImeis,
+      imei,
+    ])
+  );
+
+  availableImeis = Array.from(
+    new Set([
+      ...availableImeis,
+      imei,
+    ])
+  );
+
+  const targetQuantity =
+    legacyUnmappedQuantity +
+    availableImeis.length;
+
+  const n11 =
+    await sendN11PriceStockUpdate({
+      stockCode,
+      quantity:
+        targetQuantity,
+    });
+
+  if (
+    n11.taskStatus ===
+    'REJECT'
+  ) {
+    return {
+      success: false as const,
+      status: 422,
+      error:
+        n11.reasons.length
+          ? `N11 stok artırmayı reddetti: ${n11.reasons
+              .map(String)
+              .join(' | ')}`
+          : 'N11 stok artırmayı reddetti.',
+    };
+  }
+
+  if (
+    n11.taskStatus !==
+      'IN_QUEUE' ||
+    !n11.taskId
+  ) {
+    return {
+      success: false as const,
+      status: 502,
+      error:
+        `N11 stok artırma için beklenmeyen task cevabı döndürdü: ${
+          n11.taskStatus ||
+          'STATUS YOK'
+        }`,
+    };
+  }
+
+  await saveN11Task({
+    listingId,
+    stockCode,
+    taskId: n11.taskId,
+    taskType: n11.taskType,
+    taskStatus: n11.taskStatus,
+    requestPayload:
+      n11.requestPayload,
+    responsePayload:
+      n11.responsePayload,
+    reasons: n11.reasons,
+  });
+
+  const poolPatch = {
+    poolEnabled: true,
+    poolMasterStockCode:
+      stockCode,
+    pooledImeis,
+    availableImeis,
+    soldImeis,
+    legacyUnmappedQuantity,
+    poolTargetQuantity:
+      targetQuantity,
+    poolStockIncreasePending:
+      true,
+    poolStockPendingUntil:
+      new Date(
+        Date.now() + 120_000
+      ).toISOString(),
+    poolStockTaskId:
+      n11.taskId,
+    // Yeni fiziksel cihaz eklendiği için önceki sipariş üst sınırı kalkar.
+    orderStockLock: false,
+    orderExpectedMaxQuantity:
+      targetQuantity,
+    poolLastAddedImei:
+      imei,
+    poolLastAddedBy:
+      requestedBy,
+    poolLastAddedAt:
+      new Date().toISOString(),
+    poolPriceMode:
+      'EXISTING_N11_PRICE_PRESERVED',
+  };
+
+  const updateResult =
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          quantity = $2,
+          raw_data =
+            COALESCE(
+              raw_data,
+              '{}'::jsonb
+            )
+            || $3::jsonb,
+          last_task_id = $4,
+          last_task_status = $5,
+          last_error = NULL,
+          sync_status = 'SYNCED',
+          updated_at = now()
+        WHERE id = $1
+          AND channel = 'N11'
+        RETURNING *
+      `,
+      [
+        listingId,
+        targetQuantity,
+        JSON.stringify(poolPatch),
+        n11.taskId,
+        n11.taskStatus,
+      ]
+    );
+
+  if (
+    params.retryListingId &&
+    Number(
+      params.retryListingId
+    ) !== listingId
+  ) {
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          external_stock_code =
+            CONCAT(
+              'MERGED-',
+              id::text,
+              '-',
+              $2::text
+            ),
+          quantity = 0,
+          sync_status =
+            'MERGED_TO_POOL',
+          last_task_id = NULL,
+          last_task_status = NULL,
+          last_error = NULL,
+          raw_data =
+            COALESCE(
+              raw_data,
+              '{}'::jsonb
+            )
+            || jsonb_build_object(
+              'mergedToPool',
+              true,
+              'mergedToListingId',
+              $3::bigint,
+              'mergedImei',
+              $2::text,
+              'mergedAt',
+              now()::text
+            ),
+          updated_at = now()
+        WHERE id = $1
+          AND external_product_id IS NULL
+      `,
+      [
+        Number(
+          params.retryListingId
+        ),
+        imei,
+        listingId,
+      ]
+    );
+  }
+
+  return {
+    success: true as const,
+    alreadyLinked: false,
+    taskId: n11.taskId,
+    taskStatus:
+      n11.taskStatus,
+    targetQuantity,
+    listing:
+      updateResult.rows[0],
+    message:
+      `Aynı varyant N11'de zaten vardı. Yeni ilan açılmadı; IMEI ${imei} mevcut ürüne bağlandı ve N11 stok ${targetQuantity} olarak gönderildi. Mevcut N11 fiyatı korundu.`,
+  };
+}
+
 // ============================================================
 // POST /api/online/listings
 //
@@ -3016,7 +3692,28 @@ export async function POST(request: NextRequest) {
           last_error
         FROM public.online_listings
         WHERE channel = 'N11'
-          AND external_stock_code = $1
+          AND (
+            external_stock_code = $1
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pooledImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pooledImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pool_imei(value)
+              WHERE pool_imei.value = $1
+            )
+          )
         LIMIT 1
       `,
       [imei]
@@ -3167,6 +3864,80 @@ export async function POST(request: NextRequest) {
 
     const normalizedMemory =
       renewedMemoryLabel(memory);
+
+    // ========================================================
+    // AYNI VARYANT + FARKLI IMEI = YENİ N11 İLANI AÇMA
+    //
+    // Aynı marka/model/hafıza/renk/grade/garanti N11'de zaten varsa:
+    // - yeni catalog/create yapma
+    // - IMEI'yi mevcut N11 SKU'nun havuzuna bağla
+    // - quantity +1 gönder
+    // ========================================================
+    const existingVariantListing =
+      await findExistingSameVariantListing(
+        pool,
+        {
+          brand,
+          model,
+          memory:
+            normalizedMemory,
+          color,
+          grade:
+            normalizedGrade,
+          warranty:
+            normalizedWarranty,
+        }
+      );
+
+    if (existingVariantListing) {
+      const pooled =
+        await addImeiToExistingN11Listing({
+          pool,
+          listing:
+            existingVariantListing,
+          imei,
+          requestedBy:
+            auth.user.username,
+          retryListingId,
+        });
+
+      if (!pooled.success) {
+        return json(
+          {
+            success: false,
+            n11Requested: true,
+            pooled: true,
+            error:
+              pooled.error,
+          },
+          pooled.status
+        );
+      }
+
+      return json({
+        success: true,
+        n11Requested: true,
+        created: true,
+        pending: false,
+        pooled: true,
+        alreadyLinked:
+          pooled.alreadyLinked,
+        taskId:
+          'taskId' in pooled
+            ? pooled.taskId
+            : null,
+        taskStatus:
+          'taskStatus' in pooled
+            ? pooled.taskStatus
+            : null,
+        targetQuantity:
+          pooled.targetQuantity,
+        message:
+          pooled.message,
+        listing:
+          pooled.listing,
+      });
+    }
 
     // YENİLENMİŞ ÜRÜNLER İÇİN GERÇEK N11 LEAF CATEGORY
     // hard-code 1000476 kullanmıyoruz.
@@ -3571,17 +4342,94 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Aynı katalog ürünü gerçekten bizim mağazada zaten varsa,
-    // N11 aynı catalogId ile ikinci ayrı ilan oluşturmayı reddediyor.
-    // Bunu create'e göndermeden önce yakala.
+    // Aynı katalog ürünü mağazamızda zaten varsa ikinci ilan açma.
+    // Aynı varyantsa yeni IMEI'yi mevcut N11 SKU'nun stok havuzuna ekle.
     if (existingSellerProduct) {
+      const existingStockCode =
+        String(
+          existingSellerProduct
+            ?.stockCode ||
+            ''
+        ).trim();
+
+      const localExistingResult =
+        existingStockCode
+          ? await pool.query(
+              `
+                SELECT *
+                FROM public.online_listings
+                WHERE channel = 'N11'
+                  AND external_stock_code = $1
+                  AND external_product_id IS NOT NULL
+                LIMIT 1
+              `,
+              [existingStockCode]
+            )
+          : { rows: [] as any[] };
+
+      const localExisting =
+        localExistingResult.rows[0];
+
+      if (localExisting) {
+        const pooled =
+          await addImeiToExistingN11Listing({
+            pool,
+            listing:
+              localExisting,
+            imei,
+            requestedBy:
+              auth.user.username,
+            retryListingId,
+          });
+
+        if (!pooled.success) {
+          return json(
+            {
+              success: false,
+              n11Requested: true,
+              pooled: true,
+              catalogCollision: true,
+              error:
+                pooled.error,
+            },
+            pooled.status
+          );
+        }
+
+        return json({
+          success: true,
+          n11Requested: true,
+          created: true,
+          pending: false,
+          pooled: true,
+          catalogCollisionResolved:
+            true,
+          alreadyLinked:
+            pooled.alreadyLinked,
+          targetQuantity:
+            pooled.targetQuantity,
+          taskId:
+            'taskId' in pooled
+              ? pooled.taskId
+              : null,
+          taskStatus:
+            'taskStatus' in pooled
+              ? pooled.taskStatus
+              : null,
+          message:
+            pooled.message,
+          listing:
+            pooled.listing,
+        });
+      }
+
       return json(
         {
           success: false,
           catalogCollision: true,
           sameVariant: true,
           error:
-            `Bu yenilenmiş ürün N11 mağazanızda zaten mevcut. N11 aynı catalogId'yi ikinci kez farklı IMEI/stockCode ile ayrı ilan olarak açmaya izin vermiyor. Mevcut N11 stok kodu: ${String(existingSellerProduct?.stockCode || '—')}. Aynı varyanttan birden fazla IMEI varsa N11 tarafında tek ürün altında stok adedi artırılmalıdır.`,
+            `N11'de aynı varyant bulundu ancak yerel ONLINE kaydı henüz senkronlanmamış. YENİLE butonuna bir kez basıp tekrar deneyin. Mevcut N11 stok kodu: ${existingStockCode || '—'}.`,
           existingSellerProduct: {
             n11ProductId:
               existingSellerProduct
@@ -3603,18 +4451,6 @@ export async function POST(request: NextRequest) {
               existingSellerProduct
                 ?.quantity ??
               null,
-          },
-          requestedImei: imei,
-          requested: {
-            brand,
-            model,
-            memory:
-              normalizedMemory,
-            color,
-            grade:
-              normalizedGrade,
-            warranty:
-              normalizedWarranty,
           },
         },
         409
