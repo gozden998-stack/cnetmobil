@@ -663,6 +663,251 @@ export async function GET(
           })
         );
 
+    const localRowsByStockCode =
+      new Map<
+        string,
+        any[]
+      >();
+
+    for (const row of localRows) {
+      const stockCode =
+        text(
+          row.external_stock_code
+        );
+
+      if (!stockCode) {
+        continue;
+      }
+
+      const list =
+        localRowsByStockCode.get(
+          stockCode
+        ) || [];
+
+      list.push(row);
+
+      localRowsByStockCode.set(
+        stockCode,
+        list
+      );
+    }
+
+    const isPanelOpenRow = (
+      row: any
+    ) =>
+      Boolean(
+        row.external_product_id
+      ) &&
+      String(
+        row.sync_status ||
+          ""
+      ).toUpperCase() ===
+        "SYNCED" &&
+      qty(row.quantity) > 0;
+
+    const n11PositiveButPanelNotOpen =
+      n11Positive
+        .map(
+          (product) => {
+            const stockCode =
+              text(
+                product.stockCode
+              );
+
+            const localMatches =
+              localRowsByStockCode.get(
+                stockCode
+              ) || [];
+
+            if (
+              localMatches.some(
+                isPanelOpenRow
+              )
+            ) {
+              return null;
+            }
+
+            return {
+              stockCode,
+              n11ProductId:
+                text(
+                  product.n11ProductId
+                ),
+              title:
+                text(
+                  product.title
+                ),
+              n11Quantity:
+                qty(
+                  product.quantity
+                ),
+              n11Status:
+                text(
+                  product.status
+                ),
+              n11SaleStatus:
+                text(
+                  product.saleStatus
+                ),
+              localMatches:
+                localMatches.map(
+                  (row: any) => ({
+                    id: row.id,
+                    externalProductId:
+                      row.external_product_id,
+                    quantity:
+                      qty(
+                        row.quantity
+                      ),
+                    syncStatus:
+                      row.sync_status,
+                    productStatus:
+                      row.product_status,
+                    saleStatus:
+                      row.sale_status,
+                    lastTaskStatus:
+                      row.last_task_status,
+                    lastError:
+                      row.last_error,
+                    updatedAt:
+                      row.updated_at,
+                  })
+                ),
+              reason:
+                localMatches.length ===
+                0
+                  ? "LOCAL_ROW_YOK"
+                  : localMatches.every(
+                      (row: any) =>
+                        !row.external_product_id
+                    )
+                  ? "LOCAL_N11_ID_YOK"
+                  : localMatches.every(
+                      (row: any) =>
+                        String(
+                          row.sync_status ||
+                            ""
+                        ).toUpperCase() !==
+                        "SYNCED"
+                    )
+                  ? "LOCAL_SYNC_STATUS_ACIK_SAYILMIYOR"
+                  : "LOCAL_OPEN_KURALINA_GIRMIYOR",
+            };
+          }
+        )
+        .filter(Boolean);
+
+    const localRowsNotRepresentedAsN11Product =
+      localRows
+        .filter((row: any) => {
+          const stockCode =
+            text(
+              row.external_stock_code
+            );
+
+          return (
+            !stockCode ||
+            !n11Map.has(
+              stockCode
+            )
+          );
+        })
+        .map((row: any) => ({
+          id: row.id,
+          stockCode:
+            text(
+              row.external_stock_code
+            ),
+          externalProductId:
+            row.external_product_id,
+          title:
+            row.title,
+          quantity:
+            qty(
+              row.quantity
+            ),
+          syncStatus:
+            row.sync_status,
+          productStatus:
+            row.product_status,
+          saleStatus:
+            row.sale_status,
+          lastTaskStatus:
+            row.last_task_status,
+          lastError:
+            row.last_error,
+          updatedAt:
+            row.updated_at,
+        }));
+
+    const duplicateLocalStockCodes =
+      Array.from(
+        localRowsByStockCode.entries()
+      )
+        .filter(
+          ([, rows]) =>
+            rows.length > 1
+        )
+        .map(
+          ([stockCode, rows]) => ({
+            stockCode,
+            count:
+              rows.length,
+            rows:
+              rows.map(
+                (row: any) => ({
+                  id: row.id,
+                  externalProductId:
+                    row.external_product_id,
+                  quantity:
+                    qty(
+                      row.quantity
+                    ),
+                  syncStatus:
+                    row.sync_status,
+                  lastTaskStatus:
+                    row.last_task_status,
+                  lastError:
+                    row.last_error,
+                  updatedAt:
+                    row.updated_at,
+                })
+              ),
+          })
+        );
+
+    const localErrorRows =
+      localRows
+        .filter(
+          (row: any) =>
+            String(
+              row.sync_status ||
+                ""
+            ).toUpperCase() ===
+            "ERROR"
+        )
+        .map((row: any) => ({
+          id: row.id,
+          stockCode:
+            text(
+              row.external_stock_code
+            ),
+          externalProductId:
+            row.external_product_id,
+          title:
+            row.title,
+          quantity:
+            qty(
+              row.quantity
+            ),
+          lastTaskStatus:
+            row.last_task_status,
+          lastError:
+            row.last_error,
+          updatedAt:
+            row.updated_at,
+        }));
+
     const pendingLocal =
       localRows.filter(
         (row: any) =>
@@ -778,6 +1023,12 @@ export async function GET(
       quantityMismatches,
       localOnlyOpen,
       n11OnlyPositive,
+
+      // ADIM18.1 - exact cause lists
+      n11PositiveButPanelNotOpen,
+      localRowsNotRepresentedAsN11Product,
+      duplicateLocalStockCodes,
+      localErrorRows,
 
       checkedAt:
         new Date().toISOString(),
