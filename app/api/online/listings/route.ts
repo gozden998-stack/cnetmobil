@@ -1477,6 +1477,157 @@ function chooseCatalogProduct(params: {
   return scored[0]?.product || null;
 }
 
+
+function sellerProductMatchesRequested(
+  product: any,
+  params: {
+    brand: string;
+    model: string;
+    memory: string;
+    color: string;
+    grade: string;
+    warranty: string;
+  }
+) {
+  const title = String(
+    product?.title || ''
+  ).trim();
+
+  const searchable =
+    liveProductSearchText(product);
+
+  const wantedBrand =
+    normalizeTemplateValue(
+      params.brand
+    );
+
+  const wantedModel =
+    normalizeTemplateValue(
+      params.model
+    );
+
+  const wantedMemory =
+    normalizeTemplateValue(
+      params.memory
+    );
+
+  const wantedColor =
+    normalizeTemplateValue(
+      params.color
+    );
+
+  const wantedGrade =
+    renewedGradeToken(
+      params.grade
+    );
+
+  const wantedWarranty =
+    normalizeTemplateValue(
+      params.warranty
+    );
+
+  const brandOk =
+    !wantedBrand ||
+    searchable.includes(wantedBrand) ||
+    (
+      wantedBrand === 'apple' &&
+      searchable.includes('iphone')
+    );
+
+  const modelOk =
+    !wantedModel ||
+    searchable.includes(wantedModel);
+
+  const memoryOk =
+    !wantedMemory ||
+    searchable.includes(wantedMemory);
+
+  const colorOk =
+    !wantedColor ||
+    searchable.includes(wantedColor);
+
+  if (
+    !brandOk ||
+    !modelOk ||
+    !memoryOk ||
+    !colorOk
+  ) {
+    return false;
+  }
+
+  if (
+    containsUnexpectedModelVariant(
+      params.model,
+      title
+    )
+  ) {
+    return false;
+  }
+
+  const normalizedTitle =
+    normalizeTemplateValue(title);
+
+  const candidateHasKnownGrade =
+    normalizedTitle.includes(
+      'akalite'
+    ) ||
+    normalizedTitle.includes(
+      'bkalite'
+    ) ||
+    normalizedTitle.includes(
+      'ckalite'
+    );
+
+  if (
+    wantedGrade &&
+    ['akalite', 'bkalite', 'ckalite'].includes(
+      wantedGrade
+    ) &&
+    candidateHasKnownGrade &&
+    !normalizedTitle.includes(
+      wantedGrade
+    )
+  ) {
+    return false;
+  }
+
+  const warrantyTokens = [
+    '3ay',
+    '6ay',
+    '12ay',
+    '18ay',
+    '24ay',
+    '36ay',
+  ];
+
+  const candidateWarrantyToken =
+    warrantyTokens.find((token) =>
+      normalizedTitle.includes(token)
+    );
+
+  if (
+    wantedWarranty &&
+    candidateWarrantyToken &&
+    !normalizedTitle.includes(
+      wantedWarranty
+    )
+  ) {
+    return false;
+  }
+
+  return isRenewedCatalogTitle(
+    title
+  );
+}
+
+function sellerCatalogId(
+  product: any
+) {
+  return positiveIntegerOrNull(
+    product?.catalogId
+  );
+}
+
 async function findRenewedCatalogFromLocalMemory(params: {
   pool: Pool;
   brand: string;
@@ -3016,7 +3167,8 @@ export async function POST(request: NextRequest) {
     // isteği atmadan anında aynı katalog kullanılır.
     let catalogSource:
       | 'LOCAL_MEMORY'
-      | 'N11_SEARCH_CATALOG' =
+      | 'N11_SEARCH_CATALOG'
+      | 'N11_SEARCH_CATALOG_UNUSED' =
       'LOCAL_MEMORY';
 
     let catalogProduct =
@@ -3234,6 +3386,222 @@ export async function POST(request: NextRequest) {
             'N11 katalog eşleşmesi yenilenmiş ürün değil. Güvenlik nedeniyle ürün açılmadı.',
           selectedCatalogTitle:
             catalogProduct.productTitle,
+        },
+        409
+      );
+    }
+
+    // ========================================================
+    // N11 KATALOG ÇAKIŞMA KORUMASI
+    //
+    // N11 aynı catalogId'yi aynı satıcıda ikinci kez ayrı ürün
+    // olarak açmaya izin vermiyor.
+    //
+    // FARKLI RENK / VARYANT ise:
+    //   seçilen catalogId mağazada zaten kullanılıyorsa onu atla,
+    //   kısa ve renk odaklı katalog aramasıyla KULLANILMAMIŞ
+    //   doğru catalogId bul.
+    //
+    // AYNI VARYANT ise:
+    //   N11'in kuralı gereği ikinci ayrı ilan açılamaz.
+    //   Burada N11'e boşuna create göndermeden net açıklama dön.
+    // ========================================================
+    const liveSellerProducts =
+      await fetchLiveN11ProductsForTemplate();
+
+    const usedCatalogIds = new Set<number>(
+      liveSellerProducts
+        .map((product: any) =>
+          sellerCatalogId(product)
+        )
+        .filter(
+          (
+            value
+          ): value is number =>
+            Boolean(value)
+        )
+    );
+
+    let selectedCatalogId =
+      positiveIntegerOrNull(
+        catalogProduct.catalogId
+      );
+
+    let existingSellerProduct =
+      selectedCatalogId
+        ? liveSellerProducts.find(
+            (product: any) =>
+              sellerCatalogId(product) ===
+              selectedCatalogId
+          )
+        : null;
+
+    if (existingSellerProduct) {
+      const exactExistingVariant =
+        sellerProductMatchesRequested(
+          existingSellerProduct,
+          {
+            brand,
+            model,
+            memory:
+              normalizedMemory,
+            color,
+            grade:
+              normalizedGrade,
+            warranty:
+              normalizedWarranty,
+          }
+        );
+
+      if (!exactExistingVariant) {
+        // Seçilen catalogId başka renk/varyant için bizim mağazada
+        // kullanılıyor. Onu ASLA yeniden göndermiyoruz.
+        const conflictSearchTitle = [
+          'Yenilenmiş',
+          brand,
+          model,
+          normalizedMemory,
+          color,
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const conflictProducts =
+          await searchN11Catalog({
+            brand: '',
+            title:
+              conflictSearchTitle,
+            categoryId:
+              renewedCategoryId,
+            maxPages: 2,
+          });
+
+        const unusedProducts =
+          conflictProducts.filter(
+            (product) => {
+              const id =
+                positiveIntegerOrNull(
+                  product.catalogId
+                );
+
+              return (
+                Boolean(id) &&
+                !usedCatalogIds.has(
+                  id as number
+                )
+              );
+            }
+          );
+
+        const unusedMatch =
+          chooseCatalogProduct({
+            products:
+              unusedProducts,
+            brand,
+            model,
+            memory:
+              normalizedMemory,
+            color,
+            grade:
+              normalizedGrade,
+            warranty:
+              normalizedWarranty,
+          });
+
+        if (!unusedMatch) {
+          return json(
+            {
+              success: false,
+              error:
+                `N11 ${brand} ${model} ${normalizedMemory} ${color} için kullanılmamış doğru bir yenilenmiş catalogId bulamadı. Seçilen ${selectedCatalogId} catalogId mağazanızda "${String(existingSellerProduct?.title || '')}" ürünüyle zaten kullanılıyor. Yanlış renk/varyanta bağlanmamak için ürün açılmadı.`,
+              catalogCollision: true,
+              selectedCatalogId,
+              existingSellerStockCode:
+                existingSellerProduct
+                  ?.stockCode ??
+                null,
+              existingSellerTitle:
+                existingSellerProduct
+                  ?.title ??
+                null,
+              searchedTitle:
+                conflictSearchTitle,
+              unusedCandidateCount:
+                unusedProducts.length,
+            },
+            409
+          );
+        }
+
+        catalogProduct =
+          unusedMatch;
+
+        catalogSource =
+          'N11_SEARCH_CATALOG_UNUSED';
+
+        selectedCatalogId =
+          positiveIntegerOrNull(
+            catalogProduct.catalogId
+          );
+
+        existingSellerProduct =
+          selectedCatalogId
+            ? liveSellerProducts.find(
+                (product: any) =>
+                  sellerCatalogId(
+                    product
+                  ) ===
+                  selectedCatalogId
+              )
+            : null;
+      }
+    }
+
+    // Aynı katalog ürünü gerçekten bizim mağazada zaten varsa,
+    // N11 aynı catalogId ile ikinci ayrı ilan oluşturmayı reddediyor.
+    // Bunu create'e göndermeden önce yakala.
+    if (existingSellerProduct) {
+      return json(
+        {
+          success: false,
+          catalogCollision: true,
+          sameVariant: true,
+          error:
+            `Bu yenilenmiş ürün N11 mağazanızda zaten mevcut. N11 aynı catalogId'yi ikinci kez farklı IMEI/stockCode ile ayrı ilan olarak açmaya izin vermiyor. Mevcut N11 stok kodu: ${String(existingSellerProduct?.stockCode || '—')}. Aynı varyanttan birden fazla IMEI varsa N11 tarafında tek ürün altında stok adedi artırılmalıdır.`,
+          existingSellerProduct: {
+            n11ProductId:
+              existingSellerProduct
+                ?.n11ProductId ??
+              null,
+            stockCode:
+              existingSellerProduct
+                ?.stockCode ??
+              null,
+            title:
+              existingSellerProduct
+                ?.title ??
+              null,
+            catalogId:
+              existingSellerProduct
+                ?.catalogId ??
+              null,
+            quantity:
+              existingSellerProduct
+                ?.quantity ??
+              null,
+          },
+          requestedImei: imei,
+          requested: {
+            brand,
+            model,
+            memory:
+              normalizedMemory,
+            color,
+            grade:
+              normalizedGrade,
+            warranty:
+              normalizedWarranty,
+          },
         },
         409
       );
