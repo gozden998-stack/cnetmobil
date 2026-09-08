@@ -1494,6 +1494,266 @@ export async function GET(
 }
 
 
+
+type BulkDeviceInput = {
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+};
+
+function parseImeiList(
+  value: unknown
+) {
+  const raw =
+    String(
+      value ?? ""
+    ).trim();
+
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(
+      /[\s,;|]+/g
+    )
+    .map(
+      (item) =>
+        item.replace(
+          /\D/g,
+          ""
+        )
+    )
+    .filter(Boolean);
+}
+
+function buildBulkRows(
+  data: Record<
+    string,
+    unknown
+  >
+) {
+  const brand =
+    cleanRequired(
+      data.brand,
+      "Marka",
+      100
+    );
+
+  const model =
+    cleanRequired(
+      data.model,
+      "Model",
+      180
+    );
+
+  const memory =
+    normalizeMemoryInput(
+      data.memory
+    );
+
+  const color =
+    cleanRequired(
+      data.color,
+      "Renk",
+      100
+    );
+
+  const grade =
+    normalizeGradeInput(
+      data.grade
+    );
+
+  const warranty =
+    normalizeWarrantyInput(
+      data.warranty
+    );
+
+  const imeis =
+    parseImeiList(
+      data.imeis
+    );
+
+  if (
+    imeis.length === 0
+  ) {
+    throw new Error(
+      "En az 1 IMEI girilmelidir."
+    );
+  }
+
+  if (
+    imeis.length > 500
+  ) {
+    throw new Error(
+      "Tek seferde en fazla 500 IMEI eklenebilir."
+    );
+  }
+
+  return imeis.map(
+    (
+      imei
+    ): BulkDeviceInput => ({
+      imei,
+      brand,
+      model,
+      memory,
+      color,
+      grade,
+      warranty,
+    })
+  );
+}
+
+async function validateBulkRows(
+  client: PoolClient,
+  rows: BulkDeviceInput[]
+) {
+  const errors:
+    Array<{
+      imei: string;
+      reason: string;
+      type:
+        | "INVALID_IMEI"
+        | "DUPLICATE_INPUT"
+        | "ALREADY_EXISTS";
+    }> = [];
+
+  const seen =
+    new Set<string>();
+
+  for (
+    const row of rows
+  ) {
+    if (
+      !/^[0-9]{15}$/.test(
+        row.imei
+      )
+    ) {
+      errors.push({
+        imei: row.imei,
+        reason:
+          "IMEI tam 15 hane olmalıdır.",
+        type:
+          "INVALID_IMEI",
+      });
+      continue;
+    }
+
+    if (
+      seen.has(
+        row.imei
+      )
+    ) {
+      errors.push({
+        imei: row.imei,
+        reason:
+          "Aynı IMEI listede birden fazla kez var.",
+        type:
+          "DUPLICATE_INPUT",
+      });
+      continue;
+    }
+
+    seen.add(
+      row.imei
+    );
+  }
+
+  const validImeis =
+    Array.from(seen).filter(
+      (imei) =>
+        /^[0-9]{15}$/.test(
+          imei
+        )
+    );
+
+  if (
+    validImeis.length > 0
+  ) {
+    const existing =
+      await client.query(
+        `
+          SELECT
+            imei,
+            brand,
+            model,
+            current_branch_code,
+            status
+          FROM public.stock_devices
+          WHERE imei = ANY($1::text[])
+        `,
+        [
+          validImeis,
+        ]
+      );
+
+    for (
+      const existingRow of
+        existing.rows
+    ) {
+      errors.push({
+        imei: String(
+          existingRow.imei
+        ),
+        reason:
+          `Bu IMEI zaten sistemde kayıtlı. ` +
+          `${String(
+            existingRow.brand ||
+              ""
+          )} ${String(
+            existingRow.model ||
+              ""
+          )}`.trim() +
+          ` · Durum: ${String(
+            existingRow.status ||
+              "-"
+          )}.`,
+        type:
+          "ALREADY_EXISTS",
+      });
+    }
+  }
+
+  const badImeis =
+    new Set(
+      errors.map(
+        (item) =>
+          item.imei
+      )
+    );
+
+  const validRows =
+    rows.filter(
+      (row) =>
+        !badImeis.has(
+          row.imei
+        ) &&
+        /^[0-9]{15}$/.test(
+          row.imei
+        )
+    );
+
+  return {
+    errors,
+    validRows,
+    total:
+      rows.length,
+    validCount:
+      validRows.length,
+    errorCount:
+      errors.length,
+    canCommit:
+      errors.length === 0 &&
+      validRows.length ===
+        rows.length,
+  };
+}
+
 export async function POST(
   request: NextRequest
 ) {
@@ -1919,6 +2179,475 @@ export async function POST(
             Error
             ? error.message
             : "Cihaz Merkez stoğuna eklenemedi.",
+      },
+      500
+    );
+  } finally {
+    client?.release();
+  }
+}
+
+
+export async function PUT(
+  request: NextRequest
+) {
+  let client:
+    | PoolClient
+    | null = null;
+
+  try {
+    if (
+      !validateOrigin(
+        request
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek kaynağı.",
+        },
+        403
+      );
+    }
+
+    const user =
+      await getSuperAdminUser(
+        request
+      );
+
+    if (!user) {
+      return json(
+        {
+          success: false,
+          error:
+            "Merkez toplu cihaz girişi yalnızca Super Admin içindir.",
+        },
+        403
+      );
+    }
+
+    const contentLength =
+      Number(
+        request.headers.get(
+          "content-length"
+        ) || 0
+      );
+
+    if (
+      contentLength >
+      500_000
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Toplu cihaz isteği çok büyük.",
+        },
+        413
+      );
+    }
+
+    const body =
+      await request
+        .json()
+        .catch(
+          () => null
+        );
+
+    if (
+      !body ||
+      typeof body !==
+        "object" ||
+      Array.isArray(body)
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek.",
+        },
+        400
+      );
+    }
+
+    const data =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const mode =
+      String(
+        data.mode ||
+          "preview"
+      ).toLowerCase();
+
+    if (
+      mode !==
+        "preview" &&
+      mode !==
+        "commit"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz toplu işlem modu.",
+        },
+        400
+      );
+    }
+
+    let rows:
+      BulkDeviceInput[];
+
+    try {
+      rows =
+        buildBulkRows(
+          data
+        );
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error:
+            error instanceof
+              Error
+              ? error.message
+              : "Toplu cihaz bilgileri geçersiz.",
+        },
+        400
+      );
+    }
+
+    client =
+      await getPool().connect();
+
+    if (
+      mode ===
+      "preview"
+    ) {
+      const validation =
+        await validateBulkRows(
+          client,
+          rows
+        );
+
+      return json({
+        success: true,
+        mode:
+          "preview",
+        preview: {
+          total:
+            validation.total,
+          valid:
+            validation.validCount,
+          invalid:
+            validation.errorCount,
+          canCommit:
+            validation.canCommit,
+          errors:
+            validation.errors,
+        },
+        normalized: {
+          brand:
+            rows[0]?.brand ||
+            "",
+          model:
+            rows[0]?.model ||
+            "",
+          memory:
+            rows[0]?.memory ||
+            "",
+          color:
+            rows[0]?.color ||
+            "",
+          grade:
+            rows[0]?.grade ||
+            "",
+          warranty:
+            rows[0]?.warranty ||
+            "",
+        },
+      });
+    }
+
+    await client.query(
+      "BEGIN ISOLATION LEVEL SERIALIZABLE"
+    );
+
+    await client.query(
+      `
+        SELECT
+          pg_advisory_xact_lock(
+            hashtext(
+              'cnet_center_bulk_device_insert'
+            )
+          )
+      `
+    );
+
+    await ensureCenterBranch(
+      client
+    );
+
+    const validation =
+      await validateBulkRows(
+        client,
+        rows
+      );
+
+    if (
+      !validation.canCommit
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return json(
+        {
+          success: false,
+          error:
+            "Toplu kayıt iptal edildi. Hatalı veya tekrar eden IMEI var.",
+          preview: {
+            total:
+              validation.total,
+            valid:
+              validation.validCount,
+            invalid:
+              validation.errorCount,
+            canCommit:
+              false,
+            errors:
+              validation.errors,
+          },
+        },
+        409
+      );
+    }
+
+    const insertedDevices: any[] =
+      [];
+
+    for (
+      const row of
+        validation.validRows
+    ) {
+      const insertResult =
+        await client.query(
+          `
+            INSERT INTO public.stock_devices (
+              imei,
+              brand,
+              model,
+              memory,
+              color,
+              battery_percent,
+              grade,
+              warranty,
+              changed_parts,
+              box_invoice,
+              current_branch_code,
+              status,
+              source,
+              details_completed_at,
+              details_completed_by,
+              created_by
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              NULL,
+              $6,
+              $7,
+              NULL,
+              NULL,
+              $8,
+              'AVAILABLE',
+              'MANUAL',
+              NULL,
+              NULL,
+              $9
+            )
+            RETURNING
+              id,
+              imei,
+              brand,
+              model,
+              memory,
+              color,
+              grade,
+              warranty,
+              current_branch_code,
+              status,
+              source,
+              created_at,
+              updated_at
+          `,
+          [
+            row.imei,
+            row.brand,
+            row.model,
+            row.memory,
+            row.color,
+            row.grade,
+            row.warranty,
+            CENTER_BRANCH_CODE,
+            user.username,
+          ]
+        );
+
+      const device =
+        insertResult.rows[0];
+
+      insertedDevices.push(
+        device
+      );
+
+      await client.query(
+        `
+          INSERT INTO public.stock_events (
+            device_id,
+            imei,
+            event_type,
+            to_branch_code,
+            old_status,
+            new_status,
+            performed_by,
+            metadata
+          )
+          VALUES (
+            $1,
+            $2,
+            'DEVICE_ADDED',
+            $3,
+            NULL,
+            'AVAILABLE',
+            $4,
+            $5::jsonb
+          )
+        `,
+        [
+          device.id,
+          row.imei,
+          CENTER_BRANCH_CODE,
+          user.username,
+          JSON.stringify({
+            source:
+              "CENTER_BULK",
+            entry:
+              "ONLINE_CENTER",
+            bulk:
+              true,
+            brand:
+              row.brand,
+            model:
+              row.model,
+            memory:
+              row.memory,
+            color:
+              row.color,
+            grade:
+              row.grade,
+            warranty:
+              row.warranty,
+            marketplaceWrite:
+              false,
+          }),
+        ]
+      );
+    }
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return json(
+      {
+        success: true,
+        mode:
+          "commit",
+        message:
+          `${insertedDevices.length} cihaz Merkez stoğuna eklendi.`,
+        insertedCount:
+          insertedDevices.length,
+        devices:
+          insertedDevices,
+        safety: {
+          allOrNothing:
+            true,
+          n11Write:
+            false,
+          ikasWrite:
+            false,
+          idefixWrite:
+            false,
+          onlineListingWrite:
+            false,
+          channelMembershipWrite:
+            false,
+        },
+      },
+      201
+    );
+  } catch (
+    error: any
+  ) {
+    if (client) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {
+        // rollback failure ignored
+      }
+    }
+
+    if (
+      error?.code ===
+      "23505"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Toplu kayıt iptal edildi. IMEI'lerden en az biri sistemde zaten mevcut.",
+        },
+        409
+      );
+    }
+
+    if (
+      error?.code ===
+      "40001"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Aynı anda başka bir stok işlemi yapıldı. Hiçbir cihaz eklenmedi; tekrar deneyin.",
+        },
+        409
+      );
+    }
+
+    console.error(
+      "CENTER BULK DEVICE ERROR:",
+      error
+    );
+
+    return json(
+      {
+        success: false,
+        error:
+          error instanceof
+            Error
+            ? error.message
+            : "Toplu cihaz kaydı yapılamadı.",
       },
       500
     );
