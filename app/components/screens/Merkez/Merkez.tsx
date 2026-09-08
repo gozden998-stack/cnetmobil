@@ -82,6 +82,36 @@ type ExcelPreview = {
 };
 
 
+type ChannelSendPreviewItem = {
+  deviceId: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  status: string;
+  eligible: boolean;
+  errors: string[];
+  existingChannelStatus:
+    string | null;
+};
+
+type ChannelSendPreview = {
+  channel: ChannelCode;
+  salePrice: number;
+  listPrice: number;
+  total: number;
+  eligible: number;
+  blocked: number;
+  canProceed: boolean;
+  items:
+    ChannelSendPreviewItem[];
+};
+
+
+
 
 
 function normalizeExcelHeader(
@@ -925,6 +955,51 @@ function normalize(
     );
 }
 
+
+function formatMoney(
+  value: unknown
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      number
+    )
+  ) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat(
+    "tr-TR",
+    {
+      style: "currency",
+      currency: "TRY",
+      maximumFractionDigits:
+        2,
+    }
+  ).format(number);
+}
+
+function channelLabel(
+  channel: ChannelCode
+) {
+  if (
+    channel === "IKAS"
+  ) {
+    return "İkas";
+  }
+
+  if (
+    channel ===
+    "IDEFIX"
+  ) {
+    return "İdefix";
+  }
+
+  return "N11";
+}
+
 function channelStatusMeta(
   rawStatus: unknown
 ) {
@@ -1251,6 +1326,54 @@ export default function Merkez() {
     excelSuccess,
     setExcelSuccess,
   ] = useState("");
+
+
+  const [
+    selectedDeviceIds,
+    setSelectedDeviceIds,
+  ] = useState<number[]>(
+    []
+  );
+
+  const [
+    channelOpen,
+    setChannelOpen,
+  ] = useState(false);
+
+  const [
+    sendChannel,
+    setSendChannel,
+  ] = useState<ChannelCode>(
+    "N11"
+  );
+
+  const [
+    channelSalePrice,
+    setChannelSalePrice,
+  ] = useState("");
+
+  const [
+    channelListPrice,
+    setChannelListPrice,
+  ] = useState("");
+
+  const [
+    channelPreview,
+    setChannelPreview,
+  ] = useState<
+    ChannelSendPreview | null
+  >(null);
+
+  const [
+    channelLoading,
+    setChannelLoading,
+  ] = useState(false);
+
+  const [
+    channelError,
+    setChannelError,
+  ] = useState("");
+
 
   const loadCenter =
     useCallback(
@@ -1765,6 +1888,180 @@ export default function Merkez() {
       []
     );
 
+  const toggleDeviceSelection =
+    useCallback(
+      (
+        deviceId: number
+      ) => {
+        setSelectedDeviceIds(
+          (current) =>
+            current.includes(
+              deviceId
+            )
+              ? current.filter(
+                  (id) =>
+                    id !==
+                    deviceId
+                )
+              : [
+                  ...current,
+                  deviceId,
+                ]
+        );
+
+        setChannelPreview(
+          null
+        );
+      },
+      []
+    );
+
+  const openChannelSend =
+    useCallback(
+      (
+        channel: ChannelCode
+      ) => {
+        if (
+          selectedDeviceIds.length ===
+          0
+        ) {
+          return;
+        }
+
+        setSendChannel(
+          channel
+        );
+        setChannelSalePrice(
+          ""
+        );
+        setChannelListPrice(
+          ""
+        );
+        setChannelPreview(
+          null
+        );
+        setChannelError(
+          ""
+        );
+        setChannelOpen(
+          true
+        );
+      },
+      [
+        selectedDeviceIds,
+      ]
+    );
+
+  const runChannelPreview =
+    useCallback(
+      async () => {
+        if (
+          channelLoading
+        ) {
+          return;
+        }
+
+        if (
+          selectedDeviceIds.length ===
+          0
+        ) {
+          setChannelError(
+            "En az 1 IMEI seç."
+          );
+          return;
+        }
+
+        setChannelError(
+          ""
+        );
+        setChannelPreview(
+          null
+        );
+        setChannelLoading(
+          true
+        );
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/center/devices",
+              {
+                method:
+                  "PATCH",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    action:
+                      "channel_preview",
+                    channel:
+                      sendChannel,
+                    deviceIds:
+                      selectedDeviceIds,
+                    salePrice:
+                      channelSalePrice,
+                    listPrice:
+                      channelListPrice,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez kanal ön kontrol API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "Kanal ön kontrolü başarısız."
+            );
+          }
+
+          setChannelPreview(
+            payload.preview
+          );
+        } catch (error) {
+          setChannelError(
+            error instanceof
+              Error
+              ? error.message
+              : "Kanal ön kontrolü başarısız."
+          );
+        } finally {
+          setChannelLoading(
+            false
+          );
+        }
+      },
+      [
+        selectedDeviceIds,
+        sendChannel,
+        channelSalePrice,
+        channelListPrice,
+        channelLoading,
+      ]
+    );
+
   const groups =
     useMemo(
       () =>
@@ -2246,6 +2543,69 @@ export default function Merkez() {
             </div>
           </div>
 
+          {selectedDeviceIds.length > 0 && (
+            <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/70 px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-blue-600 px-3 py-1.5 text-[8px] font-black uppercase text-white">
+                  {selectedDeviceIds.length} IMEI Seçildi
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeviceIds(
+                      []
+                    );
+                    setChannelPreview(
+                      null
+                    );
+                  }}
+                  className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-[8px] font-black uppercase text-blue-700"
+                >
+                  Seçimi Temizle
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "N11"
+                    )
+                  }
+                  className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
+                >
+                  N11'e Hazırla
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "IKAS"
+                    )
+                  }
+                  className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
+                >
+                  İkas'a Hazırla
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "IDEFIX"
+                    )
+                  }
+                  className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-4 text-[8px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
+                >
+                  İdefix'e Hazırla
+                </button>
+              </div>
+            </div>
+          )}
+
           {center.loading &&
           !center.success ? (
             <div className="px-6 py-20 text-center">
@@ -2398,9 +2758,107 @@ export default function Merkez() {
                       </button>
 
                       {open && (
-                        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                          <div className="min-w-[980px]">
-                            <div className="grid grid-cols-[170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                        <>
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                            <div className="text-[8px] font-bold text-slate-500">
+                              Kanal gönderimi için yalnızca AVAILABLE IMEI'ler seçilebilir.
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ids =
+                                    (
+                                      Array.isArray(
+                                        group?.devices
+                                      )
+                                        ? group.devices
+                                        : []
+                                    )
+                                      .filter(
+                                        (
+                                          device: any
+                                        ) =>
+                                          device?.status ===
+                                          "AVAILABLE"
+                                      )
+                                      .map(
+                                        (
+                                          device: any
+                                        ) =>
+                                          Number(
+                                            device.id
+                                          )
+                                      );
+
+                                  setSelectedDeviceIds(
+                                    (current) =>
+                                      Array.from(
+                                        new Set([
+                                          ...current,
+                                          ...ids,
+                                        ])
+                                      )
+                                  );
+
+                                  setChannelPreview(
+                                    null
+                                  );
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-600"
+                              >
+                                AVAILABLE Tümünü Seç
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const groupIds =
+                                    new Set(
+                                      (
+                                        Array.isArray(
+                                          group?.devices
+                                        )
+                                          ? group.devices
+                                          : []
+                                      ).map(
+                                        (
+                                          device: any
+                                        ) =>
+                                          Number(
+                                            device.id
+                                          )
+                                      )
+                                    );
+
+                                  setSelectedDeviceIds(
+                                    (current) =>
+                                      current.filter(
+                                        (id) =>
+                                          !groupIds.has(
+                                            id
+                                          )
+                                      )
+                                  );
+
+                                  setChannelPreview(
+                                    null
+                                  );
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-500"
+                              >
+                                Grup Seçimini Kaldır
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+                          <div className="min-w-[1040px]">
+                            <div className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                              <div>
+                                Seç
+                              </div>
                               <div>
                                 IMEI
                               </div>
@@ -2446,8 +2904,39 @@ export default function Merkez() {
                                     key={
                                       device.id
                                     }
-                                    className="grid grid-cols-[170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0"
+                                    className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0"
                                   >
+                                    <div>
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          selectedDeviceIds.includes(
+                                            Number(
+                                              device.id
+                                            )
+                                          )
+                                        }
+                                        disabled={
+                                          device?.status !==
+                                          "AVAILABLE"
+                                        }
+                                        onChange={() =>
+                                          toggleDeviceSelection(
+                                            Number(
+                                              device.id
+                                            )
+                                          )
+                                        }
+                                        className="h-4 w-4 rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
+                                        title={
+                                          device?.status ===
+                                          "AVAILABLE"
+                                            ? "Kanal gönderimi için seç"
+                                            : "Yalnızca AVAILABLE cihaz seçilebilir"
+                                        }
+                                      />
+                                    </div>
+
                                     <div className="font-black text-slate-900">
                                       {
                                         device.imei
@@ -2530,6 +3019,7 @@ export default function Merkez() {
                             )}
                           </div>
                         </div>
+                        </>
                       )}
                     </div>
                   );
@@ -2540,9 +3030,370 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 2C · Tekli + toplu + Excel cihaz girişi aktif · Kanal gönderimi bu adımda yapılmaz
+          MERKEZ ADIM 3A · IMEI seçimi + kanal fiyatı + ön kontrol aktif · Henüz marketplace yazımı yapılmaz
         </div>
       </div>
+
+      {channelOpen && (
+        <div
+          className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+                event.currentTarget &&
+              !channelLoading
+            ) {
+              setChannelOpen(false);
+            }
+          }}
+        >
+          <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
+              <div>
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                  Merkez · Kanal Gönderim Hazırlığı
+                </div>
+
+                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  {channelLabel(
+                    sendChannel
+                  )} Ön Kontrol
+                </h3>
+
+                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                  Seçili IMEI'ler, kanal üyeliği ve fiyat kuralları kontrol edilir. Bu ekranda gerçek gönderim yapılmaz.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  channelLoading
+                }
+                onClick={() =>
+                  setChannelOpen(
+                    false
+                  )
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-6 sm:px-7">
+              {channelError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                  {channelError}
+                </div>
+              )}
+
+              <div>
+                <div className="mb-2 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  Kanal
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(
+                    [
+                      "N11",
+                      "IKAS",
+                      "IDEFIX",
+                    ] as ChannelCode[]
+                  ).map(
+                    (channel) => (
+                      <button
+                        key={
+                          channel
+                        }
+                        type="button"
+                        onClick={() => {
+                          setSendChannel(
+                            channel
+                          );
+                          setChannelPreview(
+                            null
+                          );
+                          setChannelError(
+                            ""
+                          );
+                        }}
+                        className={`h-12 rounded-xl border text-[9px] font-black uppercase transition ${
+                          sendChannel ===
+                          channel
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {channelLabel(
+                          channel
+                        )}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-[7px] font-black uppercase text-slate-400">
+                    Seçili IMEI
+                  </div>
+                  <div className="mt-1 text-2xl font-black text-slate-950">
+                    {
+                      selectedDeviceIds.length
+                    }
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Satış Fiyatı
+                  </label>
+                  <input
+                    value={
+                      channelSalePrice
+                    }
+                    onChange={(
+                      event
+                    ) => {
+                      setChannelSalePrice(
+                        event.target
+                          .value
+                      );
+                      setChannelPreview(
+                        null
+                      );
+                    }}
+                    inputMode="decimal"
+                    placeholder="22.999"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    Liste Fiyatı
+                  </label>
+                  <input
+                    value={
+                      channelListPrice
+                    }
+                    onChange={(
+                      event
+                    ) => {
+                      setChannelListPrice(
+                        event.target
+                          .value
+                      );
+                      setChannelPreview(
+                        null
+                      );
+                    }}
+                    inputMode="decimal"
+                    placeholder="24.999"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+              </div>
+
+              {channelPreview && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-slate-400">
+                        Toplam
+                      </div>
+                      <div className="mt-1 text-xl font-black text-slate-900">
+                        {
+                          channelPreview.total
+                        }
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                        Gönderilebilir
+                      </div>
+                      <div className="mt-1 text-xl font-black text-emerald-700">
+                        {
+                          channelPreview.eligible
+                        }
+                      </div>
+                    </div>
+
+                    <div className="p-4 text-center">
+                      <div className="text-[7px] font-black uppercase text-rose-600">
+                        Engelli
+                      </div>
+                      <div className="mt-1 text-xl font-black text-rose-700">
+                        {
+                          channelPreview.blocked
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 bg-white px-4 py-3">
+                    <div className="flex flex-wrap gap-2 text-[8px] font-black">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                        {channelLabel(
+                          channelPreview.channel
+                        )}
+                      </span>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
+                        Satış:{" "}
+                        {formatMoney(
+                          channelPreview.salePrice
+                        )}
+                      </span>
+                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-violet-700">
+                        Liste:{" "}
+                        {formatMoney(
+                          channelPreview.listPrice
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                    {channelPreview.items.map(
+                      (item) => (
+                        <div
+                          key={
+                            item.deviceId
+                          }
+                          className={`grid gap-2 px-4 py-3 sm:grid-cols-[165px_minmax(180px,1fr)_105px] sm:items-center ${
+                            item.eligible
+                              ? "bg-emerald-50/35"
+                              : "bg-rose-50/45"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-mono text-[8px] font-black text-slate-900">
+                              {
+                                item.imei
+                              }
+                            </div>
+                            <div className="mt-1 text-[7px] font-bold text-slate-400">
+                              {
+                                item.status
+                              }
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[8px] font-black text-slate-800">
+                              {item.brand}{" "}
+                              {item.model} ·{" "}
+                              {item.memory} ·{" "}
+                              {item.color} · Grade{" "}
+                              {item.grade}
+                            </div>
+
+                            {!item.eligible && (
+                              <div className="mt-1 space-y-1">
+                                {item.errors.map(
+                                  (
+                                    error,
+                                    index
+                                  ) => (
+                                    <div
+                                      key={
+                                        index
+                                      }
+                                      className="text-[7px] font-bold text-rose-700"
+                                    >
+                                      •{" "}
+                                      {
+                                        error
+                                      }
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-right">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                                item.eligible
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-rose-100 text-rose-700"
+                              }`}
+                            >
+                              {item.eligible
+                                ? "Hazır"
+                                : "Engelli"}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {channelPreview?.canProceed && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                  <div className="text-[9px] font-black text-emerald-800">
+                    ✓ Tüm IMEI'ler {channelLabel(
+                      sendChannel
+                    )} gönderimine hazır.
+                  </div>
+                  <div className="mt-1 text-[7px] font-semibold leading-4 text-emerald-700">
+                    Bu ADIM 3A yalnızca kontrol eder. Marketplace API'sine veya PostgreSQL kanal üyeliğine henüz kayıt yapılmadı.
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="text-[8px] font-black text-amber-800">
+                  Tekrar gönderme koruması aktif
+                </div>
+                <div className="mt-1 text-[7px] font-semibold leading-4 text-amber-700">
+                  Aynı IMEI bu kanalda online_channel_devices, bağlı listing veya eski N11 IMEI havuzunda bulunursa ön kontrol engeller.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
+              <button
+                type="button"
+                disabled={
+                  channelLoading
+                }
+                onClick={() =>
+                  setChannelOpen(
+                    false
+                  )
+                }
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+              >
+                Kapat
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  channelLoading ||
+                  selectedDeviceIds.length ===
+                    0
+                }
+                onClick={() => {
+                  void runChannelPreview();
+                }}
+                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+              >
+                {channelLoading
+                  ? "Kontrol Ediliyor..."
+                  : "Ön Kontrol Yap"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {excelOpen && (
         <div
