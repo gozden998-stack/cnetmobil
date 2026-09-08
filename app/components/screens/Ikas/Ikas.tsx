@@ -658,10 +658,14 @@ export default function Ikas() {
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wide text-emerald-200">
                   API Aktif
                 </span>
+
+                <span className="rounded-full border border-sky-300/20 bg-sky-400/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wide text-sky-200">
+                  Canlı · 60 sn
+                </span>
               </div>
 
               <p className="mt-2 max-w-2xl text-[10px] font-semibold leading-5 text-slate-300">
-                Yenilenmiş cihaz, varyant, fiyat ve Ana Depo stokları canlı İkas API üzerinden okunuyor.
+                Yenilenmiş ürün, renk/varyant, fiyat ve Ana Depo stokları İkas API'den canlı senkronlanıyor.
               </p>
             </div>
 
@@ -1081,7 +1085,7 @@ export default function Ikas() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          Otomatik yenileme: 60 saniye · Kaynak: İkas Admin API · Sadece yenilenmiş ürünler
+          Canlı senkron: 60 saniye · Ürün + renk + fiyat + stok · Kaynak: İkas Admin API
         </div>
       </div>
     </div>
