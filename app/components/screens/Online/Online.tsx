@@ -2685,18 +2685,13 @@ export default function Online() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <div className="min-w-[1680px]">
-                  <div className="grid grid-cols-[1.35fr_0.75fr_0.7fr_0.65fr_0.75fr_1.05fr_0.7fr_0.7fr_0.5fr_0.75fr_1.3fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    <div>Marka / Model</div>
-                    <div>Hafıza</div>
-                    <div>Renk</div>
-                    <div>Grade</div>
-                    <div>Garanti</div>
-                    <div>IMEI / Stok Kodu</div>
-                    <div>N11 Satış</div>
-                    <div>N11 Liste</div>
+                <div className="min-w-[1180px]">
+                  <div className="grid grid-cols-[minmax(520px,2.5fr)_0.55fr_0.75fr_0.85fr_0.85fr_1.35fr] items-center bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <div>Ürün</div>
                     <div>Stok</div>
                     <div>Durum</div>
+                    <div>N11 Satış Fiyatı</div>
+                    <div>N11 Liste Fiyatı</div>
                     <div>İşlemler</div>
                   </div>
 
@@ -2712,53 +2707,118 @@ export default function Online() {
                     const model = item.model || item.device_model || "—";
                     const memory = item.memory || item.device_memory || "—";
                     const color = item.color || item.device_color || "—";
-                    const grade = item.grade || item.device_grade || "—";
+                    const gradeRaw = item.grade || item.device_grade || "—";
                     const warranty = item.warranty || item.device_warranty || "—";
+
+                    const gradeText = (() => {
+                      const normalized = String(gradeRaw)
+                        .trim()
+                        .toUpperCase();
+
+                      if (
+                        normalized === "A" ||
+                        normalized === "A KALITE" ||
+                        normalized === "A KALİTE"
+                      ) {
+                        return "Mükemmel";
+                      }
+
+                      if (
+                        normalized === "B" ||
+                        normalized === "B KALITE" ||
+                        normalized === "B KALİTE"
+                      ) {
+                        return "Çok İyi";
+                      }
+
+                      if (
+                        normalized === "C" ||
+                        normalized === "C KALITE" ||
+                        normalized === "C KALİTE"
+                      ) {
+                        return "İyi";
+                      }
+
+                      return String(gradeRaw);
+                    })();
+
+                    const productTitle = [
+                      brand,
+                      model,
+                      memory !== "—" ? memory : "",
+                      color !== "—" ? color : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" - ");
 
                     return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[1.35fr_0.75fr_0.7fr_0.65fr_0.75fr_1.05fr_0.7fr_0.7fr_0.5fr_0.75fr_1.3fr] items-center border-t border-slate-100 px-4 py-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50/60"
+                        className="grid grid-cols-[minmax(520px,2.5fr)_0.55fr_0.75fr_0.85fr_0.85fr_1.35fr] items-center border-t border-slate-100 px-4 py-3 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50/60"
                       >
-                        <div className="min-w-0 pr-3">
+                        <div className="min-w-0 pr-5">
                           <div className="truncate text-[13px] font-black text-slate-900">
-                            {brand}
+                            {productTitle}
                           </div>
-                          <div className="mt-0.5 truncate text-[12px] font-semibold text-slate-500">
-                            {model}
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                              {gradeText}
+                            </span>
+
+                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                              {color}
+                            </span>
+
+                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                              {memory}
+                            </span>
+
+                            <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                              Yenilenmiş
+                            </span>
+
+                            {warranty !== "—" ? (
+                              <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-bold text-slate-600">
+                                {warranty}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-400">
+                            <span>
+                              IMEI / SKU:{" "}
+                              <span className="font-mono text-slate-500">
+                                {item.external_stock_code ||
+                                  item.device_imei ||
+                                  "—"}
+                              </span>
+                            </span>
+
+                            <span className="text-slate-300">|</span>
+
+                            <span>
+                              N11 ID:{" "}
+                              <span className="font-mono text-slate-500">
+                                {item.external_product_id || "Henüz yok"}
+                              </span>
+                            </span>
                           </div>
                         </div>
-
-                        <div className="font-bold text-slate-700">{memory}</div>
-                        <div className="font-bold text-slate-700">{color}</div>
-                        <div className="font-black text-slate-800">{grade}</div>
-                        <div className="font-bold text-slate-700">{warranty}</div>
 
                         <div>
-                          <div className="font-mono text-[12px] font-black text-slate-700">
-                            {item.external_stock_code || item.device_imei || "—"}
+                          <div
+                            className={`text-[14px] font-black ${
+                              Number(item.quantity || 0) <= 0
+                                ? "text-red-600"
+                                : "text-slate-900"
+                            }`}
+                          >
+                            {Number(item.quantity || 0)}
                           </div>
-                          <div className="mt-1 text-[9px] font-bold text-slate-400">
-                            N11 ID: {item.external_product_id || "Henüz yok"}
+                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                            Adet
                           </div>
-                        </div>
-
-                        <div className="font-black text-slate-900">
-                          {formatMoney(Number(item.sale_price || 0))}
-                        </div>
-
-                        <div className="font-black text-slate-900">
-                          {formatMoney(Number(item.list_price || 0))}
-                        </div>
-
-                        <div
-                          className={`text-[14px] font-black ${
-                            Number(item.quantity || 0) <= 0
-                              ? "text-red-600"
-                              : "text-emerald-700"
-                          }`}
-                        >
-                          {Number(item.quantity || 0)}
                         </div>
 
                         <div>
@@ -2769,6 +2829,24 @@ export default function Online() {
                           </span>
                           <div className="mt-1 text-[9px] font-semibold text-slate-400">
                             {formatDate(item.updated_at)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-black text-slate-900">
+                            {formatMoney(Number(item.sale_price || 0))}
+                          </div>
+                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                            N11 Satış Fiyatı
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-black text-slate-900">
+                            {formatMoney(Number(item.list_price || 0))}
+                          </div>
+                          <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+                            N11 Liste Fiyatı
                           </div>
                         </div>
 
@@ -2790,7 +2868,6 @@ export default function Online() {
                           >
                             FİYAT
                           </button>
-
                         </div>
                       </div>
                     );
