@@ -443,7 +443,7 @@ export default function Merkez() {
         try {
           const response =
             await fetch(
-              "/api/online/center/devices/create",
+              "/api/online/center/devices",
               {
                 method:
                   "POST",
@@ -474,7 +474,7 @@ export default function Merkez() {
                 : null;
           } catch {
             throw new Error(
-              `Cihaz ekleme API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
+              `Merkez cihaz API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
             );
           }
 
