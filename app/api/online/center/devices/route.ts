@@ -2277,50 +2277,6 @@ export async function PUT(
         unknown
       >;
 
-    const action =
-      String(
-        data.action || ""
-      )
-        .trim()
-        .toLowerCase();
-
-    if (
-      action ===
-      "channel_preview"
-    ) {
-      client =
-        await getPool().connect();
-
-      try {
-        const preview =
-          await previewCenterChannelSend(
-            client,
-            data
-          );
-
-        return json({
-          success: true,
-          action:
-            "channel_preview",
-          preview,
-        });
-      } catch (error) {
-        return json(
-          {
-            success: false,
-            action:
-              "channel_preview",
-            error:
-              error instanceof
-                Error
-                ? error.message
-                : "Kanal ön kontrolü yapılamadı.",
-          },
-          400
-        );
-      }
-    }
-
     const mode =
       String(
         data.mode ||
@@ -3719,7 +3675,7 @@ export async function PATCH(
         {
           success: false,
           error:
-            "Merkez Excel cihaz girişi yalnızca Super Admin içindir.",
+            "Merkez işlemleri yalnızca Super Admin içindir.",
         },
         403
       );
@@ -3774,6 +3730,50 @@ export async function PATCH(
         string,
         unknown
       >;
+
+    const action =
+      String(
+        data.action || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      action ===
+      "channel_preview"
+    ) {
+      client =
+        await getPool().connect();
+
+      try {
+        const preview =
+          await previewCenterChannelSend(
+            client,
+            data
+          );
+
+        return json({
+          success: true,
+          action:
+            "channel_preview",
+          preview,
+        });
+      } catch (error) {
+        return json(
+          {
+            success: false,
+            action:
+              "channel_preview",
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : "Kanal ön kontrolü yapılamadı.",
+          },
+          400
+        );
+      }
+    }
 
     const mode =
       String(
