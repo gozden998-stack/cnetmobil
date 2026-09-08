@@ -1156,12 +1156,41 @@ function containsUnexpectedModelVariant(
   return false;
 }
 
+function renewedGradeToken(value: string) {
+  const normalized = normalizeTemplateValue(value);
+
+  if (normalized === 'a' || normalized === 'akalite') {
+    return 'akalite';
+  }
+
+  if (normalized === 'b' || normalized === 'bkalite') {
+    return 'bkalite';
+  }
+
+  if (normalized === 'c' || normalized === 'ckalite') {
+    return 'ckalite';
+  }
+
+  return normalized;
+}
+
+function isRenewedCatalogTitle(title: string) {
+  const normalized = normalizeTemplateValue(title);
+
+  return (
+    normalized.includes('yenilenmis') ||
+    normalized.includes('renewed')
+  );
+}
+
 function chooseCatalogProduct(params: {
   products: N11CatalogProduct[];
   brand: string;
   model: string;
   memory: string;
   color: string;
+  grade: string;
+  warranty: string;
 }) {
   const wantedBrand =
     normalizeTemplateValue(params.brand);
@@ -1171,6 +1200,10 @@ function chooseCatalogProduct(params: {
     normalizeTemplateValue(params.memory);
   const wantedColor =
     normalizeTemplateValue(params.color);
+  const wantedGrade =
+    renewedGradeToken(params.grade);
+  const wantedWarranty =
+    normalizeTemplateValue(params.warranty);
 
   const scored = params.products
     .map((product) => {
@@ -1186,6 +1219,13 @@ function chooseCatalogProduct(params: {
         !product.categoryId ||
         !title
       ) {
+        return null;
+      }
+
+      // KRİTİK GÜVENLİK:
+      // Panel sadece yenilenmiş cihaz açar.
+      // N11'in sıfır / distribütör garantili ana kataloğu ASLA seçilmez.
+      if (!isRenewedCatalogTitle(title)) {
         return null;
       }
 
@@ -1226,25 +1266,59 @@ function chooseCatalogProduct(params: {
         return null;
       }
 
-      let score = 100;
+      // A/B/C kalite bilgisi verilmişse yanlış kalite kataloğuna bağlanma.
+      if (
+        wantedGrade &&
+        ['akalite', 'bkalite', 'ckalite'].includes(
+          wantedGrade
+        ) &&
+        !normalizedTitle.includes(wantedGrade)
+      ) {
+        return null;
+      }
+
+      // Garanti bilgisi katalog başlığında mevcutsa eşleşmeyi güçlendir.
+      // Örn: "12 Ay Garantili".
+      if (
+        wantedWarranty &&
+        !normalizedTitle.includes(wantedWarranty)
+      ) {
+        return null;
+      }
+
+      let score = 1000; // yenilenmiş ürün olduğu için ana öncelik
 
       if (
         wantedColor &&
         normalizedTitle.includes(wantedColor)
       ) {
-        score += 30;
+        score += 50;
       }
 
       if (
         wantedMemory &&
         normalizedTitle.includes(wantedMemory)
       ) {
-        score += 20;
+        score += 40;
       }
 
       if (
         wantedModel &&
         normalizedTitle.includes(wantedModel)
+      ) {
+        score += 40;
+      }
+
+      if (
+        wantedGrade &&
+        normalizedTitle.includes(wantedGrade)
+      ) {
+        score += 30;
+      }
+
+      if (
+        wantedWarranty &&
+        normalizedTitle.includes(wantedWarranty)
       ) {
         score += 20;
       }
@@ -2183,6 +2257,7 @@ export async function POST(request: NextRequest) {
     // 59 satıcı ürününde aramıyoruz.
     // N11'in GENEL KATALOĞUNDA SearchCatalog ile arıyoruz.
     const catalogSearchTitle = [
+      'Yenilenmiş',
       brand,
       model,
       memory,
@@ -2204,6 +2279,8 @@ export async function POST(request: NextRequest) {
         model,
         memory,
         color,
+        grade,
+        warranty,
       });
 
     if (!catalogProduct) {
@@ -2221,8 +2298,27 @@ export async function POST(request: NextRequest) {
           catalogSamples: sampleTitles,
           error:
             catalogProducts.length > 0
-              ? `N11 kataloğunda ${catalogSearchTitle} bulundu ancak ${color} rengi/modeli için tam eşleşme seçilemedi.`
-              : `N11 kataloğunda ${catalogSearchTitle} için ürün bulunamadı.`,
+              ? `N11 kataloğunda sonuç bulundu ancak YENİLENMİŞ ${brand} ${model} ${memory} ${color} ${grade} ${warranty} için güvenli tam eşleşme bulunamadı. Sıfır ürün kataloğuna bağlanmamak için ürün açılmadı.`
+              : `N11 kataloğunda YENİLENMİŞ ${brand} ${model} ${memory} için ürün bulunamadı. Güvenlik nedeniyle sıfır ürün olarak açılmadı.`,
+        },
+        409
+      );
+    }
+
+    // SON GÜVENLİK KAPISI:
+    // SearchCatalog yanlış sonuç döndürse bile sıfır ürün açılmasına izin verme.
+    if (
+      !isRenewedCatalogTitle(
+        String(catalogProduct.productTitle || '')
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            'N11 katalog eşleşmesi yenilenmiş ürün değil. Güvenlik nedeniyle ürün açılmadı.',
+          selectedCatalogTitle:
+            catalogProduct.productTitle,
         },
         409
       );
@@ -2256,12 +2352,20 @@ export async function POST(request: NextRequest) {
         memory,
       });
 
-    const title = [brand, model, memory, color, grade]
+    const title = [
+      'Yenilenmiş',
+      brand,
+      model,
+      memory,
+      color,
+      grade,
+      warranty,
+    ]
       .filter(Boolean)
       .join(' ');
 
     const description =
-      `${brand} ${model} ${memory} ${color} ${grade} ${warranty}`;
+      `Yenilenmiş ${brand} ${model} ${memory} ${color} ${grade} ${warranty}`;
 
     // Önce yerel kayıt açılır.
     // N11 create başarısızsa ERROR nedeni burada saklanır.
@@ -2346,7 +2450,7 @@ export async function POST(request: NextRequest) {
         vatRate,
         JSON.stringify({
           draftSource:
-            'PANEL_N11_SEARCH_CATALOG_CREATE',
+            'PANEL_N11_RENEWED_SEARCH_CATALOG_CREATE',
           createdBy: auth.user.username,
           imei,
           catalogSearchTitle,
