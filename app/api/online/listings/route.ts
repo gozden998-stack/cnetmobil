@@ -2862,6 +2862,7 @@ export async function GET(request: NextRequest) {
           last_task_id,
           last_task_status,
           last_error,
+          raw_data,
           created_at,
           updated_at
         FROM public.online_listings
