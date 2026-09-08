@@ -234,6 +234,16 @@ type BulkPreviewResponse = {
   checkedAt: string;
 };
 
+
+type BulkUploadResult = {
+  rowNumber: number;
+  imei: string;
+  status: "success" | "error";
+  message: string;
+  pooled: boolean;
+  n11ProductId: string | null;
+};
+
 const EMPTY_STATS: OnlineStats = {
   totalProducts: 0,
   totalStock: 0,
@@ -349,6 +359,9 @@ export default function Online() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [bulkPreview, setBulkPreview] = useState<BulkPreviewResponse | null>(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkCompleted, setBulkCompleted] = useState(0);
+  const [bulkUploadResults, setBulkUploadResults] = useState<BulkUploadResult[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -648,9 +661,30 @@ export default function Online() {
 
 
 
+  const openBulkModal = useCallback(() => {
+    setBulkError("");
+    setBulkPreview(null);
+    setBulkUploading(false);
+    setBulkCompleted(0);
+    setBulkUploadResults([]);
+    setShowBulkModal(true);
+  }, []);
+
+  const downloadBulkTemplate = useCallback(() => {
+    const link = document.createElement("a");
+    link.href = "/templates/CNETMOBIL_N11_TOPLU_URUN_SABLONU.xlsx";
+    link.download = "CNETMOBIL_N11_TOPLU_URUN_SABLONU.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }, []);
+
   const chooseBulkExcel = useCallback(() => {
     setBulkError("");
     setBulkPreview(null);
+    setBulkCompleted(0);
+    setBulkUploadResults([]);
+    setShowBulkModal(true);
 
     if (bulkFileInputRef.current) {
       bulkFileInputRef.current.value = "";
@@ -667,6 +701,8 @@ export default function Online() {
       setBulkLoading(true);
       setBulkError("");
       setBulkPreview(null);
+      setBulkCompleted(0);
+      setBulkUploadResults([]);
       setShowBulkModal(true);
 
       try {
@@ -708,17 +744,159 @@ export default function Online() {
     []
   );
 
+  const startBulkUpload = useCallback(async () => {
+    if (
+      bulkUploading ||
+      !bulkPreview?.canContinue
+    ) {
+      return;
+    }
+
+    const rows = bulkPreview.rows.filter(
+      (row) => row.valid
+    );
+
+    if (rows.length === 0) {
+      setBulkError("Yüklenecek geçerli cihaz bulunamadı.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${rows.length} cihaz tekli ürün ekleme ile AYNI N11 akışından gönderilecek.\n\nDevam edilsin mi?`
+    );
+
+    if (!confirmed) return;
+
+    setBulkUploading(true);
+    setBulkError("");
+    setBulkCompleted(0);
+    setBulkUploadResults([]);
+
+    const results: BulkUploadResult[] = new Array(rows.length);
+    let nextIndex = 0;
+    let completed = 0;
+
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex;
+        nextIndex += 1;
+
+        if (index >= rows.length) {
+          return;
+        }
+
+        const row = rows[index];
+
+        try {
+          const response = await fetch(
+            "/api/online/listings",
+            {
+              method: "POST",
+              cache: "no-store",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                imei: row.imei,
+                brand: row.brand,
+                model: row.model,
+                memory: row.memory,
+                color: row.color,
+                grade: row.grade,
+                warranty: row.warranty,
+                salePrice: row.salePrice,
+                listPrice: row.listPrice,
+              }),
+            }
+          );
+
+          const payload = await response
+            .json()
+            .catch(() => null);
+
+          if (!response.ok || !payload?.success) {
+            throw new Error(
+              payload?.error ||
+                "N11 ürün işlemi başarısız."
+            );
+          }
+
+          results[index] = {
+            rowNumber: row.rowNumber,
+            imei: row.imei,
+            status: "success",
+            message:
+              payload?.message ||
+              "N11'e gönderildi.",
+            pooled: Boolean(payload?.pooled),
+            n11ProductId:
+              payload?.listing?.external_product_id
+                ? String(payload.listing.external_product_id)
+                : null,
+          };
+        } catch (err) {
+          results[index] = {
+            rowNumber: row.rowNumber,
+            imei: row.imei,
+            status: "error",
+            message:
+              err instanceof Error
+                ? err.message
+                : "N11 ürün işlemi başarısız.",
+            pooled: false,
+            n11ProductId: null,
+          };
+        } finally {
+          completed += 1;
+          setBulkCompleted(completed);
+          setBulkUploadResults(
+            results.filter(Boolean)
+          );
+        }
+      }
+    };
+
+    try {
+      // N11'e aşırı yük bindirmeden aynı anda 3 cihaz işlenir.
+      const workerCount = Math.min(3, rows.length);
+
+      await Promise.all(
+        Array.from(
+          { length: workerCount },
+          () => worker()
+        )
+      );
+
+      await loadData(false, true);
+    } catch (err) {
+      setBulkError(
+        err instanceof Error
+          ? err.message
+          : "Toplu yükleme tamamlanamadı."
+      );
+    } finally {
+      setBulkUploading(false);
+    }
+  }, [
+    bulkPreview,
+    bulkUploading,
+    loadData,
+  ]);
+
   const closeBulkModal = useCallback(() => {
-    if (bulkLoading) return;
+    if (bulkLoading || bulkUploading) return;
 
     setShowBulkModal(false);
     setBulkError("");
     setBulkPreview(null);
+    setBulkCompleted(0);
+    setBulkUploadResults([]);
 
     if (bulkFileInputRef.current) {
       bulkFileInputRef.current.value = "";
     }
-  }, [bulkLoading]);
+  }, [bulkLoading, bulkUploading]);
 
 
   const openCreateModal = useCallback(() => {
@@ -1568,7 +1746,7 @@ export default function Online() {
 
                 <button
                   type="button"
-                  onClick={chooseBulkExcel}
+                  onClick={openBulkModal}
                   className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 transition hover:bg-slate-50"
                 >
                   📄 EXCEL İLE TOPLU EKLE
@@ -2299,7 +2477,7 @@ export default function Online() {
                   Excel ile Toplu Cihaz Ekleme
                 </div>
                 <div className="mt-1 text-[12px] font-semibold text-slate-500">
-                  Dosya önce kontrol edilir. Bu ekranda henüz N11&apos;e ürün gönderilmez.
+                  Şablonu indir → doldur → geri yükle → kontrol et → N11&apos;e toplu gönder.
                 </div>
               </div>
 
@@ -2375,6 +2553,42 @@ export default function Online() {
                     </div>
                   )}
 
+                  {bulkUploading || bulkUploadResults.length > 0 ? (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-wider text-blue-600">
+                            N11 Toplu Gönderim
+                          </div>
+                          <div className="mt-1 text-[13px] font-black text-slate-900">
+                            {bulkCompleted} / {bulkPreview.validCount} cihaz işlendi
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] font-black text-slate-600">
+                          Başarılı: {bulkUploadResults.filter((item) => item.status === "success").length}
+                          {" · "}
+                          Hatalı: {bulkUploadResults.filter((item) => item.status === "error").length}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all"
+                          style={{
+                            width: `${bulkPreview.validCount > 0 ? Math.min(100, (bulkCompleted / bulkPreview.validCount) * 100) : 0}%`,
+                          }}
+                        />
+                      </div>
+
+                      {!bulkUploading && bulkCompleted === bulkPreview.validCount ? (
+                        <div className="mt-3 text-[12px] font-black text-emerald-700">
+                          Toplu gönderim tamamlandı. N11 ID bekleyen ürünler arka planda otomatik doğrulanacaktır.
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="overflow-x-auto rounded-2xl border border-slate-200">
                     <div className="min-w-[1450px]">
                       <div className="grid grid-cols-[0.45fr_1.15fr_0.75fr_1.2fr_0.7fr_0.75fr_0.55fr_0.75fr_0.8fr_0.8fr_1.5fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -2433,32 +2647,130 @@ export default function Online() {
                       ))}
                     </div>
                   </div>
+
+                  {bulkUploadResults.length > 0 ? (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200">
+                      <div className="grid grid-cols-[0.45fr_1.25fr_0.75fr_2.5fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <div>Satır</div>
+                        <div>IMEI</div>
+                        <div>Durum</div>
+                        <div>N11 Sonucu</div>
+                      </div>
+
+                      {bulkUploadResults.map((item) => (
+                        <div
+                          key={`bulk-result-${item.rowNumber}-${item.imei}`}
+                          className="grid grid-cols-[0.45fr_1.25fr_0.75fr_2.5fr] items-start border-t border-slate-100 px-4 py-3 text-[11px] font-semibold text-slate-700"
+                        >
+                          <div className="font-black text-slate-500">
+                            {item.rowNumber}
+                          </div>
+                          <div className="font-mono font-black text-slate-800">
+                            {item.imei}
+                          </div>
+                          <div>
+                            {item.status === "success" ? (
+                              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                                {item.pooled ? "STOK EKLENDİ" : "GÖNDERİLDİ"}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-black text-red-700 ring-1 ring-red-100">
+                                HATA
+                              </span>
+                            )}
+                          </div>
+                          <div className={item.status === "success" ? "text-slate-700" : "text-red-600"}>
+                            {item.message}
+                            {item.n11ProductId ? ` · N11 ID: ${item.n11ProductId}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              ) : (
+                <div className="mx-auto max-w-3xl space-y-4 py-4">
+                  <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-600">
+                      1. ADIM
+                    </div>
+                    <div className="mt-2 text-[18px] font-black text-slate-900">
+                      CNETMOBİL N11 Excel şablonunu indir
+                    </div>
+                    <div className="mt-2 text-[12px] font-semibold leading-6 text-slate-600">
+                      Başlıkları değiştirmeden cihazları doldurun. Her satır 1 fiziksel cihaz / 1 IMEI&apos;dir.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={downloadBulkTemplate}
+                      className="mt-4 h-11 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white hover:bg-blue-700"
+                    >
+                      ↓ ŞABLONU İNDİR
+                    </button>
+                  </div>
+
+                  <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                      2. ADIM
+                    </div>
+                    <div className="mt-2 text-[18px] font-black text-slate-900">
+                      Doldurduğun Excel&apos;i geri yükle
+                    </div>
+                    <div className="mt-2 text-[12px] font-semibold leading-6 text-slate-600">
+                      Önce tüm satırlar kontrol edilir. Hata yoksa aynı tekli ürün ekleme motoruyla N11&apos;e gönderilir.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={chooseBulkExcel}
+                      className="mt-4 h-11 rounded-xl bg-emerald-600 px-5 text-[11px] font-black text-white hover:bg-emerald-700"
+                    >
+                      ↑ DOLDURULMUŞ EXCEL&apos;İ YÜKLE
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
               <div className="text-[11px] font-semibold text-slate-500">
-                ADIM 13: yalnızca Excel okuma ve önizleme.
+                Toplu yükleme, tekli ürün ekleme ile aynı /api/online/listings motorunu kullanır.
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={chooseBulkExcel}
-                  disabled={bulkLoading}
-                  className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                  onClick={downloadBulkTemplate}
+                  disabled={bulkLoading || bulkUploading}
+                  className="h-10 rounded-xl border border-blue-200 bg-white px-4 text-[11px] font-black text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                 >
-                  BAŞKA EXCEL SEÇ
+                  ŞABLON İNDİR
                 </button>
 
                 <button
                   type="button"
-                  disabled={!bulkPreview?.canContinue}
-                  className="h-10 rounded-xl bg-slate-900 px-5 text-[11px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
-                  title="N11 toplu gönderim bir sonraki adımda bağlanacak."
+                  onClick={chooseBulkExcel}
+                  disabled={bulkLoading || bulkUploading}
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-[11px] font-black text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                 >
-                  TOPLU YÜKLEMEYE HAZIR
+                  EXCEL YÜKLE
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void startBulkUpload()}
+                  disabled={
+                    bulkLoading ||
+                    bulkUploading ||
+                    !bulkPreview?.canContinue ||
+                    (bulkPreview?.validCount || 0) > 0 && bulkCompleted === bulkPreview?.validCount
+                  }
+                  className="h-10 rounded-xl bg-slate-900 px-5 text-[11px] font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {bulkUploading
+                    ? `N11'E GÖNDERİLİYOR ${bulkCompleted}/${bulkPreview?.validCount || 0}`
+                    : bulkPreview?.canContinue
+                    ? "N11'E TOPLU GÖNDER"
+                    : "ÖNCE EXCEL YÜKLE"}
                 </button>
               </div>
             </div>
