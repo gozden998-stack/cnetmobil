@@ -111,6 +111,25 @@ type ChannelSendPreview = {
 };
 
 
+type N11SendResult = {
+  deviceId: number;
+  imei: string;
+  success: boolean;
+  status:
+    | "LISTED"
+    | "PENDING_CREATE"
+    | "ERROR";
+  message: string;
+  listingId:
+    | number
+    | null;
+  externalProductId:
+    | string
+    | null;
+};
+
+
+
 
 
 
@@ -1375,6 +1394,25 @@ export default function Merkez() {
   ] = useState("");
 
 
+  const [
+    n11Sending,
+    setN11Sending,
+  ] = useState(false);
+
+  const [
+    n11SendResults,
+    setN11SendResults,
+  ] = useState<
+    N11SendResult[]
+  >([]);
+
+  const [
+    n11SendNotice,
+    setN11SendNotice,
+  ] = useState("");
+
+
+
   const loadCenter =
     useCallback(
       async (
@@ -1943,6 +1981,12 @@ export default function Merkez() {
         setChannelError(
           ""
         );
+        setN11SendResults(
+          []
+        );
+        setN11SendNotice(
+          ""
+        );
         setChannelOpen(
           true
         );
@@ -2059,6 +2103,531 @@ export default function Merkez() {
         channelSalePrice,
         channelListPrice,
         channelLoading,
+      ]
+    );
+
+  const fetchFreshChannelPreview =
+    useCallback(
+      async () => {
+        const response =
+          await fetch(
+            "/api/online/center/devices",
+            {
+              method:
+                "PATCH",
+              cache:
+                "no-store",
+              credentials:
+                "same-origin",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify({
+                  action:
+                    "channel_preview",
+                  channel:
+                    sendChannel,
+                  deviceIds:
+                    selectedDeviceIds,
+                  salePrice:
+                    channelSalePrice,
+                  listPrice:
+                    channelListPrice,
+                }),
+            }
+          );
+
+        const raw =
+          await response.text();
+
+        let payload:
+          any = null;
+
+        try {
+          payload =
+            raw
+              ? JSON.parse(
+                  raw
+                )
+              : null;
+        } catch {
+          throw new Error(
+            `Merkez kanal ön kontrol API JSON dönmedi. HTTP ${response.status}.`
+          );
+        }
+
+        if (
+          !response.ok ||
+          !payload?.success
+        ) {
+          throw new Error(
+            payload?.error ||
+              "Kanal ön kontrolü başarısız."
+          );
+        }
+
+        return payload
+          .preview as
+          ChannelSendPreview;
+      },
+      [
+        selectedDeviceIds,
+        sendChannel,
+        channelSalePrice,
+        channelListPrice,
+      ]
+    );
+
+  const commitN11Membership =
+    useCallback(
+      async (
+        deviceId: number
+      ) => {
+        const response =
+          await fetch(
+            "/api/online/center/devices",
+            {
+              method:
+                "PATCH",
+              cache:
+                "no-store",
+              credentials:
+                "same-origin",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify({
+                  action:
+                    "n11_membership_commit",
+                  deviceId,
+                }),
+            }
+          );
+
+        const raw =
+          await response.text();
+
+        let payload:
+          any = null;
+
+        try {
+          payload =
+            raw
+              ? JSON.parse(
+                  raw
+                )
+              : null;
+        } catch {
+          throw new Error(
+            `N11 kanal üyeliği API JSON dönmedi. HTTP ${response.status}.`
+          );
+        }
+
+        if (
+          !response.ok ||
+          !payload?.success
+        ) {
+          throw new Error(
+            payload?.error ||
+              "N11 kanal üyeliği kaydedilemedi."
+          );
+        }
+
+        return payload.result;
+      },
+      []
+    );
+
+  const sendSelectedToN11 =
+    useCallback(
+      async () => {
+        if (
+          n11Sending
+        ) {
+          return;
+        }
+
+        if (
+          sendChannel !==
+          "N11"
+        ) {
+          setChannelError(
+            "Bu adımda gerçek gönderim yalnızca N11 için aktiftir."
+          );
+          return;
+        }
+
+        setChannelError(
+          ""
+        );
+        setN11SendNotice(
+          ""
+        );
+        setN11SendResults(
+          []
+        );
+        setN11Sending(
+          true
+        );
+
+        try {
+          // GERÇEK GÖNDERİMDEN HEMEN ÖNCE tekrar doğrula.
+          const freshPreview =
+            await fetchFreshChannelPreview();
+
+          setChannelPreview(
+            freshPreview
+          );
+
+          if (
+            !freshPreview
+              .canProceed
+          ) {
+            throw new Error(
+              "Gönderim durduruldu. Ön kontrolde engelli IMEI var."
+            );
+          }
+
+          const results:
+            N11SendResult[] =
+            [];
+
+          // Çok kritik:
+          // Aynı varyantta N11 havuz çakışması yaşamamak için
+          // Promise.all YOK. IMEI'ler TEK TEK / SIRAYLA gönderilir.
+          for (
+            const item of
+              freshPreview.items
+          ) {
+            if (
+              !item.eligible
+            ) {
+              continue;
+            }
+
+            const n11Response =
+              await fetch(
+                "/api/online/listings",
+                {
+                  method:
+                    "POST",
+                  cache:
+                    "no-store",
+                  credentials:
+                    "same-origin",
+                  headers: {
+                    "Content-Type":
+                      "application/json",
+                  },
+                  body:
+                    JSON.stringify({
+                      imei:
+                        item.imei,
+                      brand:
+                        item.brand,
+                      model:
+                        item.model,
+                      memory:
+                        item.memory,
+                      color:
+                        item.color,
+                      grade:
+                        item.grade,
+                      warranty:
+                        item.warranty,
+                      salePrice:
+                        freshPreview
+                          .salePrice,
+                      listPrice:
+                        freshPreview
+                          .listPrice,
+                    }),
+                }
+              );
+
+            const n11Raw =
+              await n11Response.text();
+
+            let n11Payload:
+              any = null;
+
+            try {
+              n11Payload =
+                n11Raw
+                  ? JSON.parse(
+                      n11Raw
+                    )
+                  : null;
+            } catch {
+              const failed:
+                N11SendResult = {
+                  deviceId:
+                    item.deviceId,
+                  imei:
+                    item.imei,
+                  success:
+                    false,
+                  status:
+                    "ERROR",
+                  message:
+                    `N11 API JSON dönmedi. HTTP ${n11Response.status}.`,
+                  listingId:
+                    null,
+                  externalProductId:
+                    null,
+                };
+
+              results.push(
+                failed
+              );
+              setN11SendResults(
+                [...results]
+              );
+
+              throw new Error(
+                `${item.imei}: ${failed.message}`
+              );
+            }
+
+            if (
+              !n11Response.ok ||
+              !n11Payload
+                ?.success
+            ) {
+              const failed:
+                N11SendResult = {
+                  deviceId:
+                    item.deviceId,
+                  imei:
+                    item.imei,
+                  success:
+                    false,
+                  status:
+                    "ERROR",
+                  message:
+                    n11Payload
+                      ?.error ||
+                    "N11 ürün gönderimi başarısız.",
+                  listingId:
+                    Number(
+                      n11Payload
+                        ?.listingId ||
+                        0
+                    ) ||
+                    null,
+                  externalProductId:
+                    n11Payload
+                      ?.listing
+                      ?.external_product_id
+                      ? String(
+                          n11Payload
+                            .listing
+                            .external_product_id
+                        )
+                      : null,
+                };
+
+              results.push(
+                failed
+              );
+              setN11SendResults(
+                [...results]
+              );
+
+              // İlk gerçek N11 hatasında dur.
+              // Daha sonraki IMEI'lere geçip riski büyütme.
+              throw new Error(
+                `${item.imei}: ${failed.message}`
+              );
+            }
+
+            // N11 accepted/success olduktan SONRA
+            // Merkez kanal üyeliğini gerçek listing üzerinden doğrula/yaz.
+            let membership:
+              any;
+
+            try {
+              membership =
+                await commitN11Membership(
+                  item.deviceId
+                );
+            } catch (membershipError) {
+              const failed:
+                N11SendResult = {
+                  deviceId:
+                    item.deviceId,
+                  imei:
+                    item.imei,
+                  success:
+                    false,
+                  status:
+                    "ERROR",
+                  message:
+                    `N11 işlemi kabul edildi ancak Merkez kanal kaydı yazılamadı: ${
+                      membershipError instanceof
+                        Error
+                        ? membershipError.message
+                        : "Bilinmeyen hata"
+                    }`,
+                  listingId:
+                    Number(
+                      n11Payload
+                        ?.listing
+                        ?.id ||
+                        0
+                    ) ||
+                    null,
+                  externalProductId:
+                    n11Payload
+                      ?.listing
+                      ?.external_product_id
+                      ? String(
+                          n11Payload
+                            .listing
+                            .external_product_id
+                        )
+                      : null,
+                };
+
+              results.push(
+                failed
+              );
+              setN11SendResults(
+                [...results]
+              );
+
+              // Marketplace tarafında kabul edilmiş işlem olabilir.
+              // Burada yeni IMEI göndermeye devam etmiyoruz.
+              throw new Error(
+                failed.message
+              );
+            }
+
+            const membershipStatus =
+              String(
+                membership
+                  ?.membership
+                  ?.status ||
+                  ""
+              ).toUpperCase();
+
+            const successful:
+              N11SendResult = {
+                deviceId:
+                  item.deviceId,
+                imei:
+                  item.imei,
+                success:
+                  true,
+                status:
+                  membershipStatus ===
+                  "LISTED"
+                    ? "LISTED"
+                    : "PENDING_CREATE",
+                message:
+                  n11Payload
+                    ?.message ||
+                  (
+                    membershipStatus ===
+                    "LISTED"
+                      ? "N11'e gönderildi."
+                      : "N11 işlemi kabul edildi, doğrulama bekleniyor."
+                  ),
+                listingId:
+                  Number(
+                    membership
+                      ?.listing
+                      ?.id ||
+                      n11Payload
+                        ?.listing
+                        ?.id ||
+                      0
+                  ) ||
+                  null,
+                externalProductId:
+                  membership
+                    ?.listing
+                    ?.externalProductId
+                    ? String(
+                        membership
+                          .listing
+                          .externalProductId
+                      )
+                    : n11Payload
+                        ?.listing
+                        ?.external_product_id
+                    ? String(
+                        n11Payload
+                          .listing
+                          .external_product_id
+                      )
+                    : null,
+              };
+
+            results.push(
+              successful
+            );
+
+            setN11SendResults(
+              [...results]
+            );
+          }
+
+          const listed =
+            results.filter(
+              (item) =>
+                item.success &&
+                item.status ===
+                  "LISTED"
+            ).length;
+
+          const pending =
+            results.filter(
+              (item) =>
+                item.success &&
+                item.status ===
+                  "PENDING_CREATE"
+            ).length;
+
+          setN11SendNotice(
+            `N11 gönderimi tamamlandı. Gönderildi: ${listed}, N11 doğrulaması bekleyen: ${pending}.`
+          );
+
+          await loadCenter(
+            true
+          );
+
+          setSelectedDeviceIds(
+            []
+          );
+        } catch (error) {
+          setChannelError(
+            error instanceof
+              Error
+              ? error.message
+              : "N11 gerçek gönderimi tamamlanamadı."
+          );
+
+          // Başarılı olanlar varsa Merkez ekranını yine yenile.
+          await loadCenter(
+            true
+          );
+        } finally {
+          setN11Sending(
+            false
+          );
+        }
+      },
+      [
+        n11Sending,
+        sendChannel,
+        fetchFreshChannelPreview,
+        commitN11Membership,
+        loadCenter,
       ]
     );
 
@@ -3030,7 +3599,7 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 3A · IMEI seçimi + kanal fiyatı + ön kontrol aktif · Henüz marketplace yazımı yapılmaz
+          MERKEZ ADIM 3B · N11 gerçek gönderim aktif · İkas ve İdefix şimdilik ön kontrol
         </div>
       </div>
 
@@ -3051,7 +3620,7 @@ export default function Merkez() {
             <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
               <div>
                 <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
-                  Merkez · Kanal Gönderim Hazırlığı
+                  Merkez · Kanal Gönderim Merkezi
                 </div>
 
                 <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
@@ -3061,14 +3630,15 @@ export default function Merkez() {
                 </h3>
 
                 <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Seçili IMEI'ler, kanal üyeliği ve fiyat kuralları kontrol edilir. Bu ekranda gerçek gönderim yapılmaz.
+                  Seçili IMEI'ler önce kontrol edilir. N11 seçildiğinde onaylı IMEI'ler mevcut çalışan N11 motoruyla gerçekten gönderilebilir.
                 </p>
               </div>
 
               <button
                 type="button"
                 disabled={
-                  channelLoading
+                  channelLoading ||
+                  n11Sending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -3115,6 +3685,12 @@ export default function Merkez() {
                             null
                           );
                           setChannelError(
+                            ""
+                          );
+                          setN11SendResults(
+                            []
+                          );
+                          setN11SendNotice(
                             ""
                           );
                         }}
@@ -3342,8 +3918,82 @@ export default function Merkez() {
                       sendChannel
                     )} gönderimine hazır.
                   </div>
+
                   <div className="mt-1 text-[7px] font-semibold leading-4 text-emerald-700">
-                    Bu ADIM 3A yalnızca kontrol eder. Marketplace API'sine veya PostgreSQL kanal üyeliğine henüz kayıt yapılmadı.
+                    {sendChannel ===
+                    "N11"
+                      ? "N11 için gerçek gönderim açıldı. Gönder butonunda kontrol bir kez daha canlı yapılır ve ardından mevcut çalışan N11 motoru kullanılır."
+                      : "Bu kanalda gerçek gönderim henüz açılmadı. Şimdilik yalnızca ön kontrol yapılır."}
+                  </div>
+                </div>
+              )}
+
+              {n11SendNotice && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                  <div className="text-[9px] font-black text-emerald-800">
+                    ✓ {n11SendNotice}
+                  </div>
+                </div>
+              )}
+
+              {n11SendResults.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                      Gerçek N11 Gönderim Sonucu
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {n11SendResults.map(
+                      (result) => (
+                        <div
+                          key={
+                            result.deviceId
+                          }
+                          className={`grid gap-2 px-4 py-3 sm:grid-cols-[165px_115px_1fr] sm:items-center ${
+                            result.success
+                              ? result.status ===
+                                "LISTED"
+                                ? "bg-emerald-50/40"
+                                : "bg-amber-50/45"
+                              : "bg-rose-50/50"
+                          }`}
+                        >
+                          <div className="font-mono text-[8px] font-black text-slate-900">
+                            {
+                              result.imei
+                            }
+                          </div>
+
+                          <div>
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                                result.success
+                                  ? result.status ===
+                                    "LISTED"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-amber-100 text-amber-700"
+                                  : "bg-rose-100 text-rose-700"
+                              }`}
+                            >
+                              {result.success
+                                ? result.status ===
+                                  "LISTED"
+                                  ? "Gönderildi"
+                                  : "N11 Bekleniyor"
+                                : "Hata"}
+                            </span>
+                          </div>
+
+                          <div className="text-[8px] font-bold text-slate-600">
+                            {
+                              result.message
+                            }
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -3362,7 +4012,8 @@ export default function Merkez() {
               <button
                 type="button"
                 disabled={
-                  channelLoading
+                  channelLoading ||
+                  n11Sending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -3390,6 +4041,28 @@ export default function Merkez() {
                   ? "Kontrol Ediliyor..."
                   : "Ön Kontrol Yap"}
               </button>
+
+
+              {sendChannel ===
+                "N11" && (
+                <button
+                  type="button"
+                  disabled={
+                    channelLoading ||
+                    n11Sending ||
+                    !channelPreview
+                      ?.canProceed
+                  }
+                  onClick={() => {
+                    void sendSelectedToN11();
+                  }}
+                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {n11Sending
+                    ? "N11'e Gönderiliyor..."
+                    : `N11'e Gerçekten Gönder (${selectedDeviceIds.length})`}
+                </button>
+              )}
             </div>
           </div>
         </div>
