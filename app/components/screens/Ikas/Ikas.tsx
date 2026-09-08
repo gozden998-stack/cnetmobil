@@ -329,14 +329,56 @@ export default function Ikas() {
   });
 
   const [
-    centralPool,
-    setCentralPool,
+    transfer,
+    setTransfer,
   ] = useState<InventoryState>({
     loading: false,
     success: false,
     error: "",
     data: null,
   });
+
+  const [
+    transferExpanded,
+    setTransferExpanded,
+  ] = useState(false);
+
+  const [
+    transferSelections,
+    setTransferSelections,
+  ] = useState<
+    Record<number, string[]>
+  >({});
+
+  const [
+    transferPrices,
+    setTransferPrices,
+  ] = useState<
+    Record<
+      number,
+      {
+        salePrice: string;
+        listPrice: string;
+      }
+    >
+  >({});
+
+  const [
+    transferBusyListingId,
+    setTransferBusyListingId,
+  ] = useState<number | null>(
+    null
+  );
+
+  const [
+    transferMessage,
+    setTransferMessage,
+  ] = useState<{
+    type:
+      | "success"
+      | "error";
+    text: string;
+  } | null>(null);
 
   const [
     stockBusyId,
@@ -444,28 +486,47 @@ export default function Ikas() {
       []
     );
 
-  const bootstrapCentralPool =
+  const loadTransferCandidates =
     useCallback(
       async () => {
-        setCentralPool({
-          loading: true,
-          success: false,
-          error: "",
-          data: null,
-        });
+        setTransfer(
+          (current) => ({
+            ...current,
+            loading: true,
+            error: "",
+          })
+        );
+
+        setTransferMessage(null);
 
         try {
           const response =
             await fetch(
-              "/api/online/pools/bootstrap",
+              "/api/online/ikas/n11-transfer",
               {
-                method: "POST",
+                method: "GET",
                 cache: "no-store",
               }
             );
 
-          const payload =
-            await response.json();
+          const raw =
+            await response.text();
+
+          let payload: any =
+            null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `N11 → İkas API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
+            );
+          }
 
           if (
             !response.ok ||
@@ -473,29 +534,261 @@ export default function Ikas() {
           ) {
             throw new Error(
               payload?.error ||
-                "Merkezi IMEI havuzu hazırlanamadı."
+                "N11 IMEI listesi okunamadı."
             );
           }
 
-          setCentralPool({
+          setTransfer({
             loading: false,
             success: true,
             error: "",
             data: payload,
           });
+
+          setTransferExpanded(
+            true
+          );
+
+          setTransferPrices(
+            (current) => {
+              const next = {
+                ...current,
+              };
+
+              for (
+                const group of
+                  Array.isArray(
+                    payload?.groups
+                  )
+                    ? payload.groups
+                    : []
+              ) {
+                const listingId =
+                  Number(
+                    group
+                      ?.listingId
+                  );
+
+                if (
+                  !next[
+                    listingId
+                  ]
+                ) {
+                  next[
+                    listingId
+                  ] = {
+                    salePrice:
+                      group
+                        ?.n11SalePrice
+                        ? String(
+                            group
+                              .n11SalePrice
+                          )
+                        : "",
+                    listPrice:
+                      group
+                        ?.n11ListPrice
+                        ? String(
+                            group
+                              .n11ListPrice
+                          )
+                        : "",
+                  };
+                }
+              }
+
+              return next;
+            }
+          );
         } catch (error) {
-          setCentralPool({
+          setTransfer({
             loading: false,
             success: false,
             error:
-              error instanceof Error
+              error instanceof
+                Error
                 ? error.message
-                : "Merkezi IMEI havuzu hazırlanamadı.",
+                : "N11 IMEI listesi okunamadı.",
             data: null,
           });
         }
       },
       []
+    );
+
+  const toggleTransferImei =
+    useCallback(
+      (
+        listingId: number,
+        imei: string
+      ) => {
+        setTransferSelections(
+          (current) => {
+            const existing =
+              current[
+                listingId
+              ] || [];
+
+            const next =
+              existing.includes(
+                imei
+              )
+                ? existing.filter(
+                    (item) =>
+                      item !== imei
+                  )
+                : [
+                    ...existing,
+                    imei,
+                  ];
+
+            return {
+              ...current,
+              [listingId]:
+                next,
+            };
+          }
+        );
+      },
+      []
+    );
+
+  const stageIkasTransfer =
+    useCallback(
+      async (
+        listingId: number
+      ) => {
+        const imeis =
+          transferSelections[
+            listingId
+          ] || [];
+
+        const prices =
+          transferPrices[
+            listingId
+          ];
+
+        if (
+          imeis.length === 0
+        ) {
+          setTransferMessage({
+            type: "error",
+            text:
+              "En az 1 IMEI seç.",
+          });
+          return;
+        }
+
+        if (
+          !prices
+            ?.salePrice ||
+          !prices
+            ?.listPrice
+        ) {
+          setTransferMessage({
+            type: "error",
+            text:
+              "İkas satış ve liste fiyatını gir.",
+          });
+          return;
+        }
+
+        setTransferBusyListingId(
+          listingId
+        );
+
+        setTransferMessage(null);
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/ikas/n11-transfer",
+              {
+                method: "POST",
+                cache: "no-store",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    listingId,
+                    imeis,
+                    ikasSalePrice:
+                      prices
+                        .salePrice,
+                    ikasListPrice:
+                      prices
+                        .listPrice,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload: any =
+            null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `N11 → İkas API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "IMEI'ler İkas için hazırlanamadı."
+            );
+          }
+
+          setTransferMessage({
+            type: "success",
+            text:
+              payload
+                ?.message ||
+              "IMEI'ler İkas için hazırlandı.",
+          });
+
+          setTransferSelections(
+            (current) => ({
+              ...current,
+              [listingId]: [],
+            })
+          );
+
+          await loadTransferCandidates();
+        } catch (error) {
+          setTransferMessage({
+            type: "error",
+            text:
+              error instanceof
+                Error
+                ? error.message
+                : "IMEI'ler İkas için hazırlanamadı.",
+          });
+        } finally {
+          setTransferBusyListingId(
+            null
+          );
+        }
+      },
+      [
+        loadTransferCandidates,
+        transferPrices,
+        transferSelections,
+      ]
     );
 
   const runStockAction =
@@ -1036,6 +1329,30 @@ export default function Ikas() {
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    transfer.success
+                  ) {
+                    setTransferExpanded(
+                      (value) =>
+                        !value
+                    );
+                  } else {
+                    void loadTransferCandidates();
+                  }
+                }}
+                disabled={
+                  transfer.loading
+                }
+                className="h-10 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-50"
+              >
+                {transfer.loading
+                  ? "N11 IMEI..."
+                  : "N11 → İkas"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   void syncPostgres();
                 }}
                 disabled={
@@ -1047,22 +1364,6 @@ export default function Ikas() {
                 {dbSync.loading
                   ? "Eşleştiriliyor..."
                   : "PostgreSQL Eşleştir"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  void bootstrapCentralPool();
-                }}
-                disabled={
-                  centralPool.loading ||
-                  inventory.loading
-                }
-                className="h-10 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-50"
-              >
-                {centralPool.loading
-                  ? "IMEI Havuzu..."
-                  : "Merkezi IMEI Havuzu"}
               </button>
             </div>
           </div>
@@ -1108,50 +1409,6 @@ export default function Ikas() {
           </div>
         )}
 
-        {centralPool.error && (
-          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700 sm:px-6">
-            Merkezi IMEI Havuzu: {centralPool.error}
-          </div>
-        )}
-
-        {centralPool.success && (
-          <div className="border-b border-cyan-200 bg-cyan-50 px-5 py-3 sm:px-6">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[8px] font-black uppercase tracking-wide text-cyan-800">
-              <span>
-                Merkezi IMEI Havuzu Hazır
-              </span>
-
-              <span>
-                AVAILABLE IMEI: {centralPool.data?.centralPool?.totalAvailableDeviceCount ?? 0}
-              </span>
-
-              <span>
-                Havuz: {centralPool.data?.centralPool?.totalActivePoolCount ?? 0}
-              </span>
-
-              <span>
-                Eksik Detay: {centralPool.data?.centralPool?.skippedIncompleteDeviceCount ?? 0}
-              </span>
-
-              <span>
-                N11 Bağlı Listing: {centralPool.data?.channels?.n11?.totalLinkedListingCount ?? 0}
-              </span>
-
-              <span>
-                N11 Yeni Bağlanan: {centralPool.data?.channels?.n11?.linked ?? 0}
-              </span>
-
-              <span>
-                İkas Bağlı Listing: {centralPool.data?.channels?.ikas?.totalLinkedListingCount ?? 0}
-              </span>
-            </div>
-
-            <div className="mt-1 text-[8px] font-bold text-cyan-700">
-              N11 bağlantısı yalnızca gerçek availableImeis → stock_devices eşleşmesi varsa yapılır. İkas bu adımda otomatik bağlanmaz.
-            </div>
-          </div>
-        )}
-
         {stockMessage && (
           <div
             className={`border-b px-5 py-3 text-[9px] font-black sm:px-6 ${
@@ -1168,6 +1425,459 @@ export default function Ikas() {
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-[8px] font-bold text-amber-800 sm:px-6">
           Geçiş güvenliği: panelden stok azaltma / 0 yapma açık. Stok artırma kapalıdır; yeni stok fiziksel IMEI girişi ile eklenecek.
         </div>
+
+        {transfer.error && (
+          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700 sm:px-6">
+            N11 → İkas: {transfer.error}
+          </div>
+        )}
+
+        {transferMessage && (
+          <div
+            className={`border-b px-5 py-3 text-[9px] font-black sm:px-6 ${
+              transferMessage.type ===
+              "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+            }`}
+          >
+            {transferMessage.text}
+          </div>
+        )}
+
+        {transfer.success &&
+          transferExpanded && (
+            <div className="border-b border-cyan-200 bg-cyan-50/40 p-5 sm:p-6">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-700">
+                    N11 → İkas / Manuel IMEI Seçimi
+                  </div>
+
+                  <div className="mt-1 text-[13px] font-black text-slate-900">
+                    İkas'a hangi IMEI'lerin açılacağını sen seç
+                  </div>
+
+                  <div className="mt-1 text-[8px] font-semibold text-slate-500">
+                    N11 ürünü otomatik İkas'a açılmaz. İkas fiyatı N11 fiyatından tamamen ayrıdır.
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black text-cyan-700 ring-1 ring-cyan-200">
+                    N11 IMEI: {transfer.data?.totalImeis ?? 0}
+                  </span>
+
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                    AVAILABLE: {transfer.data?.availableStockDeviceCount ?? 0}
+                  </span>
+
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black text-violet-700 ring-1 ring-violet-200">
+                    İkas Hazırlanan: {transfer.data?.ikasPreparedCount ?? 0}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void loadTransferCandidates();
+                    }}
+                    disabled={
+                      transfer.loading
+                    }
+                    className="rounded-lg bg-slate-950 px-3 py-1.5 text-[8px] font-black text-white disabled:opacity-50"
+                  >
+                    Yenile
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {(Array.isArray(
+                  transfer.data
+                    ?.groups
+                )
+                  ? transfer.data
+                      .groups
+                  : []
+                ).map(
+                  (
+                    group: any
+                  ) => {
+                    const listingId =
+                      Number(
+                        group
+                          ?.listingId
+                      );
+
+                    const selected =
+                      transferSelections[
+                        listingId
+                      ] || [];
+
+                    const prices =
+                      transferPrices[
+                        listingId
+                      ] || {
+                        salePrice:
+                          "",
+                        listPrice:
+                          "",
+                      };
+
+                    const selectableImeis =
+                      (
+                        Array.isArray(
+                          group
+                            ?.imeis
+                        )
+                          ? group
+                              .imeis
+                          : []
+                      ).filter(
+                        (
+                          item: any
+                        ) =>
+                          item
+                            ?.foundInStockDevices ===
+                            true &&
+                          item
+                            ?.deviceStatus ===
+                            "AVAILABLE" &&
+                          ![
+                            "LISTED",
+                            "RESERVED",
+                            "SOLD",
+                          ].includes(
+                            String(
+                              item
+                                ?.ikasMembership
+                                ?.status ||
+                                ""
+                            )
+                          )
+                      );
+
+                    return (
+                      <div
+                        key={
+                          listingId
+                        }
+                        className="overflow-hidden rounded-2xl border border-cyan-200 bg-white"
+                      >
+                        <div className="grid gap-4 border-b border-slate-100 p-4 xl:grid-cols-[minmax(0,1fr)_120px_120px_130px_130px] xl:items-center">
+                          <div className="min-w-0">
+                            <div className="truncate text-[11px] font-black text-slate-900">
+                              {group?.title ||
+                                "-"}
+                            </div>
+
+                            <div className="mt-1 text-[7px] font-bold text-slate-400">
+                              N11 SKU: {group?.stockCode || "-"} · IMEI: {group?.imeiCount ?? 0}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[7px] font-black uppercase text-slate-400">
+                              N11 Satış
+                            </div>
+                            <div className="mt-1 text-[9px] font-black text-slate-800">
+                              {formatTry(
+                                group?.n11SalePrice
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[7px] font-black uppercase text-slate-400">
+                              N11 Liste
+                            </div>
+                            <div className="mt-1 text-[9px] font-black text-slate-800">
+                              {formatTry(
+                                group?.n11ListPrice
+                              )}
+                            </div>
+                          </div>
+
+                          <label>
+                            <span className="text-[7px] font-black uppercase text-cyan-700">
+                              İkas Satış Fiyatı
+                            </span>
+                            <input
+                              value={
+                                prices
+                                  .salePrice
+                              }
+                              onChange={(
+                                event
+                              ) => {
+                                setTransferPrices(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [listingId]:
+                                      {
+                                        ...prices,
+                                        salePrice:
+                                          event
+                                            .target
+                                            .value,
+                                      },
+                                  })
+                                );
+                              }}
+                              inputMode="decimal"
+                              className="mt-1 h-9 w-full rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 text-[9px] font-black text-slate-800 outline-none focus:border-cyan-500"
+                            />
+                          </label>
+
+                          <label>
+                            <span className="text-[7px] font-black uppercase text-cyan-700">
+                              İkas Liste Fiyatı
+                            </span>
+                            <input
+                              value={
+                                prices
+                                  .listPrice
+                              }
+                              onChange={(
+                                event
+                              ) => {
+                                setTransferPrices(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [listingId]:
+                                      {
+                                        ...prices,
+                                        listPrice:
+                                          event
+                                            .target
+                                            .value,
+                                      },
+                                  })
+                                );
+                              }}
+                              inputMode="decimal"
+                              className="mt-1 h-9 w-full rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 text-[9px] font-black text-slate-800 outline-none focus:border-cyan-500"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="max-h-60 overflow-auto p-4">
+                          <div className="mb-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferSelections(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [listingId]:
+                                      selectableImeis.map(
+                                        (
+                                          item: any
+                                        ) =>
+                                          String(
+                                            item
+                                              ?.imei ||
+                                              ""
+                                          )
+                                      ),
+                                  })
+                                );
+                              }}
+                              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[7px] font-black text-slate-600"
+                            >
+                              Uygunların Tümünü Seç
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransferSelections(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    [listingId]:
+                                      [],
+                                  })
+                                );
+                              }}
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[7px] font-black text-slate-500"
+                            >
+                              Seçimi Temizle
+                            </button>
+
+                            <span className="text-[8px] font-black text-cyan-700">
+                              Seçili: {selected.length}
+                            </span>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            {(Array.isArray(
+                              group?.imeis
+                            )
+                              ? group
+                                  .imeis
+                              : []
+                            ).map(
+                              (
+                                item: any
+                              ) => {
+                                const imei =
+                                  String(
+                                    item
+                                      ?.imei ||
+                                      ""
+                                  );
+
+                                const eligible =
+                                  item
+                                    ?.foundInStockDevices ===
+                                    true &&
+                                  item
+                                    ?.deviceStatus ===
+                                    "AVAILABLE" &&
+                                  ![
+                                    "LISTED",
+                                    "RESERVED",
+                                    "SOLD",
+                                  ].includes(
+                                    String(
+                                      item
+                                        ?.ikasMembership
+                                        ?.status ||
+                                        ""
+                                    )
+                                  );
+
+                                const checked =
+                                  selected.includes(
+                                    imei
+                                  );
+
+                                return (
+                                  <label
+                                    key={
+                                      imei
+                                    }
+                                    className={`flex gap-2 rounded-xl border p-3 ${
+                                      eligible
+                                        ? checked
+                                          ? "border-cyan-400 bg-cyan-50"
+                                          : "border-slate-200 bg-white"
+                                        : "border-slate-100 bg-slate-50 opacity-60"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        checked
+                                      }
+                                      disabled={
+                                        !eligible
+                                      }
+                                      onChange={() => {
+                                        toggleTransferImei(
+                                          listingId,
+                                          imei
+                                        );
+                                      }}
+                                      className="mt-0.5"
+                                    />
+
+                                    <div className="min-w-0">
+                                      <div className="text-[9px] font-black text-slate-800">
+                                        {imei}
+                                      </div>
+
+                                      <div className="mt-1 text-[7px] font-bold text-slate-400">
+                                        {item?.color || "-"} · {item?.grade || "-"} · {item?.warranty || "-"}
+                                      </div>
+
+                                      <div className="mt-1 text-[7px] font-black">
+                                        {!item?.foundInStockDevices ? (
+                                          <span className="text-rose-600">
+                                            stock_devices yok
+                                          </span>
+                                        ) : item?.deviceStatus !==
+                                          "AVAILABLE" ? (
+                                          <span className="text-amber-600">
+                                            {item?.deviceStatus}
+                                          </span>
+                                        ) : item?.ikasMembership ? (
+                                          <span className="text-violet-600">
+                                            İkas: {item?.ikasMembership?.status}
+                                          </span>
+                                        ) : (
+                                          <span className="text-emerald-600">
+                                            İkas'a uygun
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-[8px] font-bold text-slate-500">
+                            Bu işlem sadece İkas için hazırlık kaydı oluşturur. N11 fiyatı ve N11 stoğu değişmez.
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void stageIkasTransfer(
+                                listingId
+                              );
+                            }}
+                            disabled={
+                              transferBusyListingId ===
+                                listingId ||
+                              selected.length ===
+                                0
+                            }
+                            className="h-9 rounded-xl bg-cyan-700 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {transferBusyListingId ===
+                            listingId
+                              ? "Hazırlanıyor..."
+                              : `Seçili ${selected.length} IMEI'yi İkas'a Hazırla`}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+
+                {(!Array.isArray(
+                  transfer.data
+                    ?.groups
+                ) ||
+                  transfer.data
+                    .groups
+                    .length ===
+                    0) && (
+                  <div className="rounded-2xl border border-dashed border-cyan-200 bg-white px-5 py-10 text-center">
+                    <div className="text-[10px] font-black text-slate-700">
+                      N11 availableImeis kaydı bulunamadı.
+                    </div>
+                    <div className="mt-1 text-[8px] font-semibold text-slate-400">
+                      N11 IMEI havuzu oluşturulmuş listing'ler burada görünecek.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4 sm:p-6">
           {kpis.map(
