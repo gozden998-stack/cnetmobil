@@ -565,11 +565,7 @@ const SAVE_VARIANT_STOCKS = `
     saveVariantStocks(
       input: $input
     ) {
-      isSuccess
-      errorInputs {
-        variantId
-        productId
-      }
+      __typename
     }
   }
 `;
@@ -1182,22 +1178,21 @@ export async function POST(
         }
       );
 
-    const result =
+    // Canlı mağaza GraphQL şemasında SaveVariantStockResponse
+    // dokümandaki `isSuccess` alanını expose etmeyebiliyor.
+    // Bu nedenle response field'ına güvenmiyoruz.
+    // Mutation GraphQL hatasız döndükten sonra gerçek stoğu tekrar okuyup
+    // hedef quantity ile birebir doğruluyoruz.
+    const mutationResponse =
       mutationData
         ?.saveVariantStocks;
 
-    if (
-      result?.isSuccess !==
-      true
-    ) {
+    if (!mutationResponse) {
       return json(
         {
           success: false,
           error:
-            "İkas stok güncellemesini kabul etmedi.",
-          errorInputs:
-            result?.errorInputs ||
-            [],
+            "İkas stok mutation cevabı alınamadı.",
         },
         502
       );
