@@ -13,6 +13,7 @@ import CihazAlim from './components/screens/CihazAlim';
 import CihazTalep from './components/screens/CihazTalep/CihazTalep';
 import Online from './components/screens/Online/Online';
 import Ikas from './components/screens/Ikas/Ikas';
+import Merkez from './components/screens/Merkez/Merkez';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -634,7 +635,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'integrations_overview' | 'online' | 'ikas' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -646,6 +647,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
     const allowedModes = [
       'ana_sayfa',
+      'merkez',
       'online',
       'alim',
       'servis',
@@ -1782,10 +1784,10 @@ export default function CnetmobilCmrFinalUltimate() {
           visible: isSuperAdminUser,
           integrationItems: [
             {
-              id: 'integrations_overview',
-              label: 'Genel Bakış',
-              detail: 'Tüm satış kanalları',
-              badge: 'MERKEZ',
+              id: 'merkez',
+              label: 'Merkez',
+              detail: 'IMEI, merkezi stok ve kanal dağıtımı',
+              badge: 'ANA STOK',
               enabled: true
             },
             {
@@ -3016,7 +3018,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                                       setAppMode(
                                         integrationItem.id as
-                                          | 'integrations_overview'
+                                          | 'merkez'
                                           | 'online'
                                           | 'ikas'
                                       );
@@ -3092,7 +3094,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                                     setAppMode(
                                       integrationItem.id as
-                                        | 'integrations_overview'
+                                        | 'merkez'
                                         | 'online'
                                         | 'ikas'
                                     );
@@ -3305,7 +3307,7 @@ export default function CnetmobilCmrFinalUltimate() {
           className={`mx-auto w-full print:hidden ${
             (appMode === 'cihaz_talep' ||
               appMode === 'online' ||
-              appMode === 'integrations_overview' ||
+              appMode === 'merkez' ||
               appMode === 'ikas') &&
             step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
@@ -3335,112 +3337,8 @@ export default function CnetmobilCmrFinalUltimate() {
               ) : (
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} />
               )
-          ) : appMode === 'integrations_overview' && step < 99 && isSuperAdminUser ? (
-            <div className="animate-in fade-in duration-300">
-              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-6 py-7 text-white sm:px-8">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-blue-200/70">
-                        CNETMOBİL
-                      </div>
-                      <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                        Entegrasyon Merkezi
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-[11px] font-semibold leading-5 text-slate-300">
-                        Pazaryeri ve e-ticaret kanallarını tek merkezden yöneteceğimiz yapı.
-                        N11 aktif; İkas kurulumu sıradaki entegrasyon.
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
-                        Merkez Stok
-                      </div>
-                      <div className="mt-1 text-[12px] font-black text-white">
-                        PostgreSQL + IMEI Havuzu
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4 sm:p-6">
-                  <button
-                    type="button"
-                    onClick={() => setAppMode('online')}
-                    className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-600">
-                          N11
-                        </div>
-                        <div className="mt-2 text-lg font-black text-slate-900">
-                          Aktif
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[8px] font-black uppercase text-emerald-700">
-                        Çalışıyor
-                      </span>
-                    </div>
-                    <p className="mt-3 text-[10px] font-semibold leading-5 text-slate-500">
-                      Ürün, fiyat, stok, IMEI havuzu ve sipariş senkronu.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAppMode('ikas')}
-                    className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-600">
-                          İkas
-                        </div>
-                        <div className="mt-2 text-lg font-black text-slate-900">
-                          Kurulum
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[8px] font-black uppercase text-amber-700">
-                        Sıradaki
-                      </span>
-                    </div>
-                    <p className="mt-3 text-[10px] font-semibold leading-5 text-slate-500">
-                      Yenilenmiş cihaz ürün, stok ve sipariş entegrasyonu.
-                    </p>
-                  </button>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                          Hepsiburada
-                        </div>
-                        <div className="mt-2 text-lg font-black text-slate-700">
-                          Hepsiburada
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-                          İdefix
-                        </div>
-                        <div className="mt-2 text-lg font-black text-slate-700">
-                          İdefix
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          ) : appMode === 'merkez' && step < 99 && isSuperAdminUser ? (
+            <Merkez />
           ) : appMode === 'online' && step < 99 && isSuperAdminUser ? (
             <Online />
           ) : appMode === 'ikas' && step < 99 && isSuperAdminUser ? (
