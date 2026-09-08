@@ -633,7 +633,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'online' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'integrations_overview' | 'online' | 'ikas' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -717,6 +717,17 @@ export default function CnetmobilCmrFinalUltimate() {
     left: 0,
     top: 0,
     width: 220,
+  });
+
+  // ENTEGRASYONLAR DROPDOWN
+  // N11 mevcut çalışan Online component'ini kullanmaya devam eder.
+  // İkas ayrı ekran olarak hazırlanır; Hepsiburada / İdefix şimdilik pasif.
+  const [integrationsMenuOpen, setIntegrationsMenuOpen] = useState(false);
+  const integrationsMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [integrationsMenuPos, setIntegrationsMenuPos] = useState({
+    left: 0,
+    top: 0,
+    width: 280,
   });
 
   // CİHAZ TALEP MAĞAZA DROPDOWN
@@ -1761,7 +1772,48 @@ export default function CnetmobilCmrFinalUltimate() {
       title: "ANA MODÜLLER",
       items: [
         { id: 'ana_sayfa', label: 'Ana Sayfa', visible: true },
-        { id: 'online', label: 'ONLINE', visible: isSuperAdminUser },
+        {
+          id: 'integrations',
+          label: 'ENTEGRASYONLAR',
+          visible: isSuperAdminUser,
+          integrationItems: [
+            {
+              id: 'integrations_overview',
+              label: 'Genel Bakış',
+              detail: 'Tüm satış kanalları',
+              badge: 'MERKEZ',
+              enabled: true
+            },
+            {
+              id: 'online',
+              label: 'N11',
+              detail: 'Ürün, stok ve sipariş yönetimi',
+              badge: 'AKTİF',
+              enabled: true
+            },
+            {
+              id: 'ikas',
+              label: 'İkas',
+              detail: 'Yeni entegrasyon kurulumu',
+              badge: 'KURULUM',
+              enabled: true
+            },
+            {
+              id: 'hepsiburada',
+              label: 'Hepsiburada',
+              detail: 'Entegrasyon',
+              badge: '',
+              enabled: false
+            },
+            {
+              id: 'idefix',
+              label: 'İdefix',
+              detail: 'Entegrasyon',
+              badge: '',
+              enabled: false
+            }
+          ]
+        },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
@@ -1843,6 +1895,12 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1v-9z" />
+          </svg>
+        );
+      case 'integrations':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V5a2 2 0 114 0v2m0 10v2a2 2 0 11-4 0v-2m8-5h2a2 2 0 110 4h-2M6 16H4a2 2 0 110-4h2m2-2h8v8H8z" />
           </svg>
         );
       case 'online':
@@ -2577,7 +2635,34 @@ export default function CnetmobilCmrFinalUltimate() {
                   const isActive =
                     appMode === item.id ||
                     (item.subItems &&
-                      item.subItems.some((sub) => sub.id === appMode));
+                      item.subItems.some((sub) => sub.id === appMode)) ||
+                    (item.integrationItems &&
+                      item.integrationItems.some(
+                        (sub) => sub.enabled && sub.id === appMode
+                      ));
+
+                  const openIntegrationsMenu = () => {
+                    const rect =
+                      integrationsMenuButtonRef.current?.getBoundingClientRect();
+
+                    if (rect) {
+                      const width = 280;
+
+                      setIntegrationsMenuPos({
+                        left: Math.max(
+                          12,
+                          Math.min(
+                            window.innerWidth - width - 12,
+                            rect.left + rect.width / 2 - width / 2
+                          )
+                        ),
+                        top: rect.bottom - 1,
+                        width,
+                      });
+                    }
+
+                    setIntegrationsMenuOpen(true);
+                  };
 
                   const openSecondHandMenu = () => {
                     const rect =
@@ -2634,6 +2719,10 @@ export default function CnetmobilCmrFinalUltimate() {
                           return;
                         }
 
+                        if (item.integrationItems) {
+                          openIntegrationsMenu();
+                        }
+
                         if (item.subItems) {
                           openSecondHandMenu();
                         }
@@ -2645,6 +2734,10 @@ export default function CnetmobilCmrFinalUltimate() {
                       onMouseLeave={() => {
                         if (typeof window === 'undefined' || window.innerWidth < 1024) {
                           return;
+                        }
+
+                        if (item.integrationItems) {
+                          setIntegrationsMenuOpen(false);
                         }
 
                         if (item.subItems) {
@@ -2827,6 +2920,217 @@ export default function CnetmobilCmrFinalUltimate() {
                             </div>
                           )}
                         </>
+                      ) : item.integrationItems ? (
+                        <>
+                          <button
+                            ref={integrationsMenuButtonRef}
+                            type="button"
+                            onClick={() => {
+                              if (
+                                typeof window !== 'undefined' &&
+                                window.innerWidth < 1024
+                              ) {
+                                setIntegrationsMenuOpen((open) => !open);
+                                return;
+                              }
+
+                              openIntegrationsMenu();
+                            }}
+                            className={`relative flex min-w-[104px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[124px] lg:px-4 ${
+                              isActive
+                                ? 'bg-blue-500/20 text-white'
+                                : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                                isActive ? 'bg-blue-500 text-white' : 'bg-white/5'
+                              }`}
+                            >
+                              {navIcon(item.id)}
+                            </span>
+
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              Entegrasyonlar
+                              <svg
+                                className={`h-2.5 w-2.5 opacity-60 transition-transform ${
+                                  integrationsMenuOpen ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </span>
+
+                            {isActive && (
+                              <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-full bg-gradient-to-r from-blue-400 via-cyan-300 to-fuchsia-400" />
+                            )}
+                          </button>
+
+                          {integrationsMenuOpen && (
+                            <div
+                              className="fixed z-[99999] hidden overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-[0_18px_45px_rgba(15,23,42,0.22)] ring-1 ring-black/5 lg:flex lg:flex-col"
+                              style={{
+                                left: integrationsMenuPos.left,
+                                top: integrationsMenuPos.top,
+                                width: integrationsMenuPos.width,
+                              }}
+                            >
+                              <div className="border-b border-slate-200 bg-slate-50/90 px-4 py-3">
+                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                  CNETMOBİL
+                                </div>
+                                <div className="mt-0.5 text-[11px] font-black text-slate-900">
+                                  Entegrasyonlar
+                                </div>
+                                <div className="mt-1 text-[8px] font-bold text-slate-400">
+                                  Satış kanalı seç
+                                </div>
+                              </div>
+
+                              {item.integrationItems.map((integrationItem) => {
+                                const integrationActive =
+                                  integrationItem.enabled &&
+                                  appMode === integrationItem.id;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    key={integrationItem.id}
+                                    disabled={!integrationItem.enabled}
+                                    onClick={() => {
+                                      if (!integrationItem.enabled) {
+                                        return;
+                                      }
+
+                                      setAppMode(
+                                        integrationItem.id as
+                                          | 'integrations_overview'
+                                          | 'online'
+                                          | 'ikas'
+                                      );
+                                      setStep(1);
+                                      resetSelection();
+                                      setIntegrationsMenuOpen(false);
+                                    }}
+                                    className={`group/sub flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 ${
+                                      !integrationItem.enabled
+                                        ? 'cursor-not-allowed bg-slate-50/70 opacity-60'
+                                        : integrationActive
+                                        ? 'bg-blue-50'
+                                        : 'bg-white hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className="min-w-0">
+                                      <div
+                                        className={`text-[10px] font-black uppercase tracking-wide ${
+                                          integrationActive
+                                            ? 'text-blue-700'
+                                            : integrationItem.enabled
+                                            ? 'text-slate-800 group-hover/sub:text-blue-700'
+                                            : 'text-slate-500'
+                                        }`}
+                                      >
+                                        {integrationItem.label}
+                                      </div>
+
+                                      <div className="mt-0.5 truncate text-[8px] font-bold text-slate-400">
+                                        {integrationItem.detail}
+                                      </div>
+                                    </div>
+
+                                    {integrationItem.badge && (
+                                      <span
+                                        className={`shrink-0 rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-wide ${
+                                          integrationItem.badge === 'AKTİF'
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : integrationItem.badge === 'KURULUM'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-blue-100 text-blue-700'
+                                        }`}
+                                      >
+                                        {integrationItem.badge}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {integrationsMenuOpen && (
+                            <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
+                              <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
+                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                  Entegrasyonlar
+                                </div>
+                                <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                  Satış kanalı seç
+                                </div>
+                              </div>
+
+                              {item.integrationItems.map((integrationItem) => (
+                                <button
+                                  key={integrationItem.id}
+                                  type="button"
+                                  disabled={!integrationItem.enabled}
+                                  onClick={() => {
+                                    if (!integrationItem.enabled) {
+                                      return;
+                                    }
+
+                                    setAppMode(
+                                      integrationItem.id as
+                                        | 'integrations_overview'
+                                        | 'online'
+                                        | 'ikas'
+                                    );
+                                    setStep(1);
+                                    resetSelection();
+                                    setIntegrationsMenuOpen(false);
+                                  }}
+                                  className={`flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 text-left last:border-0 ${
+                                    !integrationItem.enabled
+                                      ? 'cursor-not-allowed bg-slate-50 opacity-60'
+                                      : appMode === integrationItem.id
+                                      ? 'bg-blue-50'
+                                      : 'bg-white'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">
+                                      {integrationItem.label}
+                                    </div>
+                                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                      {integrationItem.detail}
+                                    </div>
+                                  </div>
+
+                                  {integrationItem.badge && (
+                                    <span
+                                      className={`shrink-0 rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-wide ${
+                                        integrationItem.badge === 'AKTİF'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : integrationItem.badge === 'KURULUM'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-blue-100 text-blue-700'
+                                      }`}
+                                    >
+                                      {integrationItem.badge}
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : item.subItems ? (
                         <>
                           <button
@@ -2995,7 +3299,11 @@ export default function CnetmobilCmrFinalUltimate() {
       <div className="flex-1 w-full min-w-0 flex flex-col relative">
         <main
           className={`mx-auto w-full print:hidden ${
-            (appMode === 'cihaz_talep' || appMode === 'online') && step < 99
+            (appMode === 'cihaz_talep' ||
+              appMode === 'online' ||
+              appMode === 'integrations_overview' ||
+              appMode === 'ikas') &&
+            step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
               : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
           }`}
@@ -3023,8 +3331,179 @@ export default function CnetmobilCmrFinalUltimate() {
               ) : (
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} />
               )
+          ) : appMode === 'integrations_overview' && step < 99 && isSuperAdminUser ? (
+            <div className="animate-in fade-in duration-300">
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-6 py-7 text-white sm:px-8">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-blue-200/70">
+                        CNETMOBİL
+                      </div>
+                      <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+                        Entegrasyon Merkezi
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-[11px] font-semibold leading-5 text-slate-300">
+                        Pazaryeri ve e-ticaret kanallarını tek merkezden yöneteceğimiz yapı.
+                        N11 aktif; İkas kurulumu sıradaki entegrasyon.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        Merkez Stok
+                      </div>
+                      <div className="mt-1 text-[12px] font-black text-white">
+                        PostgreSQL + IMEI Havuzu
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4 sm:p-6">
+                  <button
+                    type="button"
+                    onClick={() => setAppMode('online')}
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-600">
+                          N11
+                        </div>
+                        <div className="mt-2 text-lg font-black text-slate-900">
+                          Aktif
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[8px] font-black uppercase text-emerald-700">
+                        Çalışıyor
+                      </span>
+                    </div>
+                    <p className="mt-3 text-[10px] font-semibold leading-5 text-slate-500">
+                      Ürün, fiyat, stok, IMEI havuzu ve sipariş senkronu.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAppMode('ikas')}
+                    className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-600">
+                          İkas
+                        </div>
+                        <div className="mt-2 text-lg font-black text-slate-900">
+                          Kurulum
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[8px] font-black uppercase text-amber-700">
+                        Sıradaki
+                      </span>
+                    </div>
+                    <p className="mt-3 text-[10px] font-semibold leading-5 text-slate-500">
+                      Yenilenmiş cihaz ürün, stok ve sipariş entegrasyonu.
+                    </p>
+                  </button>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                          Hepsiburada
+                        </div>
+                        <div className="mt-2 text-lg font-black text-slate-700">
+                          Hepsiburada
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                          İdefix
+                        </div>
+                        <div className="mt-2 text-lg font-black text-slate-700">
+                          İdefix
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : appMode === 'online' && step < 99 && isSuperAdminUser ? (
             <Online />
+          ) : appMode === 'ikas' && step < 99 && isSuperAdminUser ? (
+            <div className="animate-in fade-in duration-300">
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 bg-gradient-to-r from-violet-950 via-slate-950 to-slate-900 px-6 py-7 text-white sm:px-8">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200/75">
+                        Entegrasyonlar / İkas
+                      </div>
+                      <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+                        İkas Entegrasyonu
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-[11px] font-semibold leading-5 text-slate-300">
+                        Yenilenmiş cihazlarda ürün, varyant, stok, IMEI havuzu ve sipariş yönetimi
+                        bu ekranda kurulacak.
+                      </p>
+                    </div>
+
+                    <span className="w-fit rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-wide text-amber-200">
+                      Kurulum Aşaması
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:p-6">
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-blue-600">
+                        ADIM 1
+                      </div>
+                      <div className="mt-2 text-base font-black text-slate-900">
+                        API Bağlantısı
+                      </div>
+                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
+                        Client ID ve Client Secret Coolify ENV üzerinden bağlanacak.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        ADIM 2
+                      </div>
+                      <div className="mt-2 text-base font-black text-slate-900">
+                        Read Only Keşif
+                      </div>
+                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
+                        Mevcut ürün, SKU, varyant, kategori, depo ve stok yapısı okunacak.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        ADIM 3+
+                      </div>
+                      <div className="mt-2 text-base font-black text-slate-900">
+                        Merkezi Stok
+                      </div>
+                      <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-500">
+                        İkas ve N11 aynı PostgreSQL / IMEI havuzu üzerinden senkronlanacak.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
