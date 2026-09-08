@@ -2655,3 +2655,756 @@ export async function PUT(
     client?.release();
   }
 }
+
+
+type ExcelDeviceRow = {
+  rowNumber: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+};
+
+type ExcelValidationError = {
+  rowNumber: number;
+  imei: string;
+  reason: string;
+  type:
+    | "INVALID_ROW"
+    | "INVALID_IMEI"
+    | "DUPLICATE_INPUT"
+    | "ALREADY_EXISTS";
+};
+
+function normalizeExcelRows(
+  value: unknown
+) {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      "Excel satırları bulunamadı."
+    );
+  }
+
+  if (value.length === 0) {
+    throw new Error(
+      "Excel dosyasında cihaz satırı bulunamadı."
+    );
+  }
+
+  if (value.length > 500) {
+    throw new Error(
+      "Tek Excel dosyasında en fazla 500 cihaz yüklenebilir."
+    );
+  }
+
+  const rows: ExcelDeviceRow[] = [];
+  const errors: ExcelValidationError[] = [];
+
+  value.forEach(
+    (
+      rawRow,
+      index
+    ) => {
+      const rowNumber =
+        Number(
+          (
+            rawRow as any
+          )?.rowNumber
+        ) ||
+        index + 2;
+
+      if (
+        !rawRow ||
+        typeof rawRow !==
+          "object" ||
+        Array.isArray(rawRow)
+      ) {
+        errors.push({
+          rowNumber,
+          imei: "",
+          reason:
+            "Satır formatı geçersiz.",
+          type:
+            "INVALID_ROW",
+        });
+        return;
+      }
+
+      const data =
+        rawRow as Record<
+          string,
+          unknown
+        >;
+
+      const imei =
+        normalizeImei(
+          data.imei
+        );
+
+      if (
+        !/^[0-9]{15}$/.test(
+          imei
+        )
+      ) {
+        errors.push({
+          rowNumber,
+          imei,
+          reason:
+            "IMEI tam 15 hane olmalıdır.",
+          type:
+            "INVALID_IMEI",
+        });
+        return;
+      }
+
+      try {
+        rows.push({
+          rowNumber,
+          imei,
+          brand:
+            cleanRequired(
+              data.brand,
+              "Marka",
+              100
+            ),
+          model:
+            cleanRequired(
+              data.model,
+              "Model",
+              180
+            ),
+          memory:
+            normalizeMemoryInput(
+              data.memory
+            ),
+          color:
+            cleanRequired(
+              data.color,
+              "Renk",
+              100
+            ),
+          grade:
+            normalizeGradeInput(
+              data.grade
+            ),
+          warranty:
+            normalizeWarrantyInput(
+              data.warranty
+            ),
+        });
+      } catch (error) {
+        errors.push({
+          rowNumber,
+          imei,
+          reason:
+            error instanceof
+              Error
+              ? error.message
+              : "Satırdaki cihaz bilgileri geçersiz.",
+          type:
+            "INVALID_ROW",
+        });
+      }
+    }
+  );
+
+  return {
+    rows,
+    errors,
+    total:
+      value.length,
+  };
+}
+
+async function validateExcelRows(
+  client: PoolClient,
+  rawRows: unknown
+) {
+  const normalized =
+    normalizeExcelRows(
+      rawRows
+    );
+
+  const errors:
+    ExcelValidationError[] =
+      [
+        ...normalized.errors,
+      ];
+
+  const seen =
+    new Map<
+      string,
+      number
+    >();
+
+  for (
+    const row of
+      normalized.rows
+  ) {
+    const firstRow =
+      seen.get(
+        row.imei
+      );
+
+    if (firstRow) {
+      errors.push({
+        rowNumber:
+          row.rowNumber,
+        imei: row.imei,
+        reason:
+          `Aynı IMEI Excel içinde tekrar ediyor. İlk satır: ${firstRow}.`,
+        type:
+          "DUPLICATE_INPUT",
+      });
+      continue;
+    }
+
+    seen.set(
+      row.imei,
+      row.rowNumber
+    );
+  }
+
+  const uniqueRows =
+    normalized.rows.filter(
+      (row) =>
+        seen.get(
+          row.imei
+        ) === row.rowNumber
+    );
+
+  const imeis =
+    uniqueRows.map(
+      (row) =>
+        row.imei
+    );
+
+  if (
+    imeis.length > 0
+  ) {
+    const existing =
+      await client.query(
+        `
+          SELECT
+            imei,
+            brand,
+            model,
+            current_branch_code,
+            status
+          FROM public.stock_devices
+          WHERE imei = ANY($1::text[])
+        `,
+        [imeis]
+      );
+
+    const rowByImei =
+      new Map(
+        uniqueRows.map(
+          (row) => [
+            row.imei,
+            row,
+          ]
+        )
+      );
+
+    for (
+      const existingRow of
+        existing.rows
+    ) {
+      const imei =
+        String(
+          existingRow.imei
+        );
+
+      const sourceRow =
+        rowByImei.get(
+          imei
+        );
+
+      errors.push({
+        rowNumber:
+          sourceRow?.rowNumber ||
+          0,
+        imei,
+        reason:
+          `Bu IMEI zaten sistemde kayıtlı. ` +
+          `${String(
+            existingRow.brand ||
+              ""
+          )} ${String(
+            existingRow.model ||
+              ""
+          )}`.trim() +
+          ` · Durum: ${String(
+            existingRow.status ||
+              "-"
+          )}.`,
+        type:
+          "ALREADY_EXISTS",
+      });
+    }
+  }
+
+  const invalidRowKeys =
+    new Set(
+      errors.map(
+        (item) =>
+          `${item.rowNumber}:${item.imei}`
+      )
+    );
+
+  const validRows =
+    normalized.rows.filter(
+      (row) =>
+        !invalidRowKeys.has(
+          `${row.rowNumber}:${row.imei}`
+        ) &&
+        seen.get(
+          row.imei
+        ) === row.rowNumber
+    );
+
+  return {
+    total:
+      normalized.total,
+    validRows,
+    validCount:
+      validRows.length,
+    errors,
+    errorCount:
+      errors.length,
+    canCommit:
+      errors.length === 0 &&
+      validRows.length ===
+        normalized.total,
+  };
+}
+
+export async function PATCH(
+  request: NextRequest
+) {
+  let client:
+    | PoolClient
+    | null = null;
+
+  try {
+    if (
+      !validateOrigin(
+        request
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek kaynağı.",
+        },
+        403
+      );
+    }
+
+    const user =
+      await getSuperAdminUser(
+        request
+      );
+
+    if (!user) {
+      return json(
+        {
+          success: false,
+          error:
+            "Merkez Excel cihaz girişi yalnızca Super Admin içindir.",
+        },
+        403
+      );
+    }
+
+    const contentLength =
+      Number(
+        request.headers.get(
+          "content-length"
+        ) || 0
+      );
+
+    if (
+      contentLength >
+      2_000_000
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Excel cihaz isteği çok büyük.",
+        },
+        413
+      );
+    }
+
+    const body =
+      await request
+        .json()
+        .catch(
+          () => null
+        );
+
+    if (
+      !body ||
+      typeof body !==
+        "object" ||
+      Array.isArray(body)
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz istek.",
+        },
+        400
+      );
+    }
+
+    const data =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const mode =
+      String(
+        data.mode ||
+          "preview"
+      ).toLowerCase();
+
+    if (
+      mode !==
+        "preview" &&
+      mode !==
+        "commit"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Geçersiz Excel işlem modu.",
+        },
+        400
+      );
+    }
+
+    client =
+      await getPool().connect();
+
+    if (
+      mode ===
+      "preview"
+    ) {
+      const validation =
+        await validateExcelRows(
+          client,
+          data.rows
+        );
+
+      return json({
+        success: true,
+        mode:
+          "preview",
+        preview: {
+          total:
+            validation.total,
+          valid:
+            validation.validCount,
+          invalid:
+            validation.errorCount,
+          canCommit:
+            validation.canCommit,
+          errors:
+            validation.errors,
+        },
+      });
+    }
+
+    await client.query(
+      "BEGIN ISOLATION LEVEL SERIALIZABLE"
+    );
+
+    await client.query(
+      `
+        SELECT
+          pg_advisory_xact_lock(
+            hashtext(
+              'cnet_center_excel_device_insert'
+            )
+          )
+      `
+    );
+
+    await ensureCenterBranch(
+      client
+    );
+
+    const validation =
+      await validateExcelRows(
+        client,
+        data.rows
+      );
+
+    if (
+      !validation.canCommit
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return json(
+        {
+          success: false,
+          error:
+            "Excel kaydı iptal edildi. Hatalı veya tekrar eden cihaz satırı var.",
+          preview: {
+            total:
+              validation.total,
+            valid:
+              validation.validCount,
+            invalid:
+              validation.errorCount,
+            canCommit:
+              false,
+            errors:
+              validation.errors,
+          },
+        },
+        409
+      );
+    }
+
+    const insertedDevices:
+      any[] = [];
+
+    for (
+      const row of
+        validation.validRows
+    ) {
+      const insertResult =
+        await client.query(
+          `
+            INSERT INTO public.stock_devices (
+              imei,
+              brand,
+              model,
+              memory,
+              color,
+              battery_percent,
+              grade,
+              warranty,
+              changed_parts,
+              box_invoice,
+              current_branch_code,
+              status,
+              source,
+              details_completed_at,
+              details_completed_by,
+              created_by
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              NULL,
+              $6,
+              $7,
+              NULL,
+              NULL,
+              $8,
+              'AVAILABLE',
+              'MANUAL',
+              NULL,
+              NULL,
+              $9
+            )
+            RETURNING
+              id,
+              imei,
+              brand,
+              model,
+              memory,
+              color,
+              grade,
+              warranty,
+              current_branch_code,
+              status,
+              source,
+              created_at,
+              updated_at
+          `,
+          [
+            row.imei,
+            row.brand,
+            row.model,
+            row.memory,
+            row.color,
+            row.grade,
+            row.warranty,
+            CENTER_BRANCH_CODE,
+            user.username,
+          ]
+        );
+
+      const device =
+        insertResult.rows[0];
+
+      insertedDevices.push(
+        device
+      );
+
+      await client.query(
+        `
+          INSERT INTO public.stock_events (
+            device_id,
+            imei,
+            event_type,
+            to_branch_code,
+            old_status,
+            new_status,
+            performed_by,
+            metadata
+          )
+          VALUES (
+            $1,
+            $2,
+            'DEVICE_ADDED',
+            $3,
+            NULL,
+            'AVAILABLE',
+            $4,
+            $5::jsonb
+          )
+        `,
+        [
+          device.id,
+          row.imei,
+          CENTER_BRANCH_CODE,
+          user.username,
+          JSON.stringify({
+            source:
+              "CENTER_EXCEL",
+            entry:
+              "ONLINE_CENTER",
+            excel:
+              true,
+            rowNumber:
+              row.rowNumber,
+            brand:
+              row.brand,
+            model:
+              row.model,
+            memory:
+              row.memory,
+            color:
+              row.color,
+            grade:
+              row.grade,
+            warranty:
+              row.warranty,
+            marketplaceWrite:
+              false,
+          }),
+        ]
+      );
+    }
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return json(
+      {
+        success: true,
+        mode:
+          "commit",
+        message:
+          `${insertedDevices.length} cihaz Excel'den Merkez stoğuna eklendi.`,
+        insertedCount:
+          insertedDevices.length,
+        safety: {
+          allOrNothing:
+            true,
+          n11Write:
+            false,
+          ikasWrite:
+            false,
+          idefixWrite:
+            false,
+          onlineListingWrite:
+            false,
+          channelMembershipWrite:
+            false,
+        },
+      },
+      201
+    );
+  } catch (
+    error: any
+  ) {
+    if (client) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {
+        // rollback failure ignored
+      }
+    }
+
+    if (
+      error?.code ===
+      "23505"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Excel kaydı iptal edildi. IMEI'lerden en az biri sistemde zaten mevcut.",
+        },
+        409
+      );
+    }
+
+    if (
+      error?.code ===
+      "40001"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Aynı anda başka bir stok işlemi yapıldı. Hiçbir cihaz eklenmedi; tekrar deneyin.",
+        },
+        409
+      );
+    }
+
+    console.error(
+      "CENTER EXCEL DEVICE ERROR:",
+      error
+    );
+
+    return json(
+      {
+        success: false,
+        error:
+          error instanceof
+            Error
+            ? error.message
+            : "Excel cihaz kaydı yapılamadı.",
+      },
+      500
+    );
+  } finally {
+    client?.release();
+  }
+}
