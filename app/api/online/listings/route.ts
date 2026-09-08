@@ -1237,6 +1237,40 @@ function renewedGradeToken(value: string) {
   return normalized;
 }
 
+function renewedGradeLabel(value: string) {
+  const token = renewedGradeToken(value);
+
+  if (token === 'akalite') return 'A Kalite';
+  if (token === 'bkalite') return 'B Kalite';
+  if (token === 'ckalite') return 'C Kalite';
+
+  return String(value || '').trim();
+}
+
+function renewedWarrantyLabel(value: string) {
+  const normalized =
+    normalizeTemplateValue(value);
+
+  const monthMatch =
+    normalized.match(/^(\d{1,2})ay(?:garantili)?$/);
+
+  if (monthMatch) {
+    return `${Number(monthMatch[1])} Ay Garantili`;
+  }
+
+  const yearMatch =
+    normalized.match(/^(\d{1,2})yil(?:garantili)?$/);
+
+  if (yearMatch) {
+    const months =
+      Number(yearMatch[1]) * 12;
+
+    return `${months} Ay Garantili`;
+  }
+
+  return String(value || '').trim();
+}
+
 function isRenewedCatalogTitle(title: string) {
   const normalized = normalizeTemplateValue(title);
 
@@ -1425,6 +1459,113 @@ function chooseCatalogProduct(params: {
 
   return scored[0]?.product || null;
 }
+
+async function findRenewedCatalogFromLocalMemory(params: {
+  pool: Pool;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+}) {
+  const result = await params.pool.query(
+    `
+      SELECT
+        id,
+        category_id,
+        title,
+        brand,
+        model,
+        memory,
+        color,
+        grade,
+        warranty,
+        raw_data,
+        updated_at
+      FROM public.online_listings
+      WHERE channel = 'N11'
+      ORDER BY updated_at DESC NULLS LAST, id DESC
+      LIMIT 500
+    `
+  );
+
+  const products: N11CatalogProduct[] = [];
+
+  for (const row of result.rows) {
+    const raw =
+      row?.raw_data &&
+      typeof row.raw_data === 'object'
+        ? row.raw_data
+        : {};
+
+    const rawN11 =
+      raw?.n11 &&
+      typeof raw.n11 === 'object'
+        ? raw.n11
+        : {};
+
+    const catalogId =
+      positiveIntegerOrNull(
+        raw?.selectedCatalogId
+      ) ||
+      positiveIntegerOrNull(
+        rawN11?.catalogId
+      );
+
+    const categoryId =
+      positiveIntegerOrNull(
+        raw?.selectedCatalogCategoryId
+      ) ||
+      positiveIntegerOrNull(
+        rawN11?.categoryId
+      ) ||
+      positiveIntegerOrNull(
+        row?.category_id
+      );
+
+    const productTitle = String(
+      raw?.selectedCatalogTitle ||
+        rawN11?.title ||
+        row?.title ||
+        ''
+    ).trim();
+
+    const usc = String(
+      raw?.selectedCatalogUsc ||
+        rawN11?.barcode ||
+        ''
+    ).trim();
+
+    if (
+      !catalogId ||
+      !categoryId ||
+      !productTitle ||
+      !isRenewedCatalogTitle(productTitle)
+    ) {
+      continue;
+    }
+
+    products.push({
+      catalogId: String(catalogId),
+      categoryId: String(categoryId),
+      categoryName: 'Cep Telefonu',
+      productTitle,
+      usc,
+    });
+  }
+
+  return chooseCatalogProduct({
+    products,
+    brand: params.brand,
+    model: params.model,
+    memory: params.memory,
+    color: params.color,
+    grade: params.grade,
+    warranty: params.warranty,
+  });
+}
+
 
 async function getN11StoreDefaults() {
   const result = await getPool().query(
@@ -2338,9 +2479,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // DOĞRU AKIŞ:
-    // 59 satıcı ürününde aramıyoruz.
-    // N11'in GENEL KATALOĞUNDA SearchCatalog ile arıyoruz.
+    // YENİLENMİŞ ürün standardını kullanıcıya iş çıkarmadan
+    // backend otomatik üretir.
+    const normalizedGrade =
+      renewedGradeLabel(grade);
+
+    const normalizedWarranty =
+      renewedWarrantyLabel(warranty);
+
+    // 1) ÖNCE POSTGRESQL KATALOG HAFIZASI
+    // Daha önce doğru yenilenmiş catalogId kullanıldıysa N11'e arama
+    // isteği atmadan anında aynı katalog kullanılır.
+    let catalogSource:
+      | 'LOCAL_MEMORY'
+      | 'N11_SEARCH_CATALOG' =
+      'LOCAL_MEMORY';
+
+    let catalogProduct =
+      await findRenewedCatalogFromLocalMemory({
+        pool,
+        brand,
+        model,
+        memory,
+        color,
+        grade: normalizedGrade,
+        warranty: normalizedWarranty,
+      });
+
     const catalogSearchTitle = [
       'Yenilenmiş',
       brand,
@@ -2351,30 +2516,29 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ');
 
-    let catalogProducts =
-      await searchN11Catalog({
-        brand,
-        title: catalogSearchTitle,
-        categoryId: N11_PHONE_CATEGORY_ID,
-        maxPages: 8,
-      });
+    let catalogProducts: N11CatalogProduct[] =
+      catalogProduct ? [catalogProduct] : [];
 
-    let catalogProduct =
-      chooseCatalogProduct({
-        products: catalogProducts,
+    // 2) HAFIZADA YOKSA SADECE 2 PARALEL, TEK SAYFALIK ARAMA
+    // 8-12 sayfa uzun tarama YOK.
+    if (!catalogProduct) {
+      catalogSource =
+        'N11_SEARCH_CATALOG';
+
+      const preciseTitle = [
+        'Yenilenmiş',
         brand,
         model,
         memory,
         color,
-        grade,
-        warranty,
-      });
+        normalizedGrade,
+        normalizedWarranty,
+      ]
+        .filter(Boolean)
+        .join(' ');
 
-    // İlk arama N11 arama motoru yüzünden sonuçları daraltmış olabilir.
-    // İkinci arama daha geniştir; ancak chooseCatalogProduct yine
-    // "Yenilenmiş" olmayan katalogları kesinlikle reddeder.
-    if (!catalogProduct) {
-      const broadSearchTitle = [
+      const compactTitle = [
+        'Yenilenmiş',
         brand,
         model,
         memory,
@@ -2383,20 +2547,34 @@ export async function POST(request: NextRequest) {
         .filter(Boolean)
         .join(' ');
 
-      const broadProducts =
-        await searchN11Catalog({
-          brand,
-          title: broadSearchTitle,
-          categoryId: N11_PHONE_CATEGORY_ID,
-          maxPages: 12,
-        });
+      const searchResults =
+        await Promise.allSettled([
+          searchN11Catalog({
+            brand,
+            title: preciseTitle,
+            categoryId:
+              N11_PHONE_CATEGORY_ID,
+            maxPages: 1,
+          }),
+          searchN11Catalog({
+            brand,
+            title: compactTitle,
+            categoryId:
+              N11_PHONE_CATEGORY_ID,
+            maxPages: 1,
+          }),
+        ]);
 
-      const merged = [
-        ...catalogProducts,
-        ...broadProducts,
-      ];
+      const merged: N11CatalogProduct[] =
+        [];
 
-      const uniqueByCatalog = new Map<
+      for (const result of searchResults) {
+        if (result.status === 'fulfilled') {
+          merged.push(...result.value);
+        }
+      }
+
+      const unique = new Map<
         string,
         N11CatalogProduct
       >();
@@ -2405,15 +2583,15 @@ export async function POST(request: NextRequest) {
         const key = String(
           item.catalogId ||
             `${item.productTitle}|${item.usc}`
-        );
+        ).trim();
 
-        if (!uniqueByCatalog.has(key)) {
-          uniqueByCatalog.set(key, item);
+        if (key && !unique.has(key)) {
+          unique.set(key, item);
         }
       }
 
       catalogProducts = Array.from(
-        uniqueByCatalog.values()
+        unique.values()
       );
 
       catalogProduct =
@@ -2423,8 +2601,8 @@ export async function POST(request: NextRequest) {
           model,
           memory,
           color,
-          grade,
-          warranty,
+          grade: normalizedGrade,
+          warranty: normalizedWarranty,
         });
     }
 
@@ -2454,8 +2632,9 @@ export async function POST(request: NextRequest) {
           catalogSamples: sampleTitles,
           error:
             catalogProducts.length > 0
-              ? `N11 kataloğunda sonuç bulundu ancak YENİLENMİŞ ${brand} ${model} ${memory} ${color} ${grade} ${warranty} için güvenli tam eşleşme bulunamadı. Sıfır ürün kataloğuna bağlanmamak için ürün açılmadı.`
-              : `N11 kataloğunda YENİLENMİŞ ${brand} ${model} ${memory} için ürün bulunamadı. Güvenlik nedeniyle sıfır ürün olarak açılmadı.`,
+              ? `YENİLENMİŞ ${brand} ${model} ${memory} ${color} ${normalizedGrade} ${normalizedWarranty} için güvenli katalog eşleşmesi bulunamadı. Sıfır ürün açılmadı.`
+              : `YENİLENMİŞ ${brand} ${model} ${memory} ${color} için N11 katalog kaydı bulunamadı. Sıfır ürün açılmadı.`,
+          catalogSource,
         },
         409
       );
@@ -2514,14 +2693,14 @@ export async function POST(request: NextRequest) {
       model,
       memory,
       color,
-      grade,
-      warranty,
+      normalizedGrade,
+      normalizedWarranty,
     ]
       .filter(Boolean)
       .join(' ');
 
     const description =
-      `Yenilenmiş ${brand} ${model} ${memory} ${color} ${grade} ${warranty}`;
+      `Yenilenmiş ${brand} ${model} ${memory} ${color} ${normalizedGrade} ${normalizedWarranty}`;
 
     // Önce yerel kayıt açılır.
     // N11 create başarısızsa ERROR nedeni burada saklanır.
@@ -2597,8 +2776,8 @@ export async function POST(request: NextRequest) {
         model,
         memory,
         color,
-        grade,
-        warranty,
+        normalizedGrade,
+        normalizedWarranty,
         salePrice,
         listPrice,
         preparingDay,
@@ -2621,8 +2800,13 @@ export async function POST(request: NextRequest) {
           model,
           memory,
           color,
-          grade,
-          warranty,
+          grade:
+            normalizedGrade,
+          warranty:
+            normalizedWarranty,
+          catalogSource,
+          productCondition:
+            'YENILENMIS',
           salePrice,
           listPrice,
         }),
