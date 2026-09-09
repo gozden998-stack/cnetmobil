@@ -3072,16 +3072,6 @@ export default function Merkez() {
           return;
         }
 
-        if (
-          !channelPreview
-            ?.canProceed
-        ) {
-          setChannelError(
-            "Önce başarılı ön kontrol yap."
-          );
-          return;
-        }
-
         setChannelError(
           ""
         );
@@ -4525,7 +4515,7 @@ export default function Merkez() {
                 </h3>
 
                 <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Seçili IMEI'ler önce kontrol edilir. N11, İkas ve İdefix kanallarında başarılı ön kontrolden sonra gerçek gönderim yapılabilir.
+                  N11 ve İkas'ta ön kontrol kullanılabilir. İdefix'te kontroller gönderim sırasında otomatik çalışır; ayrı ön kontrol gerekmez.
                 </p>
               </div>
 
