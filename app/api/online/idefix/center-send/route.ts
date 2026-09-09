@@ -2814,8 +2814,10 @@ async function inventoryUpload(
               inventoryQuantity:
                 prepared
                   .targetAfterStock,
+              // İdefix validasyonu: 1-50 arası zorunlu.
+              // Yenilenmiş tekil cihaz akışında güvenli değer 1.
               maximumPurchasableQuantity:
-                0,
+                1,
               deliveryDuration:
                 numberOrNull(
                   prepared
