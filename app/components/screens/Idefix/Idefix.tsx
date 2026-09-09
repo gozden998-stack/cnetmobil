@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type IdefixProduct = {
   barcode?: string | null;
@@ -11,6 +11,10 @@ type IdefixProduct = {
   price?: number | null;
   comparePrice?: number | null;
   state?: string | null;
+  status?: string | null;
+  saleOpen?: boolean;
+  saleStatus?: string | null;
+  liveInventoryFound?: boolean;
   brandId?: number | null;
   categoryId?: number | null;
   imageUrl?: string | null;
@@ -21,6 +25,11 @@ type ProductResponse = {
   connected?: boolean;
   vendorId?: string;
   totalCount?: number;
+  openCount?: number;
+  closedCount?: number;
+  pendingCount?: number;
+  declinedCount?: number;
+  inventoryItemCount?: number;
   products?: IdefixProduct[];
   checkedAt?: string;
   error?: string;
@@ -49,8 +58,22 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function normalizeState(value: unknown) {
+  return text(value)
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
 function isOpenProduct(product: IdefixProduct) {
-  return Number(product.inventoryQuantity || 0) > 0;
+  if (typeof product.saleOpen === "boolean") {
+    return product.saleOpen;
+  }
+
+  return (
+    normalizeState(product.state ?? product.status) ===
+      "ready_for_sale" &&
+    Number(product.inventoryQuantity || 0) > 0
+  );
 }
 
 export default function Idefix() {
@@ -61,8 +84,11 @@ export default function Idefix() {
   const [tab, setTab] = useState<TabKey>("open");
   const [sort, setSort] = useState("newest");
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
@@ -82,13 +108,25 @@ export default function Idefix() {
     } catch (e: any) {
       setError(e?.message || "İdefix verileri alınamadı.");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load(false);
+
+    // İdefix ekranı açıkken 60 saniyede bir sessiz canlı yenileme.
+    // Böylece paneldeki satış açık/kapalı durumu İdefix ile aynı kalır.
+    const intervalId = window.setInterval(() => {
+      void load(true);
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [load]);
 
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data!.products! : []),
@@ -107,11 +145,11 @@ export default function Idefix() {
 
   const physicalStock = useMemo(
     () =>
-      products.reduce(
+      openProducts.reduce(
         (sum, item) => sum + Math.max(0, Number(item.inventoryQuantity || 0)),
         0
       ),
-    [products]
+    [openProducts]
   );
 
   const averagePrice = useMemo(() => {
@@ -198,7 +236,7 @@ export default function Idefix() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={load}
+                onClick={() => void load(false)}
                 disabled={loading}
                 className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
@@ -227,14 +265,14 @@ export default function Idefix() {
             {
               label: "SATIŞTAKİ İLAN",
               value: openProducts.length,
-              sub: "Stoklu İdefix ilanı",
+              sub: "İdefix statüsü ready_for_sale",
               icon: "◎",
               box: "bg-cyan-50 text-cyan-700",
             },
             {
               label: "FİZİKSEL STOK",
               value: physicalStock,
-              sub: "Satıştaki toplam cihaz",
+              sub: "Canlı satılabilir stok",
               icon: "◉",
               box: "bg-emerald-50 text-emerald-700",
             },
@@ -281,6 +319,12 @@ export default function Idefix() {
             <span>Kanal: İdefix</span>
             <span>Entegratör: CNETMOBİL</span>
             <span>Ürün/Stok: Canlı API</span>
+            <span>
+              Bekleyen: <b className="text-slate-900">{Number(data?.pendingCount || 0)}</b>
+            </span>
+            <span>
+              Red/Eksik: <b className="text-slate-900">{Number(data?.declinedCount || 0)}</b>
+            </span>
           </div>
 
           <div>
@@ -443,11 +487,17 @@ export default function Idefix() {
                           className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${
                             open
                               ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
+                              : normalizeState(product.state ?? product.status).includes("declined") ||
+                                normalizeState(product.state ?? product.status) === "missing_info"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-amber-100 text-amber-700"
                           }`}
                         >
-                          {open ? "Yayında" : "Kapalı"}
+                          {product.saleStatus || (open ? "Yayında" : "Kapalı")}
                         </span>
+                        <div className="mt-1 text-[7px] font-semibold uppercase text-slate-400">
+                          {normalizeState(product.state ?? product.status) || "-"}
+                        </div>
                       </td>
 
                       <td className="px-5 py-4">
