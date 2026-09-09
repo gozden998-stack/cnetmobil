@@ -861,7 +861,7 @@ export async function GET(
             created_at,
             updated_at
           FROM public.stock_devices
-          WHERE status <> 'PASSIVE'
+          WHERE TRUE
           ORDER BY
             CASE status
               WHEN 'AVAILABLE'
@@ -1445,6 +1445,12 @@ export async function GET(
             (device: any) =>
               device.status ===
               "SOLD"
+          ).length,
+        passiveDevices:
+          devices.filter(
+            (device: any) =>
+              device.status ===
+              "PASSIVE"
           ).length,
         groupCount:
           groups.length,
@@ -5338,18 +5344,44 @@ function buildIkasCreateProductInputCenter(
     }
   }
 
-  // Canlı İkas şemasında CreateProductInput.categories,
-  // ProductCategoryInput nesnesi bekliyor ve bu input'un alan yapısı
-  // mağazadaki mevcut schema ile dokümantasyondaki örneklerden farklı.
-  //
-  // Ürün oluşturmayı kategori alanına bağlayıp tüm işlemi bozmak yerine
-  // createProduct aşamasında category göndermiyoruz.
-  //
-  // Referans ürün/category bilgisi kaybolmuyor; ürün başarılı oluşturulduktan
-  // sonra ayrı ve güvenli bir kategori eşleme adımında ele alınabilir.
-  //
-  // Böylece createProduct payload'u İkas'ın resmi minimum yapısına yakın kalır:
-  // name + type + variants (+ destekleniyorsa brandId).
+  const categoryIds =
+    Array.isArray(
+      params
+        .referenceProduct
+        ?.categories
+    )
+      ? params
+          .referenceProduct
+          .categories
+          .map(
+            (item: any) =>
+              item?.id
+          )
+          .filter(Boolean)
+      : [];
+
+  if (
+    categoryIds.length >
+    0
+  ) {
+    if (
+      ikasSchemaHas(
+        schemas.product,
+        "categoryIds"
+      )
+    ) {
+      input.categoryIds =
+        categoryIds;
+    } else if (
+      ikasSchemaHas(
+        schemas.product,
+        "categories"
+      )
+    ) {
+      input.categories =
+        categoryIds;
+    }
+  }
 
   if (
     ikasSchemaHas(
@@ -5428,162 +5460,53 @@ function getIkasColorTypeNameCenter(
   return `${model} Renkleri`;
 }
 
-function findIkasExistingCatalogProductCenter(
+function findIkasProductByExactTitleCenter(
   products:
     IkasProductSnapshot[],
-  params: {
-    brand: string;
-    model: string;
-    memory: string;
-    grade: string;
-  }
+  title: string,
+  brand: string
 ) {
+  const wantedTitle =
+    ikasSignature(
+      title
+    );
+
   const wantedBrand =
     ikasSignature(
-      params.brand
+      brand
     );
 
-  const wantedCore =
-    [
-      ikasSignature(
-        params.model
-      ),
-      ikasSignature(
-        params.memory
-      ),
-      ikasSignature(
-        ikasGradeLabel(
-          params.grade
+  const matches =
+    products.filter(
+      (product: any) =>
+        ikasSignature(
+          product?.name
+        ) ===
+          wantedTitle &&
+        (
+          !wantedBrand ||
+          !product?.brand
+            ?.name ||
+          ikasSignature(
+            product.brand
+              .name
+          ) ===
+            wantedBrand
         )
-      ),
-    ].join("");
-
-  const candidates =
-    products
-      .map(
-        (
-          product: any
-        ) => {
-          const name =
-            ikasSignature(
-              product?.name
-            );
-
-          const productBrand =
-            ikasSignature(
-              product?.brand
-                ?.name
-            );
-
-          // Örn:
-          // hedef = iphone12 + 128gb + mukemmel
-          // "iphone12pro128gbmukemmel" eşleşmez.
-          // "yenilenmisiphone12128gbmukemmel" eşleşir.
-          if (
-            !wantedCore ||
-            !name.includes(
-              wantedCore
-            )
-          ) {
-            return null;
-          }
-
-          // Ürünün brand bilgisi doluysa yanlış markaya asla bağlama.
-          if (
-            wantedBrand &&
-            productBrand &&
-            wantedBrand !==
-              productBrand
-          ) {
-            return null;
-          }
-
-          const variants =
-            Array.isArray(
-              product?.variants
-            )
-              ? product.variants
-              : [];
-
-          let score = 100;
-
-          if (
-            productBrand &&
-            productBrand ===
-              wantedBrand
-          ) {
-            score += 25;
-          }
-
-          if (
-            name.includes(
-              ikasSignature(
-                "Yenilenmiş"
-              )
-            )
-          ) {
-            score += 10;
-          }
-
-          // Eski doğru katalog ürünü (örn 6 varyant),
-          // yanlışlıkla yeni açılan 1 varyantlı kopyadan önce gelsin.
-          score +=
-            Math.min(
-              variants.length,
-              20
-            ) * 5;
-
-          return {
-            product,
-            score,
-            variantCount:
-              variants.length,
-          };
-        }
-      )
-      .filter(Boolean)
-      .sort(
-        (
-          a: any,
-          b: any
-        ) =>
-          b.score -
-            a.score ||
-          b.variantCount -
-            a.variantCount
-      );
+    );
 
   if (
-    candidates.length ===
-    0
-  ) {
-    return null;
-  }
-
-  const first =
-    candidates[0] as any;
-
-  const second =
-    candidates[1] as
-      | any
-      | undefined;
-
-  // Tamamen eşit iki aday varsa yanlış ürüne bağlamaktansa dur.
-  if (
-    second &&
-    first.score ===
-      second.score &&
-    first.variantCount ===
-      second.variantCount
+    matches.length > 1
   ) {
     throw new Error(
-      `İkas'ta ${params.model} ${params.memory} ${ikasGradeLabel(
-        params.grade
-      )} için birden fazla eşit ürün bulundu. Otomatik eşleştirme durduruldu.`
+      `İkas'ta aynı başlıkla birden fazla ürün var: ${title}. Otomatik eşleştirme durduruldu.`
     );
   }
 
-  return first.product;
+  return (
+    matches[0] ||
+    null
+  );
 }
 
 function findIkasVariantBySkuCenter(
@@ -5672,202 +5595,6 @@ function findIkasVariantByColorCenter(
     matches[0] ||
     null
   );
-}
-
-
-async function getIkasSalesChannelsCenter(
-  accessToken: string
-) {
-  const data =
-    await ikasGraphqlCenter(
-      accessToken,
-      `
-        query CnetCenterSalesChannels {
-          listSalesChannel {
-            id
-            name
-          }
-        }
-      `
-    );
-
-  const rows =
-    Array.isArray(
-      data?.listSalesChannel
-    )
-      ? data.listSalesChannel
-      : [];
-
-  return rows
-    .map(
-      (row: any) => ({
-        id:
-          String(
-            row?.id || ""
-          ).trim(),
-        name:
-          String(
-            row?.name || ""
-          ).trim(),
-      })
-    )
-    .filter(
-      (
-        row: any
-      ) =>
-        row.id
-    );
-}
-
-function chooseIkasSalesChannelCenter(
-  channels: Array<{
-    id: string;
-    name: string;
-  }>
-) {
-  const envId =
-    String(
-      process.env
-        .IKAS_SALES_CHANNEL_ID ||
-        ""
-    ).trim();
-
-  if (envId) {
-    const byEnv =
-      channels.find(
-        (channel) =>
-          channel.id ===
-          envId
-      );
-
-    if (!byEnv) {
-      throw new Error(
-        `IKAS_SALES_CHANNEL_ID (${envId}) listSalesChannel içinde bulunamadı.`
-      );
-    }
-
-    return {
-      ...byEnv,
-      selectedBy:
-        "ENV",
-    };
-  }
-
-  const preferredWords = [
-    "online magaza",
-    "online",
-    "web sitesi",
-    "website",
-    "internet",
-    "storefront",
-    "magaza",
-  ];
-
-  for (
-    const word of
-      preferredWords
-  ) {
-    const matched =
-      channels.find(
-        (channel) =>
-          ikasNormalizeText(
-            channel.name
-          ).includes(
-            word
-          )
-      );
-
-    if (matched) {
-      return {
-        ...matched,
-        selectedBy:
-          "NAME",
-      };
-    }
-  }
-
-  if (
-    channels.length ===
-    1
-  ) {
-    return {
-      ...channels[0],
-      selectedBy:
-        "ONLY_CHANNEL",
-    };
-  }
-
-  // Mevcut mağazada yeni ürünler zaten varsayılan olarak bir satış kanalına
-  // bağlanıyor. listSalesChannel sırasındaki ilk kanal varsayılan kanal olarak
-  // kullanılır; istersek Coolify'da IKAS_SALES_CHANNEL_ID ile kesin sabitleriz.
-  if (
-    channels.length >
-    0
-  ) {
-    return {
-      ...channels[0],
-      selectedBy:
-        "FIRST_CHANNEL",
-    };
-  }
-
-  throw new Error(
-    "İkas satış kanalı bulunamadı."
-  );
-}
-
-async function makeIkasProductVisibleCenter(
-  accessToken: string,
-  productId: string
-) {
-  const channels =
-    await getIkasSalesChannelsCenter(
-      accessToken
-    );
-
-  const channel =
-    chooseIkasSalesChannelCenter(
-      channels
-    );
-
-  await ikasGraphqlCenter(
-    accessToken,
-    `
-      mutation CnetCenterProductVisible(
-        $input: UpdateSalesChannelStatusInput!
-      ) {
-        updateProductSalesChannelStatus(
-          input: $input
-        ) {
-          __typename
-        }
-      }
-    `,
-    {
-      input: {
-        salesChannelId:
-          channel.id,
-        data: [
-          {
-            productId,
-            status:
-              "VISIBLE",
-          },
-        ],
-      },
-    }
-  );
-
-  return {
-    id:
-      channel.id,
-    name:
-      channel.name,
-    status:
-      "VISIBLE",
-    selectedBy:
-      channel.selectedBy,
-  };
 }
 
 function getVariantStockAtLocationCenter(
@@ -6646,21 +6373,14 @@ async function sendCenterDevicesToIkas(
           group.color
         );
 
+      let matched =
+        findIkasVariantBySkuCenter(
+          products,
+          sku
+        );
+
       let product:
-        any =
-          findIkasExistingCatalogProductCenter(
-            products,
-            {
-              brand:
-                group.brand,
-              model:
-                group.model,
-              memory:
-                group.memory,
-              grade:
-                group.grade,
-            }
-          );
+        any = null;
 
       let variant:
         any = null;
@@ -6670,146 +6390,89 @@ async function sendCenterDevicesToIkas(
         | "ADD_VARIANT"
         | "CREATE_PRODUCT";
 
-      if (product) {
-        // DOĞRU ÜRÜN bulundu.
-        // Aynı renk zaten varsa ASLA yeni varyant açma.
-        const sameColor =
-          findIkasVariantByColorCenter(
-            product,
-            group.color
+      if (matched) {
+        product =
+          matched.product;
+        variant =
+          matched.variant;
+        action =
+          "EXISTING_VARIANT";
+      } else {
+        product =
+          findIkasProductByExactTitleCenter(
+            products,
+            title,
+            group.brand
           );
 
-        if (sameColor) {
-          variant =
-            sameColor;
-          action =
-            "EXISTING_VARIANT";
-        } else {
-          let variantSku =
-            sku;
-
-          // Daha önce yanlış üründe aynı CNET SKU oluşmuşsa,
-          // doğru ürüne yeni renk eklerken SKU çakışmasını engelle.
-          const globalSku =
-            findIkasVariantBySkuCenter(
-              products,
-              sku
-            );
-
-          if (
-            globalSku &&
-            String(
-              globalSku
-                .product?.id ||
-                ""
-            ) !==
-              String(
-                product?.id ||
-                  ""
-              )
-          ) {
-            variantSku =
-              `${sku.slice(
-                0,
-                48
-              )}-${String(
-                product.id
-              )
-                .replace(
-                  /-/g,
-                  ""
-                )
-                .slice(
-                  0,
-                  6
-                )
-                .toUpperCase()}`;
-          }
-
-          const colorTypeName =
-            getIkasColorTypeNameCenter(
-              product,
-              group.model
-            );
-
-          const variantInput =
-            buildIkasVariantInputCenter(
-              schemas,
-              {
-                sku:
-                  variantSku,
-                colorTypeName,
-                color:
-                  group.color,
-                salePrice,
-                listPrice,
-              }
-            );
-
-          const targetProductId =
-            String(
-              product.id
-            );
-
-          await addIkasVariantCenter(
-            accessToken,
-            targetProductId,
-            variantInput
-          );
-
-          action =
-            "ADD_VARIANT";
-
-          products =
-            await fetchAllIkasProductsCenter(
-              accessToken
-            );
-
-          product =
-            products.find(
-              (
-                item: any
-              ) =>
-                String(
-                  item.id
-                ) ===
-                targetProductId
-            );
-
-          if (!product) {
-            throw new Error(
-              `${title}: İkas mevcut ürün tekrar okumada bulunamadı.`
-            );
-          }
-
-          variant =
+        if (product) {
+          // Kontrollü geçiş:
+          // Eski İkas kataloğunda aynı renk varyantı varsa
+          // onu kullan. Böylece duplicate renk varyantı açmayız.
+          const sameColor =
             findIkasVariantByColorCenter(
               product,
               group.color
             );
 
-          if (!variant) {
-            throw new Error(
-              `${title} / ${group.color}: İkas yeni renk varyantını oluşturdu ancak tekrar okumada bulunamadı.`
-            );
-          }
-        }
-      } else {
-        // Mevcut katalogda doğru ürün hiç yoksa,
-        // daha önce bizim oluşturduğumuz stabil SKU'lu ürünü kullanabiliriz.
-        const matchedBySku =
-          findIkasVariantBySkuCenter(
-            products,
-            sku
-          );
+          if (sameColor) {
+            variant =
+              sameColor;
+            action =
+              "EXISTING_VARIANT";
+          } else {
+            const colorTypeName =
+              getIkasColorTypeNameCenter(
+                product,
+                group.model
+              );
 
-        if (matchedBySku) {
-          product =
-            matchedBySku.product;
-          variant =
-            matchedBySku.variant;
-          action =
-            "EXISTING_VARIANT";
+            const variantInput =
+              buildIkasVariantInputCenter(
+                schemas,
+                {
+                  sku,
+                  colorTypeName,
+                  color:
+                    group.color,
+                  salePrice,
+                  listPrice,
+                }
+              );
+
+            await addIkasVariantCenter(
+              accessToken,
+              String(
+                product.id
+              ),
+              variantInput
+            );
+
+            action =
+              "ADD_VARIANT";
+
+            products =
+              await fetchAllIkasProductsCenter(
+                accessToken
+              );
+
+            const added =
+              findIkasVariantBySkuCenter(
+                products,
+                sku
+              );
+
+            if (!added) {
+              throw new Error(
+                `${title} / ${group.color}: İkas yeni varyantı oluşturdu ancak tekrar okumada bulunamadı.`
+              );
+            }
+
+            product =
+              added.product;
+            variant =
+              added.variant;
+          }
         } else {
           const reference =
             findIkasReferenceProductCenter(
@@ -6864,40 +6527,58 @@ async function sendCenterDevicesToIkas(
               accessToken
             );
 
-          product =
-            products.find(
-              (
-                item: any
-              ) =>
-                String(
-                  item.id
-                ) ===
-                String(
-                  created.id
-                )
+          matched =
+            findIkasVariantBySkuCenter(
+              products,
+              sku
             );
 
-          if (!product) {
-            throw new Error(
-              `${title}: İkas ürünü oluşturuldu ancak tekrar okumada bulunamadı.`
-            );
+          if (!matched) {
+            const createdProduct =
+              products.find(
+                (
+                  item: any
+                ) =>
+                  String(
+                    item.id
+                  ) ===
+                  String(
+                    created.id
+                  )
+              );
+
+            if (
+              createdProduct
+            ) {
+              const byColor =
+                findIkasVariantByColorCenter(
+                  createdProduct,
+                  group.color
+                );
+
+              if (
+                byColor
+              ) {
+                matched = {
+                  product:
+                    createdProduct,
+                  variant:
+                    byColor,
+                };
+              }
+            }
           }
 
-          variant =
-            findIkasVariantBySkuCenter(
-              [product],
-              sku
-            )?.variant ||
-            findIkasVariantByColorCenter(
-              product,
-              group.color
-            );
-
-          if (!variant) {
+          if (!matched) {
             throw new Error(
               `${title}: İkas ürünü oluşturuldu ancak varyant tekrar okumada bulunamadı. Yerel kanal kaydı yapılmadı.`
             );
           }
+
+          product =
+            matched.product;
+          variant =
+            matched.variant;
         }
       }
 
@@ -7012,14 +6693,6 @@ async function sendCenterDevicesToIkas(
         );
       }
 
-      // Ürün oluşturma/stok başarılı olsa bile İkas satış kanalında
-      // gizli kalmasın: VISIBLE yap.
-      const salesChannelVisibility =
-        await makeIkasProductVisibleCenter(
-          accessToken,
-          productId
-        );
-
       // Dış API başarılı ve doğrulandıktan sonra
       // yerel DB tek transaction.
       await client.query(
@@ -7080,7 +6753,6 @@ async function sendCenterDevicesToIkas(
           salePrice,
           listPrice,
           stockLocationId,
-          salesChannelVisibility,
           listingId:
             local.listingId,
         });
@@ -7356,20 +7028,20 @@ export async function PATCH(
         ) {
           return json(
             {
-              ...result,
               success: false,
               action:
                 "ikas_send",
+              ...result,
             },
             409
           );
         }
 
         return json({
-          ...result,
           success: true,
           action:
             "ikas_send",
+          ...result,
         });
       } catch (error) {
         return json(
