@@ -4987,23 +4987,150 @@ async function processPrepared(
         ),
   };
 
-  const upload =
-    await inventoryUpload(
-      finalPrepared
-    );
+  let upload:
+    {
+      payload: any;
+      batchRequestId: string;
+    };
 
-  const inventoryVerified =
-    await waitInventory(
-      upload.batchRequestId,
-      finalBarcode
-    );
+  let inventoryVerified:
+    {
+      success: boolean;
+      payload: any;
+      item: any;
+    };
 
-  if (
-    !inventoryVerified.success
-  ) {
-    throw new Error(
-      `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
-    );
+  try {
+    upload =
+      await inventoryUpload(
+        finalPrepared
+      );
+
+    inventoryVerified =
+      await waitInventory(
+        upload.batchRequestId,
+        finalBarcode
+      );
+
+    if (
+      !inventoryVerified.success
+    ) {
+      throw new Error(
+        `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
+      );
+    }
+  } catch (error) {
+    if (
+      isProductNotFoundError(
+        error
+      )
+    ) {
+      // Yeni ürün pool/list içinde görünmüş olabilir ama katalog inventory
+      // tarafında henüz satışa hazır değildir. Bu durumda gönderimi hata
+      // sayma; IMEI'yi PENDING_CREATE kaydet ve tekrar ürün create etme.
+      await client.query(
+        "BEGIN"
+      );
+
+      try {
+        const local =
+          await persistLocal(
+            client,
+            {
+              prepared:
+                finalPrepared,
+              finalProduct:
+                listedProduct,
+              membershipStatus:
+                "PENDING_CREATE",
+              syncStatus:
+                "CREATING",
+              taskStatus:
+                "WAITING_CATALOG",
+              batchRequestId:
+                create
+                  .batchRequestId,
+              finalStock:
+                finalPrepared
+                  .targetAfterStock,
+              apiResult: {
+                create:
+                  createState
+                    .payload,
+                inventoryError:
+                  error instanceof Error
+                    ? error.message
+                    : "PRODUCT_NOT_FOUND",
+                waitingCatalog:
+                  true,
+                savedAt:
+                  new Date()
+                    .toISOString(),
+              },
+            }
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return {
+          success:
+            true,
+          action:
+            "CREATE_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            finalBarcode,
+          beforeStock:
+            finalPrepared
+              .targetBeforeStock,
+          afterStock:
+            finalPrepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            create
+              .batchRequestId,
+          listingId:
+            local.listingId,
+          state:
+            "PENDING_CREATE",
+          pendingApproval:
+            true,
+          approved,
+          message:
+            "Ürün İdefix'e gönderildi. Katalog onayı bekleniyor; stok/fiyat onay sonrası senkronlanacak.",
+        };
+      } catch (
+        persistError
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw new Error(
+          `${prepared.title}: ürün İdefix'e gönderildi ancak PENDING_CREATE kaydı yazılamadı. ${
+            persistError instanceof Error
+              ? persistError.message
+              : ""
+          }`
+        );
+      }
+    }
+
+    throw error;
   }
 
   await client.query(
