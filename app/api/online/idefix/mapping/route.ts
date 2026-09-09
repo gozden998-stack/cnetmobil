@@ -1,9 +1,10 @@
 // app/api/online/idefix/mapping/route.ts
-// CNETMOBIL - IDEFIX ADIM 2B
+// CNETMOBIL - IDEFIX ADIM 2C
 //
 // READ ONLY.
 // Merkez fiziksel IMEI gruplarını mevcut İdefix ürünleriyle güvenli şekilde eşleştirir.
-// Eşleşmeyen gruplarda en yakın İdefix adaylarını ve hangi alanların tuttuğunu gösterir.
+// Renk alias desteği ile Türkçe/İngilizce renk adlarını güvenli şekilde eşleştirir.
+// Örn: Kırmızı = Red / Product Red. Eşleşmeyenlerde yakın adayları göstermeye devam eder.
 //
 // BU ROUTE:
 // - İdefix'e ürün göndermez.
@@ -53,6 +54,7 @@ type CenterGroup = {
   color: string;
   grade: string;
   warranty: string;
+  colorAliases: string[];
   physicalStock: number;
   deviceIds: number[];
   imeis: string[];
@@ -126,6 +128,7 @@ type MappingRow = {
       memory: boolean;
       modelMemory: boolean;
       color: boolean;
+      matchedColorAlias: string | null;
       grade: boolean;
       detectedGrade: string | null;
       renewed: boolean;
@@ -197,6 +200,145 @@ function normalizeGrade(value: unknown) {
   }
 
   return normalized;
+}
+
+function getColorAliases(
+  value: unknown
+) {
+  const color =
+    normalizeText(value);
+
+  const aliases =
+    new Set<string>();
+
+  const add = (
+    ...values: string[]
+  ) => {
+    for (
+      const item of values
+    ) {
+      const normalized =
+        normalizeText(item);
+
+      if (normalized) {
+        aliases.add(
+          normalized
+        );
+      }
+    }
+  };
+
+  add(color);
+
+  const aliasGroups: string[][] = [
+    [
+      "KIRMIZI",
+      "RED",
+      "PRODUCT RED",
+    ],
+    [
+      "SIYAH",
+      "BLACK",
+    ],
+    [
+      "BEYAZ",
+      "WHITE",
+    ],
+    [
+      "MAVI",
+      "BLUE",
+    ],
+    [
+      "YESIL",
+      "GREEN",
+    ],
+    [
+      "SARI",
+      "YELLOW",
+    ],
+    [
+      "MOR",
+      "PURPLE",
+    ],
+    [
+      "PEMBE",
+      "PINK",
+    ],
+    [
+      "GUMUS",
+      "SILVER",
+    ],
+    [
+      "GRAFIT",
+      "GRAPHITE",
+    ],
+    [
+      "ALTIN",
+      "GOLD",
+    ],
+    [
+      "TITANYUM",
+      "TITANIUM",
+    ],
+    [
+      "DOGAL TITANYUM",
+      "NATURAL TITANIUM",
+    ],
+    [
+      "MAVI TITANYUM",
+      "BLUE TITANIUM",
+    ],
+    [
+      "BEYAZ TITANYUM",
+      "WHITE TITANIUM",
+    ],
+    [
+      "SIYAH TITANYUM",
+      "BLACK TITANIUM",
+    ],
+  ];
+
+  for (
+    const group of
+      aliasGroups
+  ) {
+    const normalizedGroup =
+      group.map(
+        normalizeText
+      );
+
+    if (
+      normalizedGroup.includes(
+        color
+      )
+    ) {
+      add(...group);
+    }
+  }
+
+  return Array.from(
+    aliases
+  );
+}
+
+function findMatchedColorAlias(
+  normalizedTitle: string,
+  color: unknown
+) {
+  const aliases =
+    getColorAliases(
+      color
+    );
+
+  return (
+    aliases.find(
+      (alias) =>
+        containsPhrase(
+          normalizedTitle,
+          alias
+        )
+    ) || null
+  );
 }
 
 function detectGradeFromTitle(
@@ -488,6 +630,12 @@ function getDiagnosticChecks(
       group.color
     );
 
+  const matchedColorAlias =
+    findMatchedColorAlias(
+      title,
+      group.color
+    );
+
   const grade =
     normalizeGrade(
       group.grade
@@ -534,10 +682,11 @@ function getDiagnosticChecks(
 
       color:
         Boolean(color) &&
-        containsPhrase(
-          title,
-          color
+        Boolean(
+          matchedColorAlias
         ),
+
+      matchedColorAlias,
 
       grade:
         Boolean(
@@ -690,6 +839,12 @@ function candidateForGroup(
       group.color
     );
 
+  const matchedColorAlias =
+    findMatchedColorAlias(
+      title,
+      group.color
+    );
+
   const grade =
     normalizeGrade(
       group.grade
@@ -733,10 +888,7 @@ function candidateForGroup(
   // İdefix'te renk varyantı ayrı barkod/ürün satırı olduğu için
   // renk doğrulanmadan otomatik eşleştirme yapılmaz.
   if (
-    !containsPhrase(
-      title,
-      color
-    )
+    !matchedColorAlias
   ) {
     return null;
   }
@@ -866,6 +1018,10 @@ function toCandidateView(
               Boolean(
                 diagnostic.color
               ),
+            matchedColorAlias:
+              diagnostic
+                .matchedColorAlias ||
+              null,
             grade:
               Boolean(
                 diagnostic.grade
@@ -978,6 +1134,10 @@ function mapCenterGroup(
         group.grade,
       warranty:
         group.warranty,
+      colorAliases:
+        getColorAliases(
+          group.color
+        ),
       physicalStock:
         group.physicalStock,
       deviceIds:
@@ -1028,6 +1188,10 @@ function mapCenterGroup(
         group.grade,
       warranty:
         group.warranty,
+      colorAliases:
+        getColorAliases(
+          group.color
+        ),
       physicalStock:
         group.physicalStock,
       deviceIds:
@@ -1074,6 +1238,10 @@ function mapCenterGroup(
         group.grade,
       warranty:
         group.warranty,
+      colorAliases:
+        getColorAliases(
+          group.color
+        ),
       physicalStock:
         group.physicalStock,
       deviceIds:
@@ -1111,6 +1279,10 @@ function mapCenterGroup(
       group.grade,
     warranty:
       group.warranty,
+    colorAliases:
+      getColorAliases(
+        group.color
+      ),
     physicalStock:
       group.physicalStock,
     deviceIds:
@@ -1120,7 +1292,14 @@ function mapCenterGroup(
     matchStatus:
       "MATCHED",
     reason:
-      "Güvenli eşleşme bulundu.",
+      `Güvenli eşleşme bulundu. Renk eşleşmesi: ${
+        findMatchedColorAlias(
+          normalizeText(
+            first.product.title
+          ),
+          group.color
+        ) || group.color
+      }.`,
     idefix:
       matched,
     stockDifference:
@@ -1356,6 +1535,8 @@ export async function GET(
       success: true,
       readOnly: true,
       channel: "IDEFIX",
+      matchingMode:
+        "COLOR_ALIAS_SAFE_V1",
 
       summary: {
         idefixProductCount:
