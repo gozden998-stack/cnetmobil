@@ -2301,7 +2301,7 @@ export default function Merkez() {
                 needsBarcode
               ) {
                 setChannelError(
-                  "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip tekrar Ön Kontrol Yap. Sonraki aynı ürünlerde barkod otomatik kullanılacak."
+                  "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez gir; sonra direkt İdefix'e Gönder'e bas. Sonraki aynı ürünlerde barkod otomatik kullanılacak."
                 );
                 return;
               }
@@ -2909,16 +2909,6 @@ export default function Merkez() {
           return;
         }
 
-        if (
-          !channelPreview
-            ?.canProceed
-        ) {
-          setChannelError(
-            "Önce başarılı ön kontrol yap."
-          );
-          return;
-        }
-
         setChannelError(
           ""
         );
@@ -3106,7 +3096,110 @@ export default function Merkez() {
         );
 
         try {
-          // 1) İdefix'e özel katalog / ürün / renk / attribute ön kontrolü.
+          // 1) Merkez genel kanal kontrolünü kullanıcıya ayrı buton olarak zorlamadan
+          // gönderim sırasında otomatik çalıştır.
+          const centerPreviewResponse =
+            await fetch(
+              "/api/online/center/devices",
+              {
+                method:
+                  "PATCH",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    action:
+                      "channel_preview",
+                    channel:
+                      "IDEFIX",
+                    deviceIds:
+                      selectedDeviceIds,
+                    salePrice:
+                      channelSalePrice,
+                    listPrice:
+                      channelListPrice,
+                  }),
+              }
+            );
+
+          const centerPreviewRaw =
+            await centerPreviewResponse.text();
+
+          let centerPreviewPayload:
+            any = null;
+
+          try {
+            centerPreviewPayload =
+              centerPreviewRaw
+                ? JSON.parse(
+                    centerPreviewRaw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez İdefix kontrol API JSON dönmedi. HTTP ${centerPreviewResponse.status}.`
+            );
+          }
+
+          if (
+            !centerPreviewResponse.ok ||
+            !centerPreviewPayload
+              ?.success
+          ) {
+            throw new Error(
+              centerPreviewPayload
+                ?.error ||
+                "Merkez İdefix kontrolü başarısız."
+            );
+          }
+
+          setChannelPreview(
+            centerPreviewPayload
+              .preview
+          );
+
+          if (
+            centerPreviewPayload
+              ?.preview
+              ?.canProceed !==
+            true
+          ) {
+            const errors =
+              Array.isArray(
+                centerPreviewPayload
+                  ?.preview
+                  ?.items
+              )
+                ? centerPreviewPayload
+                    .preview
+                    .items
+                    .flatMap(
+                      (
+                        row: any
+                      ) =>
+                        Array.isArray(
+                          row
+                            ?.errors
+                        )
+                          ? row
+                              .errors
+                          : []
+                    )
+                : [];
+
+            throw new Error(
+              errors.length >
+              0
+                ? errors.join(
+                    " | "
+                  )
+                : "Seçili cihaz İdefix gönderimine uygun değil."
+            );
+          }
+
+          // 2) İdefix'e özel ürün/eşleşme kontrolü otomatik çalışır.
           const previewResponse =
             await fetch(
               "/api/online/idefix/center-send",
@@ -3213,7 +3306,7 @@ export default function Merkez() {
               needsBarcode
             ) {
               throw new Error(
-                "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip Ön Kontrol Yap."
+                "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez gir; sonra direkt İdefix'e Gönder'e bas."
               );
             }
 
@@ -3424,7 +3517,6 @@ export default function Merkez() {
       [
         idefixSending,
         sendChannel,
-        channelPreview,
         selectedDeviceIds,
         channelSalePrice,
         channelListPrice,
@@ -5132,22 +5224,25 @@ export default function Merkez() {
                 Kapat
               </button>
 
-              <button
-                type="button"
-                disabled={
-                  channelLoading ||
-                  selectedDeviceIds.length ===
-                    0
-                }
-                onClick={() => {
-                  void runChannelPreview();
-                }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
-              >
-                {channelLoading
-                  ? "Kontrol Ediliyor..."
-                  : "Ön Kontrol Yap"}
-              </button>
+              {sendChannel !==
+                "IDEFIX" && (
+                <button
+                  type="button"
+                  disabled={
+                    channelLoading ||
+                    selectedDeviceIds.length ===
+                      0
+                  }
+                  onClick={() => {
+                    void runChannelPreview();
+                  }}
+                  className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+                >
+                  {channelLoading
+                    ? "Kontrol Ediliyor..."
+                    : "Ön Kontrol Yap"}
+                </button>
+              )}
 
 
               {sendChannel ===
@@ -5201,12 +5296,8 @@ export default function Merkez() {
                   disabled={
                     channelLoading ||
                     idefixSending ||
-                    !channelPreview
-                      ?.canProceed ||
-                    (
-                      idefixNeedsCatalogBarcode &&
-                      !idefixCatalogBarcode
-                    )
+                    selectedDeviceIds.length ===
+                      0
                   }
                   onClick={() => {
                     void sendSelectedToIdefix();
@@ -5215,7 +5306,7 @@ export default function Merkez() {
                 >
                   {idefixSending
                     ? "İdefix'e Gönderiliyor..."
-                    : `İdefix'e Gerçekten Gönder (${selectedDeviceIds.length})`}
+                    : `İdefix'e Gönder (${selectedDeviceIds.length})`}
                 </button>
               )}
             </div>
