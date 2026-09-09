@@ -147,6 +147,12 @@ type IkasSendGroupResult = {
   salePrice: number;
   listPrice: number;
   stockLocationId: string;
+  salesChannelVisibility?: {
+    id: string;
+    name: string;
+    status: string;
+    selectedBy: string;
+  };
   listingId: number;
 };
 
@@ -4213,7 +4219,7 @@ export default function Merkez() {
                             </span>
                           </div>
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                          <div className="mt-3 grid gap-2 sm:grid-cols-5">
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 İşlem
@@ -4251,6 +4257,17 @@ export default function Merkez() {
                               </div>
                               <div className="mt-1 text-[7px] font-black text-slate-700">
                                 {formatMoney(result.listPrice)}
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                              <div className="text-[6px] font-black uppercase text-slate-400">
+                                Satış Kanalı
+                              </div>
+                              <div className="mt-1 text-[7px] font-black text-emerald-700">
+                                {result.salesChannelVisibility?.status === "VISIBLE"
+                                  ? `Açık · ${result.salesChannelVisibility?.name || "İkas"}`
+                                  : "-"}
                               </div>
                             </div>
                           </div>
