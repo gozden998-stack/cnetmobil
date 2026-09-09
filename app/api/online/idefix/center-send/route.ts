@@ -5193,6 +5193,30 @@ export async function POST(
       modeRaw as
         SendMode;
 
+    // Reconcile modunda cihaz/fiyat bilgisi gerekmez.
+    // Önce DB bağlantısını aç ve pending İdefix kayıtlarını kontrol et.
+    if (
+      mode ===
+      "reconcile"
+    ) {
+      client =
+        await getIdefixDbPool()
+          .connect();
+
+      const result =
+        await reconcilePendingIdefix(
+          client
+        );
+
+      return noStoreJson({
+        channel:
+          "IDEFIX",
+        mode:
+          "reconcile",
+        ...result,
+      });
+    }
+
     if (
       !Array.isArray(
         data.deviceIds
@@ -5272,24 +5296,6 @@ export async function POST(
     client =
       await getIdefixDbPool()
         .connect();
-
-    if (
-      mode ===
-      "reconcile"
-    ) {
-      const result =
-        await reconcilePendingIdefix(
-          client
-        );
-
-      return noStoreJson({
-        channel:
-          "IDEFIX",
-        mode:
-          "reconcile",
-        ...result,
-      });
-    }
 
     const rows =
       await selectedDevices(
