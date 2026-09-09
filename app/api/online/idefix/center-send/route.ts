@@ -131,6 +131,7 @@ type PreparedGroup = {
   targetAfterStock: number;
   barcode: string;
   catalogBarcode: string | null;
+  catalogBarcodeSource?: "REQUEST" | "LOCAL_MAPPING" | "POOL" | null;
   vendorStockCode: string;
   productMainId: string;
   brandId: number | string | null;
@@ -2339,6 +2340,134 @@ async function validateDevices(
   return errors;
 }
 
+function isGlobalCatalogBarcode(
+  value: unknown
+) {
+  return /^\d{8,14}$/.test(
+    text(value)
+  );
+}
+
+async function localCatalogBarcodeForGroup(
+  client:
+    PoolClient,
+  group:
+    CenterGroup
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          id,
+          external_variant_id,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'IDEFIX'
+          AND (
+            brand ILIKE $1
+            OR title ILIKE $2
+          )
+          AND (
+            model ILIKE $3
+            OR title ILIKE $4
+          )
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 100
+      `,
+      [
+        group.brand,
+        `%${group.brand}%`,
+        group.model,
+        `%${group.model}%`,
+      ]
+    );
+
+  for (
+    const row of
+      result.rows
+  ) {
+    const sameGroup =
+      normalizeText(
+        row?.brand
+      ) ===
+        normalizeText(
+          group.brand
+        ) &&
+      normalizeText(
+        row?.model
+      ) ===
+        normalizeText(
+          group.model
+        ) &&
+      normalizeMemory(
+        row?.memory
+      ) ===
+        normalizeMemory(
+          group.memory
+        ) &&
+      normalizeText(
+        row?.color
+      ) ===
+        normalizeText(
+          group.color
+        ) &&
+      normalizeGrade(
+        row?.grade
+      ) ===
+        normalizeGrade(
+          group.grade
+        ) &&
+      normalizeText(
+        row?.warranty
+      ) ===
+        normalizeText(
+          group.warranty
+        );
+
+    if (!sameGroup) {
+      continue;
+    }
+
+    const raw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
+
+    const candidates = [
+      raw?.catalogBarcode,
+      raw?.idefixCatalogBarcode,
+      row?.external_variant_id,
+    ];
+
+    for (
+      const candidate of
+        candidates
+    ) {
+      if (
+        isGlobalCatalogBarcode(
+          candidate
+        )
+      ) {
+        return text(
+          candidate
+        );
+      }
+    }
+  }
+
+  return null;
+}
+
 async function localManagedIdefixCount(
   client:
     PoolClient,
@@ -2506,7 +2635,17 @@ async function prepareGroup(
       targetAfterStock,
       barcode,
       catalogBarcode:
-        null,
+        isGlobalCatalogBarcode(
+          barcode
+        )
+          ? barcode
+          : null,
+      catalogBarcodeSource:
+        isGlobalCatalogBarcode(
+          barcode
+        )
+          ? "POOL"
+          : null,
       vendorStockCode,
       productMainId:
         text(
@@ -2579,14 +2718,88 @@ async function prepareGroup(
     };
   }
 
-  const catalogBarcode =
+  const requestedBarcode =
     text(
       requestedCatalogBarcode
     );
 
-  // İdefix resmi hızlı yükleme akışı:
-  // Satıcının havuzunda ürün yok ama İdefix katalog barkodu biliniyorsa
-  // create/görsel/attribute sürecine GİRMEDEN fast-listing kullanılır.
+  const savedBarcode =
+    requestedBarcode
+      ? null
+      : await localCatalogBarcodeForGroup(
+          client,
+          group
+        );
+
+  const catalogBarcode =
+    requestedBarcode ||
+    text(
+      savedBarcode
+    );
+
+  const catalogBarcodeSource:
+    "REQUEST" |
+    "LOCAL_MAPPING" |
+    null =
+      requestedBarcode
+        ? "REQUEST"
+        : savedBarcode
+        ? "LOCAL_MAPPING"
+        : null;
+
+  if (
+    requestedBarcode &&
+    !isGlobalCatalogBarcode(
+      requestedBarcode
+    )
+  ) {
+    return {
+      group,
+      action:
+        "FAST_LISTING",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        requestedBarcode,
+      catalogBarcode:
+        requestedBarcode,
+      catalogBarcodeSource:
+        "REQUEST",
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        1,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers: [
+        "İdefix katalog barkodu 8-14 haneli sayısal global barkod olmalıdır.",
+      ],
+    };
+  }
+
   if (
     catalogBarcode
   ) {
@@ -2611,6 +2824,7 @@ async function prepareGroup(
       barcode:
         catalogBarcode,
       catalogBarcode,
+      catalogBarcodeSource,
       vendorStockCode:
         makeVendorStockCode(
           group
@@ -2631,6 +2845,52 @@ async function prepareGroup(
       blockers: [],
     };
   }
+
+  return {
+    group,
+    action:
+      "CREATE_PRODUCT",
+    exactProduct:
+      null,
+    referenceProduct:
+      null,
+    title:
+      productTitle(
+        group
+      ),
+    salePrice,
+    listPrice,
+    targetBeforeStock:
+      0,
+    targetAfterStock:
+      group.items.length,
+    barcode:
+      "",
+    catalogBarcode:
+      null,
+    catalogBarcodeSource:
+      null,
+    vendorStockCode:
+      makeVendorStockCode(
+        group
+      ),
+    productMainId:
+      makeProductMainId(
+        group
+      ),
+    brandId:
+      null,
+    categoryId:
+      null,
+    vatRate:
+      1,
+    imageUrl:
+      null,
+    attributes: [],
+    blockers: [
+      "CATALOG_BARCODE_REQUIRED: Bu ürün İdefix satıcı havuzunda henüz yok. İlk eşleştirme için İdefix katalog barkodunu bir kez gir; sonraki aynı ürünlerde sistem otomatik kullanacak.",
+    ],
+  };
 
   try {
     referenceProduct =
@@ -2875,6 +3135,16 @@ function previewView(
       prepared.barcode,
     catalogBarcode:
       prepared.catalogBarcode,
+    catalogBarcodeSource:
+      prepared.catalogBarcodeSource ||
+      null,
+    needsCatalogBarcode:
+      prepared.blockers.some(
+        (message) =>
+          message.startsWith(
+            "CATALOG_BARCODE_REQUIRED:"
+          )
+      ),
     vendorStockCode:
       prepared
         .vendorStockCode,
@@ -4097,6 +4367,17 @@ async function persistLocal(
             centerImeis,
             idefixBarcode:
               externalVariantId,
+            catalogBarcode:
+              prepared.catalogBarcode ||
+              (
+                isGlobalCatalogBarcode(
+                  externalVariantId
+                )
+                  ? externalVariantId
+                  : null
+              ),
+            centerGroupKey:
+              prepared.group.key,
             idefixBatchRequestId:
               batchRequestId,
             finalStock,
@@ -4192,6 +4473,17 @@ async function persistLocal(
               imeis,
             idefixBarcode:
               externalVariantId,
+            catalogBarcode:
+              prepared.catalogBarcode ||
+              (
+                isGlobalCatalogBarcode(
+                  externalVariantId
+                )
+                  ? externalVariantId
+                  : null
+              ),
+            centerGroupKey:
+              prepared.group.key,
             idefixBatchRequestId:
               batchRequestId,
             finalStock,
