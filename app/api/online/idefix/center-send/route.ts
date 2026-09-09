@@ -43,7 +43,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type SendMode = "preview" | "commit";
+type SendMode = "preview" | "commit" | "reconcile";
 
 type DeviceRow = {
   id: number;
@@ -3953,6 +3953,590 @@ async function persistLocal(
   };
 }
 
+function isProductNotFoundError(
+  error: unknown
+) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error ?? "");
+
+  return normalizeText(
+    message
+  ).includes(
+    "PRODUCT NOT FOUND"
+  );
+}
+
+async function persistPendingCatalog(
+  client:
+    PoolClient,
+  prepared:
+    PreparedGroup,
+  reason:
+    string
+) {
+  await client.query(
+    "BEGIN"
+  );
+
+  try {
+    const local =
+      await persistLocal(
+        client,
+        {
+          prepared,
+          finalProduct:
+            prepared
+              .exactProduct,
+          membershipStatus:
+            "PENDING_CREATE",
+          syncStatus:
+            "CREATING",
+          taskStatus:
+            "WAITING_CATALOG",
+          batchRequestId:
+            null,
+          finalStock:
+            prepared
+              .targetAfterStock,
+          apiResult: {
+            source:
+              "IDEFIX_INVENTORY_PRODUCT_NOT_FOUND",
+            reason,
+            waitingCatalog:
+              true,
+            savedAt:
+              new Date()
+                .toISOString(),
+          },
+        }
+      );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return local;
+  } catch (error) {
+    try {
+      await client.query(
+        "ROLLBACK"
+      );
+    } catch {}
+
+    throw error;
+  }
+}
+
+async function reconcilePendingIdefix(
+  client:
+    PoolClient
+) {
+  const pending =
+    await client.query(
+      `
+        SELECT DISTINCT
+          ol.id,
+          ol.external_product_id,
+          ol.external_variant_id,
+          ol.external_stock_code,
+          ol.title,
+          ol.sale_price,
+          ol.list_price,
+          ol.quantity,
+          ol.brand,
+          ol.model,
+          ol.memory,
+          ol.color,
+          ol.grade,
+          ol.warranty
+        FROM public.online_listings ol
+        JOIN public.online_channel_devices ocd
+          ON ocd.online_listing_id =
+             ol.id
+        WHERE ol.channel = 'IDEFIX'
+          AND ocd.channel = 'IDEFIX'
+          AND ocd.membership_status =
+              'PENDING_CREATE'
+        ORDER BY ol.id
+        LIMIT 100
+      `
+    );
+
+  if (
+    pending.rowCount === 0
+  ) {
+    return {
+      success:
+        true,
+      pending:
+        0,
+      completed:
+        0,
+      stillPending:
+        0,
+      failed:
+        0,
+      results: [],
+    };
+  }
+
+  const results:
+    any[] = [];
+
+  for (
+    const listing of
+      pending.rows
+  ) {
+    const listingId =
+      Number(
+        listing.id
+      );
+
+    const barcode =
+      text(
+        listing
+          .external_variant_id
+      );
+
+    if (!barcode) {
+      results.push({
+        listingId,
+        state:
+          "ERROR",
+        error:
+          "İdefix pending listing barkodu eksik.",
+      });
+
+      continue;
+    }
+
+    const stockResult =
+      await client.query(
+        `
+          SELECT
+            COUNT(*)::int AS count
+          FROM public.online_channel_devices ocd
+          JOIN public.stock_devices sd
+            ON sd.id =
+               ocd.stock_device_id
+          WHERE ocd.channel = 'IDEFIX'
+            AND ocd.online_listing_id = $1
+            AND ocd.membership_status IN (
+              'PENDING_CREATE',
+              'LISTED',
+              'RESERVED'
+            )
+            AND sd.status = 'AVAILABLE'
+        `,
+        [
+          listingId,
+        ]
+      );
+
+    const desiredStock =
+      Math.max(
+        0,
+        Number(
+          stockResult
+            .rows?.[0]
+            ?.count || 0
+        )
+      );
+
+    const salePrice =
+      numberOrNull(
+        listing.sale_price
+      );
+
+    const listPrice =
+      numberOrNull(
+        listing.list_price
+      );
+
+    if (
+      salePrice === null ||
+      listPrice === null ||
+      salePrice <= 0 ||
+      listPrice <= 0
+    ) {
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "ERROR",
+        error:
+          "Pending İdefix listing fiyatları geçersiz.",
+      });
+
+      continue;
+    }
+
+    const productLookup =
+      await listByBarcode(
+        barcode
+      );
+
+    const liveProduct =
+      productLookup
+        .products?.[0] ||
+      null;
+
+    const pseudoPrepared:
+      PreparedGroup = {
+        group: {
+          key:
+            [
+              normalizeText(
+                listing.brand
+              ),
+              normalizeText(
+                listing.model
+              ),
+              normalizeMemory(
+                listing.memory
+              ),
+              normalizeText(
+                listing.color
+              ),
+              normalizeGrade(
+                listing.grade
+              ),
+              normalizeText(
+                listing.warranty
+              ),
+            ].join("|"),
+          brand:
+            text(
+              listing.brand
+            ),
+          model:
+            text(
+              listing.model
+            ),
+          memory:
+            text(
+              listing.memory
+            ),
+          color:
+            text(
+              listing.color
+            ),
+          grade:
+            normalizeGrade(
+              listing.grade
+            ),
+          warranty:
+            text(
+              listing.warranty
+            ),
+          items: [],
+        },
+        action:
+          "EXISTING_PRODUCT",
+        exactProduct:
+          liveProduct,
+        referenceProduct:
+          null,
+        title:
+          text(
+            listing.title
+          ) ||
+          `${text(
+            listing.brand
+          )} ${text(
+            listing.model
+          )}`,
+        salePrice,
+        listPrice,
+        targetBeforeStock:
+          numberOrNull(
+            liveProduct
+              ?.inventoryQuantity
+          ) ?? 0,
+        targetAfterStock:
+          desiredStock,
+        barcode,
+        vendorStockCode:
+          text(
+            listing
+              .external_stock_code
+          ),
+        productMainId:
+          text(
+            listing
+              .external_product_id
+          ),
+        brandId:
+          liveProduct
+            ?.brandId ??
+          null,
+        categoryId:
+          liveProduct
+            ?.categoryId ??
+          null,
+        vatRate:
+          numberOrNull(
+            liveProduct
+              ?.vatRate
+          ),
+        imageUrl:
+          Array.isArray(
+            liveProduct
+              ?.images
+          )
+            ? text(
+                liveProduct
+                  ?.images?.[0]
+                  ?.url
+              ) || null
+            : null,
+        attributes:
+          Array.isArray(
+            liveProduct
+              ?.attributes
+          )
+            ? liveProduct!
+                .attributes!
+                .map(
+                  (
+                    attribute:
+                      any
+                  ) => ({
+                    attributeId:
+                      attribute
+                        .attributeId,
+                    attributeValueId:
+                      attribute
+                        .attributeValueId ??
+                      null,
+                    customAttributeValue:
+                      text(
+                        attribute
+                          .customAttributeValue
+                      ) || null,
+                  })
+                )
+                .filter(
+                  (
+                    attribute:
+                      any
+                  ) =>
+                    attribute
+                      .attributeId !==
+                      null &&
+                    attribute
+                      .attributeId !==
+                      undefined
+                )
+            : [],
+        blockers: [],
+      };
+
+    try {
+      const upload =
+        await inventoryUpload(
+          pseudoPrepared
+        );
+
+      const verified =
+        await waitInventory(
+          upload
+            .batchRequestId,
+          barcode
+        );
+
+      if (
+        !verified.success
+      ) {
+        results.push({
+          listingId,
+          barcode,
+          state:
+            "PENDING_CREATE",
+          pending:
+            true,
+          message:
+            "İdefix inventory sonucu henüz tamamlanmadı.",
+          batchRequestId:
+            upload
+              .batchRequestId,
+        });
+
+        continue;
+      }
+
+      await client.query(
+        "BEGIN"
+      );
+
+      try {
+        await client.query(
+          `
+            UPDATE public.online_listings
+            SET
+              quantity = $2,
+              sync_status = 'SYNCED',
+              last_task_id = $3,
+              last_task_status = 'SUCCESS',
+              raw_data =
+                COALESCE(
+                  raw_data,
+                  '{}'::jsonb
+                )
+                || $4::jsonb,
+              updated_at = now()
+            WHERE id = $1
+          `,
+          [
+            listingId,
+            desiredStock,
+            upload
+              .batchRequestId,
+            JSON.stringify({
+              idefixPendingResolved:
+                true,
+              finalStock:
+                desiredStock,
+              inventoryResult:
+                verified.payload,
+              resolvedAt:
+                new Date()
+                  .toISOString(),
+            }),
+          ]
+        );
+
+        await client.query(
+          `
+            UPDATE public.online_channel_devices
+            SET
+              membership_status = 'LISTED',
+              listed_at =
+                COALESCE(
+                  listed_at,
+                  now()
+                ),
+              metadata =
+                COALESCE(
+                  metadata,
+                  '{}'::jsonb
+                )
+                || $2::jsonb,
+              updated_at = now()
+            WHERE channel = 'IDEFIX'
+              AND online_listing_id = $1
+              AND membership_status =
+                  'PENDING_CREATE'
+          `,
+          [
+            listingId,
+            JSON.stringify({
+              idefixPendingResolved:
+                true,
+              inventoryBatchRequestId:
+                upload
+                  .batchRequestId,
+              resolvedAt:
+                new Date()
+                  .toISOString(),
+            }),
+          ]
+        );
+
+        await client.query(
+          "COMMIT"
+        );
+      } catch (
+        error
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw error;
+      }
+
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "LISTED",
+        pending:
+          false,
+        finalStock:
+          desiredStock,
+        batchRequestId:
+          upload
+            .batchRequestId,
+      });
+    } catch (
+      error
+    ) {
+      if (
+        isProductNotFoundError(
+          error
+        )
+      ) {
+        results.push({
+          listingId,
+          barcode,
+          state:
+            "PENDING_CREATE",
+          pending:
+            true,
+          message:
+            "İdefix katalog onayı bekleniyor.",
+        });
+
+        continue;
+      }
+
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "ERROR",
+        pending:
+          false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "İdefix pending kontrolü başarısız.",
+      });
+    }
+  }
+
+  return {
+    success:
+      true,
+    pending:
+      pending.rowCount,
+    completed:
+      results.filter(
+        (row) =>
+          row.state ===
+          "LISTED"
+      ).length,
+    stillPending:
+      results.filter(
+        (row) =>
+          row.state ===
+          "PENDING_CREATE"
+      ).length,
+    failed:
+      results.filter(
+        (row) =>
+          row.state ===
+          "ERROR"
+      ).length,
+    results,
+  };
+}
+
 async function processPrepared(
   client:
     PoolClient,
@@ -3974,107 +4558,171 @@ async function processPrepared(
     prepared.action ===
     "EXISTING_PRODUCT"
   ) {
-    const upload =
-      await inventoryUpload(
-        prepared
-      );
-
-    const verification =
-      await waitInventory(
-        upload
-          .batchRequestId,
-        prepared.barcode
-      );
-
-    if (
-      !verification.success
-    ) {
-      throw new Error(
-        `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. DB kanal kaydı yazılmadı. Batch: ${upload.batchRequestId}`
-      );
-    }
-
-    await client.query(
-      "BEGIN"
-    );
-
     try {
-      const local =
-        await persistLocal(
-          client,
-          {
-            prepared,
-            finalProduct:
-              prepared
-                .exactProduct,
-            membershipStatus:
-              "LISTED",
-            syncStatus:
-              "SYNCED",
-            taskStatus:
-              "SUCCESS",
-            batchRequestId:
-              upload
-                .batchRequestId,
-            finalStock:
-              prepared
-                .targetAfterStock,
-            apiResult:
-              verification
-                .payload,
-          }
+      const upload =
+        await inventoryUpload(
+          prepared
         );
 
-      await client.query(
-        "COMMIT"
-      );
-
-      return {
-        success:
-          true,
-        action:
-          "EXISTING_PRODUCT",
-        title:
-          prepared.title,
-        color:
-          prepared
-            .group.color,
-        barcode:
-          prepared.barcode,
-        beforeStock:
-          prepared
-            .targetBeforeStock,
-        afterStock:
-          prepared
-            .targetAfterStock,
-        addedImeis:
-          prepared
-            .group.items.map(
-              (item) =>
-                item.imei
-            ),
-        batchRequestId:
+      const verification =
+        await waitInventory(
           upload
             .batchRequestId,
-        listingId:
-          local.listingId,
-        state:
-          "LISTED",
-      };
-    } catch (error) {
-      try {
-        await client.query(
-          "ROLLBACK"
+          prepared.barcode
         );
-      } catch {}
 
-      throw new Error(
-        `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
-          error instanceof Error
-            ? error.message
-            : ""
-        }`
+      if (
+        !verification.success
+      ) {
+        throw new Error(
+          `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. Batch: ${upload.batchRequestId}`
+        );
+      }
+
+      await client.query(
+        "BEGIN"
       );
+
+      try {
+        const local =
+          await persistLocal(
+            client,
+            {
+              prepared,
+              finalProduct:
+                prepared
+                  .exactProduct,
+              membershipStatus:
+                "LISTED",
+              syncStatus:
+                "SYNCED",
+              taskStatus:
+                "SUCCESS",
+              batchRequestId:
+                upload
+                  .batchRequestId,
+              finalStock:
+                prepared
+                  .targetAfterStock,
+              apiResult:
+                verification
+                  .payload,
+            }
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return {
+          success:
+            true,
+          action:
+            "EXISTING_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            prepared.barcode,
+          beforeStock:
+            prepared
+              .targetBeforeStock,
+          afterStock:
+            prepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            upload
+              .batchRequestId,
+          listingId:
+            local.listingId,
+          state:
+            "LISTED",
+          pendingApproval:
+            false,
+        };
+      } catch (
+        error
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw new Error(
+          `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+            error instanceof Error
+              ? error.message
+              : ""
+          }`
+        );
+      }
+    } catch (
+      error
+    ) {
+      if (
+        isProductNotFoundError(
+          error
+        )
+      ) {
+        // Ürün pool/list içinde görünmüş ama catalog inventory henüz hazır değil.
+        // Bu hata artık "başarısız gönderim" sayılmaz.
+        // IMEI'yi PENDING_CREATE olarak kaydet, ikinci kez ürün açılmasını engelle.
+        const local =
+          await persistPendingCatalog(
+            client,
+            prepared,
+            error instanceof Error
+              ? error.message
+              : "PRODUCT_NOT_FOUND"
+          );
+
+        return {
+          success:
+            true,
+          action:
+            "EXISTING_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            prepared.barcode,
+          beforeStock:
+            prepared
+              .targetBeforeStock,
+          afterStock:
+            prepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            null,
+          listingId:
+            local.listingId,
+          state:
+            "PENDING_CREATE",
+          pendingApproval:
+            true,
+          message:
+            "Ürün İdefix'e gönderildi. Katalog onayı bekleniyor; stok/fiyat onay sonrası senkronlanacak.",
+        };
+      }
+
+      throw error;
     }
   }
 
@@ -4526,14 +5174,16 @@ export async function POST(
       modeRaw !==
         "preview" &&
       modeRaw !==
-        "commit"
+        "commit" &&
+      modeRaw !==
+        "reconcile"
     ) {
       return noStoreJson(
         {
           success:
             false,
           error:
-            "mode yalnızca preview veya commit olabilir.",
+            "mode yalnızca preview, commit veya reconcile olabilir.",
         },
         400
       );
@@ -4622,6 +5272,24 @@ export async function POST(
     client =
       await getIdefixDbPool()
         .connect();
+
+    if (
+      mode ===
+      "reconcile"
+    ) {
+      const result =
+        await reconcilePendingIdefix(
+          client
+        );
+
+      return noStoreJson({
+        channel:
+          "IDEFIX",
+        mode:
+          "reconcile",
+        ...result,
+      });
+    }
 
     const rows =
       await selectedDevices(
