@@ -1810,14 +1810,7 @@ export default function CnetmobilCmrFinalUltimate() {
               label: 'İdefix',
               detail: 'Ürün, stok ve sipariş yönetimi',
               badge: 'AKTİF',
-              enabled: truese
-            },
-            {
-              id: 'hepsiburada',
-              label: 'Hepsiburada',
-              detail: 'Entegrasyon',
-              badge: '',
-              enabled: false
+              enabled: true
             }
           ]
         },
