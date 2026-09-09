@@ -13,6 +13,7 @@ import CihazAlim from './components/screens/CihazAlim';
 import CihazTalep from './components/screens/CihazTalep/CihazTalep';
 import Online from './components/screens/Online/Online';
 import Ikas from './components/screens/Ikas/Ikas';
+import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
@@ -635,7 +636,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -724,7 +725,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   // ENTEGRASYONLAR DROPDOWN
   // N11 mevcut çalışan Online component'ini kullanmaya devam eder.
-  // İkas ayrı ekran olarak hazırlanır; Hepsiburada / İdefix şimdilik pasif.
+  // N11, İkas ve İdefix ayrı entegrasyon ekranlarıdır; Hepsiburada şimdilik pasif.
   const [integrationsMenuOpen, setIntegrationsMenuOpen] = useState(false);
   const integrationsMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [integrationsMenuPos, setIntegrationsMenuPos] = useState({
@@ -1814,9 +1815,9 @@ export default function CnetmobilCmrFinalUltimate() {
             {
               id: 'idefix',
               label: 'İdefix',
-              detail: 'Entegrasyon',
-              badge: '',
-              enabled: false
+              detail: 'Ürün, stok ve sipariş yönetimi',
+              badge: 'AKTİF',
+              enabled: true
             }
           ]
         },
@@ -3021,6 +3022,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                           | 'merkez'
                                           | 'online'
                                           | 'ikas'
+                                          | 'idefix'
                                       );
                                       setStep(1);
                                       resetSelection();
@@ -3097,6 +3099,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                         | 'merkez'
                                         | 'online'
                                         | 'ikas'
+                                          | 'idefix'
                                     );
                                     setStep(1);
                                     resetSelection();
@@ -3308,7 +3311,8 @@ export default function CnetmobilCmrFinalUltimate() {
             (appMode === 'cihaz_talep' ||
               appMode === 'online' ||
               appMode === 'merkez' ||
-              appMode === 'ikas') &&
+              appMode === 'ikas' ||
+              appMode === 'idefix') &&
             step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
               : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
@@ -3343,6 +3347,8 @@ export default function CnetmobilCmrFinalUltimate() {
             <Online />
           ) : appMode === 'ikas' && step < 99 && isSuperAdminUser ? (
             <Ikas />
+          ) : appMode === 'idefix' && step < 99 && isSuperAdminUser ? (
+            <Idefix />
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
