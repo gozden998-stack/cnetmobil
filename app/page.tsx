@@ -1806,18 +1806,18 @@ export default function CnetmobilCmrFinalUltimate() {
               enabled: true
             },
             {
+              id: 'idefix',
+              label: 'İdefix',
+              detail: 'Ürün, stok ve sipariş yönetimi',
+              badge: 'AKTİF',
+              enabled: truese
+            },
+            {
               id: 'hepsiburada',
               label: 'Hepsiburada',
               detail: 'Entegrasyon',
               badge: '',
               enabled: false
-            },
-            {
-              id: 'idefix',
-              label: 'İdefix',
-              detail: 'Ürün, stok ve sipariş yönetimi',
-              badge: 'AKTİF',
-              enabled: true
             }
           ]
         },
