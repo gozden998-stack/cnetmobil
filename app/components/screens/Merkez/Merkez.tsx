@@ -161,6 +161,7 @@ type IdefixSendGroupResult = {
   success: boolean;
   action:
     | "EXISTING_PRODUCT"
+    | "FAST_LISTING"
     | "CREATE_PRODUCT";
   title: string;
   color: string;
@@ -1434,6 +1435,11 @@ export default function Merkez() {
   ] = useState("");
 
   const [
+    idefixCatalogBarcode,
+    setIdefixCatalogBarcode,
+  ] = useState("");
+
+  const [
     channelPreview,
     setChannelPreview,
   ] = useState<
@@ -2066,6 +2072,9 @@ export default function Merkez() {
           ""
         );
         setChannelListPrice(
+          ""
+        );
+        setIdefixCatalogBarcode(
           ""
         );
         setChannelPreview(
@@ -2977,6 +2986,8 @@ export default function Merkez() {
                       channelSalePrice,
                     listPrice:
                       channelListPrice,
+                    catalogBarcode:
+                      idefixCatalogBarcode,
                   }),
               }
             );
@@ -3091,6 +3102,8 @@ export default function Merkez() {
                       channelSalePrice,
                     listPrice:
                       channelListPrice,
+                    catalogBarcode:
+                      idefixCatalogBarcode,
                   }),
               }
             );
@@ -3244,6 +3257,7 @@ export default function Merkez() {
         selectedDeviceIds,
         channelSalePrice,
         channelListPrice,
+        idefixCatalogBarcode,
         loadCenter,
       ]
     );
@@ -4325,6 +4339,9 @@ export default function Merkez() {
                           setIdefixSendNotice(
                             ""
                           );
+                          setIdefixCatalogBarcode(
+                            ""
+                          );
                         }}
                         className={`h-12 rounded-xl border text-[9px] font-black uppercase transition ${
                           sendChannel ===
@@ -4404,6 +4421,41 @@ export default function Merkez() {
                   />
                 </div>
               </div>
+
+              {sendChannel ===
+                "IDEFIX" && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-violet-700">
+                    İdefix Katalog Barkodu
+                  </label>
+                  <input
+                    value={
+                      idefixCatalogBarcode
+                    }
+                    onChange={(
+                      event
+                    ) => {
+                      setIdefixCatalogBarcode(
+                        event.target
+                          .value
+                          .trim()
+                      );
+                      setChannelPreview(
+                        null
+                      );
+                      setChannelError(
+                        ""
+                      );
+                    }}
+                    inputMode="text"
+                    placeholder="Katalogda mevcut üründe global barkod"
+                    className="h-12 w-full rounded-xl border border-violet-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                  />
+                  <div className="mt-2 text-[7px] font-bold leading-4 text-violet-700">
+                    Katalogda mevcut üründe bu barkod İdefix'in resmi fast-listing servisiyle kullanılır; görsel, KDV ve kategori create akışına girilmez. Aynı ürün bir kez açıldıktan sonra sonraki IMEI'lerde barkod tekrar istenmez.
+                  </div>
+                </div>
+              )}
 
               {channelPreview && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -4558,7 +4610,7 @@ export default function Merkez() {
                       : sendChannel ===
                         "IKAS"
                       ? "İkas için gerçek gönderim aktif. Ürün/varyant canlı İkas'ta bulunur veya oluşturulur, fiyat ve Ana Depo stoğu yazılır, sonra tekrar okunarak doğrulanır."
-                      : "İdefix için gerçek gönderim aktif. Mevcut ürün varsa stok/fiyat güncellenir; yeni ürün katalog onayı bekliyorsa Merkez'de Hazırlanıyor olarak izlenir."}
+                      : "İdefix için gerçek gönderim aktif. Satıcı havuzundaki ürün doğrudan güncellenir; katalog barkodu girilen mevcut katalog ürünü fast-listing ile hızlıca açılır."}
                   </div>
                 </div>
               )}
@@ -4654,7 +4706,10 @@ export default function Merkez() {
                                 </div>
                                 <div className="mt-1 text-[7px] font-black text-slate-700">
                                   {result.action ===
-                                  "CREATE_PRODUCT"
+                                  "FAST_LISTING"
+                                    ? "Hızlı Katalog"
+                                    : result.action ===
+                                      "CREATE_PRODUCT"
                                     ? "Yeni Ürün"
                                     : "Mevcut Ürün"}
                                 </div>
