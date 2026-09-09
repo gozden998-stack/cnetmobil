@@ -2811,6 +2811,8 @@ async function prepareGroup(
       makeStableBarcode(
         group
       ),
+    catalogBarcode:
+      null,
     vendorStockCode:
       makeVendorStockCode(
         group
@@ -4613,6 +4615,8 @@ async function reconcilePendingIdefix(
         targetAfterStock:
           desiredStock,
         barcode,
+        catalogBarcode:
+          null,
         vendorStockCode:
           text(
             listing
