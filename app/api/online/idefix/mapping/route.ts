@@ -91,6 +91,7 @@ type MappingRow = {
   color: string;
   grade: string;
   warranty: string;
+  colorAliases: string[];
   physicalStock: number;
   deviceIds: number[];
   imeis: string[];
@@ -454,6 +455,10 @@ function buildCenterGroups(
             ) || "-",
           warranty:
             text(row.warranty) || "-",
+          colorAliases:
+            getColorAliases(
+              row.color
+            ),
           physicalStock: 0,
           deviceIds: [],
           imeis: [],
