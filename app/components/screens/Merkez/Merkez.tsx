@@ -1,6090 +1,6673 @@
-"use client";
+// app/api/online/idefix/center-send/route.ts
+// CNETMOBIL - IDEFIX ADIM 3
+//
+// Merkez -> İdefix gerçek gönderim motoru.
+// N11 / İkas akışlarına dokunmaz.
+//
+// Akış:
+// 1) Seçili Merkez IMEI'lerini tekrar doğrular.
+// 2) Aynı ürün/renk İdefix satıcı havuzunda varsa mevcut barkoda stok+fiyat ekler.
+// 3) Aynı renk yoksa, aynı model/hafıza/kalite ürününü referans alır.
+// 4) Referanstan brand/category/attribute şablonunu alır.
+// 5) İstenen renk attribute değerini category-attribute servisinden bulur.
+// 6) Aynı renk görselini N11/İkas yerel listinglerinden bulur.
+// 7) Yeni İdefix ürünü create eder.
+// 8) batch-result sonucu güvenli eşleşme ise approve-item ile onaylar.
+// 9) Satışa hazır olduğunda stok/fiyatı inventory-upload ile doğrular.
+// 10) Son olarak PostgreSQL online_listings + online_channel_devices kaydını yazar.
+//
+// Güvenlik:
+// - Aynı IMEI ikinci kez İdefix'e gönderilemez.
+// - AVAILABLE olmayan cihaz gönderilemez.
+// - Eksik marka/model/hafıza/renk/grade/garanti engellenir.
+// - Belirsiz katalog referansında otomatik ürün açılmaz.
+// - Renk attribute bulunamazsa ürün açılmaz.
+// - Doğru renk görseli bulunamazsa ürün açılmaz.
+// - İdefix dış işlem başarılı olup DB yazımı başarısız olursa yeni gönderim durdurulur.
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { NextRequest } from "next/server";
+import crypto from "crypto";
+import type { PoolClient } from "pg";
 
-type CenterState = {
-  loading: boolean;
-  success: boolean;
-  error: string;
-  data: any;
-};
+import {
+  IDEFIX_BASE_URL,
+  getIdefixDbPool,
+  getIdefixProducts,
+  getIdefixVendorId,
+  getIdefixVendorToken,
+  noStoreJson,
+  requireIdefixSuperAdmin,
+} from "@/app/lib/idefix/server";
 
-type ChannelCode =
-  | "N11"
-  | "IKAS"
-  | "IDEFIX";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-type AddDeviceForm = {
+type SendMode = "preview" | "commit" | "reconcile";
+
+type DeviceRow = {
+  id: number;
   imei: string;
-  brand: string;
-  model: string;
-  memory: string;
-  color: string;
-  grade: "A" | "B" | "C";
-  warranty: string;
+  brand: string | null;
+  model: string | null;
+  memory: string | null;
+  color: string | null;
+  grade: string | null;
+  warranty: string | null;
+  current_branch_code: string | null;
+  status: string | null;
 };
 
-const EMPTY_ADD_DEVICE_FORM: AddDeviceForm = {
-  imei: "",
-  brand: "",
-  model: "",
-  memory: "",
-  color: "",
-  grade: "A",
-  warranty: "12 Ay",
-};
-
-type BulkPreviewError = {
+type GroupItem = {
+  deviceId: number;
   imei: string;
-  reason: string;
-  type: string;
 };
 
-type BulkPreview = {
-  total: number;
-  valid: number;
-  invalid: number;
-  canCommit: boolean;
-  errors: BulkPreviewError[];
-};
-
-
-type ExcelDeviceRow = {
-  rowNumber: number;
-  imei: string;
+type CenterGroup = {
+  key: string;
   brand: string;
   model: string;
   memory: string;
   color: string;
   grade: string;
   warranty: string;
+  items: GroupItem[];
 };
 
-type ExcelPreviewError = {
-  rowNumber: number;
-  imei: string;
-  reason: string;
-  type: string;
+type IdefixProduct = {
+  barcode?: string | null;
+  title?: string | null;
+  productMainId?: string | null;
+  brandId?: number | string | null;
+  categoryId?: number | string | null;
+  inventoryQuantity?: number | string | null;
+  vendorStockCode?: string | null;
+  weight?: number | string | null;
+  description?: string | null;
+  price?: number | string | null;
+  comparePrice?: number | string | null;
+  vatRate?: number | string | null;
+  deliveryDuration?: number | string | null;
+  deliveryType?: string | null;
+  cargoCompanyId?: number | string | null;
+  shipmentAddressId?: number | string | null;
+  returnAddressId?: number | string | null;
+  images?: Array<{ url?: string | null }> | null;
+  attributes?: Array<{
+    attributeId?: number | string | null;
+    attributeValueId?: number | string | null;
+    customAttributeValue?: string | null;
+  }> | null;
+  status?: string | null;
+  state?: string | null;
+  reference?: number | string | null;
+  matchedProduct?: any;
+  failureReasons?: any;
+  [key: string]: unknown;
 };
 
-type ExcelPreview = {
-  total: number;
-  valid: number;
-  invalid: number;
-  canCommit: boolean;
-  errors: ExcelPreviewError[];
+type CategoryAttribute = {
+  attributeId: number | string;
+  attributeTitle?: string | null;
+  allowCustom?: boolean | null;
+  required?: boolean | null;
+  isVariant?: boolean | null;
+  isSlicer?: boolean | null;
+  attributeValues?: Array<{
+    id?: number | string | null;
+    name?: string | null;
+  }> | null;
 };
 
-
-type ChannelSendPreviewItem = {
-  deviceId: number;
-  imei: string;
-  brand: string;
-  model: string;
-  memory: string;
-  color: string;
-  grade: string;
-  warranty: string;
-  status: string;
-  eligible: boolean;
-  errors: string[];
-  existingChannelStatus:
-    string | null;
-};
-
-type ChannelSendPreview = {
-  channel: ChannelCode;
+type PreparedGroup = {
+  group: CenterGroup;
+  action: "EXISTING_PRODUCT" | "FAST_LISTING" | "CREATE_PRODUCT";
+  exactProduct: IdefixProduct | null;
+  referenceProduct: IdefixProduct | null;
+  title: string;
   salePrice: number;
   listPrice: number;
-  total: number;
-  eligible: number;
-  blocked: number;
-  canProceed: boolean;
-  items:
-    ChannelSendPreviewItem[];
-};
-
-
-type N11SendResult = {
-  deviceId: number;
-  imei: string;
-  success: boolean;
-  status:
-    | "LISTED"
-    | "PENDING_CREATE"
-    | "ERROR";
-  message: string;
-  listingId:
-    | number
-    | null;
-  externalProductId:
-    | string
-    | null;
-};
-
-
-type IkasSendGroupResult = {
-  success: boolean;
-  action:
-    | "EXISTING_VARIANT"
-    | "ADD_VARIANT"
-    | "CREATE_PRODUCT";
-  productId: string;
-  variantId: string;
-  sku: string;
-  title: string;
-  color: string;
-  addedImeis: string[];
-  addedCount: number;
-  beforeStock: number;
-  afterStock: number;
-  salePrice: number;
-  listPrice: number;
-  stockLocationId: string;
-  salesChannelVisibility?: {
-    id: string;
-    name: string;
-    status: string;
-    selectedBy: string;
-  };
-  listingId: number;
-};
-
-
-type IdefixSendGroupResult = {
-  success: boolean;
-  action:
-    | "EXISTING_PRODUCT"
-    | "FAST_LISTING"
-    | "CREATE_PRODUCT";
-  title: string;
-  color: string;
+  targetBeforeStock: number;
+  targetAfterStock: number;
   barcode: string;
-  beforeStock: number;
-  afterStock: number;
-  addedImeis: string[];
-  batchRequestId:
-    | string
-    | null;
-  inventoryBatchRequestId?:
-    | string
-    | null;
-  listingId: number;
-  state:
-    | "LISTED"
-    | "PENDING_CREATE"
-    | string;
-  pendingApproval?: boolean;
-  approved?: boolean;
-  message?: string;
+  catalogBarcode: string | null;
+  catalogBarcodeSource?: "REQUEST" | "LOCAL_MAPPING" | "POOL" | null;
+  vendorStockCode: string;
+  productMainId: string;
+  brandId: number | string | null;
+  categoryId: number | string | null;
+  vatRate: number | null;
+  imageUrl: string | null;
+  attributes: Array<{
+    attributeId: number | string;
+    attributeValueId: number | string | null;
+    customAttributeValue: string | null;
+  }>;
+  blockers: string[];
 };
 
-
-
-
-
-
-
-function normalizeExcelHeader(
-  value: unknown
-) {
-  return String(
-    value ?? ""
-  )
-    .trim()
-    .toLocaleUpperCase(
-      "tr-TR"
-    )
-    .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      ""
-    )
-    .replace(
-      /[^A-Z0-9]+/g,
-      ""
-    );
+function text(value: unknown) {
+  return String(value ?? "").trim();
 }
 
-function excelColumnIndex(
-  cellRef: string
-) {
-  const letters =
-    cellRef
-      .replace(
-        /[^A-Za-z]/g,
-        ""
-      )
-      .toUpperCase();
+function normalizeText(value: unknown) {
+  return text(value)
+    .toLocaleUpperCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  let value = 0;
+function normalizeGrade(value: unknown) {
+  const v = normalizeText(value);
 
-  for (
-    let index = 0;
-    index <
-    letters.length;
-    index += 1
+  // Merkez / N11 / İkas taraflarında kalite farklı biçimlerde gelebiliyor:
+  // A, A Kalite, Grade A, A Grade, Mükemmel vb.
+  if (
+    v === "A" ||
+    v === "A KALITE" ||
+    v === "A GRADE" ||
+    v === "GRADE A" ||
+    v.includes("MUKEMMEL")
   ) {
-    value =
-      value * 26 +
-      (
-        letters.charCodeAt(
-          index
-        ) -
-        64
-      );
+    return "A";
   }
 
-  return value - 1;
+  if (
+    v === "B" ||
+    v === "B KALITE" ||
+    v === "B GRADE" ||
+    v === "GRADE B" ||
+    v.includes("COK IYI")
+  ) {
+    return "B";
+  }
+
+  if (
+    v === "C" ||
+    v === "C KALITE" ||
+    v === "C GRADE" ||
+    v === "GRADE C" ||
+    v === "IYI"
+  ) {
+    return "C";
+  }
+
+  return v;
 }
 
-function readUint16LE(
-  view: DataView,
-  offset: number
-) {
-  return view.getUint16(
-    offset,
-    true
+function normalizeMemory(value: unknown) {
+  return normalizeText(value).replace(
+    /(\d+(?:[.,]\d+)?)\s*(GB|TB)\b/g,
+    "$1 $2"
   );
 }
 
-function readUint32LE(
-  view: DataView,
-  offset: number
+function containsPhrase(
+  haystack: unknown,
+  needle: unknown
 ) {
-  return view.getUint32(
-    offset,
-    true
+  const h =
+    ` ${normalizeText(haystack)} `;
+  const n =
+    ` ${normalizeText(needle)} `;
+
+  return normalizeText(needle)
+    ? h.includes(n)
+    : false;
+}
+
+function colorAliases(value: unknown) {
+  const color =
+    normalizeText(value);
+
+  const map:
+    Record<string, string[]> = {
+      KIRMIZI: [
+        "KIRMIZI",
+        "RED",
+        "PRODUCT RED",
+      ],
+      SIYAH: [
+        "SIYAH",
+        "BLACK",
+      ],
+      BEYAZ: [
+        "BEYAZ",
+        "WHITE",
+      ],
+      MAVI: [
+        "MAVI",
+        "BLUE",
+      ],
+      YESIL: [
+        "YESIL",
+        "GREEN",
+      ],
+      MOR: [
+        "MOR",
+        "PURPLE",
+      ],
+      SARI: [
+        "SARI",
+        "YELLOW",
+      ],
+      PEMBE: [
+        "PEMBE",
+        "PINK",
+      ],
+      GRI: [
+        "GRI",
+        "GRAY",
+        "GREY",
+      ],
+      GUMUS: [
+        "GUMUS",
+        "SILVER",
+      ],
+      ALTIN: [
+        "ALTIN",
+        "GOLD",
+      ],
+      LACIVERT: [
+        "LACIVERT",
+        "NAVY",
+        "NAVY BLUE",
+      ],
+    };
+
+  return Array.from(
+    new Set(
+      map[color] || [color]
+    )
+  ).filter(Boolean);
+}
+
+function matchedColorAlias(
+  title: unknown,
+  color: unknown
+) {
+  return (
+    colorAliases(color).find(
+      (alias) =>
+        containsPhrase(
+          title,
+          alias
+        )
+    ) || null
   );
 }
 
-async function unzipXlsxEntries(
-  buffer: ArrayBuffer
+function detectGradeFromTitle(
+  title: unknown
 ) {
-  const view =
-    new DataView(
-      buffer
+  const t =
+    normalizeText(title);
+
+  if (
+    containsPhrase(t, "B KALITE") ||
+    containsPhrase(t, "B GRADE") ||
+    containsPhrase(t, "GRADE B") ||
+    containsPhrase(t, "COK IYI")
+  ) {
+    return "B";
+  }
+
+  if (
+    containsPhrase(t, "A KALITE") ||
+    containsPhrase(t, "A GRADE") ||
+    containsPhrase(t, "GRADE A") ||
+    containsPhrase(t, "MUKEMMEL")
+  ) {
+    return "A";
+  }
+
+  if (
+    containsPhrase(t, "C KALITE") ||
+    containsPhrase(t, "C GRADE") ||
+    containsPhrase(t, "GRADE C") ||
+    containsPhrase(t, "IYI")
+  ) {
+    return "C";
+  }
+
+  return null;
+}
+
+function numberOrNull(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    text(value) === ""
+  ) {
+    return null;
+  }
+
+  const n =
+    Number(value);
+
+  return Number.isFinite(n)
+    ? n
+    : null;
+}
+
+function money(
+  value: unknown,
+  label: string
+) {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    if (value <= 0) {
+      throw new Error(
+        `${label} 0'dan büyük olmalıdır.`
+      );
+    }
+
+    return Math.round(
+      value * 100
+    ) / 100;
+  }
+
+  let raw =
+    text(value);
+
+  if (!raw) {
+    throw new Error(
+      `${label} zorunludur.`
+    );
+  }
+
+  raw =
+    raw.replace(
+      /[^\d,.-]/g,
+      ""
     );
 
-  let eocd = -1;
+  const comma =
+    raw.lastIndexOf(",");
+  const dot =
+    raw.lastIndexOf(".");
 
-  const minOffset =
-    Math.max(
-      0,
-      buffer.byteLength -
-        65_557
+  if (
+    comma > dot
+  ) {
+    raw =
+      raw
+        .replace(/\./g, "")
+        .replace(",", ".");
+  } else {
+    raw =
+      raw.replace(/,/g, "");
+  }
+
+  const n =
+    Number(raw);
+
+  if (
+    !Number.isFinite(n) ||
+    n <= 0
+  ) {
+    throw new Error(
+      `${label} geçersiz.`
     );
+  }
+
+  return Math.round(
+    n * 100
+  ) / 100;
+}
+
+function groupKey(
+  row: DeviceRow
+) {
+  return [
+    normalizeText(row.brand),
+    normalizeText(row.model),
+    normalizeMemory(row.memory),
+    normalizeText(row.color),
+    normalizeGrade(row.grade),
+    normalizeText(row.warranty),
+  ].join("|");
+}
+
+function stableHash(
+  value: string,
+  length = 20
+) {
+  return crypto
+    .createHash("sha256")
+    .update(value)
+    .digest("hex")
+    .toUpperCase()
+    .slice(0, length);
+}
+
+function makeStableBarcode(
+  group: CenterGroup
+) {
+  // İdefix create endpoint barcode alanını zorunlu tutuyor.
+  // CNETMOBIL için ürün grubu bazlı deterministik ve tekrar üretilebilir
+  // benzersiz değer kullanılır. Aynı grup ikinci kez yeni barkod üretmez.
+  return `CNETIDF${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.color,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    18
+  )}`;
+}
+
+function makeVendorStockCode(
+  group: CenterGroup
+) {
+  return `CNET-IDF-${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.color,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    16
+  )}`;
+}
+
+function makeProductMainId(
+  group: CenterGroup
+) {
+  // Renk hariç aile kodu.
+  // Aynı model/hafıza/grade/garanti farklı renkleri aynı ailede tutulabilir.
+  return `CNET-IDF-PM-${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    16
+  )}`;
+}
+
+function productTitle(
+  group: CenterGroup
+) {
+  const gradeLabel =
+    normalizeGrade(
+      group.grade
+    ) === "A"
+      ? "A Kalite"
+      : normalizeGrade(
+          group.grade
+        ) === "B"
+      ? "B Kalite"
+      : normalizeGrade(
+          group.grade
+        ) === "C"
+      ? "C Kalite"
+      : group.grade;
+
+  return [
+    group.brand,
+    "Yenilenmiş",
+    group.model,
+    group.memory,
+    "-",
+    group.color,
+    "-",
+    gradeLabel,
+    `(${group.warranty} Garantili)`,
+  ]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function productKey(
+  product: IdefixProduct
+) {
+  return (
+    text(product.barcode) ||
+    [
+      text(
+        product.productMainId
+      ),
+      text(
+        product.vendorStockCode
+      ),
+      normalizeText(
+        product.title
+      ),
+    ].join("|")
+  );
+}
+
+async function idefixApi(
+  path: string,
+  options?: {
+    method?:
+      | "GET"
+      | "POST";
+    body?: unknown;
+    timeoutMs?: number;
+  }
+) {
+  const token =
+    getIdefixVendorToken();
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      options?.timeoutMs ??
+        35_000
+    );
+
+  try {
+    const response =
+      await fetch(
+        `${IDEFIX_BASE_URL}${path}`,
+        {
+          method:
+            options?.method ||
+            "GET",
+          cache:
+            "no-store",
+          headers: {
+            Accept:
+              "application/json",
+            "Content-Type":
+              "application/json",
+            "X-API-KEY":
+              token,
+          },
+          body:
+            options?.body ===
+            undefined
+              ? undefined
+              : JSON.stringify(
+                  options.body
+                ),
+          signal:
+            controller.signal,
+        }
+      );
+
+    const raw =
+      await response.text();
+
+    let payload:
+      any = null;
+
+    if (raw) {
+      try {
+        payload =
+          JSON.parse(raw);
+      } catch {
+        payload = {
+          raw,
+        };
+      }
+    }
+
+    if (!response.ok) {
+      const apiMessage =
+        text(
+          payload?.message
+        ) ||
+        text(
+          payload?.error
+        ) ||
+        text(
+          payload?.errors?.[0]
+            ?.message
+        );
+
+      let payloadDetail = "";
+
+      if (payload !== null && payload !== undefined) {
+        try {
+          payloadDetail =
+            typeof payload === "string"
+              ? payload
+              : JSON.stringify(payload);
+        } catch {
+          payloadDetail =
+            String(payload);
+        }
+      }
+
+      const detail =
+        apiMessage ||
+        payloadDetail ||
+        raw ||
+        "Response body boş.";
+
+      throw new Error(
+        `İdefix HTTP ${response.status} [${options?.method || "GET"} ${path}]: ${detail}`
+      );
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchAllProducts() {
+  const rows:
+    IdefixProduct[] = [];
+
+  const seen =
+    new Set<string>();
+
+  const pageSignatures =
+    new Set<string>();
+
+  const limit = 50;
 
   for (
-    let offset =
-      buffer.byteLength -
-      22;
-    offset >= minOffset;
-    offset -= 1
+    let page = 1;
+    page <= 100;
+    page += 1
   ) {
+    const payload: any =
+      await getIdefixProducts(
+        page,
+        limit
+      );
+
+    const products =
+      Array.isArray(
+        payload?.products
+      )
+        ? payload.products
+        : [];
+
     if (
-      readUint32LE(
-        view,
-        offset
-      ) === 0x06054b50
+      products.length === 0
     ) {
-      eocd = offset;
+      break;
+    }
+
+    const signature =
+      products
+        .map(
+          (product: any) =>
+            productKey(product)
+        )
+        .join("||");
+
+    if (
+      pageSignatures.has(
+        signature
+      )
+    ) {
+      break;
+    }
+
+    pageSignatures.add(
+      signature
+    );
+
+    for (
+      const product of
+        products
+    ) {
+      const key =
+        productKey(product);
+
+      if (
+        seen.has(key)
+      ) {
+        continue;
+      }
+
+      seen.add(key);
+      rows.push(product);
+    }
+
+    if (
+      products.length <
+      limit
+    ) {
       break;
     }
   }
 
-  if (eocd < 0) {
-    throw new Error(
-      "Excel ZIP yapısı okunamadı."
-    );
-  }
-
-  const totalEntries =
-    readUint16LE(
-      view,
-      eocd + 10
-    );
-
-  const centralOffset =
-    readUint32LE(
-      view,
-      eocd + 16
-    );
-
-  const decoder =
-    new TextDecoder(
-      "utf-8"
-    );
-
-  const entries =
-    new Map<
-      string,
-      {
-        method: number;
-        compressedSize: number;
-        localOffset: number;
-      }
-    >();
-
-  let offset =
-    centralOffset;
-
-  for (
-    let index = 0;
-    index <
-    totalEntries;
-    index += 1
-  ) {
-    if (
-      readUint32LE(
-        view,
-        offset
-      ) !== 0x02014b50
-    ) {
-      throw new Error(
-        "Excel merkezi ZIP dizini bozuk."
-      );
-    }
-
-    const method =
-      readUint16LE(
-        view,
-        offset + 10
-      );
-
-    const compressedSize =
-      readUint32LE(
-        view,
-        offset + 20
-      );
-
-    const fileNameLength =
-      readUint16LE(
-        view,
-        offset + 28
-      );
-
-    const extraLength =
-      readUint16LE(
-        view,
-        offset + 30
-      );
-
-    const commentLength =
-      readUint16LE(
-        view,
-        offset + 32
-      );
-
-    const localOffset =
-      readUint32LE(
-        view,
-        offset + 42
-      );
-
-    const fileNameBytes =
-      new Uint8Array(
-        buffer,
-        offset + 46,
-        fileNameLength
-      );
-
-    const fileName =
-      decoder.decode(
-        fileNameBytes
-      );
-
-    entries.set(
-      fileName,
-      {
-        method,
-        compressedSize,
-        localOffset,
-      }
-    );
-
-    offset +=
-      46 +
-      fileNameLength +
-      extraLength +
-      commentLength;
-  }
-
-  const readEntry =
-    async (
-      name: string
-    ) => {
-      const entry =
-        entries.get(name);
-
-      if (!entry) {
-        return null;
-      }
-
-      const local =
-        entry.localOffset;
-
-      if (
-        readUint32LE(
-          view,
-          local
-        ) !== 0x04034b50
-      ) {
-        throw new Error(
-          `Excel ZIP kaydı okunamadı: ${name}`
-        );
-      }
-
-      const fileNameLength =
-        readUint16LE(
-          view,
-          local + 26
-        );
-
-      const extraLength =
-        readUint16LE(
-          view,
-          local + 28
-        );
-
-      const dataStart =
-        local +
-        30 +
-        fileNameLength +
-        extraLength;
-
-      const compressed =
-        new Uint8Array(
-          buffer,
-          dataStart,
-          entry.compressedSize
-        );
-
-      let bytes:
-        Uint8Array;
-
-      if (
-        entry.method === 0
-      ) {
-        bytes =
-          compressed;
-      } else if (
-        entry.method === 8
-      ) {
-        if (
-          typeof DecompressionStream ===
-          "undefined"
-        ) {
-          throw new Error(
-            "Tarayıcı Excel sıkıştırmasını desteklemiyor."
-          );
-        }
-
-        const stream =
-          new Blob([
-            compressed,
-          ])
-            .stream()
-            .pipeThrough(
-              new DecompressionStream(
-                "deflate-raw" as any
-              )
-            );
-
-        bytes =
-          new Uint8Array(
-            await new Response(
-              stream
-            ).arrayBuffer()
-          );
-      } else {
-        throw new Error(
-          `Desteklenmeyen Excel sıkıştırma tipi: ${entry.method}`
-        );
-      }
-
-      return decoder.decode(
-        bytes
-      );
-    };
-
-  return {
-    readEntry,
-  };
+  return rows;
 }
 
-function parseExcelSheetXml(
-  sheetXml: string,
-  sharedStrings: string[]
+function exactProductForGroup(
+  products: IdefixProduct[],
+  group: CenterGroup
 ) {
-  const parser =
-    new DOMParser();
+  const brand =
+    normalizeText(
+      group.brand
+    );
 
-  const xml =
-    parser.parseFromString(
-      sheetXml,
-      "application/xml"
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
+  const grade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const matches =
+    products.filter(
+      (product) => {
+        const title =
+          product.title;
+
+        return (
+          containsPhrase(
+            title,
+            brand
+          ) &&
+          containsPhrase(
+            title,
+            modelMemory
+          ) &&
+          Boolean(
+            matchedColorAlias(
+              title,
+              group.color
+            )
+          ) &&
+          detectGradeFromTitle(
+            title
+          ) === grade
+        );
+      }
     );
 
   if (
-    xml.querySelector(
-      "parsererror"
-    )
+    matches.length > 1
   ) {
-    throw new Error(
-      "Excel sayfası XML olarak okunamadı."
-    );
+    // Aynı barkod tekrarı hariç birden fazla gerçek ürün varsa otomatik seçme.
+    const distinct =
+      new Map<
+        string,
+        IdefixProduct
+      >();
+
+    for (
+      const product of
+        matches
+    ) {
+      distinct.set(
+        productKey(product),
+        product
+      );
+    }
+
+    if (
+      distinct.size > 1
+    ) {
+      throw new Error(
+        `${productTitle(
+          group
+        )}: İdefix'te aynı renk için birden fazla ürün bulundu. Otomatik gönderim durduruldu.`
+      );
+    }
   }
 
-  const rows:
-    Array<{
-      rowNumber: number;
-      cells: string[];
-    }> = [];
+  return (
+    matches[0] ||
+    null
+  );
+}
 
-  const rowNodes =
-    Array.from(
-      xml.getElementsByTagName(
-        "row"
+function referenceProductForGroup(
+  products: IdefixProduct[],
+  group: CenterGroup
+) {
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
+  const grade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const candidates =
+    products
+      .map(
+        (product) => {
+          const title =
+            product.title;
+
+          if (
+            !containsPhrase(
+              title,
+              brand
+            ) ||
+            !containsPhrase(
+              title,
+              modelMemory
+            ) ||
+            detectGradeFromTitle(
+              title
+            ) !== grade
+          ) {
+            return null;
+          }
+
+          let score =
+            100;
+
+          if (
+            containsPhrase(
+              title,
+              "YENILENMIS"
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            text(
+              product.brandId
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            text(
+              product.categoryId
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            Array.isArray(
+              product.attributes
+            ) &&
+            product.attributes
+              .length > 0
+          ) {
+            score += 10;
+          }
+
+          if (
+            numberOrNull(
+              product.vatRate
+            ) !== null
+          ) {
+            score += 5;
+          }
+
+          return {
+            product,
+            score,
+          };
+        }
+      )
+      .filter(Boolean)
+      .sort(
+        (
+          a: any,
+          b: any
+        ) =>
+          b.score -
+          a.score
+      ) as Array<{
+        product:
+          IdefixProduct;
+        score: number;
+      }>;
+
+  if (
+    candidates.length === 0
+  ) {
+    return null;
+  }
+
+  const first =
+    candidates[0];
+
+  const top =
+    candidates.filter(
+      (candidate) =>
+        candidate.score ===
+        first.score
+    );
+
+  const uniqueTargets =
+    new Set(
+      top.map(
+        (candidate) =>
+          [
+            text(
+              candidate.product
+                .brandId
+            ),
+            text(
+              candidate.product
+                .categoryId
+            ),
+          ].join("|")
       )
     );
 
-  for (
-    const rowNode of
-      rowNodes
+  if (
+    uniqueTargets.size > 1
   ) {
-    const rowNumber =
-      Number(
-        rowNode.getAttribute(
-          "r"
-        ) || 0
-      );
+    throw new Error(
+      `${productTitle(
+        group
+      )}: aynı model için farklı İdefix brand/category referansları bulundu. Yeni ürün oluşturma durduruldu.`
+    );
+  }
 
-    const cells:
-      string[] = [];
+  return first.product;
+}
 
-    const cellNodes =
-      Array.from(
-        rowNode.getElementsByTagName(
-          "c"
+async function categoryAttributes(
+  categoryId:
+    string | number
+) {
+  const payload =
+    await idefixApi(
+      `/pim/category-attribute/${encodeURIComponent(
+        String(
+          categoryId
         )
+      )}`
+    );
+
+  return Array.isArray(
+    payload?.categoryAttributes
+  )
+    ? payload.categoryAttributes as
+        CategoryAttribute[]
+    : [];
+}
+
+function attributeById(
+  product: IdefixProduct,
+  attributeId: unknown
+) {
+  const attributes =
+    Array.isArray(
+      product.attributes
+    )
+      ? product.attributes
+      : [];
+
+  return (
+    attributes.find(
+      (attribute) =>
+        String(
+          attribute
+            ?.attributeId ??
+            ""
+        ) ===
+        String(
+          attributeId ??
+            ""
+        )
+    ) || null
+  );
+}
+
+function isColorAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title === "RENK" ||
+    title.includes("RENK") ||
+    title === "COLOR" ||
+    title.includes("COLOR")
+  );
+}
+
+function isCosmeticAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "KOZMETIK"
+    ) ||
+    title ===
+      "KALITE" ||
+    title.includes(
+      "KALITE DURUM"
+    ) ||
+    title.includes(
+      "URUN DURUMU"
+    )
+  );
+}
+
+function isMemoryAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "DAHILI HAFIZA"
+    ) ||
+    title ===
+      "HAFIZA" ||
+    title.includes(
+      "DEPOLAMA"
+    ) ||
+    title.includes(
+      "KAPASITE"
+    )
+  );
+}
+
+function isWarrantyAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "GARANTI"
+    )
+  );
+}
+
+function pickAttributeValueByAliases(
+  attribute:
+    CategoryAttribute,
+  aliases:
+    string[],
+  customFallback?:
+    string
+) {
+  if (
+    attribute.allowCustom ===
+    true
+  ) {
+    const custom =
+      text(
+        customFallback ||
+        aliases[0]
       );
 
-    for (
-      const cell of
-        cellNodes
-    ) {
-      const ref =
-        cell.getAttribute(
-          "r"
-        ) || "";
+    if (!custom) {
+      return null;
+    }
 
-      const column =
-        excelColumnIndex(
-          ref
+    return {
+      attributeId:
+        attribute
+          .attributeId,
+      attributeValueId:
+        null,
+      customAttributeValue:
+        custom,
+    };
+  }
+
+  const values =
+    Array.isArray(
+      attribute
+        .attributeValues
+    )
+      ? attribute
+          .attributeValues
+      : [];
+
+  const normalizedAliases =
+    aliases
+      .map(
+        normalizeText
+      )
+      .filter(Boolean);
+
+  // Önce birebir eşleşme.
+  let selected =
+    values.find(
+      (value) =>
+        normalizedAliases.includes(
+          normalizeText(
+            value?.name
+          )
+        )
+    );
+
+  // Sonra güvenli içerme eşleşmesi.
+  // Örnek:
+  // "A Kalite" <-> "A Kalite / Mükemmel"
+  if (!selected) {
+    selected =
+      values.find(
+        (value) => {
+          const name =
+            normalizeText(
+              value?.name
+            );
+
+          if (!name) {
+            return false;
+          }
+
+          return normalizedAliases.some(
+            (alias) =>
+              alias.length >= 3 &&
+              (
+                containsPhrase(
+                  name,
+                  alias
+                ) ||
+                containsPhrase(
+                  alias,
+                  name
+                )
+              )
+          );
+        }
+      );
+  }
+
+  if (
+    selected?.id ===
+      null ||
+    selected?.id ===
+      undefined ||
+    text(
+      selected?.id
+    ) === ""
+  ) {
+    return null;
+  }
+
+  return {
+    attributeId:
+      attribute
+        .attributeId,
+    attributeValueId:
+      selected.id,
+    customAttributeValue:
+      null,
+  };
+}
+
+function colorAttributeValue(
+  attribute:
+    CategoryAttribute,
+  color: string
+) {
+  return pickAttributeValueByAliases(
+    attribute,
+    colorAliases(
+      color
+    ),
+    color
+  );
+}
+
+function cosmeticAliases(
+  grade:
+    string
+) {
+  const normalized =
+    normalizeGrade(
+      grade
+    );
+
+  if (
+    normalized ===
+    "A"
+  ) {
+    return [
+      "A",
+      "A KALITE",
+      "MUKEMMEL",
+      "MUKEMMEL DURUM",
+      "YENI GIBI",
+    ];
+  }
+
+  if (
+    normalized ===
+    "B"
+  ) {
+    return [
+      "B",
+      "B KALITE",
+      "COK IYI",
+      "COK IYI DURUM",
+    ];
+  }
+
+  if (
+    normalized ===
+    "C"
+  ) {
+    return [
+      "C",
+      "C KALITE",
+      "IYI",
+      "IYI DURUM",
+    ];
+  }
+
+  return [
+    normalized,
+  ].filter(Boolean);
+}
+
+function memoryAliases(
+  memory:
+    string
+) {
+  const normalized =
+    normalizeMemory(
+      memory
+    );
+
+  const compact =
+    normalized.replace(
+      /\s+/g,
+      ""
+    );
+
+  return Array.from(
+    new Set([
+      normalized,
+      compact,
+      text(memory),
+    ])
+  ).filter(Boolean);
+}
+
+function warrantyAliases(
+  warranty:
+    string
+) {
+  const normalized =
+    normalizeText(
+      warranty
+    );
+
+  const aliases =
+    new Set<string>([
+      normalized,
+      text(warranty),
+    ]);
+
+  const monthMatch =
+    normalized.match(
+      /(\d+)\s*AY/
+    );
+
+  if (monthMatch) {
+    const months =
+      Number(
+        monthMatch[1]
+      );
+
+    aliases.add(
+      `${months} AY`
+    );
+    aliases.add(
+      `${months} AY GARANTI`
+    );
+    aliases.add(
+      `${months} AY GARANTILI`
+    );
+
+    if (
+      months === 12
+    ) {
+      aliases.add(
+        "1 YIL"
+      );
+      aliases.add(
+        "1 YIL GARANTI"
+      );
+      aliases.add(
+        "1 YIL GARANTILI"
+      );
+    }
+
+    if (
+      months === 24
+    ) {
+      aliases.add(
+        "2 YIL"
+      );
+      aliases.add(
+        "2 YIL GARANTI"
+      );
+      aliases.add(
+        "2 YIL GARANTILI"
+      );
+    }
+  }
+
+  return Array.from(
+    aliases
+  ).filter(Boolean);
+}
+
+function derivedRequiredAttributeValue(
+  attribute:
+    CategoryAttribute,
+  group:
+    CenterGroup
+) {
+  if (
+    isCosmeticAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      cosmeticAliases(
+        group.grade
+      ),
+      normalizeGrade(
+        group.grade
+      )
+    );
+  }
+
+  if (
+    isMemoryAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      memoryAliases(
+        group.memory
+      ),
+      group.memory
+    );
+  }
+
+  if (
+    isWarrantyAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      warrantyAliases(
+        group.warranty
+      ),
+      group.warranty
+    );
+  }
+
+  return null;
+}
+
+function attributeAvailableValues(
+  attribute:
+    CategoryAttribute
+) {
+  const values =
+    Array.isArray(
+      attribute
+        .attributeValues
+    )
+      ? attribute
+          .attributeValues
+      : [];
+
+  return values
+    .map(
+      (value) =>
+        text(
+          value?.name
+        )
+    )
+    .filter(Boolean)
+    .slice(0, 30);
+}
+
+async function buildCreateAttributes(
+  reference:
+    IdefixProduct,
+  group:
+    CenterGroup
+) {
+  const categoryId =
+    reference.categoryId;
+
+  if (
+    categoryId ===
+      null ||
+    categoryId ===
+      undefined ||
+    text(categoryId) ===
+      ""
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: referans üründe categoryId yok.`
+    );
+  }
+
+  const schema =
+    await categoryAttributes(
+      categoryId
+    );
+
+  if (
+    schema.length === 0
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: İdefix kategori özellikleri alınamadı.`
+    );
+  }
+
+  const output:
+    Array<{
+      attributeId:
+        number | string;
+      attributeValueId:
+        number | string | null;
+      customAttributeValue:
+        string | null;
+    }> = [];
+
+  let colorFound =
+    false;
+
+  for (
+    const attribute of
+      schema
+  ) {
+    if (
+      isColorAttribute(
+        attribute
+      )
+    ) {
+      const selected =
+        colorAttributeValue(
+          attribute,
+          group.color
         );
 
-      if (column < 0) {
+      if (!selected) {
+        throw new Error(
+          `${productTitle(
+            group
+          )}: İdefix kategori renklerinde "${group.color}" / ${colorAliases(
+            group.color
+          ).join(
+            ", "
+          )} bulunamadı. Kullanılabilir değerler: ${attributeAvailableValues(
+            attribute
+          ).join(
+            ", "
+          ) || "-"}.`
+        );
+      }
+
+      output.push(
+        selected
+      );
+
+      colorFound =
+        true;
+
+      continue;
+    }
+
+    const referenceValue =
+      attributeById(
+        reference,
+        attribute
+          .attributeId
+      );
+
+    if (
+      referenceValue
+    ) {
+      output.push({
+        attributeId:
+          attribute
+            .attributeId,
+        attributeValueId:
+          referenceValue
+            .attributeValueId ??
+          null,
+        customAttributeValue:
+          text(
+            referenceValue
+              .customAttributeValue
+          ) || null,
+      });
+
+      continue;
+    }
+
+    // Referans üründe zorunlu alan eksikse,
+    // Merkez cihaz bilgisinden güvenli şekilde türetmeyi dene.
+    if (
+      attribute.required ===
+      true
+    ) {
+      const derived =
+        derivedRequiredAttributeValue(
+          attribute,
+          group
+        );
+
+      if (derived) {
+        output.push(
+          derived
+        );
+
         continue;
       }
 
-      const type =
-        cell.getAttribute(
-          "t"
-        ) || "";
+      throw new Error(
+        `${productTitle(
+          group
+        )}: zorunlu İdefix özelliği referans üründe yok ve Merkez verisinden güvenli türetilemedi: ${text(
+          attribute
+            .attributeTitle
+        ) || String(
+          attribute
+            .attributeId
+        )}. Kullanılabilir değerler: ${attributeAvailableValues(
+          attribute
+        ).join(
+          ", "
+        ) || "-"}.`
+      );
+    }
+  }
 
-      let value = "";
+  if (
+    !colorFound
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: kategori özelliklerinde renk attribute'u bulunamadı.`
+    );
+  }
+
+  return output;
+}
+
+function imageUrlsFromJson(
+  value: unknown,
+  keyHint = "",
+  output = new Set<string>(),
+  depth = 0
+) {
+  if (
+    depth > 8 ||
+    value === null ||
+    value === undefined
+  ) {
+    return output;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const raw =
+      value.trim();
+
+    const key =
+      normalizeText(
+        keyHint
+      );
+
+    if (
+      /^https:\/\//i.test(
+        raw
+      ) &&
+      (
+        key.includes(
+          "IMAGE"
+        ) ||
+        key.includes(
+          "GORSEL"
+        ) ||
+        /\.(?:jpe?g|png|webp)(?:\?|$)/i.test(
+          raw
+        )
+      )
+    ) {
+      output.add(raw);
+    }
+
+    return output;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of value
+    ) {
+      imageUrlsFromJson(
+        item,
+        keyHint,
+        output,
+        depth + 1
+      );
+    }
+
+    return output;
+  }
+
+  if (
+    typeof value ===
+    "object"
+  ) {
+    for (
+      const [
+        key,
+        child,
+      ] of Object.entries(
+        value as Record<
+          string,
+          unknown
+        >
+      )
+    ) {
+      imageUrlsFromJson(
+        child,
+        key,
+        output,
+        depth + 1
+      );
+    }
+  }
+
+  return output;
+}
+
+function findVatInJson(
+  value: unknown,
+  depth = 0
+): number | null {
+  if (
+    depth > 8 ||
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of value
+    ) {
+      const found =
+        findVatInJson(
+          item,
+          depth + 1
+        );
 
       if (
-        type ===
-        "inlineStr"
+        found !== null
       ) {
-        value =
-          Array.from(
-            cell.getElementsByTagName(
-              "t"
-            )
-          )
-            .map(
-              (node) =>
-                node.textContent ||
-                ""
-            )
-            .join("");
-      } else {
-        const valueNode =
-          cell.getElementsByTagName(
-            "v"
-          )[0];
-
-        const rawValue =
-          valueNode?.textContent ||
-          "";
-
-        if (
-          type === "s"
-        ) {
-          const index =
-            Number(
-              rawValue
-            );
-
-          value =
-            sharedStrings[
-              index
-            ] || "";
-        } else if (
-          type === "b"
-        ) {
-          value =
-            rawValue === "1"
-              ? "TRUE"
-              : "FALSE";
-        } else {
-          value =
-            rawValue;
-        }
-      }
-
-      cells[column] =
-        String(
-          value ?? ""
-        ).trim();
-    }
-
-    rows.push({
-      rowNumber,
-      cells,
-    });
-  }
-
-  return rows;
-}
-
-async function parseCenterExcelFile(
-  file: File
-): Promise<
-  ExcelDeviceRow[]
-> {
-  const lowerName =
-    file.name.toLowerCase();
-
-  if (
-    !lowerName.endsWith(
-      ".xlsx"
-    )
-  ) {
-    throw new Error(
-      "Şimdilik yalnızca .xlsx Excel dosyası yüklenebilir."
-    );
-  }
-
-  if (
-    file.size >
-    10 * 1024 * 1024
-  ) {
-    throw new Error(
-      "Excel dosyası en fazla 10 MB olabilir."
-    );
-  }
-
-  const buffer =
-    await file.arrayBuffer();
-
-  const zip =
-    await unzipXlsxEntries(
-      buffer
-    );
-
-  const sheetXml =
-    await zip.readEntry(
-      "xl/worksheets/sheet1.xml"
-    );
-
-  if (!sheetXml) {
-    throw new Error(
-      "Excel dosyasının ilk sayfası bulunamadı."
-    );
-  }
-
-  const sharedXml =
-    await zip.readEntry(
-      "xl/sharedStrings.xml"
-    );
-
-  let sharedStrings:
-    string[] = [];
-
-  if (sharedXml) {
-    const parser =
-      new DOMParser();
-
-    const xml =
-      parser.parseFromString(
-        sharedXml,
-        "application/xml"
-      );
-
-    sharedStrings =
-      Array.from(
-        xml.getElementsByTagName(
-          "si"
-        )
-      ).map(
-        (node) =>
-          Array.from(
-            node.getElementsByTagName(
-              "t"
-            )
-          )
-            .map(
-              (textNode) =>
-                textNode.textContent ||
-                ""
-            )
-            .join("")
-      );
-  }
-
-  const rawRows =
-    parseExcelSheetXml(
-      sheetXml,
-      sharedStrings
-    );
-
-  if (
-    rawRows.length < 2
-  ) {
-    throw new Error(
-      "Excel dosyasında cihaz satırı bulunamadı."
-    );
-  }
-
-  const headerRow =
-    rawRows.find(
-      (row) =>
-        row.cells.some(
-          (cell) =>
-            normalizeExcelHeader(
-              cell
-            ) === "IMEI"
-        )
-    ) ||
-    rawRows[0];
-
-  const headerMap =
-    new Map<
-      string,
-      number
-    >();
-
-  headerRow.cells.forEach(
-    (
-      cell,
-      index
-    ) => {
-      const key =
-        normalizeExcelHeader(
-          cell
-        );
-
-      if (key) {
-        headerMap.set(
-          key,
-          index
-        );
+        return found;
       }
     }
-  );
 
-  const findColumn =
-    (
-      keys: string[]
-    ) => {
-      for (
-        const key of keys
+    return null;
+  }
+
+  if (
+    typeof value ===
+    "object"
+  ) {
+    for (
+      const [
+        key,
+        child,
+      ] of Object.entries(
+        value as Record<
+          string,
+          unknown
+        >
+      )
+    ) {
+      const normalized =
+        normalizeText(key);
+
+      if (
+        [
+          "VATRATE",
+          "VAT RATE",
+          "VAT",
+          "KDV",
+          "KDV ORANI",
+        ].includes(
+          normalized
+        )
       ) {
-        const index =
-          headerMap.get(
-            key
+        const n =
+          numberOrNull(
+            child
           );
 
         if (
-          index !==
-          undefined
+          n !== null &&
+          [
+            0,
+            1,
+            8,
+            10,
+            18,
+            20,
+          ].includes(n)
         ) {
-          return index;
+          return n;
         }
       }
 
-      return -1;
-    };
+      const nested =
+        findVatInJson(
+          child,
+          depth + 1
+        );
 
-  const columns = {
-    imei:
-      findColumn([
-        "IMEI",
-      ]),
-    brand:
-      findColumn([
-        "MARKA",
-        "BRAND",
-      ]),
-    model:
-      findColumn([
-        "MODEL",
-      ]),
-    memory:
-      findColumn([
-        "HAFIZA",
-        "MEMORY",
-        "KAPASITE",
-      ]),
-    color:
-      findColumn([
-        "RENK",
-        "COLOR",
-      ]),
-    grade:
-      findColumn([
-        "GRADE",
-        "KALITE",
-      ]),
-    warranty:
-      findColumn([
-        "GARANTI",
-        "WARRANTY",
-      ]),
-  };
-
-  const missing =
-    Object.entries(
-      columns
-    )
-      .filter(
-        (
-          [, index]
-        ) =>
-          index < 0
-      )
-      .map(
-        ([key]) =>
-          key
-      );
-
-  if (
-    missing.length > 0
-  ) {
-    throw new Error(
-      "Excel başlıkları eksik. Gerekli kolonlar: IMEI, Marka, Model, Hafıza, Renk, Grade, Garanti."
-    );
+      if (
+        nested !== null
+      ) {
+        return nested;
+      }
+    }
   }
 
-  const rows:
-    ExcelDeviceRow[] = [];
+  return null;
+}
+
+async function exactColorLocalTemplate(
+  client:
+    PoolClient,
+  group:
+    CenterGroup
+) {
+  const rows =
+    await client.query(
+      `
+        SELECT
+          id,
+          channel,
+          title,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          raw_data
+        FROM public.online_listings
+        WHERE channel IN (
+          'N11',
+          'IKAS'
+        )
+          AND (
+            model ILIKE $1
+            OR title ILIKE $2
+          )
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 200
+      `,
+      [
+        `%${group.model}%`,
+        `%${group.model}%`,
+      ]
+    );
+
+  const targetBrand =
+    normalizeText(
+      group.brand
+    );
+
+  const targetModel =
+    normalizeText(
+      group.model
+    );
+
+  const targetMemory =
+    normalizeMemory(
+      group.memory
+    );
+
+  const targetGrade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const aliases =
+    colorAliases(
+      group.color
+    );
+
+  const matches =
+    rows.rows.filter(
+      (row: any) => {
+        const haystack =
+          [
+            row?.title,
+            row?.brand,
+            row?.model,
+            row?.memory,
+            row?.color,
+            row?.grade,
+            JSON.stringify(
+              row?.raw_data ||
+              {}
+            ),
+          ].join(" ");
+
+        const normalized =
+          normalizeText(
+            haystack
+          );
+
+        return (
+          (
+            normalizeText(
+              row?.brand
+            ) ===
+              targetBrand ||
+            containsPhrase(
+              normalized,
+              targetBrand
+            )
+          ) &&
+          (
+            normalizeText(
+              row?.model
+            ) ===
+              targetModel ||
+            containsPhrase(
+              normalized,
+              targetModel
+            )
+          ) &&
+          (
+            normalizeMemory(
+              row?.memory
+            ) ===
+              targetMemory ||
+            containsPhrase(
+              normalized,
+              targetMemory
+            )
+          ) &&
+          aliases.some(
+            (alias) =>
+              containsPhrase(
+                normalized,
+                alias
+              )
+          ) &&
+          (
+            !normalizeText(
+              row?.grade
+            ) ||
+            normalizeGrade(
+              row?.grade
+            ) ===
+              targetGrade ||
+            detectGradeFromTitle(
+              normalized
+            ) ===
+              targetGrade
+          )
+        );
+      }
+    );
+
+  if (
+    matches.length === 0
+  ) {
+    return null;
+  }
 
   for (
-    const rawRow of
-      rawRows
+    const row of matches
   ) {
-    if (
-      rawRow.rowNumber <=
-      headerRow.rowNumber
-    ) {
-      continue;
-    }
-
-    const get =
-      (
-        index: number
-      ) =>
-        String(
-          rawRow.cells[
-            index
-          ] ?? ""
-        ).trim();
-
-    const imei =
-      get(
-        columns.imei
-      );
-
-    const brand =
-      get(
-        columns.brand
-      );
-
-    const model =
-      get(
-        columns.model
-      );
-
-    const memory =
-      get(
-        columns.memory
-      );
-
-    const color =
-      get(
-        columns.color
-      );
-
-    const grade =
-      get(
-        columns.grade
-      );
-
-    const warranty =
-      get(
-        columns.warranty
+    const urls =
+      Array.from(
+        imageUrlsFromJson(
+          row.raw_data
+        )
       );
 
     if (
-      ![
-        imei,
-        brand,
-        model,
-        memory,
-        color,
-        grade,
-        warranty,
-      ].some(Boolean)
+      urls.length > 0
     ) {
-      continue;
+      return {
+        row,
+        imageUrl:
+          urls[0],
+        vatRate:
+          findVatInJson(
+            row.raw_data
+          ),
+      };
+    }
+  }
+
+  return {
+    row:
+      matches[0],
+    imageUrl:
+      null,
+    vatRate:
+      findVatInJson(
+        matches[0]
+          .raw_data
+      ),
+  };
+}
+
+function validateOrigin(
+  request:
+    NextRequest
+) {
+  const origin =
+    request.headers.get(
+      "origin"
+    );
+
+  if (!origin) {
+    return true;
+  }
+
+  const appUrl =
+    text(
+      process.env.APP_URL
+    );
+
+  if (appUrl) {
+    try {
+      return (
+        origin ===
+        new URL(
+          appUrl
+        ).origin
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  const host =
+    request.headers.get(
+      "host"
+    );
+
+  const proto =
+    request.headers.get(
+      "x-forwarded-proto"
+    ) ||
+    request.nextUrl.protocol.replace(
+      ":",
+      ""
+    );
+
+  return Boolean(
+    host &&
+    origin ===
+      `${proto}://${host}`
+  );
+}
+
+async function selectedDevices(
+  client:
+    PoolClient,
+  deviceIds:
+    number[]
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          current_branch_code,
+          status
+        FROM public.stock_devices
+        WHERE id = ANY(
+          $1::bigint[]
+        )
+        ORDER BY id
+      `,
+      [
+        deviceIds,
+      ]
+    );
+
+  return result.rows as
+    DeviceRow[];
+}
+
+function buildGroups(
+  rows:
+    DeviceRow[]
+) {
+  const groups =
+    new Map<
+      string,
+      CenterGroup
+    >();
+
+  for (
+    const row of rows
+  ) {
+    const key =
+      groupKey(row);
+
+    if (
+      !groups.has(key)
+    ) {
+      groups.set(
+        key,
+        {
+          key,
+          brand:
+            text(
+              row.brand
+            ),
+          model:
+            text(
+              row.model
+            ),
+          memory:
+            text(
+              row.memory
+            ),
+          color:
+            text(
+              row.color
+            ),
+          grade:
+            normalizeGrade(
+              row.grade
+            ),
+          warranty:
+            text(
+              row.warranty
+            ),
+          items: [],
+        }
+      );
     }
 
-    rows.push({
-      rowNumber:
-        rawRow.rowNumber,
-      imei,
-      brand,
-      model,
-      memory,
-      color,
-      grade,
-      warranty,
+    groups.get(
+      key
+    )!.items.push({
+      deviceId:
+        Number(row.id),
+      imei:
+        text(row.imei),
     });
   }
 
-  if (
-    rows.length === 0
-  ) {
-    throw new Error(
-      "Excel dosyasında cihaz satırı bulunamadı."
-    );
-  }
-
-  if (
-    rows.length > 500
-  ) {
-    throw new Error(
-      "Tek Excel dosyasında en fazla 500 cihaz yüklenebilir."
-    );
-  }
-
-  return rows;
+  return Array.from(
+    groups.values()
+  );
 }
 
-function formatDateTime(
-  value: unknown
+async function validateDevices(
+  client:
+    PoolClient,
+  requestedIds:
+    number[],
+  rows:
+    DeviceRow[]
 ) {
-  if (!value) {
-    return "-";
-  }
+  const errors:
+    string[] = [];
 
-  const date =
-    new Date(
-      String(value)
+  const byId =
+    new Map(
+      rows.map(
+        (row) => [
+          Number(row.id),
+          row,
+        ]
+      )
     );
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
+  for (
+    const id of requestedIds
   ) {
-    return "-";
-  }
+    const row =
+      byId.get(id);
 
-  return new Intl.DateTimeFormat(
-    "tr-TR",
-    {
-      dateStyle: "short",
-      timeStyle: "medium",
+    if (!row) {
+      errors.push(
+        `Cihaz ID ${id} Merkez stokta bulunamadı.`
+      );
+
+      continue;
     }
-  ).format(date);
-}
 
-function normalize(
-  value: unknown
-) {
-  return String(
-    value ?? ""
-  )
-    .trim()
-    .toLocaleLowerCase(
-      "tr-TR"
-    );
-}
+    const imei =
+      text(row.imei);
 
-
-function formatMoney(
-  value: unknown
-) {
-  const number =
-    Number(value);
-
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
-    return "-";
-  }
-
-  return new Intl.NumberFormat(
-    "tr-TR",
-    {
-      style: "currency",
-      currency: "TRY",
-      maximumFractionDigits:
-        2,
+    if (
+      !/^\d{15}$/.test(
+        imei
+      )
+    ) {
+      errors.push(
+        `${imei || id}: IMEI 15 hane değil.`
+      );
     }
-  ).format(number);
-}
 
-function channelLabel(
-  channel: ChannelCode
-) {
-  if (
-    channel === "IKAS"
-  ) {
-    return "İkas";
+    if (
+      normalizeText(
+        row.status
+      ) !== "AVAILABLE"
+    ) {
+      errors.push(
+        `${imei}: cihaz durumu AVAILABLE değil (${text(
+          row.status
+        ) || "-"}).`
+      );
+    }
+
+    for (
+      const [
+        label,
+        value,
+      ] of [
+        [
+          "Marka",
+          row.brand,
+        ],
+        [
+          "Model",
+          row.model,
+        ],
+        [
+          "Hafıza",
+          row.memory,
+        ],
+        [
+          "Renk",
+          row.color,
+        ],
+        [
+          "Grade",
+          row.grade,
+        ],
+        [
+          "Garanti",
+          row.warranty,
+        ],
+      ] as Array<
+        [string, unknown]
+      >
+    ) {
+      if (
+        !text(value)
+      ) {
+        errors.push(
+          `${imei}: ${label} eksik.`
+        );
+      }
+    }
   }
 
   if (
-    channel ===
-    "IDEFIX"
+    requestedIds.length >
+    100
   ) {
-    return "İdefix";
+    errors.push(
+      "Tek seferde en fazla 100 IMEI İdefix'e gönderilebilir."
+    );
   }
 
-  return "N11";
+  if (
+    rows.length > 0
+  ) {
+    const membership =
+      await client.query(
+        `
+          SELECT
+            stock_device_id,
+            imei,
+            membership_status
+          FROM public.online_channel_devices
+          WHERE channel = 'IDEFIX'
+            AND stock_device_id = ANY(
+              $1::bigint[]
+            )
+        `,
+        [
+          requestedIds,
+        ]
+      );
+
+    for (
+      const row of
+        membership.rows
+    ) {
+      errors.push(
+        `${text(
+          row.imei
+        )}: İdefix kanalında zaten kayıtlı (${text(
+          row.membership_status
+        ) || "KAYITLI"}).`
+      );
+    }
+  }
+
+  return errors;
 }
 
-function channelStatusMeta(
-  rawStatus: unknown
+function isGlobalCatalogBarcode(
+  value: unknown
 ) {
-  const status =
-    String(
-      rawStatus ?? ""
+  return /^\d{8,14}$/.test(
+    text(value)
+  );
+}
+
+async function localCatalogBarcodeForGroup(
+  client:
+    PoolClient,
+  group:
+    CenterGroup
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          id,
+          external_variant_id,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'IDEFIX'
+          AND (
+            brand ILIKE $1
+            OR title ILIKE $2
+          )
+          AND (
+            model ILIKE $3
+            OR title ILIKE $4
+          )
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 100
+      `,
+      [
+        group.brand,
+        `%${group.brand}%`,
+        group.model,
+        `%${group.model}%`,
+      ]
+    );
+
+  for (
+    const row of
+      result.rows
+  ) {
+    const sameGroup =
+      normalizeText(
+        row?.brand
+      ) ===
+        normalizeText(
+          group.brand
+        ) &&
+      normalizeText(
+        row?.model
+      ) ===
+        normalizeText(
+          group.model
+        ) &&
+      normalizeMemory(
+        row?.memory
+      ) ===
+        normalizeMemory(
+          group.memory
+        ) &&
+      normalizeText(
+        row?.color
+      ) ===
+        normalizeText(
+          group.color
+        ) &&
+      normalizeGrade(
+        row?.grade
+      ) ===
+        normalizeGrade(
+          group.grade
+        ) &&
+      normalizeText(
+        row?.warranty
+      ) ===
+        normalizeText(
+          group.warranty
+        );
+
+    if (!sameGroup) {
+      continue;
+    }
+
+    const raw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
+
+    const candidates = [
+      raw?.catalogBarcode,
+      raw?.idefixCatalogBarcode,
+      row?.external_variant_id,
+    ];
+
+    for (
+      const candidate of
+        candidates
+    ) {
+      if (
+        isGlobalCatalogBarcode(
+          candidate
+        )
+      ) {
+        return text(
+          candidate
+        );
+      }
+    }
+  }
+
+  return null;
+}
+
+async function localManagedIdefixCount(
+  client:
+    PoolClient,
+  barcode:
+    string,
+  vendorStockCode:
+    string
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          COUNT(*)::int AS count
+        FROM public.online_channel_devices ocd
+        JOIN public.online_listings ol
+          ON ol.id =
+             ocd.online_listing_id
+        WHERE ocd.channel = 'IDEFIX'
+          AND ol.channel = 'IDEFIX'
+          AND (
+            ol.external_variant_id = $1
+            OR ol.external_stock_code = $2
+          )
+          AND ocd.membership_status IN (
+            'LISTED',
+            'RESERVED',
+            'PENDING_CREATE'
+          )
+      `,
+      [
+        barcode,
+        vendorStockCode,
+      ]
+    );
+
+  return Number(
+    result.rows?.[0]
+      ?.count || 0
+  );
+}
+
+async function prepareGroup(
+  client:
+    PoolClient,
+  products:
+    IdefixProduct[],
+  group:
+    CenterGroup,
+  salePrice:
+    number,
+  listPrice:
+    number,
+  requestedCatalogBarcode:
+    string | null = null
+): Promise<
+  PreparedGroup
+> {
+  const blockers:
+    string[] = [];
+
+  let exactProduct:
+    IdefixProduct | null =
+      null;
+
+  let referenceProduct:
+    IdefixProduct | null =
+      null;
+
+  try {
+    exactProduct =
+      exactProductForGroup(
+        products,
+        group
+      );
+  } catch (error: any) {
+    blockers.push(
+      error instanceof Error
+        ? error.message
+        : "İdefix mevcut ürün eşleştirme hatası."
+    );
+  }
+
+  if (exactProduct) {
+    const barcode =
+      text(
+        exactProduct
+          .barcode
+      );
+
+    if (!barcode) {
+      blockers.push(
+        "Mevcut İdefix ürününde barkod yok."
+      );
+    }
+
+    const vendorStockCode =
+      text(
+        exactProduct
+          .vendorStockCode
+      ) ||
+      makeVendorStockCode(
+        group
+      );
+
+    const currentStock =
+      numberOrNull(
+        exactProduct
+          .inventoryQuantity
+      ) ?? 0;
+
+    const isCnetStableProduct =
+      barcode ===
+      makeStableBarcode(
+        group
+      );
+
+    let targetAfterStock =
+      currentStock +
+      group.items.length;
+
+    // Recovery / idempotency:
+    // Önceki create İdefix'te başarılı olup DB kaydı yazılmadan sonraki
+    // inventory adımında hata verdiyse aynı stabil CNET barkodu tekrar bulunur.
+    // Bu durumda mevcut stok zaten seçili IMEI'yi içeriyor olabilir.
+    // Yerel yönetilen cihaz sayısını baz alarak aynı IMEI'yi ikinci kez artırma.
+    if (
+      isCnetStableProduct
+    ) {
+      const localManagedCount =
+        await localManagedIdefixCount(
+          client,
+          barcode,
+          vendorStockCode
+        );
+
+      const desiredManagedStock =
+        localManagedCount +
+        group.items.length;
+
+      targetAfterStock =
+        Math.max(
+          currentStock,
+          desiredManagedStock
+        );
+    }
+
+    return {
+      group,
+      action:
+        "EXISTING_PRODUCT",
+      exactProduct,
+      referenceProduct:
+        null,
+      title:
+        text(
+          exactProduct.title
+        ) ||
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        currentStock,
+      targetAfterStock,
+      barcode,
+      catalogBarcode:
+        isGlobalCatalogBarcode(
+          barcode
+        )
+          ? barcode
+          : null,
+      catalogBarcodeSource:
+        isGlobalCatalogBarcode(
+          barcode
+        )
+          ? "POOL"
+          : null,
+      vendorStockCode,
+      productMainId:
+        text(
+          exactProduct
+            .productMainId
+        ) ||
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        exactProduct.brandId ??
+        null,
+      categoryId:
+        exactProduct
+          .categoryId ??
+        null,
+      vatRate:
+        numberOrNull(
+          exactProduct
+            .vatRate
+        ),
+      imageUrl:
+        Array.isArray(
+          exactProduct.images
+        )
+          ? text(
+              exactProduct
+                .images?.[0]
+                ?.url
+            ) || null
+          : null,
+      attributes:
+        Array.isArray(
+          exactProduct
+            .attributes
+        )
+          ? exactProduct
+              .attributes
+              .map(
+                (
+                  attribute: any
+                ) => ({
+                  attributeId:
+                    attribute
+                      .attributeId,
+                  attributeValueId:
+                    attribute
+                      .attributeValueId ??
+                    null,
+                  customAttributeValue:
+                    text(
+                      attribute
+                        .customAttributeValue
+                    ) || null,
+                })
+              )
+              .filter(
+                (
+                  attribute: any
+                ) =>
+                  attribute
+                    .attributeId !==
+                    null &&
+                  attribute
+                    .attributeId !==
+                    undefined
+              )
+          : [],
+      blockers,
+    };
+  }
+
+  const requestedBarcode =
+    text(
+      requestedCatalogBarcode
+    );
+
+  const savedBarcode =
+    requestedBarcode
+      ? null
+      : await localCatalogBarcodeForGroup(
+          client,
+          group
+        );
+
+  const catalogBarcode =
+    requestedBarcode ||
+    text(
+      savedBarcode
+    );
+
+  const catalogBarcodeSource:
+    "REQUEST" |
+    "LOCAL_MAPPING" |
+    null =
+      requestedBarcode
+        ? "REQUEST"
+        : savedBarcode
+        ? "LOCAL_MAPPING"
+        : null;
+
+  if (
+    requestedBarcode &&
+    !isGlobalCatalogBarcode(
+      requestedBarcode
     )
-      .trim()
-      .toUpperCase();
-
-  if (
-    status === "LISTED"
   ) {
     return {
-      label: "Gönderildi",
-      className:
-        "border-emerald-200 bg-emerald-50 text-emerald-700",
-      mark: "✓",
+      group,
+      action:
+        "FAST_LISTING",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        requestedBarcode,
+      catalogBarcode:
+        requestedBarcode,
+      catalogBarcodeSource:
+        "REQUEST",
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        1,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers: [
+        "İdefix katalog barkodu 8-14 haneli sayısal global barkod olmalıdır.",
+      ],
     };
   }
 
   if (
-    status ===
-    "PENDING_CREATE"
+    catalogBarcode
   ) {
     return {
-      label:
-        "Hazırlanıyor",
-      className:
-        "border-amber-200 bg-amber-50 text-amber-700",
-      mark: "•",
-    };
-  }
-
-  if (
-    status ===
-    "RESERVED"
-  ) {
-    return {
-      label: "Rezerve",
-      className:
-        "border-blue-200 bg-blue-50 text-blue-700",
-      mark: "●",
-    };
-  }
-
-  if (
-    status === "SOLD"
-  ) {
-    return {
-      label: "Satıldı",
-      className:
-        "border-slate-300 bg-slate-100 text-slate-700",
-      mark: "✓",
-    };
-  }
-
-  if (
-    status === "ERROR"
-  ) {
-    return {
-      label: "Hata",
-      className:
-        "border-rose-200 bg-rose-50 text-rose-700",
-      mark: "!",
+      group,
+      action:
+        "FAST_LISTING",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        catalogBarcode,
+      catalogBarcode,
+      catalogBarcodeSource,
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        1,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers: [],
     };
   }
 
   return {
-    label:
-      "Gönderilebilir",
-    className:
-      "border-slate-200 bg-white text-slate-500",
-    mark: "+",
+    group,
+    action:
+      "CREATE_PRODUCT",
+    exactProduct:
+      null,
+    referenceProduct:
+      null,
+    title:
+      productTitle(
+        group
+      ),
+    salePrice,
+    listPrice,
+    targetBeforeStock:
+      0,
+    targetAfterStock:
+      group.items.length,
+    barcode:
+      "",
+    catalogBarcode:
+      null,
+    catalogBarcodeSource:
+      null,
+    vendorStockCode:
+      makeVendorStockCode(
+        group
+      ),
+    productMainId:
+      makeProductMainId(
+        group
+      ),
+    brandId:
+      null,
+    categoryId:
+      null,
+    vatRate:
+      1,
+    imageUrl:
+      null,
+    attributes: [],
+    blockers: [
+      "CATALOG_BARCODE_REQUIRED: Bu ürün İdefix satıcı havuzunda henüz yok. İlk eşleştirme için İdefix katalog barkodunu bir kez gir; sonraki aynı ürünlerde sistem otomatik kullanacak.",
+    ],
+  };
+
+  try {
+    referenceProduct =
+      referenceProductForGroup(
+        products,
+        group
+      );
+  } catch (error: any) {
+    blockers.push(
+      error instanceof Error
+        ? error.message
+        : "İdefix referans ürün seçilemedi."
+    );
+  }
+
+  if (
+    !referenceProduct
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: aynı model + hafıza + kalite için İdefix referans ürünü bulunamadı.`
+    );
+
+    return {
+      group,
+      action:
+        "CREATE_PRODUCT",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        makeStableBarcode(
+          group
+        ),
+      catalogBarcode:
+        null,
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        null,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers,
+    };
+  }
+
+  const brandId =
+    referenceProduct
+      .brandId ??
+    null;
+
+  const categoryId =
+    referenceProduct
+      .categoryId ??
+    null;
+
+  if (
+    brandId === null ||
+    text(brandId) ===
+      ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: referans üründe brandId yok.`
+    );
+  }
+
+  if (
+    categoryId === null ||
+    text(categoryId) ===
+      ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: referans üründe categoryId yok.`
+    );
+  }
+
+  let attributes:
+    PreparedGroup[
+      "attributes"
+    ] = [];
+
+  if (
+    categoryId !== null &&
+    text(categoryId)
+  ) {
+    try {
+      attributes =
+        await buildCreateAttributes(
+          referenceProduct,
+          group
+        );
+    } catch (error: any) {
+      blockers.push(
+        error instanceof Error
+          ? error.message
+          : "İdefix attribute hazırlığı başarısız."
+      );
+    }
+  }
+
+  // Create yalnızca gerçekten İdefix kataloğunda bulunmayan yeni ürünler içindir.
+  // Katalogda bulunan ürünlerde yukarıdaki FAST_LISTING yolu kullanılmalıdır.
+  // N11/İkas görseline bağımlılık kaldırıldı.
+  const imageUrl =
+    Array.isArray(
+      referenceProduct
+        .images
+    )
+      ? text(
+          referenceProduct
+            .images?.[0]
+            ?.url
+        ) || null
+      : null;
+
+  if (!imageUrl) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: ürün satıcı havuzunda yok. İdefix kataloğunda mevcutsa katalog barkodunu girerek Hızlı Ürün Ekleme (fast-listing) kullan. Gerçekten yeni ürünse create için ürün görseli gerekir.`
+    );
+  }
+
+  // CNETMOBIL Merkez akışı yenilenmiş cihaz içindir.
+  // Yenilenmiş cihaz iş kuralımız: KDV %1.
+  const vatRate =
+    numberOrNull(
+      referenceProduct
+        .vatRate
+    ) ??
+    1;
+
+  return {
+    group,
+    action:
+      "CREATE_PRODUCT",
+    exactProduct:
+      null,
+    referenceProduct,
+    title:
+      productTitle(
+        group
+      ),
+    salePrice,
+    listPrice,
+    targetBeforeStock:
+      0,
+    targetAfterStock:
+      group.items.length,
+    barcode:
+      makeStableBarcode(
+        group
+      ),
+    catalogBarcode:
+      null,
+    vendorStockCode:
+      makeVendorStockCode(
+        group
+      ),
+    productMainId:
+      makeProductMainId(
+        group
+      ),
+    brandId,
+    categoryId,
+    vatRate,
+    imageUrl,
+    attributes,
+    blockers,
   };
 }
 
-function deviceStatusMeta(
-  rawStatus: unknown
+function previewView(
+  prepared:
+    PreparedGroup
 ) {
-  const status =
-    String(
-      rawStatus ?? ""
-    )
-      .trim()
-      .toUpperCase();
+  return {
+    key:
+      prepared.group.key,
+    action:
+      prepared.action,
+    brand:
+      prepared.group.brand,
+    model:
+      prepared.group.model,
+    memory:
+      prepared.group.memory,
+    color:
+      prepared.group.color,
+    grade:
+      prepared.group.grade,
+    warranty:
+      prepared.group.warranty,
+    imeis:
+      prepared.group.items.map(
+        (item) =>
+          item.imei
+      ),
+    deviceIds:
+      prepared.group.items.map(
+        (item) =>
+          item.deviceId
+      ),
+    salePrice:
+      prepared.salePrice,
+    listPrice:
+      prepared.listPrice,
+    beforeStock:
+      prepared
+        .targetBeforeStock,
+    afterStock:
+      prepared
+        .targetAfterStock,
+    barcode:
+      prepared.barcode,
+    catalogBarcode:
+      prepared.catalogBarcode,
+    catalogBarcodeSource:
+      prepared.catalogBarcodeSource ||
+      null,
+    needsCatalogBarcode:
+      prepared.blockers.some(
+        (message) =>
+          message.startsWith(
+            "CATALOG_BARCODE_REQUIRED:"
+          )
+      ),
+    vendorStockCode:
+      prepared
+        .vendorStockCode,
+    productMainId:
+      prepared
+        .productMainId,
+    brandId:
+      prepared.brandId,
+    categoryId:
+      prepared.categoryId,
+    vatRate:
+      prepared.vatRate,
+    imageReady:
+      Boolean(
+        prepared.imageUrl
+      ),
+    imageUrl:
+      prepared.imageUrl,
+    attributeCount:
+      prepared
+        .attributes
+        .length,
+    blockers:
+      prepared.blockers,
+    canCommit:
+      prepared.blockers
+        .length === 0,
+    referenceProduct:
+      prepared.referenceProduct
+        ? {
+            barcode:
+              text(
+                prepared
+                  .referenceProduct
+                  ?.barcode
+              ),
+            title:
+              text(
+                prepared
+                  .referenceProduct
+                  ?.title
+              ),
+            brandId:
+              prepared
+                .referenceProduct
+                ?.brandId ??
+              null,
+            categoryId:
+              prepared
+                .referenceProduct
+                ?.categoryId ??
+              null,
+          }
+        : null,
+  };
+}
+
+async function fastListingUpload(
+  prepared:
+    PreparedGroup
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const response =
+    await idefixApi(
+      `/pim/catalog/${encodeURIComponent(
+        vendorId
+      )}/fast-listing`,
+      {
+        method:
+          "POST",
+        body: {
+          items: [
+            {
+              title:
+                prepared.title,
+              barcode:
+                prepared.barcode,
+              price:
+                prepared.salePrice,
+              comparePrice:
+                prepared.listPrice,
+              inventoryQuantity:
+                prepared.targetAfterStock,
+              vendorStockCode:
+                prepared.vendorStockCode,
+            },
+          ],
+        },
+        timeoutMs:
+          35_000,
+      }
+    );
+
+  const batchRequestId =
+    text(
+      response
+        ?.batchRequestId
+    );
 
   if (
-    status ===
-    "AVAILABLE"
+    !batchRequestId
   ) {
-    return {
-      label: "Stokta",
-      className:
-        "bg-emerald-100 text-emerald-700",
-    };
-  }
-
-  if (
-    status ===
-    "DETAILS_PENDING"
-  ) {
-    return {
-      label:
-        "Detay Bekliyor",
-      className:
-        "bg-amber-100 text-amber-700",
-    };
-  }
-
-  if (
-    status ===
-    "REQUESTED"
-  ) {
-    return {
-      label: "Talepte",
-      className:
-        "bg-violet-100 text-violet-700",
-    };
-  }
-
-  if (
-    status ===
-    "TRANSFER_WAITING"
-  ) {
-    return {
-      label:
-        "Transfer Bekliyor",
-      className:
-        "bg-blue-100 text-blue-700",
-    };
-  }
-
-  if (
-    status === "SOLD"
-  ) {
-    return {
-      label: "Satıldı",
-      className:
-        "bg-slate-200 text-slate-700",
-    };
+    throw new Error(
+      `${prepared.title}: İdefix fast-listing batchRequestId döndürmedi.`
+    );
   }
 
   return {
-    label:
-      status || "-",
-    className:
-      "bg-slate-100 text-slate-600",
+    response,
+    batchRequestId,
   };
 }
 
-function ChannelBadge({
-  channel,
-  status,
-}: {
-  channel: ChannelCode;
-  status: unknown;
-}) {
-  const meta =
-    channelStatusMeta(
-      status
+async function fastListingResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  // Canlı İdefix prod endpointi POST isteğine 405 + Allow: GET dönüyor.
+  // Bu nedenle fast-listing-result canlı ortamda GET ile sorgulanır.
+  return idefixApi(
+    `/pim/catalog/${encodeURIComponent(
+      vendorId
+    )}/fast-listing-result/${encodeURIComponent(
+      batchId
+    )}`,
+    {
+      method:
+        "GET",
+      timeoutMs:
+        35_000,
+    }
+  );
+}
+
+function fastListingFailureCode(
+  item:
+    any
+) {
+  const reason =
+    item?.failureReasons;
+
+  if (
+    typeof reason ===
+    "string"
+  ) {
+    return normalizeText(
+      reason
     );
+  }
+
+  if (
+    reason &&
+    typeof reason ===
+      "object"
+  ) {
+    return normalizeText(
+      reason?.message ||
+      reason?.code ||
+      JSON.stringify(
+        reason
+      )
+    );
+  }
+
+  return "";
+}
+
+async function waitFastListingResult(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 8;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            700
+          )
+      );
+    }
+
+    last =
+      await fastListingResult(
+        batchId
+      );
+
+    const items =
+      Array.isArray(
+        last?.items
+      )
+        ? last.items
+        : [];
+
+    const item =
+      items.find(
+        (row: any) =>
+          text(
+            row?.barcode
+          ) ===
+          barcode
+      ) ||
+      items[0] ||
+      null;
+
+    const itemStatus =
+      normalizeText(
+        item?.status
+      );
+
+    const batchStatus =
+      normalizeText(
+        last?.status
+      );
+
+    if (
+      itemStatus ===
+        "COMPLETED"
+    ) {
+      return {
+        success:
+          true,
+        payload:
+          last,
+        item,
+      };
+    }
+
+    if (
+      itemStatus ===
+        "DECLINE"
+    ) {
+      return {
+        success:
+          false,
+        payload:
+          last,
+        item,
+        failureCode:
+          fastListingFailureCode(
+            item
+          ),
+      };
+    }
+
+    if (
+      [
+        "FAILED",
+        "DECLINE",
+      ].includes(
+        batchStatus
+      )
+    ) {
+      return {
+        success:
+          false,
+        payload:
+          last,
+        item,
+        failureCode:
+          fastListingFailureCode(
+            item
+          ) ||
+          batchStatus,
+      };
+    }
+  }
+
+  return {
+    success:
+      false,
+    payload:
+      last,
+    item:
+      null,
+    failureCode:
+      "FAST_LISTING_TIMEOUT",
+  };
+}
+
+function matchedFastListingLooksSafe(
+  matched:
+    any,
+  prepared:
+    PreparedGroup
+) {
+  const matchedBarcode =
+    text(
+      matched?.barcode
+    );
+
+  if (
+    !matchedBarcode ||
+    matchedBarcode !==
+      prepared.barcode
+  ) {
+    return false;
+  }
+
+  const name =
+    text(
+      matched?.name ||
+      matched?.title
+    );
+
+  if (!name) {
+    return false;
+  }
+
+  // Barkod birebir aynı olduğu için ana güvenlik kriteri güçlü.
+  // Ek olarak marka + model + hafızayı doğrularız.
+  return (
+    containsPhrase(
+      name,
+      prepared.group.brand
+    ) &&
+    containsPhrase(
+      name,
+      `${normalizeText(
+        prepared.group.model
+      )} ${normalizeMemory(
+        prepared.group.memory
+      )}`
+    )
+  );
+}
+
+async function inventoryUpload(
+  prepared:
+    PreparedGroup
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const payload =
+    await idefixApi(
+      `/pim/catalog/${encodeURIComponent(
+        vendorId
+      )}/inventory-upload`,
+      {
+        method:
+          "POST",
+        body: {
+          items: [
+            {
+              barcode:
+                prepared.barcode,
+              price:
+                prepared
+                  .salePrice,
+              comparePrice:
+                prepared
+                  .listPrice,
+              inventoryQuantity:
+                prepared
+                  .targetAfterStock,
+              // İdefix validasyonu: 1-50 arası zorunlu.
+              // Yenilenmiş tekil cihaz akışında güvenli değer 1.
+              maximumPurchasableQuantity:
+                1,
+              deliveryDuration:
+                numberOrNull(
+                  prepared
+                    .exactProduct
+                    ?.deliveryDuration
+                ) ?? 1,
+              deliveryType:
+                text(
+                  prepared
+                    .exactProduct
+                    ?.deliveryType
+                ) ||
+                "regular",
+              isZoneSale:
+                null,
+            },
+          ],
+        },
+      }
+    );
+
+  const batchRequestId =
+    text(
+      payload
+        ?.batchRequestId
+    );
+
+  if (
+    !batchRequestId
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix inventory-upload batchRequestId döndürmedi.`
+    );
+  }
+
+  return {
+    payload,
+    batchRequestId,
+  };
+}
+
+async function inventoryResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  return idefixApi(
+    `/pim/catalog/${encodeURIComponent(
+      vendorId
+    )}/inventory-result/${encodeURIComponent(
+      batchId
+    )}`
+  );
+}
+
+function idefixFailureDetail(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    return value.trim();
+  }
+
+  if (
+    typeof value ===
+    "number" ||
+    typeof value ===
+    "boolean"
+  ) {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(
+      value
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+async function waitInventory(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 6;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            700
+          )
+      );
+    }
+
+    last =
+      await inventoryResult(
+        batchId
+      );
+
+    const items =
+      Array.isArray(
+        last?.items
+      )
+        ? last.items
+        : [];
+
+    const item =
+      items.find(
+        (row: any) =>
+          text(
+            row?.barcode
+          ) === barcode
+      ) ||
+      items[0] ||
+      null;
+
+    const status =
+      normalizeText(
+        item?.status ||
+        last?.status
+      );
+
+    if (
+      status ===
+        "COMPLETED" ||
+      status ===
+        "COMPLETED SUCCESS" ||
+      normalizeText(
+        item?.status
+      ) ===
+        "COMPLETED"
+    ) {
+      return {
+        success:
+          true,
+        payload:
+          last,
+        item,
+      };
+    }
+
+    if (
+      normalizeText(
+        item?.status
+      ) ===
+        "DECLINE"
+    ) {
+      const failure =
+        idefixFailureDetail(
+          item
+            ?.failureReasons
+        );
+
+      throw new Error(
+        `İdefix stok/fiyat reddedildi. Barkod: ${text(
+          item?.barcode
+        ) || barcode}. Sebep: ${
+          failure ||
+          "DECLINE"
+        }. Item: ${idefixFailureDetail(
+          item
+        )}`
+      );
+    }
+
+    if (
+      normalizeText(
+        last?.status
+      ) ===
+        "FAILED"
+    ) {
+      throw new Error(
+        `İdefix stok/fiyat batch FAILED. Batch: ${batchId}. Cevap: ${idefixFailureDetail(
+          last
+        )}`
+      );
+    }
+  }
+
+  return {
+    success:
+      false,
+    payload:
+      last,
+    item:
+      null,
+  };
+}
+
+async function createProduct(
+  prepared:
+    PreparedGroup
+) {
+  if (
+    prepared.action !==
+    "CREATE_PRODUCT"
+  ) {
+    throw new Error(
+      "İdefix create yanlış aksiyonda çağrıldı."
+    );
+  }
+
+  if (
+    prepared.blockers
+      .length > 0
+  ) {
+    throw new Error(
+      prepared.blockers.join(
+        " | "
+      )
+    );
+  }
+
+  const vendorId =
+    getIdefixVendorId();
+
+  const reference =
+    prepared
+      .referenceProduct;
+
+  const requestProduct:
+    Record<
+      string,
+      unknown
+    > = {
+      barcode:
+        prepared.barcode,
+      title:
+        prepared.title,
+      productMainId:
+        prepared
+          .productMainId,
+      brandId:
+        prepared.brandId,
+      categoryId:
+        prepared.categoryId,
+      inventoryQuantity:
+        prepared
+          .targetAfterStock,
+      vendorStockCode:
+        prepared
+          .vendorStockCode,
+      description:
+        prepared.title,
+      price:
+        prepared.salePrice,
+      comparePrice:
+        prepared.listPrice,
+      vatRate:
+        prepared.vatRate,
+      deliveryDuration:
+        numberOrNull(
+          reference
+            ?.deliveryDuration
+        ) ?? 1,
+      deliveryType:
+        text(
+          reference
+            ?.deliveryType
+        ) ||
+        "regular",
+      images: [
+        {
+          url:
+            prepared.imageUrl,
+        },
+      ],
+      attributes:
+        prepared.attributes,
+    };
+
+  // İdefix dokümanında opsiyonel olan alanları yalnızca gerçekten
+  // geçerli bir değer varsa gönder. Bazı API validasyonları null/0
+  // opsiyonel değerleri "alan gönderilmiş ama geçersiz" sayabiliyor.
+  const desi =
+    numberOrNull(
+      (reference as any)
+        ?.desi
+    );
+
+  if (
+    desi !== null &&
+    desi >= 0
+  ) {
+    requestProduct.desi =
+      desi;
+  }
+
+  const weight =
+    numberOrNull(
+      reference
+        ?.weight
+    );
+
+  if (
+    weight !== null &&
+    weight > 0
+  ) {
+    requestProduct.weight =
+      weight;
+  }
+
+  const cargoCompanyId =
+    numberOrNull(
+      reference
+        ?.cargoCompanyId
+    );
+
+  if (
+    cargoCompanyId !==
+      null &&
+    cargoCompanyId > 0
+  ) {
+    requestProduct.cargoCompanyId =
+      cargoCompanyId;
+  }
+
+  const shipmentAddressId =
+    numberOrNull(
+      reference
+        ?.shipmentAddressId
+    );
+
+  if (
+    shipmentAddressId !==
+      null &&
+    shipmentAddressId > 0
+  ) {
+    requestProduct.shipmentAddressId =
+      shipmentAddressId;
+  }
+
+  const returnAddressId =
+    numberOrNull(
+      reference
+        ?.returnAddressId
+    );
+
+  if (
+    returnAddressId !==
+      null &&
+    returnAddressId > 0
+  ) {
+    requestProduct.returnAddressId =
+      returnAddressId;
+  }
+
+  const response =
+    await idefixApi(
+      `/pim/pool/${encodeURIComponent(
+        vendorId
+      )}/create`,
+      {
+        method:
+          "POST",
+        body: {
+          products: [
+            requestProduct,
+          ],
+        },
+        timeoutMs:
+          45_000,
+      }
+    );
+
+  const batchRequestId =
+    text(
+      response
+        ?.batchRequestId
+    );
+
+  if (
+    !batchRequestId
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create batchRequestId döndürmedi.`
+    );
+  }
+
+  return {
+    requestProduct,
+    response,
+    batchRequestId,
+  };
+}
+
+async function batchResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  return idefixApi(
+    `/pim/pool/${encodeURIComponent(
+      vendorId
+    )}/batch-result/${encodeURIComponent(
+      batchId
+    )}`,
+    {
+      timeoutMs:
+        35_000,
+    }
+  );
+}
+
+function productState(
+  payload:
+    any,
+  barcode:
+    string
+) {
+  const products =
+    Array.isArray(
+      payload?.products
+    )
+      ? payload.products
+      : [];
+
+  const product =
+    products.find(
+      (row: any) =>
+        text(
+          row?.barcode
+        ) === barcode
+    ) ||
+    products[0] ||
+    null;
+
+  return {
+    product,
+    state:
+      normalizeText(
+        product?.status ||
+        product?.state
+      ),
+  };
+}
+
+async function waitCreateResult(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 7;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            850
+          )
+      );
+    }
+
+    last =
+      await batchResult(
+        batchId
+      );
+
+    const state =
+      productState(
+        last,
+        barcode
+      );
+
+    if (
+      state.product &&
+      [
+        "WAITING VENDOR APPROVE",
+        "READY FOR SALE",
+        "NOT MATCHED",
+        "WAITING CATALOG ACTION",
+        "AUTO MATCHED",
+        "MANUAL MATCHED",
+        "MISSING INFO",
+        "PLATFORM DECLINED",
+      ].includes(
+        state.state
+      )
+    ) {
+      return {
+        payload:
+          last,
+        ...state,
+      };
+    }
+
+    const batchStatus =
+      normalizeText(
+        last?.status
+      );
+
+    if (
+      [
+        "FAILED",
+        "CANCELLED",
+      ].includes(
+        batchStatus
+      )
+    ) {
+      return {
+        payload:
+          last,
+        ...state,
+      };
+    }
+  }
+
+  return {
+    payload:
+      last,
+    ...productState(
+      last,
+      barcode
+    ),
+  };
+}
+
+function matchedProductLooksSafe(
+  matched:
+    any,
+  group:
+    CenterGroup
+) {
+  const name =
+    text(
+      matched?.name ||
+      matched?.title
+    );
+
+  if (!name) {
+    return false;
+  }
 
   return (
-    <div
-      className={`inline-flex min-w-[104px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-[7px] font-black uppercase tracking-wide ${meta.className}`}
-      title={`${channel}: ${meta.label}`}
-    >
-      <span>
-        {meta.mark}
-      </span>
-      <span>
-        {meta.label}
-      </span>
-    </div>
+    containsPhrase(
+      name,
+      group.brand
+    ) &&
+    containsPhrase(
+      name,
+      `${normalizeText(
+        group.model
+      )} ${normalizeMemory(
+        group.memory
+      )}`
+    ) &&
+    Boolean(
+      matchedColorAlias(
+        name,
+        group.color
+      )
+    )
   );
 }
 
-export default function Merkez() {
-  const [
-    center,
-    setCenter,
-  ] = useState<CenterState>({
-    loading: true,
-    success: false,
-    error: "",
-    data: null,
-  });
+async function approveProduct(
+  barcode:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
-
-  const [
-    onlyAvailable,
-    setOnlyAvailable,
-  ] = useState(true);
-
-  const [
-    expandedKey,
-    setExpandedKey,
-  ] = useState<
-    string | null
-  >(null);
-
-  const [
-    addOpen,
-    setAddOpen,
-  ] = useState(false);
-
-  const [
-    addForm,
-    setAddForm,
-  ] = useState<AddDeviceForm>(
-    EMPTY_ADD_DEVICE_FORM
-  );
-
-  const [
-    addSaving,
-    setAddSaving,
-  ] = useState(false);
-
-  const [
-    addError,
-    setAddError,
-  ] = useState("");
-
-  const [
-    addSuccess,
-    setAddSuccess,
-  ] = useState("");
-
-  const [
-    bulkOpen,
-    setBulkOpen,
-  ] = useState(false);
-
-  const [
-    bulkForm,
-    setBulkForm,
-  ] = useState<
-    Omit<
-      AddDeviceForm,
-      "imei"
-    >
-  >({
-    brand: "",
-    model: "",
-    memory: "",
-    color: "",
-    grade: "A",
-    warranty: "12 Ay",
-  });
-
-  const [
-    bulkImeis,
-    setBulkImeis,
-  ] = useState("");
-
-  const [
-    bulkPreview,
-    setBulkPreview,
-  ] = useState<
-    BulkPreview | null
-  >(null);
-
-  const [
-    bulkLoading,
-    setBulkLoading,
-  ] = useState(false);
-
-  const [
-    bulkError,
-    setBulkError,
-  ] = useState("");
-
-  const [
-    bulkSuccess,
-    setBulkSuccess,
-  ] = useState("");
-
-
-  const excelInputRef =
-    useRef<HTMLInputElement | null>(
-      null
-    );
-
-  const [
-    excelOpen,
-    setExcelOpen,
-  ] = useState(false);
-
-  const [
-    excelFileName,
-    setExcelFileName,
-  ] = useState("");
-
-  const [
-    excelRows,
-    setExcelRows,
-  ] = useState<
-    ExcelDeviceRow[]
-  >([]);
-
-  const [
-    excelPreview,
-    setExcelPreview,
-  ] = useState<
-    ExcelPreview | null
-  >(null);
-
-  const [
-    excelLoading,
-    setExcelLoading,
-  ] = useState(false);
-
-  const [
-    excelError,
-    setExcelError,
-  ] = useState("");
-
-  const [
-    excelSuccess,
-    setExcelSuccess,
-  ] = useState("");
-
-
-  const [
-    selectedDeviceIds,
-    setSelectedDeviceIds,
-  ] = useState<number[]>(
-    []
-  );
-
-  const [
-    channelOpen,
-    setChannelOpen,
-  ] = useState(false);
-
-  const [
-    sendChannel,
-    setSendChannel,
-  ] = useState<ChannelCode>(
-    "N11"
-  );
-
-  const [
-    channelSalePrice,
-    setChannelSalePrice,
-  ] = useState("");
-
-  const [
-    channelListPrice,
-    setChannelListPrice,
-  ] = useState("");
-
-  const [
-    idefixCatalogBarcode,
-    setIdefixCatalogBarcode,
-  ] = useState("");
-
-  const [
-    idefixNeedsCatalogBarcode,
-    setIdefixNeedsCatalogBarcode,
-  ] = useState(false);
-
-  const [
-    channelPreview,
-    setChannelPreview,
-  ] = useState<
-    ChannelSendPreview | null
-  >(null);
-
-  const [
-    channelLoading,
-    setChannelLoading,
-  ] = useState(false);
-
-  const [
-    channelError,
-    setChannelError,
-  ] = useState("");
-
-
-  const [
-    n11Sending,
-    setN11Sending,
-  ] = useState(false);
-
-  const [
-    n11SendResults,
-    setN11SendResults,
-  ] = useState<
-    N11SendResult[]
-  >([]);
-
-  const [
-    n11SendNotice,
-    setN11SendNotice,
-  ] = useState("");
-
-
-  const [
-    ikasSending,
-    setIkasSending,
-  ] = useState(false);
-
-  const [
-    ikasSendResults,
-    setIkasSendResults,
-  ] = useState<
-    IkasSendGroupResult[]
-  >([]);
-
-  const [
-    ikasSendNotice,
-    setIkasSendNotice,
-  ] = useState("");
-
-
-  const [
-    idefixSending,
-    setIdefixSending,
-  ] = useState(false);
-
-  const [
-    idefixSendResults,
-    setIdefixSendResults,
-  ] = useState<
-    IdefixSendGroupResult[]
-  >([]);
-
-  const [
-    idefixSendNotice,
-    setIdefixSendNotice,
-  ] = useState("");
-
-
-
-  const loadCenter =
-    useCallback(
-      async (
-        silent = false
-      ) => {
-        if (!silent) {
-          setCenter(
-            (current) => ({
-              ...current,
-              loading: true,
-              error: "",
-            })
-          );
-        }
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method: "GET",
-                cache:
-                  "no-store",
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            throw new Error(
-              payload?.error ||
-                "Merkez stoğu okunamadı."
-            );
-          }
-
-          setCenter({
-            loading: false,
-            success: true,
-            error: "",
-            data: payload,
-          });
-        } catch (error) {
-          setCenter(
-            (current) => ({
-              ...current,
-              loading: false,
-              error:
-                error instanceof
-                  Error
-                  ? error.message
-                  : "Merkez stoğu okunamadı.",
-            })
-          );
-        }
+  return idefixApi(
+    `/pim/pool/${encodeURIComponent(
+      vendorId
+    )}/approve-item`,
+    {
+      method:
+        "POST",
+      body: {
+        items: [
+          {
+            barcode,
+          },
+        ],
       },
-      []
+    }
+  );
+}
+
+async function listByBarcode(
+  barcode:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "page",
+    "1"
+  );
+
+  params.set(
+    "limit",
+    "10"
+  );
+
+  params.set(
+    "barcode",
+    barcode
+  );
+
+  const payload =
+    await idefixApi(
+      `/pim/pool/${encodeURIComponent(
+        vendorId
+      )}/list?${params.toString()}`
     );
 
-  useEffect(() => {
-    void loadCenter();
-  }, [loadCenter]);
+  const products =
+    Array.isArray(
+      payload?.products
+    )
+      ? payload.products as
+          IdefixProduct[]
+      : [];
 
-  const saveSingleDevice =
-    useCallback(
-      async () => {
-        if (
-          addSaving
-        ) {
-          return;
-        }
+  return {
+    payload,
+    products,
+  };
+}
 
-        setAddError("");
-        setAddSuccess("");
+async function persistLocal(
+  client:
+    PoolClient,
+  params: {
+    prepared:
+      PreparedGroup;
+    finalProduct:
+      IdefixProduct | null;
+    membershipStatus:
+      "LISTED" |
+      "PENDING_CREATE";
+    syncStatus:
+      string;
+    taskStatus:
+      string;
+    batchRequestId:
+      string | null;
+    finalStock:
+      number;
+    apiResult:
+      unknown;
+  }
+) {
+  const {
+    prepared,
+    finalProduct,
+    membershipStatus,
+    syncStatus,
+    taskStatus,
+    batchRequestId,
+    finalStock,
+    apiResult,
+  } = params;
 
-        const imei =
-          addForm.imei.replace(
-            /\D/g,
-            ""
-          );
+  const externalProductId =
+    text(
+      finalProduct
+        ?.reference
+    ) ||
+    text(
+      finalProduct
+        ?.productMainId
+    ) ||
+    prepared.productMainId;
 
-        if (
-          !/^[0-9]{15}$/.test(
-            imei
+  const externalVariantId =
+    text(
+      finalProduct
+        ?.barcode
+    ) ||
+    prepared.barcode;
+
+  const externalStockCode =
+    text(
+      finalProduct
+        ?.vendorStockCode
+    ) ||
+    prepared.vendorStockCode;
+
+  const existing =
+    await client.query(
+      `
+        SELECT
+          id,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'IDEFIX'
+          AND (
+            external_variant_id = $1
+            OR external_stock_code = $2
           )
-        ) {
-          setAddError(
-            "IMEI tam 15 hane olmalıdır."
-          );
-          return;
-        }
-
-        if (
-          !addForm.brand.trim() ||
-          !addForm.model.trim() ||
-          !addForm.memory.trim() ||
-          !addForm.color.trim() ||
-          !addForm.grade.trim() ||
-          !addForm.warranty.trim()
-        ) {
-          setAddError(
-            "Tüm cihaz bilgilerini doldur."
-          );
-          return;
-        }
-
-        setAddSaving(true);
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method:
-                  "POST",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    ...addForm,
-                    imei,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez cihaz API JSON dönmedi. HTTP ${response.status}. Route deploy edilmiş mi kontrol et.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            throw new Error(
-              payload?.error ||
-                "Cihaz eklenemedi."
-            );
-          }
-
-          setAddSuccess(
-            `${imei} Merkez stoğuna eklendi.`
-          );
-
-          setAddForm(
-            EMPTY_ADD_DEVICE_FORM
-          );
-
-          await loadCenter(
-            true
-          );
-        } catch (error) {
-          setAddError(
-            error instanceof
-              Error
-              ? error.message
-              : "Cihaz eklenemedi."
-          );
-        } finally {
-          setAddSaving(false);
-        }
-      },
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
       [
-        addForm,
-        addSaving,
-        loadCenter,
+        externalVariantId,
+        externalStockCode,
       ]
     );
 
-  const runBulkDevice =
-    useCallback(
-      async (
-        mode:
-          | "preview"
-          | "commit"
-      ) => {
-        if (
-          bulkLoading
-        ) {
-          return;
-        }
-
-        setBulkError("");
-        setBulkSuccess("");
-        setBulkLoading(true);
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method:
-                  "PUT",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    mode,
-                    ...bulkForm,
-                    imeis:
-                      bulkImeis,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez toplu cihaz API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            if (
-              payload?.preview
-            ) {
-              setBulkPreview(
-                payload.preview
-              );
-            }
-
-            throw new Error(
-              payload?.error ||
-                "Toplu cihaz işlemi başarısız."
-            );
-          }
-
-          if (
-            mode ===
-            "preview"
-          ) {
-            setBulkPreview(
-              payload.preview
-            );
-
-            if (
-              payload?.preview
-                ?.canCommit
-            ) {
-              setBulkSuccess(
-                `${payload.preview.total} IMEI temiz. Kayda hazır.`
-              );
-            }
-
-            return;
-          }
-
-          setBulkPreview(
-            null
-          );
-
-          setBulkSuccess(
-            payload?.message ||
-              "Toplu cihaz kaydı tamamlandı."
-          );
-
-          setBulkImeis("");
-
-          await loadCenter(
-            true
-          );
-        } catch (error) {
-          setBulkError(
-            error instanceof
-              Error
-              ? error.message
-              : "Toplu cihaz işlemi başarısız."
-          );
-        } finally {
-          setBulkLoading(false);
-        }
-      },
-      [
-        bulkForm,
-        bulkImeis,
-        bulkLoading,
-        loadCenter,
-      ]
+  const imeis =
+    prepared.group.items.map(
+      (item) =>
+        item.imei
     );
 
-  const runExcelDevice =
-    useCallback(
-      async (
-        mode:
-          | "preview"
-          | "commit"
-      ) => {
-        if (
-          excelLoading
-        ) {
-          return;
-        }
+  let listingId:
+    number;
 
-        if (
-          excelRows.length ===
-          0
-        ) {
-          setExcelError(
-            "Önce Excel dosyası seç."
-          );
-          return;
-        }
+  if (
+    existing.rowCount
+  ) {
+    const row =
+      existing.rows[0];
 
-        setExcelError("");
-        setExcelSuccess("");
-        setExcelLoading(true);
+    const oldRaw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
 
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method:
-                  "PATCH",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    mode,
-                    rows:
-                      excelRows,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez Excel API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            if (
-              payload?.preview
-            ) {
-              setExcelPreview(
-                payload.preview
-              );
-            }
-
-            throw new Error(
-              payload?.error ||
-                "Excel cihaz işlemi başarısız."
-            );
-          }
-
-          if (
-            mode ===
-            "preview"
-          ) {
-            setExcelPreview(
-              payload.preview
-            );
-
-            if (
-              payload?.preview
-                ?.canCommit
-            ) {
-              setExcelSuccess(
-                `${payload.preview.total} Excel satırı temiz. Kayda hazır.`
-              );
-            }
-
-            return;
-          }
-
-          setExcelPreview(
-            null
-          );
-
-          setExcelSuccess(
-            payload?.message ||
-              "Excel cihaz kaydı tamamlandı."
-          );
-
-          setExcelRows([]);
-
-          await loadCenter(
-            true
-          );
-        } catch (error) {
-          setExcelError(
-            error instanceof
-              Error
-              ? error.message
-              : "Excel cihaz işlemi başarısız."
-          );
-        } finally {
-          setExcelLoading(false);
-        }
-      },
-      [
-        excelRows,
-        excelLoading,
-        loadCenter,
-      ]
-    );
-
-  const handleExcelFile =
-    useCallback(
-      async (
-        file: File
-      ) => {
-        setExcelError("");
-        setExcelSuccess("");
-        setExcelPreview(
-          null
-        );
-        setExcelRows([]);
-        setExcelFileName(
-          file.name
-        );
-        setExcelLoading(true);
-
-        try {
-          const rows =
-            await parseCenterExcelFile(
-              file
-            );
-
-          setExcelRows(
-            rows
-          );
-          setExcelOpen(
-            true
-          );
-        } catch (error) {
-          setExcelError(
-            error instanceof
-              Error
-              ? error.message
-              : "Excel dosyası okunamadı."
-          );
-          setExcelOpen(
-            true
-          );
-        } finally {
-          setExcelLoading(false);
-        }
-      },
-      []
-    );
-
-  const toggleDeviceSelection =
-    useCallback(
-      (
-        deviceId: number
-      ) => {
-        setSelectedDeviceIds(
-          (current) =>
-            current.includes(
-              deviceId
+    const oldImeis =
+      Array.isArray(
+        oldRaw?.centerImeis
+      )
+        ? oldRaw
+            .centerImeis
+            .map(
+              (value: any) =>
+                text(value)
             )
-              ? current.filter(
-                  (id) =>
-                    id !==
-                    deviceId
+            .filter(Boolean)
+        : [];
+
+    const centerImeis =
+      Array.from(
+        new Set([
+          ...oldImeis,
+          ...imeis,
+        ])
+      );
+
+    const updated =
+      await client.query(
+        `
+          UPDATE public.online_listings
+          SET
+            external_product_id = $2,
+            external_variant_id = $3,
+            external_stock_code = $4,
+            title = $5,
+            sale_price = $6,
+            list_price = $7,
+            quantity = $8,
+            sync_status = $9,
+            last_task_id = $10,
+            last_task_status = $11,
+            brand = $12,
+            model = $13,
+            memory = $14,
+            color = $15,
+            grade = $16,
+            warranty = $17,
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $18::jsonb,
+            updated_at = now()
+          WHERE id = $1
+          RETURNING id
+        `,
+        [
+          Number(row.id),
+          externalProductId,
+          externalVariantId,
+          externalStockCode,
+          text(
+            finalProduct?.title
+          ) ||
+            prepared.title,
+          prepared.salePrice,
+          prepared.listPrice,
+          finalStock,
+          syncStatus,
+          batchRequestId,
+          taskStatus,
+          prepared.group.brand,
+          prepared.group.model,
+          prepared.group.memory,
+          prepared.group.color,
+          prepared.group.grade,
+          prepared.group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis,
+            idefixBarcode:
+              externalVariantId,
+            catalogBarcode:
+              prepared.catalogBarcode ||
+              (
+                isGlobalCatalogBarcode(
+                  externalVariantId
                 )
-              : [
-                  ...current,
-                  deviceId,
-                ]
-        );
+                  ? externalVariantId
+                  : null
+              ),
+            centerGroupKey:
+              prepared.group.key,
+            idefixBatchRequestId:
+              batchRequestId,
+            finalStock,
+            apiResult,
+            lastCenterSyncAt:
+              new Date()
+                .toISOString(),
+          }),
+        ]
+      );
 
-        setChannelPreview(
-          null
-        );
-      },
-      []
-    );
+    listingId =
+      Number(
+        updated.rows[0]
+          .id
+      );
+  } else {
+    const inserted =
+      await client.query(
+        `
+          INSERT INTO public.online_listings (
+            stock_device_id,
+            channel,
+            external_product_id,
+            external_variant_id,
+            external_stock_code,
+            title,
+            sale_price,
+            list_price,
+            quantity,
+            sync_status,
+            last_task_id,
+            last_task_status,
+            brand,
+            model,
+            memory,
+            color,
+            grade,
+            warranty,
+            raw_data,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            NULL,
+            'IDEFIX',
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17::jsonb,
+            now(),
+            now()
+          )
+          RETURNING id
+        `,
+        [
+          externalProductId,
+          externalVariantId,
+          externalStockCode,
+          text(
+            finalProduct?.title
+          ) ||
+            prepared.title,
+          prepared.salePrice,
+          prepared.listPrice,
+          finalStock,
+          syncStatus,
+          batchRequestId,
+          taskStatus,
+          prepared.group.brand,
+          prepared.group.model,
+          prepared.group.memory,
+          prepared.group.color,
+          prepared.group.grade,
+          prepared.group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis:
+              imeis,
+            idefixBarcode:
+              externalVariantId,
+            catalogBarcode:
+              prepared.catalogBarcode ||
+              (
+                isGlobalCatalogBarcode(
+                  externalVariantId
+                )
+                  ? externalVariantId
+                  : null
+              ),
+            centerGroupKey:
+              prepared.group.key,
+            idefixBatchRequestId:
+              batchRequestId,
+            finalStock,
+            createdFrom:
+              "CENTER",
+            apiResult,
+            lastCenterSyncAt:
+              new Date()
+                .toISOString(),
+          }),
+        ]
+      );
 
-  const openChannelSend =
-    useCallback(
-      (
-        channel: ChannelCode
-      ) => {
-        if (
-          selectedDeviceIds.length ===
-          0
-        ) {
-          return;
-        }
+    listingId =
+      Number(
+        inserted.rows[0]
+          .id
+      );
+  }
 
-        setSendChannel(
-          channel
-        );
-        setChannelSalePrice(
-          ""
-        );
-        setChannelListPrice(
-          ""
-        );
-        setIdefixCatalogBarcode(
-          ""
-        );
-        setIdefixNeedsCatalogBarcode(
-          false
-        );
-        setChannelPreview(
-          null
-        );
-        setChannelError(
-          ""
-        );
-        setN11SendResults(
-          []
-        );
-        setN11SendNotice(
-          ""
-        );
-        setIkasSendResults(
-          []
-        );
-        setIkasSendNotice(
-          ""
-        );
-        setIdefixSendResults(
-          []
-        );
-        setIdefixSendNotice(
-          ""
-        );
-        setChannelOpen(
-          true
-        );
-      },
+  for (
+    const item of
+      prepared.group.items
+  ) {
+    const exists =
+      await client.query(
+        `
+          SELECT id
+          FROM public.online_channel_devices
+          WHERE channel = 'IDEFIX'
+            AND stock_device_id = $1
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [
+          item.deviceId,
+        ]
+      );
+
+    if (
+      exists.rowCount
+    ) {
+      throw new Error(
+        `${item.imei}: İdefix kanal üyeliği işlem sırasında oluşmuş.`
+      );
+    }
+
+    await client.query(
+      `
+        INSERT INTO public.online_channel_devices (
+          stock_device_id,
+          imei,
+          channel,
+          online_listing_id,
+          membership_status,
+          channel_sale_price,
+          channel_list_price,
+          source_channel,
+          source_listing_id,
+          metadata,
+          listed_at,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          $2,
+          'IDEFIX',
+          $3,
+          $4,
+          $5,
+          $6,
+          'CENTER',
+          NULL,
+          $7::jsonb,
+          CASE
+            WHEN $4 = 'LISTED'
+              THEN now()
+            ELSE NULL
+          END,
+          now(),
+          now()
+        )
+      `,
       [
-        selectedDeviceIds,
+        item.deviceId,
+        item.imei,
+        listingId,
+        membershipStatus,
+        prepared.salePrice,
+        prepared.listPrice,
+        JSON.stringify({
+          source:
+            "CENTER_IDEFIX_SEND",
+          barcode:
+            externalVariantId,
+          vendorStockCode:
+            externalStockCode,
+          productMainId:
+            externalProductId,
+          batchRequestId,
+          state:
+            taskStatus,
+          createdAt:
+            new Date()
+              .toISOString(),
+        }),
       ]
     );
+  }
 
-  const runChannelPreview =
-    useCallback(
-      async () => {
-        if (
-          channelLoading
-        ) {
-          return;
+  return {
+    listingId,
+    externalProductId,
+    externalVariantId,
+    externalStockCode,
+  };
+}
+
+function isProductNotFoundError(
+  error: unknown
+) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error ?? "");
+
+  return normalizeText(
+    message
+  ).includes(
+    "PRODUCT NOT FOUND"
+  );
+}
+
+async function persistPendingCatalog(
+  client:
+    PoolClient,
+  prepared:
+    PreparedGroup,
+  reason:
+    string
+) {
+  await client.query(
+    "BEGIN"
+  );
+
+  try {
+    const local =
+      await persistLocal(
+        client,
+        {
+          prepared,
+          finalProduct:
+            prepared
+              .exactProduct,
+          membershipStatus:
+            "PENDING_CREATE",
+          syncStatus:
+            "CREATING",
+          taskStatus:
+            "WAITING_CATALOG",
+          batchRequestId:
+            null,
+          finalStock:
+            prepared
+              .targetAfterStock,
+          apiResult: {
+            source:
+              "IDEFIX_INVENTORY_PRODUCT_NOT_FOUND",
+            reason,
+            waitingCatalog:
+              true,
+            savedAt:
+              new Date()
+                .toISOString(),
+          },
         }
+      );
 
-        if (
-          selectedDeviceIds.length ===
-          0
-        ) {
-          setChannelError(
-            "En az 1 IMEI seç."
-          );
-          return;
-        }
-
-        setChannelError(
-          ""
-        );
-        setChannelPreview(
-          null
-        );
-        setChannelLoading(
-          true
-        );
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method:
-                  "PATCH",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "channel_preview",
-                    channel:
-                      sendChannel,
-                    deviceIds:
-                      selectedDeviceIds,
-                    salePrice:
-                      channelSalePrice,
-                    listPrice:
-                      channelListPrice,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez kanal ön kontrol API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            throw new Error(
-              payload?.error ||
-                "Kanal ön kontrolü başarısız."
-            );
-          }
-
-          setChannelPreview(
-            payload.preview
-          );
-
-          if (
-            sendChannel ===
-              "IDEFIX" &&
-            payload.preview
-              ?.canProceed
-          ) {
-            const idefixResponse =
-              await fetch(
-                "/api/online/idefix/center-send",
-                {
-                  method:
-                    "POST",
-                  cache:
-                    "no-store",
-                  credentials:
-                    "same-origin",
-                  headers: {
-                    "Content-Type":
-                      "application/json",
-                  },
-                  body:
-                    JSON.stringify({
-                      mode:
-                        "preview",
-                      deviceIds:
-                        selectedDeviceIds,
-                      salePrice:
-                        channelSalePrice,
-                      listPrice:
-                        channelListPrice,
-                      catalogBarcode:
-                        idefixCatalogBarcode,
-                    }),
-                }
-              );
-
-            const idefixRaw =
-              await idefixResponse.text();
-
-            let idefixPayload:
-              any = null;
-
-            try {
-              idefixPayload =
-                idefixRaw
-                  ? JSON.parse(
-                      idefixRaw
-                    )
-                  : null;
-            } catch {
-              throw new Error(
-                `İdefix ürün ön kontrol API JSON dönmedi. HTTP ${idefixResponse.status}.`
-              );
-            }
-
-            const needsBarcode =
-              Array.isArray(
-                idefixPayload
-                  ?.preview
-              ) &&
-              idefixPayload
-                .preview
-                .some(
-                  (row: any) =>
-                    row
-                      ?.needsCatalogBarcode ===
-                    true
-                );
-
-            setIdefixNeedsCatalogBarcode(
-              needsBarcode
-            );
-
-            if (
-              !idefixResponse.ok ||
-              !idefixPayload
-                ?.success
-            ) {
-              throw new Error(
-                idefixPayload
-                  ?.error ||
-                  "İdefix ürün ön kontrolü başarısız."
-              );
-            }
-
-            if (
-              idefixPayload
-                ?.canCommit !==
-              true
-            ) {
-              if (
-                needsBarcode
-              ) {
-                setChannelError(
-                  "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip tekrar Ön Kontrol Yap. Sonraki aynı ürünlerde barkod otomatik kullanılacak."
-                );
-                return;
-              }
-
-              const blockers =
-                Array.isArray(
-                  idefixPayload
-                    ?.preview
-                )
-                  ? idefixPayload
-                      .preview
-                      .flatMap(
-                        (
-                          row: any
-                        ) =>
-                          Array.isArray(
-                            row
-                              ?.blockers
-                          )
-                            ? row
-                                .blockers
-                            : []
-                      )
-                  : [];
-
-              setChannelError(
-                blockers.length >
-                0
-                  ? blockers.join(
-                      " | "
-                    )
-                  : "İdefix ürün ön kontrolü tamamlanamadı."
-              );
-              return;
-            }
-
-            setIdefixNeedsCatalogBarcode(
-              false
-            );
-          }
-        } catch (error) {
-          setChannelError(
-            error instanceof
-              Error
-              ? error.message
-              : "Kanal ön kontrolü başarısız."
-          );
-        } finally {
-          setChannelLoading(
-            false
-          );
-        }
-      },
-      [
-        selectedDeviceIds,
-        sendChannel,
-        channelSalePrice,
-        channelListPrice,
-        idefixCatalogBarcode,
-        channelLoading,
-      ]
+    await client.query(
+      "COMMIT"
     );
 
-  const fetchFreshChannelPreview =
-    useCallback(
-      async () => {
-        const response =
-          await fetch(
-            "/api/online/center/devices",
-            {
-              method:
-                "PATCH",
-              cache:
-                "no-store",
-              credentials:
-                "same-origin",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body:
-                JSON.stringify({
-                  action:
-                    "channel_preview",
-                  channel:
-                    sendChannel,
-                  deviceIds:
-                    selectedDeviceIds,
-                  salePrice:
-                    channelSalePrice,
-                  listPrice:
-                    channelListPrice,
-                }),
-            }
-          );
+    return local;
+  } catch (error: any) {
+    try {
+      await client.query(
+        "ROLLBACK"
+      );
+    } catch {}
 
-        const raw =
-          await response.text();
+    throw error;
+  }
+}
 
-        let payload:
-          any = null;
-
-        try {
-          payload =
-            raw
-              ? JSON.parse(
-                  raw
-                )
-              : null;
-        } catch {
-          throw new Error(
-            `Merkez kanal ön kontrol API JSON dönmedi. HTTP ${response.status}.`
-          );
-        }
-
-        if (
-          !response.ok ||
-          !payload?.success
-        ) {
-          throw new Error(
-            payload?.error ||
-              "Kanal ön kontrolü başarısız."
-          );
-        }
-
-        return payload
-          .preview as
-          ChannelSendPreview;
-      },
-      [
-        selectedDeviceIds,
-        sendChannel,
-        channelSalePrice,
-        channelListPrice,
-      ]
+async function reconcilePendingIdefix(
+  client:
+    PoolClient
+) {
+  const pending =
+    await client.query(
+      `
+        SELECT DISTINCT
+          ol.id,
+          ol.external_product_id,
+          ol.external_variant_id,
+          ol.external_stock_code,
+          ol.title,
+          ol.sale_price,
+          ol.list_price,
+          ol.quantity,
+          ol.brand,
+          ol.model,
+          ol.memory,
+          ol.color,
+          ol.grade,
+          ol.warranty
+        FROM public.online_listings ol
+        JOIN public.online_channel_devices ocd
+          ON ocd.online_listing_id =
+             ol.id
+        WHERE ol.channel = 'IDEFIX'
+          AND ocd.channel = 'IDEFIX'
+          AND ocd.membership_status =
+              'PENDING_CREATE'
+        ORDER BY ol.id
+        LIMIT 100
+      `
     );
 
-  const commitN11Membership =
-    useCallback(
-      async (
-        deviceId: number
-      ) => {
-        const response =
-          await fetch(
-            "/api/online/center/devices",
-            {
-              method:
-                "PATCH",
-              cache:
-                "no-store",
-              credentials:
-                "same-origin",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body:
-                JSON.stringify({
-                  action:
-                    "n11_membership_commit",
-                  deviceId,
-                }),
-            }
-          );
+  if (
+    pending.rowCount === 0
+  ) {
+    return {
+      success:
+        true,
+      pending:
+        0,
+      completed:
+        0,
+      stillPending:
+        0,
+      failed:
+        0,
+      results: [],
+    };
+  }
 
-        const raw =
-          await response.text();
+  const results:
+    any[] = [];
 
-        let payload:
-          any = null;
+  for (
+    const listing of
+      pending.rows
+  ) {
+    const listingId =
+      Number(
+        listing.id
+      );
 
-        try {
-          payload =
-            raw
-              ? JSON.parse(
-                  raw
-                )
-              : null;
-        } catch {
-          throw new Error(
-            `N11 kanal üyeliği API JSON dönmedi. HTTP ${response.status}.`
-          );
-        }
+    const barcode =
+      text(
+        listing
+          .external_variant_id
+      );
 
-        if (
-          !response.ok ||
-          !payload?.success
-        ) {
-          throw new Error(
-            payload?.error ||
-              "N11 kanal üyeliği kaydedilemedi."
-          );
-        }
+    if (!barcode) {
+      results.push({
+        listingId,
+        state:
+          "ERROR",
+        error:
+          "İdefix pending listing barkodu eksik.",
+      });
 
-        return payload.result;
-      },
-      []
-    );
+      continue;
+    }
 
-  const sendSelectedToN11 =
-    useCallback(
-      async () => {
-        if (
-          n11Sending
-        ) {
-          return;
-        }
+    const stockResult =
+      await client.query(
+        `
+          SELECT
+            COUNT(*)::int AS count
+          FROM public.online_channel_devices ocd
+          JOIN public.stock_devices sd
+            ON sd.id =
+               ocd.stock_device_id
+          WHERE ocd.channel = 'IDEFIX'
+            AND ocd.online_listing_id = $1
+            AND ocd.membership_status IN (
+              'PENDING_CREATE',
+              'LISTED',
+              'RESERVED'
+            )
+            AND sd.status = 'AVAILABLE'
+        `,
+        [
+          listingId,
+        ]
+      );
 
-        if (
-          sendChannel !==
-          "N11"
-        ) {
-          setChannelError(
-            "Bu adımda gerçek gönderim yalnızca N11 için aktiftir."
-          );
-          return;
-        }
+    const desiredStock =
+      Math.max(
+        0,
+        Number(
+          stockResult
+            .rows?.[0]
+            ?.count || 0
+        )
+      );
 
-        setChannelError(
-          ""
-        );
-        setN11SendNotice(
-          ""
-        );
-        setN11SendResults(
-          []
-        );
-        setN11Sending(
-          true
-        );
+    const salePrice =
+      numberOrNull(
+        listing.sale_price
+      );
 
-        try {
-          // GERÇEK GÖNDERİMDEN HEMEN ÖNCE tekrar doğrula.
-          const freshPreview =
-            await fetchFreshChannelPreview();
+    const listPrice =
+      numberOrNull(
+        listing.list_price
+      );
 
-          setChannelPreview(
-            freshPreview
-          );
+    if (
+      salePrice === null ||
+      listPrice === null ||
+      salePrice <= 0 ||
+      listPrice <= 0
+    ) {
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "ERROR",
+        error:
+          "Pending İdefix listing fiyatları geçersiz.",
+      });
 
-          if (
-            !freshPreview
-              .canProceed
-          ) {
-            throw new Error(
-              "Gönderim durduruldu. Ön kontrolde engelli IMEI var."
-            );
-          }
+      continue;
+    }
 
-          const results:
-            N11SendResult[] =
-            [];
+    const productLookup =
+      await listByBarcode(
+        barcode
+      );
 
-          // Çok kritik:
-          // Aynı varyantta N11 havuz çakışması yaşamamak için
-          // Promise.all YOK. IMEI'ler TEK TEK / SIRAYLA gönderilir.
-          for (
-            const item of
-              freshPreview.items
-          ) {
-            if (
-              !item.eligible
-            ) {
-              continue;
-            }
+    const liveProduct =
+      productLookup
+        .products?.[0] ||
+      null;
 
-            const n11Response =
-              await fetch(
-                "/api/online/listings",
-                {
-                  method:
-                    "POST",
-                  cache:
-                    "no-store",
-                  credentials:
-                    "same-origin",
-                  headers: {
-                    "Content-Type":
-                      "application/json",
-                  },
-                  body:
-                    JSON.stringify({
-                      imei:
-                        item.imei,
-                      brand:
-                        item.brand,
-                      model:
-                        item.model,
-                      memory:
-                        item.memory,
-                      color:
-                        item.color,
-                      grade:
-                        item.grade,
-                      warranty:
-                        item.warranty,
-                      salePrice:
-                        freshPreview
-                          .salePrice,
-                      listPrice:
-                        freshPreview
-                          .listPrice,
-                    }),
-                }
-              );
-
-            const n11Raw =
-              await n11Response.text();
-
-            let n11Payload:
-              any = null;
-
-            try {
-              n11Payload =
-                n11Raw
-                  ? JSON.parse(
-                      n11Raw
-                    )
-                  : null;
-            } catch {
-              const failed:
-                N11SendResult = {
-                  deviceId:
-                    item.deviceId,
-                  imei:
-                    item.imei,
-                  success:
-                    false,
-                  status:
-                    "ERROR",
-                  message:
-                    `N11 API JSON dönmedi. HTTP ${n11Response.status}.`,
-                  listingId:
-                    null,
-                  externalProductId:
-                    null,
-                };
-
-              results.push(
-                failed
-              );
-              setN11SendResults(
-                [...results]
-              );
-
-              throw new Error(
-                `${item.imei}: ${failed.message}`
-              );
-            }
-
-            if (
-              !n11Response.ok ||
-              !n11Payload
-                ?.success
-            ) {
-              const failed:
-                N11SendResult = {
-                  deviceId:
-                    item.deviceId,
-                  imei:
-                    item.imei,
-                  success:
-                    false,
-                  status:
-                    "ERROR",
-                  message:
-                    n11Payload
-                      ?.error ||
-                    "N11 ürün gönderimi başarısız.",
-                  listingId:
-                    Number(
-                      n11Payload
-                        ?.listingId ||
-                        0
-                    ) ||
-                    null,
-                  externalProductId:
-                    n11Payload
-                      ?.listing
-                      ?.external_product_id
-                      ? String(
-                          n11Payload
-                            .listing
-                            .external_product_id
-                        )
-                      : null,
-                };
-
-              results.push(
-                failed
-              );
-              setN11SendResults(
-                [...results]
-              );
-
-              // İlk gerçek N11 hatasında dur.
-              // Daha sonraki IMEI'lere geçip riski büyütme.
-              throw new Error(
-                `${item.imei}: ${failed.message}`
-              );
-            }
-
-            // N11 accepted/success olduktan SONRA
-            // Merkez kanal üyeliğini gerçek listing üzerinden doğrula/yaz.
-            let membership:
-              any;
-
-            try {
-              membership =
-                await commitN11Membership(
-                  item.deviceId
-                );
-            } catch (membershipError) {
-              const failed:
-                N11SendResult = {
-                  deviceId:
-                    item.deviceId,
-                  imei:
-                    item.imei,
-                  success:
-                    false,
-                  status:
-                    "ERROR",
-                  message:
-                    `N11 işlemi kabul edildi ancak Merkez kanal kaydı yazılamadı: ${
-                      membershipError instanceof
-                        Error
-                        ? membershipError.message
-                        : "Bilinmeyen hata"
-                    }`,
-                  listingId:
-                    Number(
-                      n11Payload
-                        ?.listing
-                        ?.id ||
-                        0
-                    ) ||
-                    null,
-                  externalProductId:
-                    n11Payload
-                      ?.listing
-                      ?.external_product_id
-                      ? String(
-                          n11Payload
-                            .listing
-                            .external_product_id
-                        )
-                      : null,
-                };
-
-              results.push(
-                failed
-              );
-              setN11SendResults(
-                [...results]
-              );
-
-              // Marketplace tarafında kabul edilmiş işlem olabilir.
-              // Burada yeni IMEI göndermeye devam etmiyoruz.
-              throw new Error(
-                failed.message
-              );
-            }
-
-            const membershipStatus =
-              String(
-                membership
-                  ?.membership
-                  ?.status ||
-                  ""
-              ).toUpperCase();
-
-            const successful:
-              N11SendResult = {
-                deviceId:
-                  item.deviceId,
-                imei:
-                  item.imei,
-                success:
-                  true,
-                status:
-                  membershipStatus ===
-                  "LISTED"
-                    ? "LISTED"
-                    : "PENDING_CREATE",
-                message:
-                  n11Payload
-                    ?.message ||
+    const pseudoPrepared:
+      PreparedGroup = {
+        group: {
+          key:
+            [
+              normalizeText(
+                listing.brand
+              ),
+              normalizeText(
+                listing.model
+              ),
+              normalizeMemory(
+                listing.memory
+              ),
+              normalizeText(
+                listing.color
+              ),
+              normalizeGrade(
+                listing.grade
+              ),
+              normalizeText(
+                listing.warranty
+              ),
+            ].join("|"),
+          brand:
+            text(
+              listing.brand
+            ),
+          model:
+            text(
+              listing.model
+            ),
+          memory:
+            text(
+              listing.memory
+            ),
+          color:
+            text(
+              listing.color
+            ),
+          grade:
+            normalizeGrade(
+              listing.grade
+            ),
+          warranty:
+            text(
+              listing.warranty
+            ),
+          items: [],
+        },
+        action:
+          "EXISTING_PRODUCT",
+        exactProduct:
+          liveProduct,
+        referenceProduct:
+          null,
+        title:
+          text(
+            listing.title
+          ) ||
+          `${text(
+            listing.brand
+          )} ${text(
+            listing.model
+          )}`,
+        salePrice,
+        listPrice,
+        targetBeforeStock:
+          numberOrNull(
+            liveProduct
+              ?.inventoryQuantity
+          ) ?? 0,
+        targetAfterStock:
+          desiredStock,
+        barcode,
+        catalogBarcode:
+          null,
+        vendorStockCode:
+          text(
+            listing
+              .external_stock_code
+          ),
+        productMainId:
+          text(
+            listing
+              .external_product_id
+          ),
+        brandId:
+          liveProduct
+            ?.brandId ??
+          null,
+        categoryId:
+          liveProduct
+            ?.categoryId ??
+          null,
+        vatRate:
+          numberOrNull(
+            liveProduct
+              ?.vatRate
+          ),
+        imageUrl:
+          Array.isArray(
+            liveProduct
+              ?.images
+          )
+            ? text(
+                liveProduct
+                  ?.images?.[0]
+                  ?.url
+              ) || null
+            : null,
+        attributes:
+          Array.isArray(
+            liveProduct
+              ?.attributes
+          )
+            ? liveProduct!
+                .attributes!
+                .map(
                   (
-                    membershipStatus ===
-                    "LISTED"
-                      ? "N11'e gönderildi."
-                      : "N11 işlemi kabul edildi, doğrulama bekleniyor."
-                  ),
-                listingId:
-                  Number(
-                    membership
-                      ?.listing
-                      ?.id ||
-                      n11Payload
-                        ?.listing
-                        ?.id ||
-                      0
-                  ) ||
-                  null,
-                externalProductId:
-                  membership
-                    ?.listing
-                    ?.externalProductId
-                    ? String(
-                        membership
-                          .listing
-                          .externalProductId
-                      )
-                    : n11Payload
-                        ?.listing
-                        ?.external_product_id
-                    ? String(
-                        n11Payload
-                          .listing
-                          .external_product_id
-                      )
-                    : null,
-              };
-
-            results.push(
-              successful
-            );
-
-            setN11SendResults(
-              [...results]
-            );
-          }
-
-          const listed =
-            results.filter(
-              (item) =>
-                item.success &&
-                item.status ===
-                  "LISTED"
-            ).length;
-
-          const pending =
-            results.filter(
-              (item) =>
-                item.success &&
-                item.status ===
-                  "PENDING_CREATE"
-            ).length;
-
-          setN11SendNotice(
-            `N11 gönderimi tamamlandı. Gönderildi: ${listed}, N11 doğrulaması bekleyen: ${pending}.`
-          );
-
-          await loadCenter(
-            true
-          );
-
-          setSelectedDeviceIds(
-            []
-          );
-        } catch (error) {
-          setChannelError(
-            error instanceof
-              Error
-              ? error.message
-              : "N11 gerçek gönderimi tamamlanamadı."
-          );
-
-          // Başarılı olanlar varsa Merkez ekranını yine yenile.
-          await loadCenter(
-            true
-          );
-        } finally {
-          setN11Sending(
-            false
-          );
-        }
-      },
-      [
-        n11Sending,
-        sendChannel,
-        fetchFreshChannelPreview,
-        commitN11Membership,
-        loadCenter,
-      ]
-    );
-
-  const sendSelectedToIkas =
-    useCallback(
-      async () => {
-        if (
-          ikasSending
-        ) {
-          return;
-        }
-
-        if (
-          sendChannel !==
-          "IKAS"
-        ) {
-          setChannelError(
-            "İkas gönderimi için İkas kanalını seç."
-          );
-          return;
-        }
-
-        if (
-          !channelPreview
-            ?.canProceed
-        ) {
-          setChannelError(
-            "Önce başarılı ön kontrol yap."
-          );
-          return;
-        }
-
-        setChannelError(
-          ""
-        );
-        setIkasSendResults(
-          []
-        );
-        setIkasSendNotice(
-          ""
-        );
-        setIkasSending(
-          true
-        );
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/center/devices",
-              {
-                method:
-                  "PATCH",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "ikas_send",
-                    channel:
-                      "IKAS",
-                    deviceIds:
-                      selectedDeviceIds,
-                    salePrice:
-                      channelSalePrice,
-                    listPrice:
-                      channelListPrice,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez İkas API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            Array.isArray(
-              payload?.results
-            )
-          ) {
-            setIkasSendResults(
-              payload.results
-            );
-          }
-
-          if (
-            payload?.preview
-          ) {
-            setChannelPreview(
-              payload.preview
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            throw new Error(
-              payload?.error ||
-                "İkas gerçek gönderimi başarısız."
-            );
-          }
-
-          const sent =
-            Number(
-              payload?.sentImeis ||
-                0
-            );
-
-          const locationName =
-            String(
-              payload
-                ?.stockLocation
-                ?.name ||
-                "Ana Depo"
-            );
-
-          setIkasSendNotice(
-            `${sent} IMEI İkas'a gerçek gönderildi. Stok lokasyonu: ${locationName}.`
-          );
-
-          await loadCenter(
-            true
-          );
-
-          setSelectedDeviceIds(
-            []
-          );
-        } catch (error) {
-          setChannelError(
-            error instanceof
-              Error
-              ? error.message
-              : "İkas gerçek gönderimi başarısız."
-          );
-
-          await loadCenter(
-            true
-          );
-        } finally {
-          setIkasSending(
-            false
-          );
-        }
-      },
-      [
-        ikasSending,
-        sendChannel,
-        channelPreview,
-        selectedDeviceIds,
-        channelSalePrice,
-        channelListPrice,
-        loadCenter,
-      ]
-    );
-
-  const sendSelectedToIdefix =
-    useCallback(
-      async () => {
-        if (
-          idefixSending
-        ) {
-          return;
-        }
-
-        if (
-          sendChannel !==
-          "IDEFIX"
-        ) {
-          setChannelError(
-            "İdefix gönderimi için İdefix kanalını seç."
-          );
-          return;
-        }
-
-        if (
-          !channelPreview
-            ?.canProceed
-        ) {
-          setChannelError(
-            "Önce başarılı ön kontrol yap."
-          );
-          return;
-        }
-
-        setChannelError(
-          ""
-        );
-        setIdefixSendResults(
-          []
-        );
-        setIdefixSendNotice(
-          ""
-        );
-        setIdefixSending(
-          true
-        );
-
-        try {
-          // 1) İdefix'e özel katalog / ürün / renk / attribute ön kontrolü.
-          const previewResponse =
-            await fetch(
-              "/api/online/idefix/center-send",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    mode:
-                      "preview",
-                    deviceIds:
-                      selectedDeviceIds,
-                    salePrice:
-                      channelSalePrice,
-                    listPrice:
-                      channelListPrice,
-                    catalogBarcode:
-                      idefixCatalogBarcode,
-                  }),
-              }
-            );
-
-          const previewRaw =
-            await previewResponse.text();
-
-          let idefixPreview:
-            any = null;
-
-          try {
-            idefixPreview =
-              previewRaw
-                ? JSON.parse(
-                    previewRaw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `İdefix ön kontrol API JSON dönmedi. HTTP ${previewResponse.status}.`
-            );
-          }
-
-          if (
-            !previewResponse.ok ||
-            !idefixPreview
-              ?.success
-          ) {
-            const details =
-              Array.isArray(
-                idefixPreview
-                  ?.blockers
-              )
-                ? idefixPreview
-                    .blockers
-                    .join(" | ")
-                : Array.isArray(
-                    idefixPreview
-                      ?.errors
-                  )
-                ? idefixPreview
-                    .errors
-                    .join(" | ")
-                : "";
-
-            throw new Error(
-              idefixPreview
-                ?.error ||
-                details ||
-                "İdefix özel ön kontrolü başarısız."
-            );
-          }
-
-          if (
-            idefixPreview
-              ?.canCommit !==
-            true
-          ) {
-            const needsBarcode =
-              Array.isArray(
-                idefixPreview
-                  ?.preview
-              ) &&
-              idefixPreview
-                .preview
-                .some(
-                  (row: any) =>
-                    row
-                      ?.needsCatalogBarcode ===
-                    true
-                );
-
-            setIdefixNeedsCatalogBarcode(
-              needsBarcode
-            );
-
-            if (
-              needsBarcode
-            ) {
-              throw new Error(
-                "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip Ön Kontrol Yap."
-              );
-            }
-
-            const blockers =
-              Array.isArray(
-                idefixPreview
-                  ?.preview
-              )
-                ? idefixPreview
-                    .preview
-                    .flatMap(
-                      (
-                        row: any
-                      ) =>
-                        Array.isArray(
-                          row
-                            ?.blockers
-                        )
-                          ? row
-                              .blockers
-                          : []
-                    )
-                : [];
-
-            throw new Error(
-              blockers.length >
-              0
-                ? blockers.join(
-                    " | "
-                  )
-                : "İdefix gerçek gönderimi için gerekli katalog bilgileri hazır değil."
-            );
-          }
-
-          // 2) Gerçek Merkez -> İdefix gönderimi.
-          const response =
-            await fetch(
-              "/api/online/idefix/center-send",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    mode:
-                      "commit",
-                    deviceIds:
-                      selectedDeviceIds,
-                    salePrice:
-                      channelSalePrice,
-                    listPrice:
-                      channelListPrice,
-                    catalogBarcode:
-                      idefixCatalogBarcode,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `Merkez İdefix API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            Array.isArray(
-              payload?.results
-            )
-          ) {
-            setIdefixSendResults(
-              payload.results
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            const details =
-              Array.isArray(
-                payload
-                  ?.blockers
-              )
-                ? payload
-                    .blockers
-                    .join(" | ")
-                : Array.isArray(
-                    payload
-                      ?.errors
-                  )
-                ? payload
-                    .errors
-                    .join(" | ")
-                : "";
-
-            throw new Error(
-              payload?.error ||
-                details ||
-                "İdefix gerçek gönderimi başarısız."
-            );
-          }
-
-          const results =
-            Array.isArray(
-              payload?.results
-            )
-              ? payload.results
-              : [];
-
-          const listed =
-            results.filter(
-              (result: any) =>
-                String(
-                  result?.state ||
-                    ""
-                ).toUpperCase() ===
-                "LISTED"
-            ).length;
-
-          const pending =
-            results.filter(
-              (result: any) =>
-                String(
-                  result?.state ||
-                    ""
-                ).toUpperCase() ===
-                "PENDING_CREATE" ||
-                result
-                  ?.pendingApproval ===
-                  true
-            ).length;
-
-          const sentImeis =
-            Number(
-              payload?.sentImeis ||
-                results.reduce(
+                    attribute:
+                      any
+                  ) => ({
+                    attributeId:
+                      attribute
+                        .attributeId,
+                    attributeValueId:
+                      attribute
+                        .attributeValueId ??
+                      null,
+                    customAttributeValue:
+                      text(
+                        attribute
+                          .customAttributeValue
+                      ) || null,
+                  })
+                )
+                .filter(
                   (
-                    total:
-                      number,
-                    result:
+                    attribute:
                       any
                   ) =>
-                    total +
-                    (
-                      Array.isArray(
-                        result
-                          ?.addedImeis
-                      )
-                        ? result
-                            .addedImeis
-                            .length
-                        : 0
-                    ),
-                  0
+                    attribute
+                      .attributeId !==
+                      null &&
+                    attribute
+                      .attributeId !==
+                      undefined
                 )
-            );
+            : [],
+        blockers: [],
+      };
 
-          setIdefixSendNotice(
-            pending > 0
-              ? `${sentImeis} IMEI İdefix'e gönderildi. Aktif: ${listed}, İdefix katalog onayı bekleyen: ${pending}.`
-              : `${sentImeis} IMEI İdefix'e gerçek gönderildi. Aktif ürün grubu: ${listed}.`
+    try {
+      const upload =
+        await inventoryUpload(
+          pseudoPrepared
+        );
+
+      const verified =
+        await waitInventory(
+          upload
+            .batchRequestId,
+          barcode
+        );
+
+      if (
+        !verified.success
+      ) {
+        results.push({
+          listingId,
+          barcode,
+          state:
+            "PENDING_CREATE",
+          pending:
+            true,
+          message:
+            "İdefix inventory sonucu henüz tamamlanmadı.",
+          batchRequestId:
+            upload
+              .batchRequestId,
+        });
+
+        continue;
+      }
+
+      await client.query(
+        "BEGIN"
+      );
+
+      try {
+        await client.query(
+          `
+            UPDATE public.online_listings
+            SET
+              quantity = $2,
+              sync_status = 'SYNCED',
+              last_task_id = $3,
+              last_task_status = 'SUCCESS',
+              raw_data =
+                COALESCE(
+                  raw_data,
+                  '{}'::jsonb
+                )
+                || $4::jsonb,
+              updated_at = now()
+            WHERE id = $1
+          `,
+          [
+            listingId,
+            desiredStock,
+            upload
+              .batchRequestId,
+            JSON.stringify({
+              idefixPendingResolved:
+                true,
+              finalStock:
+                desiredStock,
+              inventoryResult:
+                verified.payload,
+              resolvedAt:
+                new Date()
+                  .toISOString(),
+            }),
+          ]
+        );
+
+        await client.query(
+          `
+            UPDATE public.online_channel_devices
+            SET
+              membership_status = 'LISTED',
+              listed_at =
+                COALESCE(
+                  listed_at,
+                  now()
+                ),
+              metadata =
+                COALESCE(
+                  metadata,
+                  '{}'::jsonb
+                )
+                || $2::jsonb,
+              updated_at = now()
+            WHERE channel = 'IDEFIX'
+              AND online_listing_id = $1
+              AND membership_status =
+                  'PENDING_CREATE'
+          `,
+          [
+            listingId,
+            JSON.stringify({
+              idefixPendingResolved:
+                true,
+              inventoryBatchRequestId:
+                upload
+                  .batchRequestId,
+              resolvedAt:
+                new Date()
+                  .toISOString(),
+            }),
+          ]
+        );
+
+        await client.query(
+          "COMMIT"
+        );
+      } catch (
+        error: any
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw error;
+      }
+
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "LISTED",
+        pending:
+          false,
+        finalStock:
+          desiredStock,
+        batchRequestId:
+          upload
+            .batchRequestId,
+      });
+    } catch (
+      error: any
+    ) {
+      if (
+        isProductNotFoundError(
+          error
+        )
+      ) {
+        results.push({
+          listingId,
+          barcode,
+          state:
+            "PENDING_CREATE",
+          pending:
+            true,
+          message:
+            "İdefix katalog onayı bekleniyor.",
+        });
+
+        continue;
+      }
+
+      results.push({
+        listingId,
+        barcode,
+        state:
+          "ERROR",
+        pending:
+          false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "İdefix pending kontrolü başarısız.",
+      });
+    }
+  }
+
+  return {
+    success:
+      true,
+    pending:
+      pending.rowCount,
+    completed:
+      results.filter(
+        (row) =>
+          row.state ===
+          "LISTED"
+      ).length,
+    stillPending:
+      results.filter(
+        (row) =>
+          row.state ===
+          "PENDING_CREATE"
+      ).length,
+    failed:
+      results.filter(
+        (row) =>
+          row.state ===
+          "ERROR"
+      ).length,
+    results,
+  };
+}
+
+async function processPrepared(
+  client:
+    PoolClient,
+  prepared:
+    PreparedGroup
+) {
+  if (
+    prepared.blockers
+      .length > 0
+  ) {
+    throw new Error(
+      prepared.blockers.join(
+        " | "
+      )
+    );
+  }
+
+  if (
+    prepared.action ===
+    "FAST_LISTING"
+  ) {
+    const upload =
+      await fastListingUpload(
+        prepared
+      );
+
+    const fastResult =
+      await waitFastListingResult(
+        upload
+          .batchRequestId,
+        prepared.barcode
+      );
+
+    if (
+      !fastResult.success
+    ) {
+      const code =
+        normalizeText(
+          fastResult
+            .failureCode
+        );
+
+      if (
+        code.includes(
+          "PRODUCT BARCODE NOT EXIST"
+        )
+      ) {
+        throw new Error(
+          `${prepared.title}: verdiğin barkod İdefix kataloğunda yok (PRODUCT_BARCODE_NOT_EXIST). Bu ürün fast-listing ile açılamaz; gerçekten yeni ürünse create gerekir.`
+        );
+      }
+
+      if (
+        code.includes(
+          "PRODUCT POOL ALREADY EXIST"
+        )
+      ) {
+        const existing =
+          await listByBarcode(
+            prepared.barcode
           );
 
-          await loadCenter(
-            true
-          );
+        const live =
+          existing
+            .products?.[0] ||
+          null;
 
-          setSelectedDeviceIds(
-            []
-          );
-        } catch (error) {
-          setChannelError(
-            error instanceof
-              Error
-              ? error.message
-              : "İdefix gerçek gönderimi başarısız."
-          );
-
-          await loadCenter(
-            true
-          );
-        } finally {
-          setIdefixSending(
-            false
+        if (!live) {
+          throw new Error(
+            `${prepared.title}: ürün İdefix havuzunda mevcut görünüyor fakat barkodla tekrar okunamadı.`
           );
         }
-      },
-      [
-        idefixSending,
-        sendChannel,
-        channelPreview,
-        selectedDeviceIds,
-        channelSalePrice,
-        channelListPrice,
-        idefixCatalogBarcode,
-        loadCenter,
-      ]
-    );
 
+        const existingPrepared:
+          PreparedGroup = {
+            ...prepared,
+            action:
+              "EXISTING_PRODUCT",
+            exactProduct:
+              live,
+            title:
+              text(
+                live.title
+              ) ||
+              prepared.title,
+            targetBeforeStock:
+              numberOrNull(
+                live
+                  .inventoryQuantity
+              ) ?? 0,
+            targetAfterStock:
+              Math.max(
+                numberOrNull(
+                  live
+                    .inventoryQuantity
+                ) ?? 0,
+                prepared
+                  .targetAfterStock
+              ),
+            vendorStockCode:
+              text(
+                live
+                  .vendorStockCode
+              ) ||
+              prepared
+                .vendorStockCode,
+            productMainId:
+              text(
+                live
+                  .productMainId
+              ) ||
+              prepared
+                .productMainId,
+            brandId:
+              live.brandId ??
+              null,
+            categoryId:
+              live.categoryId ??
+              null,
+          };
 
-  const groups =
-    useMemo(
-      () =>
-        Array.isArray(
-          center.data?.groups
+        return processPrepared(
+          client,
+          existingPrepared
+        );
+      }
+
+      throw new Error(
+        `${prepared.title}: İdefix fast-listing başarısız. ${fastResult.failureCode || "Bilinmeyen hata"}. Cevap: ${idefixFailureDetail(
+          fastResult.payload
+        )}`
+      );
+    }
+
+    const item =
+      fastResult.item;
+
+    const matched =
+      item
+        ?.matchedProduct;
+
+    const poolState =
+      normalizeText(
+        item?.poolState
+      );
+
+    if (
+      poolState ===
+        "WAITING VENDOR APPROVE"
+    ) {
+      if (
+        !matchedFastListingLooksSafe(
+          matched,
+          prepared
         )
-          ? center.data
-              .groups
-          : [],
-      [center.data]
+      ) {
+        throw new Error(
+          `${prepared.title}: İdefix katalog eşleşmesi geldi fakat marka/model/hafıza güvenlik kontrolünden geçmedi. Otomatik onay verilmedi.`
+        );
+      }
+
+      await approveProduct(
+        prepared.barcode
+      );
+    }
+
+    // Dokümana göre eşleşme 24 saat içinde onaylanırsa fast-listing'de
+    // gönderilen ilk stok/fiyat bilgileri ile ürün envantere açılır.
+    // Kısa süre sonra satıcı havuzundan tekrar okuyup yerel kaydı tamamla.
+    let liveProduct:
+      IdefixProduct | null =
+        null;
+
+    for (
+      let attempt = 0;
+      attempt < 6;
+      attempt += 1
+    ) {
+      if (
+        attempt > 0
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              650
+            )
+        );
+      }
+
+      const lookup =
+        await listByBarcode(
+          prepared.barcode
+        );
+
+      if (
+        lookup.products
+          .length > 0
+      ) {
+        liveProduct =
+          lookup.products[0];
+        break;
+      }
+    }
+
+    // Fast listing tamamlandı + gerekiyorsa merchant approve başarılı.
+    // Pool read gecikirse bile PENDING yerine LISTED yazmak yerine
+    // doğrulama bekleyen kayıt bırakıyoruz; veri kaybetmiyoruz.
+    const membershipStatus:
+      "LISTED" |
+      "PENDING_CREATE" =
+        liveProduct
+          ? "LISTED"
+          : "PENDING_CREATE";
+
+    await client.query(
+      "BEGIN"
     );
 
-  const visibleGroups =
-    useMemo(() => {
-      const q =
-        normalize(search);
-
-      return groups
-        .map(
-          (group: any) => {
-            const devices =
-              (
-                Array.isArray(
-                  group?.devices
-                )
-                  ? group.devices
-                  : []
-              ).filter(
-                (
-                  device: any
-                ) => {
-                  if (
-                    onlyAvailable &&
-                    device
-                      ?.status !==
-                      "AVAILABLE"
-                  ) {
-                    return false;
-                  }
-
-                  if (!q) {
-                    return true;
-                  }
-
-                  const channelText =
-                    [
-                      device
-                        ?.channels
-                        ?.N11
-                        ?.status,
-                      device
-                        ?.channels
-                        ?.IKAS
-                        ?.status,
-                      device
-                        ?.channels
-                        ?.IDEFIX
-                        ?.status,
-                    ].join(" ");
-
-                  const haystack =
-                    [
-                      device?.imei,
-                      device?.brand,
-                      device?.model,
-                      device?.memory,
-                      device?.color,
-                      device?.grade,
-                      device?.warranty,
-                      device
-                        ?.current_branch_code,
-                      device?.status,
-                      channelText,
-                    ]
-                      .join(" ")
-                      .toLocaleLowerCase(
-                        "tr-TR"
-                      );
-
-                  return haystack.includes(
-                    q
-                  );
-                }
-              );
-
-            const groupText =
-              [
-                group?.brand,
-                group?.model,
-                group?.memory,
-                group?.color,
-                group?.grade,
-                group?.warranty,
-              ]
-                .join(" ")
-                .toLocaleLowerCase(
-                  "tr-TR"
-                );
-
-            if (
-              q &&
-              devices.length ===
-                0 &&
-              !groupText.includes(
-                q
-              )
-            ) {
-              return null;
-            }
-
-            const finalDevices =
-              q &&
-              groupText.includes(
-                q
-              )
-                ? (
-                    Array.isArray(
-                      group?.devices
-                    )
-                      ? group.devices
-                      : []
-                  ).filter(
-                    (
-                      device: any
-                    ) =>
-                      !onlyAvailable ||
-                      device
-                        ?.status ===
-                        "AVAILABLE"
-                  )
-                : devices;
-
-            if (
-              finalDevices
-                .length === 0
-            ) {
-              return null;
-            }
-
-            const sentCount = (
-              channel: ChannelCode
-            ) =>
-              finalDevices.filter(
-                (
-                  device: any
-                ) =>
-                  [
-                    "LISTED",
-                    "RESERVED",
-                    "SOLD",
-                    "PENDING_CREATE",
-                  ].includes(
-                    String(
-                      device
-                        ?.channels?.[
-                        channel
-                      ]?.status ||
-                        ""
-                    ).toUpperCase()
-                  )
-              ).length;
-
-            return {
-              ...group,
-              devices:
-                finalDevices,
-              visibleTotal:
-                finalDevices.length,
-              visibleChannelSummary:
-                {
-                  N11:
-                    sentCount(
-                      "N11"
-                    ),
-                  IKAS:
-                    sentCount(
-                      "IKAS"
-                    ),
-                  IDEFIX:
-                    sentCount(
-                      "IDEFIX"
-                    ),
-                },
-            };
+    try {
+      const local =
+        await persistLocal(
+          client,
+          {
+            prepared,
+            finalProduct:
+              liveProduct ||
+              {
+                barcode:
+                  prepared.barcode,
+                title:
+                  prepared.title,
+                productMainId:
+                  prepared
+                    .productMainId,
+                vendorStockCode:
+                  prepared
+                    .vendorStockCode,
+                inventoryQuantity:
+                  prepared
+                    .targetAfterStock,
+              },
+            membershipStatus,
+            syncStatus:
+              liveProduct
+                ? "SYNCED"
+                : "CREATING",
+            taskStatus:
+              liveProduct
+                ? "SUCCESS"
+                : "WAITING_POOL_READ",
+            batchRequestId:
+              upload
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              fastResult.payload,
           }
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        success:
+          true,
+        action:
+          "FAST_LISTING",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          0,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (row) =>
+                row.imei
+            ),
+        batchRequestId:
+          upload
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          liveProduct
+            ? "LISTED"
+            : "PENDING_CREATE",
+        pendingApproval:
+          !liveProduct,
+        approved:
+          poolState ===
+          "WAITING VENDOR APPROVE",
+        message:
+          liveProduct
+            ? "İdefix katalog ürünü fast-listing ile satışa açıldı."
+            : "Fast-listing tamamlandı; İdefix havuzunun görünür olması bekleniyor.",
+      };
+    } catch (error: any) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      throw error;
+    }
+  }
+
+  if (
+    prepared.action ===
+    "EXISTING_PRODUCT"
+  ) {
+    try {
+      const upload =
+        await inventoryUpload(
+          prepared
+        );
+
+      const verification =
+        await waitInventory(
+          upload
+            .batchRequestId,
+          prepared.barcode
+        );
+
+      if (
+        !verification.success
+      ) {
+        throw new Error(
+          `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. Batch: ${upload.batchRequestId}`
+        );
+      }
+
+      await client.query(
+        "BEGIN"
+      );
+
+      try {
+        const local =
+          await persistLocal(
+            client,
+            {
+              prepared,
+              finalProduct:
+                prepared
+                  .exactProduct,
+              membershipStatus:
+                "LISTED",
+              syncStatus:
+                "SYNCED",
+              taskStatus:
+                "SUCCESS",
+              batchRequestId:
+                upload
+                  .batchRequestId,
+              finalStock:
+                prepared
+                  .targetAfterStock,
+              apiResult:
+                verification
+                  .payload,
+            }
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return {
+          success:
+            true,
+          action:
+            "EXISTING_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            prepared.barcode,
+          beforeStock:
+            prepared
+              .targetBeforeStock,
+          afterStock:
+            prepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            upload
+              .batchRequestId,
+          listingId:
+            local.listingId,
+          state:
+            "LISTED",
+          pendingApproval:
+            false,
+        };
+      } catch (
+        error: any
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw new Error(
+          `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+            error instanceof Error
+              ? error.message
+              : ""
+          }`
+        );
+      }
+    } catch (
+      error: any
+    ) {
+      if (
+        isProductNotFoundError(
+          error
         )
-        .filter(Boolean);
-    }, [
-      groups,
-      search,
-      onlyAvailable,
-    ]);
+      ) {
+        // Ürün pool/list içinde görünmüş ama catalog inventory henüz hazır değil.
+        // Bu hata artık "başarısız gönderim" sayılmaz.
+        // IMEI'yi PENDING_CREATE olarak kaydet, ikinci kez ürün açılmasını engelle.
+        const local =
+          await persistPendingCatalog(
+            client,
+            prepared,
+            error instanceof Error
+              ? error.message
+              : "PRODUCT_NOT_FOUND"
+          );
 
-  const summary =
-    center.data?.summary ||
-    {};
+        return {
+          success:
+            true,
+          action:
+            "EXISTING_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            prepared.barcode,
+          beforeStock:
+            prepared
+              .targetBeforeStock,
+          afterStock:
+            prepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            null,
+          listingId:
+            local.listingId,
+          state:
+            "PENDING_CREATE",
+          pendingApproval:
+            true,
+          message:
+            "Ürün İdefix'e gönderildi. Katalog onayı bekleniyor; stok/fiyat onay sonrası senkronlanacak.",
+        };
+      }
 
-  const cards = [
-    {
-      label:
-        "Fiziksel Stok",
-      value:
-        summary
-          ?.activePhysicalStock ??
-        0,
-      detail:
-        "Merkez aktif IMEI",
-    },
-    {
-      label:
-        "Gönderilebilir",
-      value:
-        summary
-          ?.availableDevices ??
-        0,
-      detail:
-        "AVAILABLE cihaz",
-    },
-    {
-      label: "N11",
-      value:
-        summary?.n11 ?? 0,
-      detail:
-        "Kanala bağlı IMEI",
-    },
-    {
-      label: "İkas",
-      value:
-        summary?.ikas ?? 0,
-      detail:
-        "Gönderildi / hazırlanıyor",
-    },
-    {
-      label: "İdefix",
-      value:
-        summary?.idefix ??
-        0,
-      detail:
-        "Kanala bağlı IMEI",
-    },
+      throw error;
+    }
+  }
+
+  const create =
+    await createProduct(
+      prepared
+    );
+
+  const createState =
+    await waitCreateResult(
+      create.batchRequestId,
+      prepared.barcode
+    );
+
+  let state =
+    createState.state;
+
+  let finalBarcode =
+    prepared.barcode;
+
+  let approved =
+    false;
+
+  const matched =
+    createState.product
+      ?.matchedProduct;
+
+  if (
+    state ===
+      "WAITING VENDOR APPROVE"
+  ) {
+    if (
+      !matchedProductLooksSafe(
+        matched,
+        prepared.group
+      )
+    ) {
+      throw new Error(
+        `${prepared.title}: İdefix mevcut katalog ürünü önerdi fakat eşleşme otomatik onay için güvenli değil. Merchant onayı bekleniyor. Batch: ${create.batchRequestId}`
+      );
+    }
+
+    await approveProduct(
+      prepared.barcode
+    );
+
+    approved =
+      true;
+
+    const matchedBarcode =
+      text(
+        matched?.barcode
+      );
+
+    if (
+      matchedBarcode
+    ) {
+      finalBarcode =
+        matchedBarcode;
+    }
+
+    // Kısa bekleme sonrası mevcut havuzu tekrar kontrol et.
+    await new Promise(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          900
+        )
+    );
+
+    state =
+      "APPROVED";
+  }
+
+  if (
+    [
+      "MISSING INFO",
+      "PLATFORM DECLINED",
+    ].includes(state)
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create reddedildi/eksik bilgi. ${JSON.stringify(
+        createState.product
+          ?.failureReasons ||
+        null
+      )}`
+    );
+  }
+
+  // Satıcı havuzunda oluştu mu kontrol et.
+  let listedProduct:
+    IdefixProduct | null =
+      null;
+
+  const lookupCandidates =
+    Array.from(
+      new Set([
+        finalBarcode,
+        prepared.barcode,
+      ])
+    ).filter(Boolean);
+
+  for (
+    const barcode of
+      lookupCandidates
+  ) {
+    const listed =
+      await listByBarcode(
+        barcode
+      );
+
+    if (
+      listed.products
+        .length > 0
+    ) {
+      listedProduct =
+        listed.products[0];
+
+      finalBarcode =
+        text(
+          listedProduct
+            .barcode
+        ) ||
+        barcode;
+
+      break;
+    }
+  }
+
+  const pendingStates = [
+    "NOT MATCHED",
+    "WAITING CATALOG ACTION",
+    "AUTO MATCHED",
+    "MANUAL MATCHED",
+    "",
   ];
 
-  return (
-    <div className="animate-in fade-in duration-300">
-      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-950 px-6 py-7 text-white sm:px-8">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/70">
-                Entegrasyonlar / Merkez
-              </div>
+  if (
+    !listedProduct &&
+    pendingStates.includes(
+      state
+    )
+  ) {
+    // İdefix operatör incelemesi gereken yeni ürün.
+    // API create kabul edildiği için yerelde PENDING_CREATE olarak işaretle.
+    await client.query(
+      "BEGIN"
+    );
 
-              <div className="mt-1 flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-                  Merkezi IMEI Stok
-                </h2>
+    try {
+      const local =
+        await persistLocal(
+          client,
+          {
+            prepared,
+            finalProduct:
+              null,
+            membershipStatus:
+              "PENDING_CREATE",
+            syncStatus:
+              "CREATING",
+            taskStatus:
+              state ||
+              "PENDING",
+            batchRequestId:
+              create
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              createState
+                .payload,
+          }
+        );
 
-                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[8px] font-black uppercase text-cyan-100">
-                  ADIM 1
-                </span>
-              </div>
+      await client.query(
+        "COMMIT"
+      );
 
-              <p className="mt-2 max-w-3xl text-[10px] font-semibold leading-5 text-slate-300">
-                Fiziksel cihaz tek merkezde tutulur. Her IMEI'nin N11, İkas ve İdefix kanal durumu ayrı izlenir.
-              </p>
-            </div>
+      return {
+        success:
+          true,
+        action:
+          "CREATE_PRODUCT",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          0,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (item) =>
+                item.imei
+            ),
+        batchRequestId:
+          create
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          state ||
+          "PENDING_CREATE",
+        pendingApproval:
+          true,
+        approved,
+      };
+    } catch (error: any) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
-                  Son Okuma
-                </div>
-                <div className="mt-0.5 text-[9px] font-black text-white">
-                  {formatDateTime(
-                    center.data
-                      ?.checkedAt
-                  )}
-                </div>
-              </div>
+      throw new Error(
+        `${prepared.title}: İdefix create kabul edildi ancak PostgreSQL PENDING_CREATE kaydı yazılamadı. ${
+          error instanceof Error
+            ? error.message
+            : ""
+        }`
+      );
+    }
+  }
 
-              <button
-                type="button"
-                onClick={() => {
-                  setAddError("");
-                  setAddSuccess("");
-                  setAddOpen(true);
-                }}
-                className="h-10 rounded-xl border border-white/15 bg-white px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
-              >
-                + Cihaz Ekle
-              </button>
+  if (
+    !listedProduct
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create/approve sonrası ürün satıcı havuzunda doğrulanamadı. Batch: ${create.batchRequestId}`
+    );
+  }
 
-              <button
-                type="button"
-                onClick={() => {
-                  setBulkError("");
-                  setBulkSuccess("");
-                  setBulkPreview(
-                    null
-                  );
-                  setBulkOpen(true);
-                }}
-                className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-white/15"
-              >
-                + Toplu Cihaz Ekle
-              </button>
+  // Create/approve sonrası kesin barkoda stok ve fiyatı yaz.
+  const finalPrepared:
+    PreparedGroup = {
+      ...prepared,
+      exactProduct:
+        listedProduct,
+      barcode:
+        finalBarcode,
+      targetBeforeStock:
+        numberOrNull(
+          listedProduct
+            .inventoryQuantity
+        ) ?? 0,
+      targetAfterStock:
+        Math.max(
+          prepared
+            .targetAfterStock,
+          numberOrNull(
+            listedProduct
+              .inventoryQuantity
+          ) ?? 0
+        ),
+  };
 
-              <input
-                ref={excelInputRef}
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="hidden"
-                onChange={(event) => {
-                  const file =
-                    event.target
-                      .files?.[0];
+  let upload:
+    {
+      payload: any;
+      batchRequestId: string;
+    };
 
-                  event.currentTarget.value =
-                    "";
+  let inventoryVerified:
+    {
+      success: boolean;
+      payload: any;
+      item: any;
+    };
 
-                  if (file) {
-                    void handleExcelFile(
-                      file
-                    );
-                  }
-                }}
-              />
+  try {
+    upload =
+      await inventoryUpload(
+        finalPrepared
+      );
 
-              <button
-                type="button"
-                onClick={() => {
-                  setExcelError("");
-                  setExcelSuccess("");
-                  setExcelPreview(
-                    null
-                  );
-                  excelInputRef.current?.click();
-                }}
-                className="h-10 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-400/15"
-              >
-                Excel ile Yükle
-              </button>
+    inventoryVerified =
+      await waitInventory(
+        upload.batchRequestId,
+        finalBarcode
+      );
 
-              <button
-                type="button"
-                onClick={() => {
-                  void loadCenter();
-                }}
-                disabled={
-                  center.loading
-                }
-                className="h-10 rounded-xl bg-cyan-500 px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-50"
-              >
-                {center.loading
-                  ? "Yenileniyor..."
-                  : "Merkezi Yenile"}
-              </button>
-            </div>
-          </div>
-        </div>
+    if (
+      !inventoryVerified.success
+    ) {
+      throw new Error(
+        `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
+      );
+    }
+  } catch (error: any) {
+    if (
+      isProductNotFoundError(
+        error
+      )
+    ) {
+      // Yeni ürün pool/list içinde görünmüş olabilir ama katalog inventory
+      // tarafında henüz satışa hazır değildir. Bu durumda gönderimi hata
+      // sayma; IMEI'yi PENDING_CREATE kaydet ve tekrar ürün create etme.
+      await client.query(
+        "BEGIN"
+      );
 
-        {center.error && (
-          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700 sm:px-6">
-            {center.error}
-          </div>
-        )}
-
-        {!center.data
-          ?.channelMembershipTableReady &&
-          center.success && (
-            <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-[8px] font-bold text-amber-800 sm:px-6">
-              Kanal IMEI üyelik tablosu bulunamadı. N11 durumları eski availableImeis kayıtlarından okunuyor; İkas/İdefix üyelikleri için ADIM 8 migration gerekir.
-            </div>
-          )}
-
-        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5 sm:p-6">
-          {cards.map(
-            (
-              card,
-              index
-            ) => (
-              <div
-                key={
-                  card.label
-                }
-                className={`rounded-2xl border p-5 ${
-                  index === 0
-                    ? "border-cyan-200 bg-cyan-50/60"
-                    : "border-slate-200 bg-white"
-                }`}
-              >
-                <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
-                  {card.label}
-                </div>
-
-                <div className="mt-2 text-2xl font-black text-slate-950">
-                  {card.value}
-                </div>
-
-                <div className="mt-1 text-[8px] font-semibold text-slate-400">
-                  {card.detail}
-                </div>
-              </div>
-            )
-          )}
-        </div>
-
-        <div className="border-t border-slate-200">
-          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-4 xl:flex-row xl:items-center xl:justify-between sm:px-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setOnlyAvailable(
-                    true
-                  )
-                }
-                className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
-                  onlyAvailable
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                Sadece AVAILABLE
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setOnlyAvailable(
-                    false
-                  )
-                }
-                className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
-                  !onlyAvailable
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                Tüm Durumlar
-              </button>
-
-              <span className="rounded-full bg-white px-2.5 py-1.5 text-[8px] font-black text-slate-500 ring-1 ring-slate-200">
-                Ürün Grubu:{" "}
-                {
-                  visibleGroups.length
-                }
-              </span>
-            </div>
-
-            <div className="relative">
-              <svg
-                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
-                />
-              </svg>
-
-              <input
-                value={search}
-                onChange={(
-                  event
-                ) =>
-                  setSearch(
-                    event.target
-                      .value
-                  )
-                }
-                placeholder="IMEI, ürün, renk, mağaza ara..."
-                className="h-10 w-[320px] max-w-[75vw] rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[9px] font-semibold text-slate-700 outline-none transition focus:border-cyan-400"
-              />
-            </div>
-          </div>
-
-          {selectedDeviceIds.length > 0 && (
-            <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/70 px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-blue-600 px-3 py-1.5 text-[8px] font-black uppercase text-white">
-                  {selectedDeviceIds.length} IMEI Seçildi
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDeviceIds(
-                      []
-                    );
-                    setChannelPreview(
-                      null
-                    );
-                  }}
-                  className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-[8px] font-black uppercase text-blue-700"
-                >
-                  Seçimi Temizle
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    openChannelSend(
-                      "N11"
-                    )
-                  }
-                  className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
-                >
-                  N11'e Hazırla
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    openChannelSend(
-                      "IKAS"
-                    )
-                  }
-                  className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
-                >
-                  İkas'a Hazırla
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    openChannelSend(
-                      "IDEFIX"
-                    )
-                  }
-                  className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-4 text-[8px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
-                >
-                  İdefix'e Hazırla
-                </button>
-              </div>
-            </div>
-          )}
-
-          {center.loading &&
-          !center.success ? (
-            <div className="px-6 py-20 text-center">
-              <div className="text-[11px] font-black text-slate-700">
-                Merkezi IMEI stoğu okunuyor...
-              </div>
-
-              <div className="mt-2 text-[9px] font-semibold text-slate-400">
-                stock_devices ve kanal üyelikleri birleştiriliyor.
-              </div>
-            </div>
-          ) : visibleGroups.length ===
-            0 ? (
-            <div className="px-6 py-20 text-center">
-              <div className="text-[11px] font-black text-slate-700">
-                Cihaz bulunamadı
-              </div>
-
-              <div className="mt-2 text-[9px] font-semibold text-slate-400">
-                Filtreyi veya aramayı değiştir.
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {visibleGroups.map(
-                (
-                  group: any
-                ) => {
-                  const open =
-                    expandedKey ===
-                    group.key;
-
-                  return (
-                    <div
-                      key={
-                        group.key
-                      }
-                      className="px-5 py-4 sm:px-6"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedKey(
-                            open
-                              ? null
-                              : group.key
-                          )
-                        }
-                        className="grid w-full gap-4 text-left xl:grid-cols-[minmax(280px,1.5fr)_85px_115px_115px_115px_34px] xl:items-center"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-[12px] font-black text-slate-900">
-                            {group.brand}{" "}
-                            {group.model}
-                          </div>
-
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black text-slate-600">
-                              {group.memory}
-                            </span>
-
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black text-slate-600">
-                              {group.color}
-                            </span>
-
-                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[7px] font-black text-violet-700">
-                              Grade {group.grade}
-                            </span>
-
-                            <span className="rounded-full bg-blue-100 px-2 py-1 text-[7px] font-black text-blue-700">
-                              {group.warranty}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[7px] font-black uppercase text-slate-400">
-                            IMEI
-                          </div>
-                          <div className="mt-1 text-[13px] font-black text-slate-900">
-                            {
-                              group.visibleTotal
-                            }
-                          </div>
-                        </div>
-
-                        {(
-                          [
-                            "N11",
-                            "IKAS",
-                            "IDEFIX",
-                          ] as ChannelCode[]
-                        ).map(
-                          (
-                            channel
-                          ) => (
-                            <div
-                              key={
-                                channel
-                              }
-                            >
-                              <div className="text-[7px] font-black uppercase text-slate-400">
-                                {
-                                  channel ===
-                                  "IKAS"
-                                    ? "İkas"
-                                    : channel ===
-                                      "IDEFIX"
-                                    ? "İdefix"
-                                    : "N11"
-                                }
-                              </div>
-
-                              <div className="mt-1 text-[11px] font-black text-slate-800">
-                                {
-                                  group
-                                    .visibleChannelSummary?.[
-                                    channel
-                                  ] ??
-                                  0
-                                }{" "}
-                                /{" "}
-                                {
-                                  group.visibleTotal
-                                }
-                              </div>
-                            </div>
-                          )
-                        )}
-
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
-                          <svg
-                            className={`h-3.5 w-3.5 transition ${
-                              open
-                                ? "rotate-180"
-                                : ""
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="m19 9-7 7-7-7"
-                            />
-                          </svg>
-                        </div>
-                      </button>
-
-                      {open && (
-                        <>
-                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                            <div className="text-[8px] font-bold text-slate-500">
-                              Kanal gönderimi için yalnızca AVAILABLE IMEI'ler seçilebilir.
-                            </div>
-
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const ids =
-                                    (
-                                      Array.isArray(
-                                        group?.devices
-                                      )
-                                        ? group.devices
-                                        : []
-                                    )
-                                      .filter(
-                                        (
-                                          device: any
-                                        ) =>
-                                          device?.status ===
-                                          "AVAILABLE"
-                                      )
-                                      .map(
-                                        (
-                                          device: any
-                                        ) =>
-                                          Number(
-                                            device.id
-                                          )
-                                      );
-
-                                  setSelectedDeviceIds(
-                                    (current) =>
-                                      Array.from(
-                                        new Set([
-                                          ...current,
-                                          ...ids,
-                                        ])
-                                      )
-                                  );
-
-                                  setChannelPreview(
-                                    null
-                                  );
-                                }}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-600"
-                              >
-                                AVAILABLE Tümünü Seç
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const groupIds =
-                                    new Set(
-                                      (
-                                        Array.isArray(
-                                          group?.devices
-                                        )
-                                          ? group.devices
-                                          : []
-                                      ).map(
-                                        (
-                                          device: any
-                                        ) =>
-                                          Number(
-                                            device.id
-                                          )
-                                      )
-                                    );
-
-                                  setSelectedDeviceIds(
-                                    (current) =>
-                                      current.filter(
-                                        (id) =>
-                                          !groupIds.has(
-                                            id
-                                          )
-                                      )
-                                  );
-
-                                  setChannelPreview(
-                                    null
-                                  );
-                                }}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-500"
-                              >
-                                Grup Seçimini Kaldır
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
-                          <div className="min-w-[1040px]">
-                            <div className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
-                              <div>
-                                Seç
-                              </div>
-                              <div>
-                                IMEI
-                              </div>
-                              <div>
-                                Mağaza
-                              </div>
-                              <div>
-                                Cihaz
-                              </div>
-                              <div>
-                                Durum
-                              </div>
-                              <div>
-                                N11
-                              </div>
-                              <div>
-                                İkas
-                              </div>
-                              <div>
-                                İdefix
-                              </div>
-                            </div>
-
-                            {(
-                              Array.isArray(
-                                group
-                                  ?.devices
-                              )
-                                ? group.devices
-                                : []
-                            ).map(
-                              (
-                                device: any
-                              ) => {
-                                const deviceMeta =
-                                  deviceStatusMeta(
-                                    device
-                                      ?.status
-                                  );
-
-                                return (
-                                  <div
-                                    key={
-                                      device.id
-                                    }
-                                    className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0"
-                                  >
-                                    <div>
-                                      <input
-                                        type="checkbox"
-                                        checked={
-                                          selectedDeviceIds.includes(
-                                            Number(
-                                              device.id
-                                            )
-                                          )
-                                        }
-                                        disabled={
-                                          device?.status !==
-                                          "AVAILABLE"
-                                        }
-                                        onChange={() =>
-                                          toggleDeviceSelection(
-                                            Number(
-                                              device.id
-                                            )
-                                          )
-                                        }
-                                        className="h-4 w-4 rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
-                                        title={
-                                          device?.status ===
-                                          "AVAILABLE"
-                                            ? "Kanal gönderimi için seç"
-                                            : "Yalnızca AVAILABLE cihaz seçilebilir"
-                                        }
-                                      />
-                                    </div>
-
-                                    <div className="font-black text-slate-900">
-                                      {
-                                        device.imei
-                                      }
-                                    </div>
-
-                                    <div className="font-bold text-slate-500">
-                                      {device
-                                        ?.current_branch_code ||
-                                        "-"}
-                                    </div>
-
-                                    <div>
-                                      <div className="font-black text-slate-800">
-                                        {device
-                                          ?.brand ||
-                                          "-"}{" "}
-                                        {device
-                                          ?.model ||
-                                          "-"}
-                                      </div>
-
-                                      <div className="mt-1 text-[7px] font-bold text-slate-400">
-                                        {device
-                                          ?.memory ||
-                                          "-"}{" "}
-                                        ·{" "}
-                                        {device
-                                          ?.color ||
-                                          "-"}{" "}
-                                        · Grade{" "}
-                                        {device
-                                          ?.grade ||
-                                          "-"}
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <span
-                                        className={`inline-flex rounded-full px-2 py-1 text-[7px] font-black uppercase ${deviceMeta.className}`}
-                                      >
-                                        {
-                                          deviceMeta.label
-                                        }
-                                      </span>
-                                    </div>
-
-                                    <ChannelBadge
-                                      channel="N11"
-                                      status={
-                                        device
-                                          ?.channels
-                                          ?.N11
-                                          ?.status
-                                      }
-                                    />
-
-                                    <ChannelBadge
-                                      channel="IKAS"
-                                      status={
-                                        device
-                                          ?.channels
-                                          ?.IKAS
-                                          ?.status
-                                      }
-                                    />
-
-                                    <ChannelBadge
-                                      channel="IDEFIX"
-                                      status={
-                                        device
-                                          ?.channels
-                                          ?.IDEFIX
-                                          ?.status
-                                      }
-                                    />
-                                  </div>
-                                );
-                              }
-                            )}
-                          </div>
-                        </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                }
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ · N11 + İkas + İdefix gerçek gönderim aktif
-        </div>
-      </div>
-
-      {channelOpen && (
-        <div
-          className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-                event.currentTarget &&
-              !channelLoading
-            ) {
-              setChannelOpen(false);
+      try {
+        const local =
+          await persistLocal(
+            client,
+            {
+              prepared:
+                finalPrepared,
+              finalProduct:
+                listedProduct,
+              membershipStatus:
+                "PENDING_CREATE",
+              syncStatus:
+                "CREATING",
+              taskStatus:
+                "WAITING_CATALOG",
+              batchRequestId:
+                create
+                  .batchRequestId,
+              finalStock:
+                finalPrepared
+                  .targetAfterStock,
+              apiResult: {
+                create:
+                  createState
+                    .payload,
+                inventoryError:
+                  error instanceof Error
+                    ? error.message
+                    : "PRODUCT_NOT_FOUND",
+                waitingCatalog:
+                  true,
+                savedAt:
+                  new Date()
+                    .toISOString(),
+              },
             }
-          }}
-        >
-          <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
-              <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
-                  Merkez · Kanal Gönderim Merkezi
-                </div>
-
-                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  {channelLabel(
-                    sendChannel
-                  )} Ön Kontrol
-                </h3>
-
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Seçili IMEI'ler önce kontrol edilir. N11, İkas ve İdefix kanallarında başarılı ön kontrolden sonra gerçek gönderim yapılabilir.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={
-                  channelLoading ||
-                  n11Sending ||
-                  ikasSending ||
-                  idefixSending
-                }
-                onClick={() =>
-                  setChannelOpen(
-                    false
-                  )
-                }
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-5 px-5 py-6 sm:px-7">
-              {channelError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
-                  {channelError}
-                </div>
-              )}
-
-              <div>
-                <div className="mb-2 text-[8px] font-black uppercase tracking-wide text-slate-500">
-                  Kanal
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {(
-                    [
-                      "N11",
-                      "IKAS",
-                      "IDEFIX",
-                    ] as ChannelCode[]
-                  ).map(
-                    (channel) => (
-                      <button
-                        key={
-                          channel
-                        }
-                        type="button"
-                        onClick={() => {
-                          setSendChannel(
-                            channel
-                          );
-                          setChannelPreview(
-                            null
-                          );
-                          setChannelError(
-                            ""
-                          );
-                          setN11SendResults(
-                            []
-                          );
-                          setN11SendNotice(
-                            ""
-                          );
-                          setIkasSendResults(
-                            []
-                          );
-                          setIkasSendNotice(
-                            ""
-                          );
-                          setIdefixSendResults(
-                            []
-                          );
-                          setIdefixSendNotice(
-                            ""
-                          );
-                          setIdefixCatalogBarcode(
-                            ""
-                          );
-                          setIdefixNeedsCatalogBarcode(
-                            false
-                          );
-                        }}
-                        className={`h-12 rounded-xl border text-[9px] font-black uppercase transition ${
-                          sendChannel ===
-                          channel
-                            ? "border-blue-600 bg-blue-600 text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {channelLabel(
-                          channel
-                        )}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-[7px] font-black uppercase text-slate-400">
-                    Seçili IMEI
-                  </div>
-                  <div className="mt-1 text-2xl font-black text-slate-950">
-                    {
-                      selectedDeviceIds.length
-                    }
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Satış Fiyatı
-                  </label>
-                  <input
-                    value={
-                      channelSalePrice
-                    }
-                    onChange={(
-                      event
-                    ) => {
-                      setChannelSalePrice(
-                        event.target
-                          .value
-                      );
-                      setChannelPreview(
-                        null
-                      );
-                    }}
-                    inputMode="decimal"
-                    placeholder="22.999"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Liste Fiyatı
-                  </label>
-                  <input
-                    value={
-                      channelListPrice
-                    }
-                    onChange={(
-                      event
-                    ) => {
-                      setChannelListPrice(
-                        event.target
-                          .value
-                      );
-                      setChannelPreview(
-                        null
-                      );
-                    }}
-                    inputMode="decimal"
-                    placeholder="24.999"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-              </div>
-
-              {sendChannel ===
-                "IDEFIX" &&
-                (
-                  idefixNeedsCatalogBarcode ||
-                  Boolean(
-                    idefixCatalogBarcode
-                  )
-                ) && (
-                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-violet-700">
-                    İdefix Katalog Barkodu · Sadece İlk Eşleştirme
-                  </label>
-                  <input
-                    value={
-                      idefixCatalogBarcode
-                    }
-                    onChange={(
-                      event
-                    ) => {
-                      setIdefixCatalogBarcode(
-                        event.target
-                          .value
-                          .trim()
-                      );
-                      setChannelPreview(
-                        null
-                      );
-                      setChannelError(
-                        ""
-                      );
-                    }}
-                    inputMode="text"
-                    placeholder="Katalogda mevcut üründe global barkod"
-                    className="h-12 w-full rounded-xl border border-violet-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-                  />
-                  <div className="mt-2 text-[7px] font-bold leading-4 text-violet-700">
-                    Bu alan yalnızca ürün CNETMOBİL İdefix havuzunda ilk kez açılırken görünür. Bir kez doğru katalog barkoduyla eşleşince sistem kaydeder; sonraki aynı model/hafıza/renk/kalite cihazlarda N11 gibi otomatik kullanır.
-                  </div>
-                </div>
-              )}
-
-              {channelPreview && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
-                        Toplam
-                      </div>
-                      <div className="mt-1 text-xl font-black text-slate-900">
-                        {
-                          channelPreview.total
-                        }
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
-                        Gönderilebilir
-                      </div>
-                      <div className="mt-1 text-xl font-black text-emerald-700">
-                        {
-                          channelPreview.eligible
-                        }
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
-                        Engelli
-                      </div>
-                      <div className="mt-1 text-xl font-black text-rose-700">
-                        {
-                          channelPreview.blocked
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-200 bg-white px-4 py-3">
-                    <div className="flex flex-wrap gap-2 text-[8px] font-black">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
-                        {channelLabel(
-                          channelPreview.channel
-                        )}
-                      </span>
-                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-                        Satış:{" "}
-                        {formatMoney(
-                          channelPreview.salePrice
-                        )}
-                      </span>
-                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-violet-700">
-                        Liste:{" "}
-                        {formatMoney(
-                          channelPreview.listPrice
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                    {channelPreview.items.map(
-                      (item) => (
-                        <div
-                          key={
-                            item.deviceId
-                          }
-                          className={`grid gap-2 px-4 py-3 sm:grid-cols-[165px_minmax(180px,1fr)_105px] sm:items-center ${
-                            item.eligible
-                              ? "bg-emerald-50/35"
-                              : "bg-rose-50/45"
-                          }`}
-                        >
-                          <div>
-                            <div className="font-mono text-[8px] font-black text-slate-900">
-                              {
-                                item.imei
-                              }
-                            </div>
-                            <div className="mt-1 text-[7px] font-bold text-slate-400">
-                              {
-                                item.status
-                              }
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-[8px] font-black text-slate-800">
-                              {item.brand}{" "}
-                              {item.model} ·{" "}
-                              {item.memory} ·{" "}
-                              {item.color} · Grade{" "}
-                              {item.grade}
-                            </div>
-
-                            {!item.eligible && (
-                              <div className="mt-1 space-y-1">
-                                {item.errors.map(
-                                  (
-                                    error,
-                                    index
-                                  ) => (
-                                    <div
-                                      key={
-                                        index
-                                      }
-                                      className="text-[7px] font-bold text-rose-700"
-                                    >
-                                      •{" "}
-                                      {
-                                        error
-                                      }
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="text-right">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
-                                item.eligible
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-rose-100 text-rose-700"
-                              }`}
-                            >
-                              {item.eligible
-                                ? "Hazır"
-                                : "Engelli"}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {channelPreview?.canProceed && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
-                    ✓ Tüm IMEI'ler {channelLabel(
-                      sendChannel
-                    )} gönderimine hazır.
-                  </div>
-
-                  <div className="mt-1 text-[7px] font-semibold leading-4 text-emerald-700">
-                    {sendChannel ===
-                    "N11"
-                      ? "N11 için gerçek gönderim aktif. Gönderim öncesi kontrol tekrar yapılır ve mevcut çalışan N11 motoru kullanılır."
-                      : sendChannel ===
-                        "IKAS"
-                      ? "İkas için gerçek gönderim aktif. Ürün/varyant canlı İkas'ta bulunur veya oluşturulur, fiyat ve Ana Depo stoğu yazılır, sonra tekrar okunarak doğrulanır."
-                      : "İdefix için gerçek gönderim aktif. Satıcı havuzundaki ürün doğrudan güncellenir; katalog barkodu girilen mevcut katalog ürünü fast-listing ile hızlıca açılır."}
-                  </div>
-                </div>
-              )}
-
-              {n11SendNotice && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
-                    ✓ {n11SendNotice}
-                  </div>
-                </div>
-              )}
-
-              {ikasSendNotice && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
-                    ✓ {ikasSendNotice}
-                  </div>
-                </div>
-              )}
-
-              {idefixSendNotice && (
-                <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-violet-800">
-                    ✓ {idefixSendNotice}
-                  </div>
-                </div>
-              )}
-
-              {idefixSendResults.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
-                      Gerçek İdefix Gönderim Sonucu
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-slate-100">
-                    {idefixSendResults.map(
-                      (
-                        result,
-                        index
-                      ) => {
-                        const pending =
-                          String(
-                            result.state ||
-                              ""
-                          ).toUpperCase() ===
-                            "PENDING_CREATE" ||
-                          result.pendingApproval ===
-                            true;
-
-                        return (
-                          <div
-                            key={`${result.barcode}-${index}`}
-                            className={
-                              pending
-                                ? "bg-amber-50/45 px-4 py-3"
-                                : "bg-emerald-50/35 px-4 py-3"
-                            }
-                          >
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
-                                <div className="text-[9px] font-black text-slate-900">
-                                  {result.title}
-                                </div>
-
-                                <div className="mt-1 text-[7px] font-bold text-slate-500">
-                                  {result.color} · Barkod {result.barcode || "-"}
-                                </div>
-
-                                <div className="mt-1 text-[7px] font-bold text-slate-500">
-                                  IMEI: {result.addedImeis.join(", ")}
-                                </div>
-                              </div>
-
-                              <span
-                                className={`inline-flex self-start rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
-                                  pending
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-emerald-100 text-emerald-700"
-                                }`}
-                              >
-                                {pending
-                                  ? "İdefix Onayında"
-                                  : "Gönderildi"}
-                              </span>
-                            </div>
-
-                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
-                                  İşlem
-                                </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
-                                  {result.action ===
-                                  "FAST_LISTING"
-                                    ? "Hızlı Katalog"
-                                    : result.action ===
-                                      "CREATE_PRODUCT"
-                                    ? "Yeni Ürün"
-                                    : "Mevcut Ürün"}
-                                </div>
-                              </div>
-
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
-                                  Stok
-                                </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
-                                  {result.beforeStock} → {result.afterStock}
-                                </div>
-                              </div>
-
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
-                                  Durum
-                                </div>
-                                <div
-                                  className={`mt-1 text-[7px] font-black ${
-                                    pending
-                                      ? "text-amber-700"
-                                      : "text-emerald-700"
-                                  }`}
-                                >
-                                  {pending
-                                    ? "Katalog Onayı"
-                                    : "Aktif"}
-                                </div>
-                              </div>
-
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
-                                  Listing
-                                </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
-                                  #{result.listingId || "-"}
-                                </div>
-                              </div>
-                            </div>
-
-                            {result.message && (
-                              <div className="mt-2 text-[7px] font-bold text-slate-500">
-                                {result.message}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {ikasSendResults.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
-                      Gerçek İkas Gönderim Sonucu
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-slate-100">
-                    {ikasSendResults.map(
-                      (
-                        result,
-                        index
-                      ) => (
-                        <div
-                          key={`${result.variantId}-${index}`}
-                          className="bg-emerald-50/35 px-4 py-3"
-                        >
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <div className="text-[9px] font-black text-slate-900">
-                                {result.title}
-                              </div>
-
-                              <div className="mt-1 text-[7px] font-bold text-slate-500">
-                                {result.color} · SKU {result.sku || "-"}
-                              </div>
-
-                              <div className="mt-1 text-[7px] font-bold text-slate-500">
-                                IMEI: {result.addedImeis.join(", ")}
-                              </div>
-                            </div>
-
-                            <span className="inline-flex self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[7px] font-black uppercase text-emerald-700">
-                              Gönderildi
-                            </span>
-                          </div>
-
-                          <div className="mt-3 grid gap-2 sm:grid-cols-5">
-                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
-                                İşlem
-                              </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
-                                {result.action === "CREATE_PRODUCT"
-                                  ? "Yeni Ürün"
-                                  : result.action === "ADD_VARIANT"
-                                  ? "Yeni Varyant"
-                                  : "Mevcut Varyant"}
-                              </div>
-                            </div>
-
-                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
-                                Stok
-                              </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
-                                {result.beforeStock} → {result.afterStock}
-                              </div>
-                            </div>
-
-                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
-                                Satış
-                              </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
-                                {formatMoney(result.salePrice)}
-                              </div>
-                            </div>
-
-                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
-                                Liste
-                              </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
-                                {formatMoney(result.listPrice)}
-                              </div>
-                            </div>
-
-                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
-                                Satış Kanalı
-                              </div>
-                              <div className="mt-1 text-[7px] font-black text-emerald-700">
-                                {result.salesChannelVisibility?.status === "VISIBLE"
-                                  ? `Açık · ${result.salesChannelVisibility?.name || "İkas"}`
-                                  : "-"}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {n11SendResults.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
-                      Gerçek N11 Gönderim Sonucu
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-slate-100">
-                    {n11SendResults.map(
-                      (result) => (
-                        <div
-                          key={
-                            result.deviceId
-                          }
-                          className={`grid gap-2 px-4 py-3 sm:grid-cols-[165px_115px_1fr] sm:items-center ${
-                            result.success
-                              ? result.status ===
-                                "LISTED"
-                                ? "bg-emerald-50/40"
-                                : "bg-amber-50/45"
-                              : "bg-rose-50/50"
-                          }`}
-                        >
-                          <div className="font-mono text-[8px] font-black text-slate-900">
-                            {
-                              result.imei
-                            }
-                          </div>
-
-                          <div>
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
-                                result.success
-                                  ? result.status ===
-                                    "LISTED"
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-amber-100 text-amber-700"
-                                  : "bg-rose-100 text-rose-700"
-                              }`}
-                            >
-                              {result.success
-                                ? result.status ===
-                                  "LISTED"
-                                  ? "Gönderildi"
-                                  : "N11 Bekleniyor"
-                                : "Hata"}
-                            </span>
-                          </div>
-
-                          <div className="text-[8px] font-bold text-slate-600">
-                            {
-                              result.message
-                            }
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <div className="text-[8px] font-black text-amber-800">
-                  Tekrar gönderme koruması aktif
-                </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-amber-700">
-                  Aynı IMEI bu kanalda online_channel_devices, bağlı listing veya eski N11 IMEI havuzunda bulunursa ön kontrol engeller.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
-              <button
-                type="button"
-                disabled={
-                  channelLoading ||
-                  n11Sending ||
-                  ikasSending ||
-                  idefixSending
-                }
-                onClick={() =>
-                  setChannelOpen(
-                    false
-                  )
-                }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              >
-                Kapat
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  channelLoading ||
-                  selectedDeviceIds.length ===
-                    0
-                }
-                onClick={() => {
-                  void runChannelPreview();
-                }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
-              >
-                {channelLoading
-                  ? "Kontrol Ediliyor..."
-                  : "Ön Kontrol Yap"}
-              </button>
-
-
-              {sendChannel ===
-                "N11" && (
-                <button
-                  type="button"
-                  disabled={
-                    channelLoading ||
-                    n11Sending ||
-                    !channelPreview
-                      ?.canProceed
-                  }
-                  onClick={() => {
-                    void sendSelectedToN11();
-                  }}
-                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {n11Sending
-                    ? "N11'e Gönderiliyor..."
-                    : `N11'e Gerçekten Gönder (${selectedDeviceIds.length})`}
-                </button>
-              )}
-
-
-              {sendChannel ===
-                "IKAS" && (
-                <button
-                  type="button"
-                  disabled={
-                    channelLoading ||
-                    ikasSending ||
-                    !channelPreview
-                      ?.canProceed
-                  }
-                  onClick={() => {
-                    void sendSelectedToIkas();
-                  }}
-                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {ikasSending
-                    ? "İkas'a Gönderiliyor..."
-                    : `İkas'a Gerçekten Gönder (${selectedDeviceIds.length})`}
-                </button>
-              )}
-
-
-              {sendChannel ===
-                "IDEFIX" && (
-                <button
-                  type="button"
-                  disabled={
-                    channelLoading ||
-                    idefixSending ||
-                    !channelPreview
-                      ?.canProceed ||
-                    (
-                      idefixNeedsCatalogBarcode &&
-                      !idefixCatalogBarcode
-                    )
-                  }
-                  onClick={() => {
-                    void sendSelectedToIdefix();
-                  }}
-                  className="h-11 rounded-xl bg-violet-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {idefixSending
-                    ? "İdefix'e Gönderiliyor..."
-                    : `İdefix'e Gerçekten Gönder (${selectedDeviceIds.length})`}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {excelOpen && (
-        <div
-          className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-6"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-                event.currentTarget &&
-              !excelLoading
-            ) {
-              setExcelOpen(false);
-            }
-          }}
-        >
-          <div className="my-4 w-full max-w-[1100px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
-              <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600">
-                  Online · Merkez
-                </div>
-
-                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Excel ile Cihaz Yükle
-                </h3>
-
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Aynı Excel içinde farklı marka, model, hafıza, renk ve grade cihazlar olabilir. Önce tüm satırlar kontrol edilir.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={excelLoading}
-                onClick={() =>
-                  setExcelOpen(false)
-                }
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-5 px-5 py-6 sm:px-7">
-              {excelError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
-                  {excelError}
-                </div>
-              )}
-
-              {excelSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
-                  ✓ {excelSuccess}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
-                    Seçili Dosya
-                  </div>
-                  <div className="mt-1 text-[10px] font-black text-slate-800">
-                    {excelFileName || "Dosya seçilmedi"}
-                  </div>
-                  <div className="mt-1 text-[8px] font-semibold text-slate-500">
-                    Okunan cihaz satırı: {excelRows.length}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={excelLoading}
-                  onClick={() =>
-                    excelInputRef.current?.click()
-                  }
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[8px] font-black uppercase text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
-                >
-                  Başka Excel Seç
-                </button>
-              </div>
-
-              {excelRows.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="overflow-x-auto">
-                    <div className="min-w-[930px]">
-                      <div className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
-                        <div>Satır</div>
-                        <div>IMEI</div>
-                        <div>Marka</div>
-                        <div>Model</div>
-                        <div>Hafıza</div>
-                        <div>Renk</div>
-                        <div>Grade</div>
-                        <div>Garanti</div>
-                      </div>
-
-                      {excelRows
-                        .slice(
-                          0,
-                          12
-                        )
-                        .map(
-                          (row) => (
-                            <div
-                              key={`${row.rowNumber}-${row.imei}`}
-                              className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-100 px-3 py-2.5 text-[8px] last:border-0"
-                            >
-                              <div className="font-black text-slate-400">
-                                {row.rowNumber}
-                              </div>
-                              <div className="font-mono font-black text-slate-900">
-                                {row.imei || "-"}
-                              </div>
-                              <div className="font-bold text-slate-700">
-                                {row.brand || "-"}
-                              </div>
-                              <div className="font-bold text-slate-700">
-                                {row.model || "-"}
-                              </div>
-                              <div className="font-bold text-slate-700">
-                                {row.memory || "-"}
-                              </div>
-                              <div className="font-bold text-slate-700">
-                                {row.color || "-"}
-                              </div>
-                              <div className="font-black text-slate-700">
-                                {row.grade || "-"}
-                              </div>
-                              <div className="font-bold text-slate-700">
-                                {row.warranty || "-"}
-                              </div>
-                            </div>
-                          )
-                        )}
-
-                      {excelRows.length > 12 && (
-                        <div className="bg-slate-50 px-4 py-3 text-center text-[8px] font-black text-slate-500">
-                          + {excelRows.length - 12} satır daha
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {excelPreview && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
-                        Toplam
-                      </div>
-                      <div className="mt-1 text-xl font-black text-slate-900">
-                        {excelPreview.total}
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
-                        Geçerli
-                      </div>
-                      <div className="mt-1 text-xl font-black text-emerald-700">
-                        {excelPreview.valid}
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
-                        Hatalı
-                      </div>
-                      <div className="mt-1 text-xl font-black text-rose-700">
-                        {excelPreview.invalid}
-                      </div>
-                    </div>
-                  </div>
-
-                  {excelPreview.errors.length > 0 ? (
-                    <div className="max-h-60 overflow-y-auto divide-y divide-rose-100">
-                      {excelPreview.errors.map(
-                        (
-                          item,
-                          index
-                        ) => (
-                          <div
-                            key={`${item.rowNumber}-${item.imei}-${index}`}
-                            className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[70px_170px_1fr]"
-                          >
-                            <div className="text-[8px] font-black text-rose-500">
-                              Satır {item.rowNumber || "-"}
-                            </div>
-                            <div className="font-mono text-[8px] font-black text-rose-800">
-                              {item.imei || "-"}
-                            </div>
-                            <div className="text-[8px] font-bold text-rose-700">
-                              {item.reason}
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
-                      ✓ Excel'deki tüm cihazlar temiz. Kayıt yapılabilir.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
-                  Zorunlu Excel kolonları
-                </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
-                  IMEI · Marka · Model · Hafıza · Renk · Grade · Garanti. Durum, mağaza, pil, fiyat, değişen parça ve kutu/fatura bu dosyada kullanılmaz.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
-              <button
-                type="button"
-                disabled={excelLoading}
-                onClick={() =>
-                  setExcelOpen(false)
-                }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              >
-                Vazgeç
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  excelLoading ||
-                  excelRows.length ===
-                    0
-                }
-                onClick={() => {
-                  void runExcelDevice(
-                    "preview"
-                  );
-                }}
-                className="h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-6 text-[8px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-50"
-              >
-                {excelLoading
-                  ? "Kontrol Ediliyor..."
-                  : "Excel'i Kontrol Et"}
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  excelLoading ||
-                  !excelPreview?.canCommit
-                }
-                onClick={() => {
-                  void runExcelDevice(
-                    "commit"
-                  );
-                }}
-                className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {excelLoading
-                  ? "Kaydediliyor..."
-                  : excelPreview?.canCommit
-                  ? `${excelPreview.total} Cihazı Excel'den Ekle`
-                  : "Önce Kontrol Et"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {bulkOpen && (
-        <div
-          className="fixed inset-0 z-[125] flex items-start justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-                event.currentTarget &&
-              !bulkLoading
-            ) {
-              setBulkOpen(false);
-            }
-          }}
-        >
-          <div className="my-4 w-full max-w-[1040px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
-              <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
-                  Online · Merkez
-                </div>
-
-                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Toplu Cihaz Ekle
-                </h3>
-
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Ortak ürün bilgilerini bir kez gir, IMEI'leri topluca yapıştır. Önce kontrol edilir; hata varsa hiçbir cihaz kaydedilmez.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={bulkLoading}
-                onClick={() =>
-                  setBulkOpen(false)
-                }
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-5 px-5 py-6 sm:px-7">
-              {bulkError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
-                  {bulkError}
-                </div>
-              )}
-
-              {bulkSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
-                  ✓ {bulkSuccess}
-                </div>
-              )}
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Marka
-                  </label>
-                  <input
-                    value={bulkForm.brand}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        brand: event.target.value,
-                      }));
-                    }}
-                    placeholder="Apple"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Model
-                  </label>
-                  <input
-                    value={bulkForm.model}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        model: event.target.value,
-                      }));
-                    }}
-                    placeholder="iPhone 15 Pro"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Hafıza
-                  </label>
-                  <input
-                    value={bulkForm.memory}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        memory: event.target.value,
-                      }));
-                    }}
-                    placeholder="256 GB"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Renk
-                  </label>
-                  <input
-                    value={bulkForm.color}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        color: event.target.value,
-                      }));
-                    }}
-                    placeholder="Siyah"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Grade
-                  </label>
-                  <select
-                    value={bulkForm.grade}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        grade: event.target.value as "A" | "B" | "C",
-                      }));
-                    }}
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  >
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                  </select>
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
-                    A → Mükemmel · B → Çok İyi · C → İyi
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Garanti
-                  </label>
-                  <input
-                    value={bulkForm.warranty}
-                    onChange={(event) => {
-                      setBulkPreview(null);
-                      setBulkForm((current) => ({
-                        ...current,
-                        warranty: event.target.value,
-                      }));
-                    }}
-                    placeholder="12 Ay"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-end justify-between gap-3">
-                  <label className="block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    IMEI Listesi
-                  </label>
-
-                  <span className="text-[7px] font-bold text-slate-400">
-                    Her satıra 1 IMEI · En fazla 500
-                  </span>
-                </div>
-
-                <textarea
-                  value={bulkImeis}
-                  onChange={(event) => {
-                    setBulkImeis(
-                      event.target.value
-                    );
-                    setBulkPreview(
-                      null
-                    );
-                    setBulkSuccess(
-                      ""
-                    );
-                  }}
-                  rows={10}
-                  placeholder={"356111111111111\n356222222222222\n356333333333333"}
-                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-[10px] font-black leading-7 text-slate-800 outline-none transition placeholder:text-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
-              </div>
-
-              {bulkPreview && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
-                        Toplam
-                      </div>
-                      <div className="mt-1 text-xl font-black text-slate-900">
-                        {bulkPreview.total}
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
-                        Geçerli
-                      </div>
-                      <div className="mt-1 text-xl font-black text-emerald-700">
-                        {bulkPreview.valid}
-                      </div>
-                    </div>
-
-                    <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
-                        Hatalı
-                      </div>
-                      <div className="mt-1 text-xl font-black text-rose-700">
-                        {bulkPreview.invalid}
-                      </div>
-                    </div>
-                  </div>
-
-                  {bulkPreview.errors.length > 0 ? (
-                    <div className="max-h-56 overflow-y-auto divide-y divide-rose-100">
-                      {bulkPreview.errors.map(
-                        (
-                          item,
-                          index
-                        ) => (
-                          <div
-                            key={`${item.imei}-${index}`}
-                            className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[170px_1fr]"
-                          >
-                            <div className="font-mono text-[8px] font-black text-rose-800">
-                              {item.imei || "Boş"}
-                            </div>
-                            <div className="text-[8px] font-bold text-rose-700">
-                              {item.reason}
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
-                      ✓ Tüm IMEI'ler temiz. Toplu kayıt yapılabilir.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
-                  Güvenli toplu kayıt
-                </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
-                  Önizlemede hatalı veya daha önce kayıtlı tek bir IMEI bile varsa toplu kayıt açılmaz. Kayıt anında da tekrar kontrol edilir ve işlem tek transaction içinde tamamlanır.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
-              <button
-                type="button"
-                disabled={bulkLoading}
-                onClick={() =>
-                  setBulkOpen(false)
-                }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              >
-                Vazgeç
-              </button>
-
-              <button
-                type="button"
-                disabled={bulkLoading}
-                onClick={() => {
-                  void runBulkDevice(
-                    "preview"
-                  );
-                }}
-                className="h-11 rounded-xl border border-blue-200 bg-blue-50 px-6 text-[8px] font-black uppercase tracking-wide text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-50"
-              >
-                {bulkLoading
-                  ? "Kontrol Ediliyor..."
-                  : "Önizle / Kontrol Et"}
-              </button>
-
-              <button
-                type="button"
-                disabled={
-                  bulkLoading ||
-                  !bulkPreview?.canCommit
-                }
-                onClick={() => {
-                  void runBulkDevice(
-                    "commit"
-                  );
-                }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {bulkLoading
-                  ? "Kaydediliyor..."
-                  : bulkPreview?.canCommit
-                  ? `${bulkPreview.total} Cihazı Merkeze Ekle`
-                  : "Önce Kontrol Et"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {addOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-[2px] sm:p-6"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              if (!addSaving) {
-                setAddOpen(false);
-              }
-            }
-          }}
-        >
-          <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
-              <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
-                  Online · Merkez
-                </div>
-
-                <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Cihaz Ekle
-                </h3>
-
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Cihaz bilgilerini gir. Kayıt yalnızca Merkez stoğuna eklenir; N11, İkas veya başka bir kanala gönderilmez.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={addSaving}
-                onClick={() =>
-                  setAddOpen(false)
-                }
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-40"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-5 px-5 py-6 sm:px-7">
-              {addError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
-                  {addError}
-                </div>
-              )}
-
-              {addSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
-                  ✓ {addSuccess}
-                </div>
-              )}
-
-              <div>
-                <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                  IMEI
-                </label>
-
-                <input
-                  inputMode="numeric"
-                  autoFocus
-                  maxLength={15}
-                  value={addForm.imei}
-                  onChange={(event) => {
-                    const value =
-                      event.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, 15);
-
-                    setAddForm(
-                      (current) => ({
-                        ...current,
-                        imei: value,
-                      })
-                    );
-                  }}
-                  placeholder="15 haneli IMEI"
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-mono text-[10px] font-black text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Marka
-                  </label>
-
-                  <input
-                    value={addForm.brand}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          brand:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="Apple"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Model
-                  </label>
-
-                  <input
-                    value={addForm.model}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          model:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="iPhone 15 Pro"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Hafıza
-                  </label>
-
-                  <input
-                    value={addForm.memory}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          memory:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="256 GB"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Renk
-                  </label>
-
-                  <input
-                    value={addForm.color}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          color:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="Siyah"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Grade
-                  </label>
-
-                  <select
-                    value={addForm.grade}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          grade:
-                            event.target
-                              .value as
-                              | "A"
-                              | "B"
-                              | "C",
-                        })
-                      )
-                    }
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  >
-                    <option value="A">
-                      A
-                    </option>
-                    <option value="B">
-                      B
-                    </option>
-                    <option value="C">
-                      C
-                    </option>
-                  </select>
-
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
-                    A → Mükemmel · B → Çok İyi · C → İyi
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    Garanti
-                  </label>
-
-                  <input
-                    value={addForm.warranty}
-                    onChange={(event) =>
-                      setAddForm(
-                        (current) => ({
-                          ...current,
-                          warranty:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="12 Ay"
-                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  />
-
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
-                    12 AY / 12 Ay / 1 Yıl → 12 Ay olarak standartlaştırılır.
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
-                  Bu adımda yalnızca cihaz kaydı yapılır.
-                </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
-                  Fiyat ve N11 / İkas / İdefix gönderimi daha sonra kanal seçildiğinde girilecek. Pil, mağaza, değişen parça ve kutu/fatura cihaz giriş formunda kullanılmaz.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-7">
-              <button
-                type="button"
-                disabled={addSaving}
-                onClick={() =>
-                  setAddOpen(false)
-                }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              >
-                Vazgeç
-              </button>
-
-              <button
-                type="button"
-                disabled={addSaving}
-                onClick={() => {
-                  void saveSingleDevice();
-                }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
-              >
-                {addSaving
-                  ? "Kaydediliyor..."
-                  : "Cihazı Merkeze Ekle"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return {
+          success:
+            true,
+          action:
+            "CREATE_PRODUCT",
+          title:
+            prepared.title,
+          color:
+            prepared
+              .group.color,
+          barcode:
+            finalBarcode,
+          beforeStock:
+            finalPrepared
+              .targetBeforeStock,
+          afterStock:
+            finalPrepared
+              .targetAfterStock,
+          addedImeis:
+            prepared
+              .group.items.map(
+                (item) =>
+                  item.imei
+              ),
+          batchRequestId:
+            create
+              .batchRequestId,
+          listingId:
+            local.listingId,
+          state:
+            "PENDING_CREATE",
+          pendingApproval:
+            true,
+          approved,
+          message:
+            "Ürün İdefix'e gönderildi. Katalog onayı bekleniyor; stok/fiyat onay sonrası senkronlanacak.",
+        };
+      } catch (
+        persistError
+      ) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {}
+
+        throw new Error(
+          `${prepared.title}: ürün İdefix'e gönderildi ancak PENDING_CREATE kaydı yazılamadı. ${
+            persistError instanceof Error
+              ? persistError.message
+              : ""
+          }`
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  await client.query(
+    "BEGIN"
   );
+
+  try {
+    const local =
+      await persistLocal(
+        client,
+        {
+          prepared:
+            finalPrepared,
+          finalProduct:
+            listedProduct,
+          membershipStatus:
+            "LISTED",
+          syncStatus:
+            "SYNCED",
+          taskStatus:
+            "SUCCESS",
+          batchRequestId:
+            create
+              .batchRequestId,
+          finalStock:
+            finalPrepared
+              .targetAfterStock,
+          apiResult: {
+            create:
+              createState
+                .payload,
+            inventory:
+              inventoryVerified
+                .payload,
+          },
+        }
+      );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return {
+      success:
+        true,
+      action:
+        "CREATE_PRODUCT",
+      title:
+        prepared.title,
+      color:
+        prepared.group.color,
+      barcode:
+        finalBarcode,
+      beforeStock:
+        finalPrepared
+          .targetBeforeStock,
+      afterStock:
+        finalPrepared
+          .targetAfterStock,
+      addedImeis:
+        prepared
+          .group.items.map(
+            (item) =>
+              item.imei
+          ),
+      batchRequestId:
+        create
+          .batchRequestId,
+      inventoryBatchRequestId:
+        upload
+          .batchRequestId,
+      listingId:
+        local.listingId,
+      state:
+        "LISTED",
+      pendingApproval:
+        false,
+      approved,
+    };
+  } catch (error: any) {
+    try {
+      await client.query(
+        "ROLLBACK"
+      );
+    } catch {}
+
+    throw new Error(
+      `${prepared.title}: İdefix dış işlemler başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+        error instanceof Error
+          ? error.message
+          : ""
+      }`
+    );
+  }
+}
+
+export async function POST(
+  request:
+    NextRequest
+) {
+  let client:
+    PoolClient | null =
+      null;
+
+  try {
+    const authError =
+      await requireIdefixSuperAdmin(
+        request
+      );
+
+    if (authError) {
+      return authError;
+    }
+
+    if (
+      !validateOrigin(
+        request
+      )
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Geçersiz istek kaynağı.",
+        },
+        403
+      );
+    }
+
+    const body =
+      await request
+        .json()
+        .catch(
+          () => null
+        );
+
+    if (
+      !body ||
+      typeof body !==
+        "object" ||
+      Array.isArray(body)
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Geçersiz istek.",
+        },
+        400
+      );
+    }
+
+    const data =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const modeRaw =
+      text(
+        data.mode ||
+        "preview"
+      ).toLowerCase();
+
+    if (
+      modeRaw !==
+        "preview" &&
+      modeRaw !==
+        "commit" &&
+      modeRaw !==
+        "reconcile"
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "mode yalnızca preview, commit veya reconcile olabilir.",
+        },
+        400
+      );
+    }
+
+    const mode =
+      modeRaw as
+        SendMode;
+
+    // Reconcile modunda cihaz/fiyat bilgisi gerekmez.
+    // Önce DB bağlantısını aç ve pending İdefix kayıtlarını kontrol et.
+    if (
+      mode ===
+      "reconcile"
+    ) {
+      client =
+        await getIdefixDbPool()
+          .connect();
+
+      const result =
+        await reconcilePendingIdefix(
+          client
+        );
+
+      return noStoreJson({
+        channel:
+          "IDEFIX",
+        mode:
+          "reconcile",
+        ...result,
+      });
+    }
+
+    if (
+      !Array.isArray(
+        data.deviceIds
+      )
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "deviceIds bulunamadı.",
+        },
+        400
+      );
+    }
+
+    const deviceIds =
+      Array.from(
+        new Set(
+          data.deviceIds
+            .map(
+              (value) =>
+                Number(value)
+            )
+            .filter(
+              (value) =>
+                Number.isInteger(
+                  value
+                ) &&
+                value > 0
+            )
+        )
+      );
+
+    if (
+      deviceIds.length ===
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "En az 1 cihaz seç.",
+        },
+        400
+      );
+    }
+
+    const salePrice =
+      money(
+        data.salePrice,
+        "Satış fiyatı"
+      );
+
+    const listPrice =
+      money(
+        data.listPrice,
+        "Liste fiyatı"
+      );
+
+    if (
+      listPrice <
+      salePrice
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Liste fiyatı satış fiyatından düşük olamaz.",
+        },
+        400
+      );
+    }
+
+    const catalogBarcode =
+      text(
+        data.catalogBarcode
+      ) || null;
+
+    client =
+      await getIdefixDbPool()
+        .connect();
+
+    const rows =
+      await selectedDevices(
+        client,
+        deviceIds
+      );
+
+    const deviceErrors =
+      await validateDevices(
+        client,
+        deviceIds,
+        rows
+      );
+
+    if (
+      deviceErrors.length >
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode,
+          error:
+            "İdefix gönderimi ön kontrolde durduruldu.",
+          errors:
+            deviceErrors,
+        },
+        409
+      );
+    }
+
+    const groups =
+      buildGroups(rows);
+
+    if (
+      catalogBarcode &&
+      groups.length !== 1
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode,
+          error:
+            "İdefix katalog barkodu ile hızlı gönderimde aynı anda tek ürün grubu seçilebilir. Aynı model/hafıza/renk/kalitedeki IMEI'leri birlikte seçebilirsin.",
+        },
+        400
+      );
+    }
+
+    const products =
+      await fetchAllProducts();
+
+    const prepared:
+      PreparedGroup[] = [];
+
+    for (
+      const group of groups
+    ) {
+      prepared.push(
+        await prepareGroup(
+          client,
+          products,
+          group,
+          salePrice,
+          listPrice,
+          catalogBarcode
+        )
+      );
+    }
+
+    const preview =
+      prepared.map(
+        previewView
+      );
+
+    const blockers =
+      preview.flatMap(
+        (row) =>
+          row.blockers
+      );
+
+    if (
+      mode ===
+      "preview"
+    ) {
+      return noStoreJson({
+        success:
+          true,
+        mode:
+          "preview",
+        channel:
+          "IDEFIX",
+        canCommit:
+          blockers.length ===
+          0,
+        totalDevices:
+          deviceIds.length,
+        totalGroups:
+          groups.length,
+        existingGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "EXISTING_PRODUCT"
+          ).length,
+        fastListingGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "FAST_LISTING"
+          ).length,
+        createGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "CREATE_PRODUCT"
+          ).length,
+        preview,
+        safety: {
+          databaseWrite:
+            false,
+          idefixWrite:
+            false,
+          n11Write:
+            false,
+          ikasWrite:
+            false,
+        },
+      });
+    }
+
+    if (
+      blockers.length >
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode:
+            "commit",
+          channel:
+            "IDEFIX",
+          error:
+            "İdefix gerçek gönderimi engellendi. Önce aşağıdaki eksikleri çöz.",
+          blockers,
+          preview,
+        },
+        409
+      );
+    }
+
+    // Aynı anda iki Merkez -> İdefix gönderimi olmasın.
+    await client.query(
+      `
+        SELECT
+          pg_advisory_lock(
+            hashtext(
+              'cnet_center_idefix_send'
+            )
+          )
+      `
+    );
+
+    let lockHeld =
+      true;
+
+    try {
+      // Kilit alındıktan sonra IMEI üyeliklerini tekrar kontrol.
+      const recheck =
+        await validateDevices(
+          client,
+          deviceIds,
+          await selectedDevices(
+            client,
+            deviceIds
+          )
+        );
+
+      if (
+        recheck.length >
+        0
+      ) {
+        return noStoreJson(
+          {
+            success:
+              false,
+            mode:
+              "commit",
+            channel:
+              "IDEFIX",
+            error:
+              "İdefix gönderimi kilit sonrası durduruldu.",
+            errors:
+              recheck,
+          },
+          409
+        );
+      }
+
+      const results:
+        any[] = [];
+
+      for (
+        const item of
+          prepared
+      ) {
+        results.push(
+          await processPrepared(
+            client,
+            item
+          )
+        );
+      }
+
+      return noStoreJson({
+        success:
+          true,
+        mode:
+          "commit",
+        channel:
+          "IDEFIX",
+        message:
+          `${deviceIds.length} cihaz için İdefix işlemi tamamlandı.`,
+        sentImeis:
+          results.reduce(
+            (
+              sum,
+              result
+            ) =>
+              sum +
+              (
+                Array.isArray(
+                  result
+                    ?.addedImeis
+                )
+                  ? result
+                      .addedImeis
+                      .length
+                  : 0
+              ),
+            0
+          ),
+        results,
+      });
+    } finally {
+      if (lockHeld) {
+        try {
+          await client.query(
+            `
+              SELECT
+                pg_advisory_unlock(
+                  hashtext(
+                    'cnet_center_idefix_send'
+                  )
+                )
+            `
+          );
+        } catch {}
+
+        lockHeld =
+          false;
+      }
+    }
+  } catch (error: any) {
+    console.error(
+      "CENTER IDEFIX SEND ERROR:",
+      error
+    );
+
+    return noStoreJson(
+      {
+        success:
+          false,
+        channel:
+          "IDEFIX",
+        error:
+          error instanceof Error
+            ? error.message
+            : "İdefix gerçek gönderimi başarısız.",
+      },
+      500
+    );
+  } finally {
+    client?.release();
+  }
 }
