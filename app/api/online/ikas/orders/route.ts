@@ -184,6 +184,21 @@ async function getType(
               includeDeprecated: true
             ) {
               name
+              args {
+                name
+                type {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                    ofType {
+                      kind
+                      name
+                    }
+                  }
+                }
+              }
               type {
                 kind
                 name
@@ -451,6 +466,216 @@ async function nestedSelection(
   )} }`;
 }
 
+
+function fieldHasRequiredArgs(
+  field: any
+) {
+  const args =
+    Array.isArray(
+      field?.args
+    )
+      ? field.args
+      : [];
+
+  return args.some(
+    (arg: any) =>
+      unwrapType(
+        arg?.type
+      ).required
+  );
+}
+
+function isOperationalFieldName(
+  name: unknown
+) {
+  const value =
+    String(
+      name || ""
+    ).toLowerCase();
+
+  return /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
+    value
+  );
+}
+
+function isOperationalScalarName(
+  name: unknown
+) {
+  const value =
+    String(
+      name || ""
+    ).toLowerCase();
+
+  return /status|state|package|fulfill|shipment|shipping|delivery|deliver|return|refund|tracking|cargo|kargo/.test(
+    value
+  );
+}
+
+async function dynamicOperationalSelection(
+  token: string,
+  parentType: any,
+  fieldName: string,
+  depth = 0
+): Promise<string> {
+  if (
+    depth > 2
+  ) {
+    return "";
+  }
+
+  const fields =
+    Array.isArray(
+      parentType?.fields
+    )
+      ? parentType.fields
+      : [];
+
+  const field =
+    fields.find(
+      (item: any) =>
+        item?.name ===
+        fieldName
+    );
+
+  if (
+    !field ||
+    fieldHasRequiredArgs(
+      field
+    )
+  ) {
+    return "";
+  }
+
+  const unwrapped =
+    unwrapType(
+      field.type
+    );
+
+  if (
+    ![
+      "OBJECT",
+      "INTERFACE",
+    ].includes(
+      unwrapped.kind
+    ) ||
+    !unwrapped.name
+  ) {
+    return "";
+  }
+
+  const child =
+    await getType(
+      token,
+      unwrapped.name
+    );
+
+  if (!child) {
+    return "";
+  }
+
+  const childFields =
+    Array.isArray(
+      child?.fields
+    )
+      ? child.fields
+      : [];
+
+  const selections:
+    string[] = [];
+
+  for (
+    const childField of
+      childFields
+  ) {
+    if (
+      fieldHasRequiredArgs(
+        childField
+      )
+    ) {
+      continue;
+    }
+
+    const childName =
+      String(
+        childField?.name ||
+          ""
+      );
+
+    const childType =
+      unwrapType(
+        childField?.type
+      );
+
+    if (
+      isScalarKind(
+        childType.kind
+      ) &&
+      (
+        childName === "id" ||
+        isOperationalScalarName(
+          childName
+        ) ||
+        [
+          "createdAt",
+          "updatedAt",
+        ].includes(
+          childName
+        )
+      )
+    ) {
+      selections.push(
+        childName
+      );
+      continue;
+    }
+
+    if (
+      depth < 2 &&
+      [
+        "OBJECT",
+        "INTERFACE",
+      ].includes(
+        childType.kind
+      ) &&
+      isOperationalFieldName(
+        childName
+      )
+    ) {
+      const nested =
+        await dynamicOperationalSelection(
+          token,
+          child,
+          childName,
+          depth + 1
+        );
+
+      if (nested) {
+        selections.push(
+          nested
+        );
+      }
+    }
+  }
+
+  const unique =
+    Array.from(
+      new Set(
+        selections
+      )
+    );
+
+  if (
+    unique.length ===
+    0
+  ) {
+    return "";
+  }
+
+  return `${fieldName} { ${unique.join(
+    " "
+  )} }`;
+}
+
 async function buildOrderSelection(
   token: string
 ) {
@@ -693,6 +918,103 @@ async function buildOrderSelection(
     }
   }
 
+  // İkas'ta order.status çoğu siparişte CREATED kalabilir.
+  // Gerçek operasyon durumu paket / fulfillment alanlarında tutulur.
+  // Canlı şemadan status ve paket alanlarını otomatik keşfet.
+  const orderFields =
+    Array.isArray(
+      orderType?.fields
+    )
+      ? orderType.fields
+      : [];
+
+  for (
+    const field of
+      orderFields
+  ) {
+    if (
+      fieldHasRequiredArgs(
+        field
+      )
+    ) {
+      continue;
+    }
+
+    const fieldName =
+      String(
+        field?.name ||
+          ""
+      );
+
+    const unwrapped =
+      unwrapType(
+        field?.type
+      );
+
+    if (
+      isScalarKind(
+        unwrapped.kind
+      ) &&
+      isOperationalScalarName(
+        fieldName
+      )
+    ) {
+      if (
+        !selections.includes(
+          fieldName
+        )
+      ) {
+        selections.push(
+          fieldName
+        );
+      }
+
+      continue;
+    }
+
+    if (
+      [
+        "OBJECT",
+        "INTERFACE",
+      ].includes(
+        unwrapped.kind
+      ) &&
+      isOperationalFieldName(
+        fieldName
+      )
+    ) {
+      const already =
+        selections.some(
+          (selection) =>
+            selection ===
+              fieldName ||
+            selection.startsWith(
+              `${fieldName} `
+            ) ||
+            selection.startsWith(
+              `${fieldName}{`
+            )
+        );
+
+      if (already) {
+        continue;
+      }
+
+      const part =
+        await dynamicOperationalSelection(
+          token,
+          orderType,
+          fieldName
+        );
+
+      if (part) {
+        selections.push(
+          part
+        );
+      }
+    }
+  }
+
   // Resmi minimum alanlar her durumda olmalı.
   for (
     const required of [
@@ -782,7 +1104,8 @@ function findObject(
 function collectStatuses(
   value: any,
   output:
-    string[] = []
+    string[] = [],
+  parentKey = ""
 ) {
   if (
     !value ||
@@ -801,7 +1124,8 @@ function collectStatuses(
     ) {
       collectStatuses(
         item,
-        output
+        output,
+        parentKey
       );
     }
 
@@ -817,12 +1141,30 @@ function collectStatuses(
         value
       )
   ) {
+    const keyLower =
+      key.toLowerCase();
+
+    const parentLower =
+      parentKey.toLowerCase();
+
+    const operationalContext =
+      /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
+        keyLower
+      ) ||
+      /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
+        parentLower
+      );
+
     if (
-      key
-        .toLowerCase()
-        .includes(
+      (
+        keyLower.includes(
           "status"
-        ) &&
+        ) ||
+        keyLower.includes(
+          "state"
+        ) ||
+        operationalContext
+      ) &&
       (
         typeof item ===
           "string" ||
@@ -830,11 +1172,16 @@ function collectStatuses(
           "number"
       )
     ) {
-      output.push(
+      const normalized =
         String(item)
           .trim()
-          .toUpperCase()
-      );
+          .toUpperCase();
+
+      if (normalized) {
+        output.push(
+          normalized
+        );
+      }
     }
 
     if (
@@ -844,7 +1191,8 @@ function collectStatuses(
     ) {
       collectStatuses(
         item,
-        output
+        output,
+        key
       );
     }
   }
@@ -852,23 +1200,41 @@ function collectStatuses(
   return output;
 }
 
+function uniqueStatuses(
+  order: any
+) {
+  return Array.from(
+    new Set(
+      collectStatuses(
+        order
+      )
+    )
+  );
+}
+
 function bucketOrder(
   order: any
 ) {
   const statuses =
-    Array.from(
-      new Set(
-        collectStatuses(
-          order
-        )
-      )
+    uniqueStatuses(
+      order
     );
 
   const joined =
     statuses.join("|");
 
+  // İade/iptal önce kontrol edilir.
+  // Örn. daha önce DELIVERED olan bir sipariş sonradan RETURNED olabilir.
   if (
-    /DELIVERED|TESLIM|COMPLETED/.test(
+    /RETURN|REFUND|CANCEL|REJECTED_RETURN|RETURNED|IADE|İADE/.test(
+      joined
+    )
+  ) {
+    return "other";
+  }
+
+  if (
+    /DELIVERED|DELIVERY_COMPLETED|COMPLETED|TESLIM|TESLİM/.test(
       joined
     )
   ) {
@@ -876,7 +1242,7 @@ function bucketOrder(
   }
 
   if (
-    /SHIPPED|IN_TRANSIT|SENT|KARGODA/.test(
+    /SHIPPED|IN_TRANSIT|SENT|ON_THE_WAY|KARGODA/.test(
       joined
     )
   ) {
@@ -884,22 +1250,197 @@ function bucketOrder(
   }
 
   if (
-    /READY_FOR_SHIPMENT|READY|PREPARED|KARGOYA_HAZIR/.test(
+    /READY_FOR_SHIPMENT|READY_TO_SHIP|READY|PREPARED|FULFILLED|KARGOYA_HAZIR|KARGOYA HAZIR/.test(
       joined
     )
   ) {
     return "ready";
   }
 
-  if (
-    /CANCEL|REFUND|RETURN/.test(
-      joined
-    )
+  return "new";
+}
+
+function bestOperationalStatus(
+  order: any
+) {
+  const statuses =
+    uniqueStatuses(
+      order
+    );
+
+  const priority:
+    RegExp[] = [
+    /RETURN|REFUND|CANCEL|IADE|İADE/,
+    /DELIVERED|DELIVERY_COMPLETED|COMPLETED|TESLIM|TESLİM/,
+    /SHIPPED|IN_TRANSIT|SENT|ON_THE_WAY|KARGODA/,
+    /READY_FOR_SHIPMENT|READY_TO_SHIP|READY|PREPARED|FULFILLED|KARGOYA_HAZIR/,
+  ];
+
+  for (
+    const pattern of
+      priority
   ) {
-    return "other";
+    const found =
+      statuses.find(
+        (status) =>
+          pattern.test(
+            status
+          )
+      );
+
+    if (found) {
+      return found;
+    }
   }
 
-  return "new";
+  return (
+    statuses.find(
+      (status) =>
+        status !==
+        "CREATED"
+    ) ||
+    statuses[0] ||
+    ""
+  );
+}
+
+function extractOperationalPackages(
+  value: any,
+  output:
+    any[] = [],
+  parentKey = ""
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return output;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of
+        value
+    ) {
+      extractOperationalPackages(
+        item,
+        output,
+        parentKey
+      );
+    }
+
+    return output;
+  }
+
+  for (
+    const [
+      key,
+      item,
+    ] of
+      Object.entries(
+        value
+      )
+  ) {
+    const keyLower =
+      key.toLowerCase();
+
+    const isPackageKey =
+      /package|fulfill|shipment/.test(
+        keyLower
+      );
+
+    if (
+      isPackageKey &&
+      item &&
+      typeof item ===
+        "object"
+    ) {
+      const candidates =
+        Array.isArray(item)
+          ? item
+          : [item];
+
+      for (
+        const candidate of
+          candidates
+      ) {
+        if (
+          candidate &&
+          typeof candidate ===
+            "object" &&
+          !Array.isArray(
+            candidate
+          )
+        ) {
+          const id =
+            String(
+              (candidate as any)
+                ?.id || ""
+            ).trim();
+
+          const status =
+            bestOperationalStatus(
+              candidate
+            );
+
+          if (
+            id ||
+            status
+          ) {
+            output.push({
+              ...(candidate as any),
+              id,
+              status:
+                String(
+                  (candidate as any)
+                    ?.status ||
+                    status ||
+                    ""
+                ),
+            });
+          }
+        }
+      }
+    }
+
+    if (
+      item &&
+      typeof item ===
+        "object"
+    ) {
+      extractOperationalPackages(
+        item,
+        output,
+        key
+      );
+    }
+  }
+
+  const seen =
+    new Set<string>();
+
+  return output.filter(
+    (item) => {
+      const key =
+        `${String(
+          item?.id || ""
+        )}|${String(
+          item?.status || ""
+        )}`;
+
+      if (
+        seen.has(key)
+      ) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    }
+  );
 }
 
 function lineName(
@@ -964,15 +1505,28 @@ function normalizeOrder(
       ]
     );
 
-  const packages =
+  const directPackages =
     firstArray(
       order,
       [
         "orderPackages",
+        "orderPackage",
         "packages",
+        "package",
         "fulfillments",
+        "fulfillment",
+        "shipments",
+        "shipmentPackages",
       ]
     );
+
+  const packages =
+    directPackages.length >
+      0
+      ? directPackages
+      : extractOperationalPackages(
+          order
+        );
 
   const customerName =
     String(
@@ -1112,6 +1666,10 @@ function normalizeOrder(
         order?.status ||
           ""
       ),
+    operationalStatus:
+      bestOperationalStatus(
+        order
+      ),
     bucket:
       bucketOrder(
         order
@@ -1170,12 +1728,8 @@ function normalizeOrder(
       ),
     productSummary,
     statuses:
-      Array.from(
-        new Set(
-          collectStatuses(
-            order
-          )
-        )
+      uniqueStatuses(
+        order
       ),
     raw:
       order,
