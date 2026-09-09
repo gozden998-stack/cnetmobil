@@ -1,2784 +1,787 @@
-// app/api/online/ikas/orders/route.ts
-// CNETMOBIL - IKAS SIPARIS YONETIMI
-//
-// GET:
-// - listOrder ile canlı siparişleri çeker.
-// - Canlı GraphQL şemasını introspection ile okuyup mümkün olan
-//   müşteri, satır ve paket bilgilerini güvenli şekilde ekler.
-// - Yeni / Kargoya Hazır / Kargoda / Teslim Edildi gruplar.
-//
-// POST:
-// - action: READY | SHIPPED | DELIVERED
-// - Canlı mutation/input şemasını introspection ile okur.
-// - updateOrderPackageStatus kullanır.
-// - READY aşamasında paket henüz yoksa fulfillOrder ile paket
-//   oluşturmayı dener ve sonra statüyü günceller.
-// - Zorunlu ama güvenli şekilde üretilemeyen alan varsa mutation
-//   tahmin etmez; açık hata döndürür.
-//
-// Bu route şu anda merkezi IMEI / N11 stok düşümü YAPMAZ.
-// Çapraz stok motoru ayrı adımda bağlanacak.
+"use client";
 
-import {
-  NextRequest,
-} from "next/server";
-import {
-  getIkasAccessToken,
-  ikasGraphql,
-  noStoreJson,
-  numberOrNull,
-  requireIkasSuperAdmin,
-} from "../../../../lib/ikas/server";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-export const runtime =
-  "nodejs";
+type OrderSection =
+  | "new"
+  | "ready"
+  | "shipped"
+  | "delivered"
+  | "other";
 
-export const dynamic =
-  "force-dynamic";
-
-export const revalidate = 0;
-
-type TypeRef = {
-  kind?: string | null;
-  name?: string | null;
-  ofType?: TypeRef | null;
-};
-
-type SchemaField = {
-  name: string;
-  type: TypeRef;
-};
-
-type OrderAction =
-  | "READY"
-  | "SHIPPED"
-  | "DELIVERED";
-
-function typeText(
-  type:
-    | TypeRef
-    | null
-    | undefined
-): string {
-  if (!type) {
-    return "";
-  }
-
-  if (
-    type.kind ===
-    "NON_NULL"
-  ) {
-    return `${typeText(
-      type.ofType
-    )}!`;
-  }
-
-  if (
-    type.kind === "LIST"
-  ) {
-    return `[${typeText(
-      type.ofType
-    )}]`;
-  }
-
-  return String(
-    type.name ||
-      type.kind ||
-      ""
-  );
-}
-
-function unwrapType(
-  type:
-    | TypeRef
-    | null
-    | undefined
-) {
-  let current =
-    type || null;
-
-  let isList =
-    false;
-
-  let required =
-    false;
-
-  if (
-    current?.kind ===
-    "NON_NULL"
-  ) {
-    required =
-      true;
-    current =
-      current.ofType ||
-      null;
-  }
-
-  if (
-    current?.kind ===
-    "LIST"
-  ) {
-    isList =
-      true;
-    current =
-      current.ofType ||
-      null;
-
-    if (
-      current?.kind ===
-      "NON_NULL"
-    ) {
-      current =
-        current.ofType ||
-        null;
-    }
-  }
-
-  while (
-    current &&
-    (
-      current.kind ===
-        "NON_NULL" ||
-      current.kind ===
-        "LIST"
-    )
-  ) {
-    current =
-      current.ofType ||
-      null;
-  }
-
-  return {
-    name:
-      String(
-        current?.name ||
-          ""
-      ),
-    kind:
-      String(
-        current?.kind ||
-          ""
-      ),
-    isList,
-    required,
+type IkasOrder = {
+  id: string;
+  orderNumber: string;
+  orderedAt:
+    | string
+    | null;
+  updatedAt:
+    | string
+    | null;
+  rawStatus: string;
+  operationalStatus?: string;
+  bucket: string;
+  totalFinalPrice: number;
+  currencyCode: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
   };
-}
-
-async function getType(
-  token: string,
-  name: string
-) {
-  const data =
-    await ikasGraphql(
-      token,
-      `
-        query CnetSchemaType(
-          $name: String!
-        ) {
-          __type(
-            name: $name
-          ) {
-            kind
-            name
-            fields(
-              includeDeprecated: true
-            ) {
-              name
-              args {
-                name
-                type {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                    ofType {
-                      kind
-                      name
-                    }
-                  }
-                }
-              }
-              type {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                    ofType {
-                      kind
-                      name
-                    }
-                  }
-                }
-              }
-            }
-            inputFields {
-              name
-              type {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                    ofType {
-                      kind
-                      name
-                    }
-                  }
-                }
-              }
-            }
-            enumValues {
-              name
-            }
-          }
-        }
-      `,
-      { name }
-    );
-
-  return (
-    data?.__type ||
-    null
-  );
-}
-
-async function getMutationField(
-  token: string,
-  name: string
-) {
-  const data =
-    await ikasGraphql(
-      token,
-      `
-        query CnetMutationSchema {
-          __type(
-            name: "Mutation"
-          ) {
-            fields(
-              includeDeprecated: true
-            ) {
-              name
-              type {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                  }
-                }
-              }
-              args {
-                name
-                type {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                    ofType {
-                      kind
-                      name
-                      ofType {
-                        kind
-                        name
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      `
-    );
-
-  const fields =
-    Array.isArray(
-      data?.__type
-        ?.fields
-    )
-      ? data.__type
-          .fields
-      : [];
-
-  return (
-    fields.find(
-      (field: any) =>
-        field?.name ===
-        name
-    ) ||
-    null
-  );
-}
-
-function isScalarKind(
-  kind: string
-) {
-  return [
-    "SCALAR",
-    "ENUM",
-  ].includes(kind);
-}
-
-function pickScalarFields(
-  typeInfo: any,
-  preferred: string[]
-) {
-  const fields =
-    Array.isArray(
-      typeInfo?.fields
-    )
-      ? typeInfo.fields
-      : [];
-
-  const byName =
-    new Map(
-      fields.map(
-        (field: any) => [
-          String(
-            field?.name ||
-              ""
-          ),
-          field,
-        ]
-      )
-    );
-
-  return preferred.filter(
-    (name) => {
-      const field =
-        byName.get(name);
-
-      if (!field) {
-        return false;
-      }
-
-      const unwrapped =
-        unwrapType(
-          (field as any)
-            ?.type
-        );
-
-      return isScalarKind(
-        unwrapped.kind
-      );
-    }
-  );
-}
-
-async function nestedSelection(
-  token: string,
-  parentType: any,
-  fieldName: string,
-  scalarCandidates: string[],
-  nestedCandidates:
-    Array<{
-      name: string;
-      scalars: string[];
-    }> = []
-) {
-  const fields =
-    Array.isArray(
-      parentType?.fields
-    )
-      ? parentType.fields
-      : [];
-
-  const field =
-    fields.find(
-      (item: any) =>
-        item?.name ===
-        fieldName
-    );
-
-  if (!field) {
-    return "";
-  }
-
-  const unwrapped =
-    unwrapType(
-      field.type
-    );
-
-  if (
-    unwrapped.kind !==
-      "OBJECT" ||
-    !unwrapped.name
-  ) {
-    return "";
-  }
-
-  const child =
-    await getType(
-      token,
-      unwrapped.name
-    );
-
-  if (!child) {
-    return "";
-  }
-
-  const selections =
-    pickScalarFields(
-      child,
-      scalarCandidates
-    );
-
-  for (
-    const nested of
-      nestedCandidates
-  ) {
-    const nestedPart =
-      await nestedSelection(
-        token,
-        child,
-        nested.name,
-        nested.scalars
-      );
-
-    if (nestedPart) {
-      selections.push(
-        nestedPart
-      );
-    }
-  }
-
-  if (
-    selections.length ===
-    0
-  ) {
-    return "";
-  }
-
-  return `${fieldName} { ${selections.join(
-    " "
-  )} }`;
-}
-
-
-function fieldHasRequiredArgs(
-  field: any
-) {
-  const args =
-    Array.isArray(
-      field?.args
-    )
-      ? field.args
-      : [];
-
-  return args.some(
-    (arg: any) =>
-      unwrapType(
-        arg?.type
-      ).required
-  );
-}
-
-function isOperationalFieldName(
-  name: unknown
-) {
-  const value =
-    String(
-      name || ""
-    ).toLowerCase();
-
-  return /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
-    value
-  );
-}
-
-function isOperationalScalarName(
-  name: unknown
-) {
-  const value =
-    String(
-      name || ""
-    ).toLowerCase();
-
-  return /status|state|package|fulfill|shipment|shipping|delivery|deliver|return|refund|tracking|cargo|kargo/.test(
-    value
-  );
-}
-
-async function dynamicOperationalSelection(
-  token: string,
-  parentType: any,
-  fieldName: string,
-  depth = 0
-): Promise<string> {
-  if (
-    depth > 2
-  ) {
-    return "";
-  }
-
-  const fields =
-    Array.isArray(
-      parentType?.fields
-    )
-      ? parentType.fields
-      : [];
-
-  const field =
-    fields.find(
-      (item: any) =>
-        item?.name ===
-        fieldName
-    );
-
-  if (
-    !field ||
-    fieldHasRequiredArgs(
-      field
-    )
-  ) {
-    return "";
-  }
-
-  const unwrapped =
-    unwrapType(
-      field.type
-    );
-
-  if (
-    ![
-      "OBJECT",
-      "INTERFACE",
-    ].includes(
-      unwrapped.kind
-    ) ||
-    !unwrapped.name
-  ) {
-    return "";
-  }
-
-  const child =
-    await getType(
-      token,
-      unwrapped.name
-    );
-
-  if (!child) {
-    return "";
-  }
-
-  const childFields =
-    Array.isArray(
-      child?.fields
-    )
-      ? child.fields
-      : [];
-
-  const selections:
-    string[] = [];
-
-  for (
-    const childField of
-      childFields
-  ) {
-    if (
-      fieldHasRequiredArgs(
-        childField
-      )
-    ) {
-      continue;
-    }
-
-    const childName =
-      String(
-        childField?.name ||
-          ""
-      );
-
-    const childType =
-      unwrapType(
-        childField?.type
-      );
-
-    if (
-      isScalarKind(
-        childType.kind
-      ) &&
-      (
-        childName === "id" ||
-        isOperationalScalarName(
-          childName
-        ) ||
-        [
-          "createdAt",
-          "updatedAt",
-        ].includes(
-          childName
-        )
-      )
-    ) {
-      selections.push(
-        childName
-      );
-      continue;
-    }
-
-    if (
-      depth < 2 &&
-      [
-        "OBJECT",
-        "INTERFACE",
-      ].includes(
-        childType.kind
-      ) &&
-      isOperationalFieldName(
-        childName
-      )
-    ) {
-      const nested =
-        await dynamicOperationalSelection(
-          token,
-          child,
-          childName,
-          depth + 1
-        );
-
-      if (nested) {
-        selections.push(
-          nested
-        );
-      }
-    }
-  }
-
-  const unique =
-    Array.from(
-      new Set(
-        selections
-      )
-    );
-
-  if (
-    unique.length ===
-    0
-  ) {
-    return "";
-  }
-
-  return `${fieldName} { ${unique.join(
-    " "
-  )} }`;
-}
-
-async function buildOrderSelection(
-  token: string
-) {
-  const queryType =
-    await getType(
-      token,
-      "Query"
-    );
-
-  const listOrderField =
-    (
-      Array.isArray(
-        queryType?.fields
-      )
-        ? queryType.fields
-        : []
-    ).find(
-      (field: any) =>
-        field?.name ===
-        "listOrder"
-    );
-
-  if (!listOrderField) {
-    throw new Error(
-      "İkas GraphQL şemasında listOrder bulunamadı."
-    );
-  }
-
-  const listType =
-    unwrapType(
-      listOrderField.type
-    );
-
-  const listResponse =
-    await getType(
-      token,
-      listType.name
-    );
-
-  const dataField =
-    (
-      Array.isArray(
-        listResponse?.fields
-      )
-        ? listResponse.fields
-        : []
-    ).find(
-      (field: any) =>
-        field?.name ===
-        "data"
-    );
-
-  const orderTypeName =
-    unwrapType(
-      dataField?.type
-    ).name ||
-    "Order";
-
-  const orderType =
-    await getType(
-      token,
-      orderTypeName
-    );
-
-  if (!orderType) {
-    throw new Error(
-      "İkas Order tipi okunamadı."
-    );
-  }
-
-  const selections =
-    pickScalarFields(
-      orderType,
-      [
-        "id",
-        "orderNumber",
-        "orderedAt",
-        "status",
-        "totalFinalPrice",
-        "currencyCode",
-        "updatedAt",
-        "lastModifiedDate",
-        "customerNote",
-        "paymentStatus",
-        "fulfillmentStatus",
-      ]
-    );
-
-  // Müşteri
-  for (
-    const name of [
-      "customer",
-      "customerInfo",
-    ]
-  ) {
-    const part =
-      await nestedSelection(
-        token,
-        orderType,
-        name,
-        [
-          "id",
-          "firstName",
-          "lastName",
-          "fullName",
-          "email",
-          "phone",
-          "phoneNumber",
-        ]
-      );
-
-    if (part) {
-      selections.push(part);
-      break;
-    }
-  }
-
-  // Teslimat adresi
-  for (
-    const name of [
-      "shippingAddress",
-      "deliveryAddress",
-      "shippingAddressSnapshot",
-      "billingAddress",
-    ]
-  ) {
-    const part =
-      await nestedSelection(
-        token,
-        orderType,
-        name,
-        [
-          "id",
-          "firstName",
-          "lastName",
-          "fullName",
-          "city",
-          "district",
-          "state",
-          "country",
-          "phone",
-          "phoneNumber",
-          "addressLine",
-          "addressLine1",
-          "address",
-        ]
-      );
-
-    if (part) {
-      selections.push(part);
-      break;
-    }
-  }
-
-  // Sipariş satırları
-  for (
-    const name of [
-      "orderLines",
-      "orderLineItems",
-      "lineItems",
-      "lines",
-    ]
-  ) {
-    const part =
-      await nestedSelection(
-        token,
-        orderType,
-        name,
-        [
-          "id",
-          "orderLineId",
-          "quantity",
-          "price",
-          "finalPrice",
-          "totalPrice",
-          "name",
-          "title",
-          "sku",
-          "variantId",
-          "productId",
-        ],
-        [
-          {
-            name:
-              "product",
-            scalars: [
-              "id",
-              "name",
-              "title",
-            ],
-          },
-          {
-            name:
-              "variant",
-            scalars: [
-              "id",
-              "name",
-              "sku",
-            ],
-          },
-        ]
-      );
-
-    if (part) {
-      selections.push(part);
-      break;
-    }
-  }
-
-  // Paketler
-  for (
-    const name of [
-      "orderPackages",
-      "packages",
-      "fulfillments",
-    ]
-  ) {
-    const part =
-      await nestedSelection(
-        token,
-        orderType,
-        name,
-        [
-          "id",
-          "status",
-          "trackingNumber",
-          "trackingCode",
-          "trackingUrl",
-          "cargoTrackingNumber",
-          "cargoCompany",
-          "shippingCompany",
-          "createdAt",
-          "updatedAt",
-        ]
-      );
-
-    if (part) {
-      selections.push(part);
-      break;
-    }
-  }
-
-  // İkas'ta order.status çoğu siparişte CREATED kalabilir.
-  // Gerçek operasyon durumu paket / fulfillment alanlarında tutulur.
-  // Canlı şemadan status ve paket alanlarını otomatik keşfet.
-  const orderFields =
-    Array.isArray(
-      orderType?.fields
-    )
-      ? orderType.fields
-      : [];
-
-  for (
-    const field of
-      orderFields
-  ) {
-    if (
-      fieldHasRequiredArgs(
-        field
-      )
-    ) {
-      continue;
-    }
-
-    const fieldName =
-      String(
-        field?.name ||
-          ""
-      );
-
-    const unwrapped =
-      unwrapType(
-        field?.type
-      );
-
-    if (
-      isScalarKind(
-        unwrapped.kind
-      ) &&
-      isOperationalScalarName(
-        fieldName
-      )
-    ) {
-      if (
-        !selections.includes(
-          fieldName
-        )
-      ) {
-        selections.push(
-          fieldName
-        );
-      }
-
-      continue;
-    }
-
-    if (
-      [
-        "OBJECT",
-        "INTERFACE",
-      ].includes(
-        unwrapped.kind
-      ) &&
-      isOperationalFieldName(
-        fieldName
-      )
-    ) {
-      const already =
-        selections.some(
-          (selection) =>
-            selection ===
-              fieldName ||
-            selection.startsWith(
-              `${fieldName} `
-            ) ||
-            selection.startsWith(
-              `${fieldName}{`
-            )
-        );
-
-      if (already) {
-        continue;
-      }
-
-      const part =
-        await dynamicOperationalSelection(
-          token,
-          orderType,
-          fieldName
-        );
-
-      if (part) {
-        selections.push(
-          part
-        );
-      }
-    }
-  }
-
-  // Resmi minimum alanlar her durumda olmalı.
-  for (
-    const required of [
-      "id",
-      "orderNumber",
-      "orderedAt",
-      "status",
-      "totalFinalPrice",
-    ]
-  ) {
-    if (
-      !selections.includes(
-        required
-      )
-    ) {
-      selections.unshift(
-        required
-      );
-    }
-  }
-
-  return selections.join(
-    "\n"
-  );
-}
-
-function firstObject(
+  city: string;
+  quantity: number;
+  productSummary: string;
+  lines: any[];
+  packages: any[];
+  statuses: string[];
+};
+
+type OrdersResponse = {
+  success: boolean;
+  error?: string;
+  counts?: {
+    all: number;
+    new: number;
+    ready: number;
+    shipped: number;
+    delivered: number;
+    other: number;
+  };
+  groups?: {
+    new: IkasOrder[];
+    ready: IkasOrder[];
+    shipped: IkasOrder[];
+    delivered: IkasOrder[];
+    other: IkasOrder[];
+  };
+  checkedAt?: string;
+};
+
+function money(
   value: unknown
 ) {
-  if (
-    value &&
-    typeof value ===
-      "object" &&
-    !Array.isArray(value)
-  ) {
-    return value as
-      Record<
-        string,
-        any
-      >;
-  }
-
-  return null;
-}
-
-function firstArray(
-  order: any,
-  names: string[]
-) {
-  for (
-    const name of
-      names
-  ) {
-    if (
-      Array.isArray(
-        order?.[name]
-      )
-    ) {
-      return order[name];
-    }
-  }
-
-  return [];
-}
-
-function findObject(
-  order: any,
-  names: string[]
-) {
-  for (
-    const name of
-      names
-  ) {
-    const object =
-      firstObject(
-        order?.[name]
-      );
-
-    if (object) {
-      return object;
-    }
-  }
-
-  return null;
-}
-
-function collectStatuses(
-  value: any,
-  output:
-    string[] = [],
-  parentKey = ""
-) {
-  if (
-    !value ||
-    typeof value !==
-      "object"
-  ) {
-    return output;
-  }
+  const number =
+    Number(value);
 
   if (
-    Array.isArray(value)
-  ) {
-    for (
-      const item of
-        value
-    ) {
-      collectStatuses(
-        item,
-        output,
-        parentKey
-      );
-    }
-
-    return output;
-  }
-
-  for (
-    const [
-      key,
-      item,
-    ] of
-      Object.entries(
-        value
-      )
-  ) {
-    const keyLower =
-      key.toLowerCase();
-
-    const parentLower =
-      parentKey.toLowerCase();
-
-    const operationalContext =
-      /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
-        keyLower
-      ) ||
-      /package|fulfill|shipment|shipping|delivery|deliver|return|refund|cargo|kargo/.test(
-        parentLower
-      );
-
-    if (
-      (
-        keyLower.includes(
-          "status"
-        ) ||
-        keyLower.includes(
-          "state"
-        ) ||
-        operationalContext
-      ) &&
-      (
-        typeof item ===
-          "string" ||
-        typeof item ===
-          "number"
-      )
-    ) {
-      const normalized =
-        String(item)
-          .trim()
-          .toUpperCase();
-
-      if (normalized) {
-        output.push(
-          normalized
-        );
-      }
-    }
-
-    if (
-      item &&
-      typeof item ===
-        "object"
-    ) {
-      collectStatuses(
-        item,
-        output,
-        key
-      );
-    }
-  }
-
-  return output;
-}
-
-function uniqueStatuses(
-  order: any
-) {
-  return Array.from(
-    new Set(
-      collectStatuses(
-        order
-      )
-    )
-  );
-}
-
-function bucketOrder(
-  order: any
-) {
-  const statuses =
-    uniqueStatuses(
-      order
-    );
-
-  const joined =
-    statuses.join("|");
-
-  // İade/iptal önce kontrol edilir.
-  // Örn. daha önce DELIVERED olan bir sipariş sonradan RETURNED olabilir.
-  if (
-    /RETURN|REFUND|CANCEL|REJECTED_RETURN|RETURNED|IADE|İADE/.test(
-      joined
+    !Number.isFinite(
+      number
     )
   ) {
-    return "other";
+    return "-";
   }
 
-  if (
-    /DELIVERED|DELIVERY_COMPLETED|COMPLETED|TESLIM|TESLİM/.test(
-      joined
-    )
-  ) {
-    return "delivered";
-  }
-
-  if (
-    /SHIPPED|IN_TRANSIT|SENT|ON_THE_WAY|KARGODA/.test(
-      joined
-    )
-  ) {
-    return "shipped";
-  }
-
-  if (
-    /READY_FOR_SHIPMENT|READY_TO_SHIP|READY|PREPARED|FULFILLED|KARGOYA_HAZIR|KARGOYA HAZIR/.test(
-      joined
-    )
-  ) {
-    return "ready";
-  }
-
-  return "new";
+  return new Intl.NumberFormat(
+    "tr-TR",
+    {
+      style: "currency",
+      currency: "TRY",
+      minimumFractionDigits:
+        2,
+    }
+  ).format(number);
 }
 
-function bestOperationalStatus(
-  order: any
+function dateTime(
+  value: unknown
 ) {
-  const statuses =
-    uniqueStatuses(
-      order
-    );
-
-  const priority:
-    RegExp[] = [
-    /RETURN|REFUND|CANCEL|IADE|İADE/,
-    /DELIVERED|DELIVERY_COMPLETED|COMPLETED|TESLIM|TESLİM/,
-    /SHIPPED|IN_TRANSIT|SENT|ON_THE_WAY|KARGODA/,
-    /READY_FOR_SHIPMENT|READY_TO_SHIP|READY|PREPARED|FULFILLED|KARGOYA_HAZIR/,
-  ];
-
-  for (
-    const pattern of
-      priority
-  ) {
-    const found =
-      statuses.find(
-        (status) =>
-          pattern.test(
-            status
-          )
-      );
-
-    if (found) {
-      return found;
-    }
+  if (!value) {
+    return "-";
   }
 
-  return (
-    statuses.find(
-      (status) =>
-        status !==
-        "CREATED"
-    ) ||
-    statuses[0] ||
-    ""
-  );
-}
-
-function extractOperationalPackages(
-  value: any,
-  output:
-    any[] = [],
-  parentKey = ""
-) {
-  if (
-    !value ||
-    typeof value !==
-      "object"
-  ) {
-    return output;
-  }
-
-  if (
-    Array.isArray(value)
-  ) {
-    for (
-      const item of
-        value
-    ) {
-      extractOperationalPackages(
-        item,
-        output,
-        parentKey
-      );
-    }
-
-    return output;
-  }
-
-  for (
-    const [
-      key,
-      item,
-    ] of
-      Object.entries(
-        value
-      )
-  ) {
-    const keyLower =
-      key.toLowerCase();
-
-    const isPackageKey =
-      /package|fulfill|shipment/.test(
-        keyLower
-      );
-
-    if (
-      isPackageKey &&
-      item &&
-      typeof item ===
-        "object"
-    ) {
-      const candidates =
-        Array.isArray(item)
-          ? item
-          : [item];
-
-      for (
-        const candidate of
-          candidates
-      ) {
-        if (
-          candidate &&
-          typeof candidate ===
-            "object" &&
-          !Array.isArray(
-            candidate
-          )
-        ) {
-          const id =
-            String(
-              (candidate as any)
-                ?.id || ""
-            ).trim();
-
-          const status =
-            bestOperationalStatus(
-              candidate
-            );
-
-          if (
-            id ||
-            status
-          ) {
-            output.push({
-              ...(candidate as any),
-              id,
-              status:
-                String(
-                  (candidate as any)
-                    ?.status ||
-                    status ||
-                    ""
-                ),
-            });
-          }
-        }
-      }
-    }
-
-    if (
-      item &&
-      typeof item ===
-        "object"
-    ) {
-      extractOperationalPackages(
-        item,
-        output,
-        key
-      );
-    }
-  }
-
-  const seen =
-    new Set<string>();
-
-  return output.filter(
-    (item) => {
-      const key =
-        `${String(
-          item?.id || ""
-        )}|${String(
-          item?.status || ""
-        )}`;
-
-      if (
-        seen.has(key)
-      ) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    }
-  );
-}
-
-function lineName(
-  line: any
-) {
-  const product =
-    firstObject(
-      line?.product
-    );
-
-  const variant =
-    firstObject(
-      line?.variant
-    );
-
-  return (
+  const raw =
     String(
-      line?.name ||
-        line?.title ||
-        product?.name ||
-        product?.title ||
-        variant?.name ||
-        line?.sku ||
-        variant?.sku ||
-        "Ürün"
-    ).trim() ||
-    "Ürün"
-  );
-}
-
-function normalizeOrder(
-  order: any
-) {
-  const customer =
-    findObject(
-      order,
-      [
-        "customer",
-        "customerInfo",
-      ]
-    );
-
-  const address =
-    findObject(
-      order,
-      [
-        "shippingAddress",
-        "deliveryAddress",
-        "shippingAddressSnapshot",
-        "billingAddress",
-      ]
-    );
-
-  const lines =
-    firstArray(
-      order,
-      [
-        "orderLines",
-        "orderLineItems",
-        "lineItems",
-        "lines",
-      ]
-    );
-
-  const directPackages =
-    firstArray(
-      order,
-      [
-        "orderPackages",
-        "orderPackage",
-        "packages",
-        "package",
-        "fulfillments",
-        "fulfillment",
-        "shipments",
-        "shipmentPackages",
-      ]
-    );
-
-  const packages =
-    directPackages.length >
-      0
-      ? directPackages
-      : extractOperationalPackages(
-          order
-        );
-
-  const customerName =
-    String(
-      customer?.fullName ||
-        [
-          customer?.firstName,
-          customer?.lastName,
-        ]
-          .filter(Boolean)
-          .join(" ") ||
-        address?.fullName ||
-        [
-          address?.firstName,
-          address?.lastName,
-        ]
-          .filter(Boolean)
-          .join(" ") ||
-        "-"
+      value
     ).trim();
 
-  const normalizedLines =
-    lines.map(
-      (line: any) => ({
-        id:
-          String(
-            line?.id ||
-              line?.orderLineId ||
-              ""
-          ),
-        name:
-          lineName(line),
-        quantity:
-          numberOrNull(
-            line?.quantity
-          ) || 1,
-        sku:
-          String(
-            line?.sku ||
-              line?.variant
-                ?.sku ||
-              ""
-          ),
-        variantId:
-          String(
-            line?.variantId ||
-              line?.variant
-                ?.id ||
-              ""
-          ),
-        productId:
-          String(
-            line?.productId ||
-              line?.product
-                ?.id ||
-              ""
-          ),
-      })
-    );
-
-  const normalizedPackages =
-    packages.map(
-      (
-        pkg: any
-      ) => ({
-        id:
-          String(
-            pkg?.id ||
-              ""
-          ),
-        status:
-          String(
-            pkg?.status ||
-              ""
-          ),
-        trackingNumber:
-          String(
-            pkg
-              ?.trackingNumber ||
-              pkg
-                ?.trackingCode ||
-              pkg
-                ?.cargoTrackingNumber ||
-              ""
-          ),
-        trackingUrl:
-          String(
-            pkg?.trackingUrl ||
-              ""
-          ),
-        cargoCompany:
-          String(
-            pkg
-              ?.cargoCompany ||
-              pkg
-                ?.shippingCompany ||
-              ""
-          ),
-      })
-    );
-
-  const productSummary =
-    normalizedLines
-      .slice(0, 2)
-      .map(
-        (line: any) =>
-          `${line.name}${
-            line.quantity > 1
-              ? ` ×${line.quantity}`
-              : ""
-          }`
-      )
-      .join(", ") ||
-    "Ürün detayı";
-
-  return {
-    id:
-      String(
-        order?.id ||
-          ""
-      ),
-    orderNumber:
-      String(
-        order?.orderNumber ||
-          order?.id ||
-          "-"
-      ),
-    orderedAt:
-      order?.orderedAt ||
-      null,
-    updatedAt:
-      order?.updatedAt ||
-      order
-        ?.lastModifiedDate ||
-      null,
-    rawStatus:
-      String(
-        order?.status ||
-          ""
-      ),
-    operationalStatus:
-      bestOperationalStatus(
-        order
-      ),
-    bucket:
-      bucketOrder(
-        order
-      ),
-    totalFinalPrice:
-      numberOrNull(
-        order
-          ?.totalFinalPrice
-      ) || 0,
-    currencyCode:
-      String(
-        order?.currencyCode ||
-          "TRY"
-      ),
-    customer: {
-      name:
-        customerName,
-      email:
-        String(
-          customer?.email ||
-            ""
-        ),
-      phone:
-        String(
-          customer?.phone ||
-            customer
-              ?.phoneNumber ||
-            address?.phone ||
-            address
-              ?.phoneNumber ||
-            ""
-        ),
-    },
-    city:
-      String(
-        address?.city ||
-          address?.district ||
-          "-"
-      ),
-    lines:
-      normalizedLines,
-    packages:
-      normalizedPackages,
-    quantity:
-      normalizedLines.reduce(
-        (
-          sum: number,
-          line: any
-        ) =>
-          sum +
-          Number(
-            line.quantity ||
-              0
-          ),
-        0
-      ),
-    productSummary,
-    statuses:
-      uniqueStatuses(
-        order
-      ),
-    raw:
-      order,
-  };
-}
-
-async function fetchOrders(
-  token: string
-) {
-  const selection =
-    await buildOrderSelection(
-      token
-    );
-
-  const orders:
-    any[] = [];
-
-  for (
-    let page = 0;
-    page < 20;
-    page += 1
-  ) {
-    const data =
-      await ikasGraphql(
-        token,
-        `
-          query CnetListOrders(
-            $pagination: PaginationInput,
-            $sort: String
-          ) {
-            listOrder(
-              pagination: $pagination,
-              sort: $sort
-            ) {
-              count
-              hasNext
-              limit
-              page
-              data {
-                ${selection}
-              }
-            }
-          }
-        `,
-        {
-          pagination: {
-            limit: 100,
-            page,
-          },
-          sort:
-            "-orderedAt",
-        },
-        45_000
-      );
-
-    const result =
-      data?.listOrder;
-
-    const rows =
-      Array.isArray(
-        result?.data
-      )
-        ? result.data
-        : [];
-
-    orders.push(
-      ...rows
-    );
-
-    if (
-      result?.hasNext !==
-        true ||
-      rows.length === 0
-    ) {
-      break;
-    }
-  }
-
-  const normalized =
-    orders.map(
-      normalizeOrder
-    );
-
-  const groups = {
-    new:
-      normalized.filter(
-        (order: any) =>
-          order.bucket ===
-          "new"
-      ),
-    ready:
-      normalized.filter(
-        (order: any) =>
-          order.bucket ===
-          "ready"
-      ),
-    shipped:
-      normalized.filter(
-        (order: any) =>
-          order.bucket ===
-          "shipped"
-      ),
-    delivered:
-      normalized.filter(
-        (order: any) =>
-          order.bucket ===
-          "delivered"
-      ),
-    other:
-      normalized.filter(
-        (order: any) =>
-          order.bucket ===
-          "other"
-      ),
-  };
-
-  return {
-    orders:
-      normalized,
-    groups,
-    counts: {
-      all:
-        normalized.length,
-      new:
-        groups.new.length,
-      ready:
-        groups.ready.length,
-      shipped:
-        groups.shipped
-          .length,
-      delivered:
-        groups.delivered
-          .length,
-      other:
-        groups.other.length,
-    },
-  };
-}
-
-function normalizeEnum(
-  value: string
-) {
-  return value
-    .toUpperCase()
-    .replace(
-      /[^A-Z0-9]+/g,
-      "_"
-    );
-}
-
-async function enumValueForAction(
-  token: string,
-  enumTypeName: string,
-  action: OrderAction
-) {
-  const type =
-    await getType(
-      token,
-      enumTypeName
-    );
-
-  const values =
-    (
-      Array.isArray(
-        type?.enumValues
-      )
-        ? type.enumValues
-        : []
+  const numeric =
+    /^\d+$/.test(
+      raw
     )
-      .map(
-        (item: any) =>
-          String(
-            item?.name ||
-              ""
-          )
-      )
-      .filter(Boolean);
+      ? Number(raw)
+      : NaN;
 
-  const candidateMap:
-    Record<
-      OrderAction,
-      string[]
-    > = {
-    READY: [
-      "READY_FOR_SHIPMENT",
-      "READY",
-      "PREPARED",
-      "PREPARING",
-    ],
-    SHIPPED: [
-      "SHIPPED",
-      "SENT",
-      "IN_TRANSIT",
-    ],
-    DELIVERED: [
-      "DELIVERED",
-      "COMPLETED",
-    ],
-  };
-
-  const candidates =
-    candidateMap[action];
-
-  for (
-    const candidate of
-      candidates
-  ) {
-    const exact =
-      values.find(
-        (value: string) =>
-          normalizeEnum(
-            value
-          ) ===
-          candidate
-      );
-
-    if (exact) {
-      return exact;
-    }
-  }
-
-  for (
-    const candidate of
-      candidates
-  ) {
-    const contains =
-      values.find(
-        (value: string) =>
-          normalizeEnum(
-            value
-          ).includes(
-            candidate
-          )
-      );
-
-    if (contains) {
-      return contains;
-    }
-  }
-
-  throw new Error(
-    `${enumTypeName} içinde ${action} için uygun statü bulunamadı. Mevcut: ${values.join(
-      ", "
-    )}`
-  );
-}
-
-type BuildContext = {
-  order: any;
-  package: any | null;
-  line: any | null;
-  action: OrderAction;
-  token: string;
-};
-
-async function buildInputValue(
-  fieldName: string,
-  fieldType: TypeRef,
-  context: BuildContext,
-  depth = 0
-): Promise<any> {
-  const unwrapped =
-    unwrapType(
-      fieldType
-    );
-
-  const key =
-    fieldName
-      .toLowerCase()
-      .replace(
-        /[^a-z0-9]/g,
-        ""
-      );
-
-  const orderId =
-    String(
-      context.order?.id ||
-        ""
-    );
-
-  const packageId =
-    String(
-      context.package
-        ?.id ||
-        ""
-    );
-
-  const lineId =
-    String(
-      context.line?.id ||
-        context.line
-          ?.orderLineId ||
-        ""
-    );
-
-  if (
-    unwrapped.kind ===
-    "ENUM"
-  ) {
-    if (
-      key.includes(
-        "status"
-      )
-    ) {
-      return enumValueForAction(
-        context.token,
-        unwrapped.name,
-        context.action
-      );
-    }
-
-    return undefined;
-  }
-
-  if (
-    unwrapped.kind ===
-      "SCALAR"
-  ) {
-    if (
-      key ===
-        "orderid" ||
-      key ===
-        "order"
-    ) {
-      return orderId ||
-        undefined;
-    }
-
-    if (
-      key.includes(
-        "packageid"
-      ) ||
-      key.includes(
-        "orderpackageid"
-      )
-    ) {
-      return packageId ||
-        undefined;
-    }
-
-    if (
-      (
-        key.includes(
-          "orderline"
-        ) ||
-        key.includes(
-          "lineitem"
-        ) ||
-        key === "lineid"
-      ) &&
-      key.includes("id")
-    ) {
-      return lineId ||
-        undefined;
-    }
-
-    if (
-      key === "id"
-    ) {
-      if (
-        context.line
-      ) {
-        return lineId ||
-          undefined;
-      }
-
-      if (
-        context.package
-      ) {
-        return packageId ||
-          undefined;
-      }
-
-      return orderId ||
-        undefined;
-    }
-
-    if (
-      key.includes(
-        "quantity"
-      )
-    ) {
-      return Number(
-        context.line
-          ?.quantity ||
-          1
-      );
-    }
-
-    if (
-      key.includes(
-        "notify"
-      ) ||
-      key.includes(
-        "notification"
-      )
-    ) {
-      return false;
-    }
-
-    return undefined;
-  }
-
-  if (
-    unwrapped.kind ===
-      "INPUT_OBJECT" &&
-    depth < 4
-  ) {
-    const type =
-      await getType(
-        context.token,
-        unwrapped.name
-      );
-
-    const fields =
-      Array.isArray(
-        type?.inputFields
-      )
-        ? type.inputFields
-        : [];
-
-    if (
-      unwrapped.isList
-    ) {
-      // Satır/list item input'u ise tüm sipariş satırlarından üret.
-      if (
-        key.includes(
-          "line"
-        ) ||
-        key.includes(
-          "item"
-        ) ||
-        key.includes(
-          "fulfill"
+  const date =
+    Number.isFinite(
+      numeric
+    )
+      ? new Date(
+          numeric <
+            10_000_000_000
+            ? numeric * 1000
+            : numeric
         )
-      ) {
-        const lines =
-          Array.isArray(
-            context.order
-              ?.lines
-          )
-            ? context.order
-                .lines
-            : [];
+      : new Date(raw);
 
-        const list: any[] =
-          [];
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
 
-        for (
-          const line of
-            lines
-        ) {
-          const object:
-            Record<
-              string,
-              unknown
-            > = {};
+  return new Intl.DateTimeFormat(
+    "tr-TR",
+    {
+      dateStyle: "short",
+      timeStyle: "short",
+    }
+  ).format(date);
+}
 
-          for (
-            const child of
-              fields
-          ) {
-            const value =
-              await buildInputValue(
-                String(
-                  child.name
-                ),
-                child.type,
-                {
-                  ...context,
-                  line,
-                },
-                depth + 1
-              );
+function statusMeta(
+  section: OrderSection
+) {
+  if (
+    section === "new"
+  ) {
+    return {
+      label:
+        "Yeni Sipariş",
+      badge:
+        "bg-blue-100 text-blue-700",
+      button:
+        "Kargoya Hazır",
+      next:
+        "READY",
+    };
+  }
 
-            if (
-              value !==
-              undefined
-            ) {
-              object[
-                child.name
-              ] = value;
-            } else if (
-              unwrapType(
-                child.type
-              ).required
-            ) {
-              throw new Error(
-                `${unwrapped.name}.${child.name} zorunlu fakat güvenli değer üretilemedi.`
-              );
-            }
+  if (
+    section === "ready"
+  ) {
+    return {
+      label:
+        "Kargoya Hazır",
+      badge:
+        "bg-amber-100 text-amber-700",
+      button:
+        "Kargoya Ver",
+      next:
+        "SHIPPED",
+    };
+  }
+
+  if (
+    section ===
+    "shipped"
+  ) {
+    return {
+      label:
+        "Kargoda",
+      badge:
+        "bg-violet-100 text-violet-700",
+      button:
+        "Teslim Edildi",
+      next:
+        "DELIVERED",
+    };
+  }
+
+  if (
+    section ===
+    "delivered"
+  ) {
+    return {
+      label:
+        "Teslim Edildi",
+      badge:
+        "bg-emerald-100 text-emerald-700",
+      button: "",
+      next: "",
+    };
+  }
+
+  return {
+    label:
+      "İade / İptal",
+    badge:
+      "bg-rose-100 text-rose-700",
+    button: "",
+    next: "",
+  };
+}
+
+export default function IkasOrders() {
+  const [
+    section,
+    setSection,
+  ] = useState<OrderSection>(
+    "new"
+  );
+
+  const [
+    data,
+    setData,
+  ] = useState<
+    OrdersResponse | null
+  >(null);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    actionId,
+    setActionId,
+  ] = useState("");
+
+  const [
+    actionMessage,
+    setActionMessage,
+  ] = useState("");
+
+  const loadOrders =
+    useCallback(
+      async (
+        silent = false
+      ) => {
+        if (!silent) {
+          setLoading(true);
+        }
+
+        setError("");
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/ikas/orders",
+              {
+                method: "GET",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            OrdersResponse | null =
+              null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `İkas sipariş API JSON dönmedi. HTTP ${response.status}.`
+            );
           }
 
-          list.push(object);
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "İkas siparişleri alınamadı."
+            );
+          }
+
+          setData(
+            payload
+          );
+        } catch (err) {
+          setError(
+            err instanceof
+              Error
+              ? err.message
+              : "İkas siparişleri alınamadı."
+          );
+        } finally {
+          setLoading(false);
+        }
+      },
+      []
+    );
+
+  useEffect(() => {
+    void loadOrders();
+
+    const timer =
+      window.setInterval(
+        () => {
+          void loadOrders(
+            true
+          );
+        },
+        30_000
+      );
+
+    return () =>
+      window.clearInterval(
+        timer
+      );
+  }, [loadOrders]);
+
+  const orders =
+    useMemo(() => {
+      const groups =
+        data?.groups;
+
+      if (!groups) {
+        return [];
+      }
+
+      return (
+        groups[section] ||
+        []
+      );
+    }, [
+      data,
+      section,
+    ]);
+
+  const runAction =
+    useCallback(
+      async (
+        order: IkasOrder
+      ) => {
+        const meta =
+          statusMeta(
+            section
+          );
+
+        if (!meta.next) {
+          return;
         }
 
-        return list;
-      }
+        const confirmed =
+          window.confirm(
+            `${order.orderNumber} siparişi "${meta.button}" durumuna geçirilsin mi?`
+          );
 
-      return undefined;
-    }
+        if (!confirmed) {
+          return;
+        }
 
-    const object:
-      Record<
-        string,
-        unknown
-      > = {};
-
-    for (
-      const child of
-        fields
-    ) {
-      const value =
-        await buildInputValue(
-          String(
-            child.name
-          ),
-          child.type,
-          context,
-          depth + 1
+        setActionId(
+          order.id
         );
-
-      if (
-        value !==
-        undefined
-      ) {
-        object[
-          child.name
-        ] = value;
-      } else if (
-        unwrapType(
-          child.type
-        ).required
-      ) {
-        throw new Error(
-          `${unwrapped.name}.${child.name} zorunlu fakat güvenli değer üretilemedi.`
-        );
-      }
-    }
-
-    return object;
-  }
-
-  return undefined;
-}
-
-async function callMutationDynamic(
-  token: string,
-  mutationName: string,
-  order: any,
-  action: OrderAction,
-  pkg:
-    | any
-    | null
-) {
-  const mutation =
-    await getMutationField(
-      token,
-      mutationName
-    );
-
-  if (!mutation) {
-    throw new Error(
-      `İkas şemasında ${mutationName} mutation'ı bulunamadı.`
-    );
-  }
-
-  const args =
-    Array.isArray(
-      mutation?.args
-    )
-      ? mutation.args
-      : [];
-
-  const variables:
-    Record<
-      string,
-      unknown
-    > = {};
-
-  const variableDefs:
-    string[] = [];
-
-  const callArgs:
-    string[] = [];
-
-  for (
-    const arg of
-      args
-  ) {
-    const argName =
-      String(
-        arg?.name ||
+        setActionMessage(
           ""
-      );
-
-    if (!argName) {
-      continue;
-    }
-
-    const value =
-      await buildInputValue(
-        argName,
-        arg.type,
-        {
-          order,
-          package: pkg,
-          line: null,
-          action,
-          token,
-        }
-      );
-
-    const required =
-      unwrapType(
-        arg.type
-      ).required;
-
-    if (
-      value ===
-      undefined
-    ) {
-      if (required) {
-        throw new Error(
-          `${mutationName}.${argName} (${typeText(
-            arg.type
-          )}) zorunlu fakat siparişten güvenli değer üretilemedi.`
         );
-      }
+        setError("");
 
-      continue;
-    }
+        try {
+          const response =
+            await fetch(
+              "/api/online/ikas/orders",
+              {
+                method: "POST",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    orderId:
+                      order.id,
+                    action:
+                      meta.next,
+                  }),
+              }
+            );
 
-    variables[
-      argName
-    ] = value;
+          const raw =
+            await response.text();
 
-    variableDefs.push(
-      `$${argName}: ${typeText(
-        arg.type
-      )}`
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `İkas sipariş işlem API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "Sipariş durumu değiştirilemedi."
+            );
+          }
+
+          setActionMessage(
+            payload?.message ||
+              "Sipariş durumu güncellendi."
+          );
+
+          await loadOrders(
+            true
+          );
+        } catch (err) {
+          setError(
+            err instanceof
+              Error
+              ? err.message
+              : "Sipariş durumu değiştirilemedi."
+          );
+        } finally {
+          setActionId("");
+        }
+      },
+      [
+        loadOrders,
+        section,
+      ]
     );
 
-    callArgs.push(
-      `${argName}: $${argName}`
-    );
-  }
+  const tabs:
+    Array<{
+      id: OrderSection;
+      label: string;
+      count: number;
+    }> = [
+    {
+      id: "new",
+      label:
+        "Yeni Siparişler",
+      count:
+        data?.counts?.new ||
+        0,
+    },
+    {
+      id: "ready",
+      label:
+        "Kargoya Hazır",
+      count:
+        data?.counts
+          ?.ready || 0,
+    },
+    {
+      id: "shipped",
+      label: "Kargoda",
+      count:
+        data?.counts
+          ?.shipped || 0,
+    },
+    {
+      id: "delivered",
+      label:
+        "Teslim Edildi",
+      count:
+        data?.counts
+          ?.delivered || 0,
+    },
+    {
+      id: "other",
+      label:
+        "İade / İptal",
+      count:
+        data?.counts
+          ?.other || 0,
+    },
+  ];
 
-  const returnType =
-    unwrapType(
-      mutation.type
-    );
-
-  const selection =
-    [
-      "OBJECT",
-      "INTERFACE",
-      "UNION",
-    ].includes(
-      returnType.kind
-    )
-      ? "{ __typename }"
-      : "";
-
-  const query = `
-    mutation CnetOrderAction(
-      ${variableDefs.join(
-        ", "
-      )}
-    ) {
-      ${mutationName}(
-        ${callArgs.join(
-          ", "
-        )}
-      )
-      ${selection}
-    }
-  `;
-
-  await ikasGraphql(
-    token,
-    query,
-    variables
-  );
-}
-
-async function findOrderById(
-  token: string,
-  orderId: string
-) {
-  const result =
-    await fetchOrders(
-      token
+  const meta =
+    statusMeta(
+      section
     );
 
   return (
-    result.orders.find(
-      (order: any) =>
-        String(
-          order.id
-        ) ===
-        orderId
-    ) ||
-    null
+    <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-violet-950 to-indigo-950 px-6 py-6 text-white xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <div className="text-[8px] font-black uppercase tracking-[0.2em] text-violet-200/70">
+            Online · İkas
+          </div>
+          <h3 className="mt-1 text-2xl font-black">
+            Sipariş Yönetimi
+          </h3>
+          <p className="mt-1 text-[9px] font-semibold text-slate-300">
+            Yeni → Kargoya Hazır → Kargoda → Teslim Edildi · İade/İptal ayrı
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            void loadOrders();
+          }}
+          disabled={loading}
+          className="h-10 rounded-xl bg-violet-500 px-4 text-[8px] font-black uppercase text-white transition hover:bg-violet-400 disabled:opacity-50"
+        >
+          {loading
+            ? "Yenileniyor..."
+            : "Siparişleri Yenile"}
+        </button>
+      </div>
+
+      <div className="border-b border-slate-200 bg-slate-50/70 p-4">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map(
+            (tab) => (
+              <button
+                key={
+                  tab.id
+                }
+                type="button"
+                onClick={() =>
+                  setSection(
+                    tab.id
+                  )
+                }
+                className={`rounded-xl px-4 py-2.5 text-[9px] font-black uppercase transition ${
+                  section ===
+                  tab.id
+                    ? tab.id ===
+                      "new"
+                      ? "bg-blue-600 text-white"
+                      : tab.id ===
+                        "ready"
+                      ? "bg-amber-500 text-white"
+                      : tab.id ===
+                        "shipped"
+                      ? "bg-violet-600 text-white"
+                      : tab.id ===
+                        "delivered"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-rose-600 text-white"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {tab.label} (
+                {tab.count})
+              </button>
+            )
+          )}
+
+          <div className="ml-auto self-center text-[8px] font-bold text-slate-400">
+            Canlı kontrol: 30 sn
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700">
+          {error}
+        </div>
+      )}
+
+      {actionMessage && (
+        <div className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 text-[9px] font-black text-emerald-700">
+          ✓ {actionMessage}
+        </div>
+      )}
+
+      {loading &&
+      !data ? (
+        <div className="px-6 py-20 text-center">
+          <div className="text-[11px] font-black text-slate-700">
+            İkas siparişleri yükleniyor...
+          </div>
+        </div>
+      ) : orders.length ===
+        0 ? (
+        <div className="px-6 py-20 text-center">
+          <div className="text-[12px] font-black text-slate-700">
+            {meta.label} siparişi yok
+          </div>
+          <div className="mt-2 text-[9px] font-semibold text-slate-400">
+            İkas&apos;tan yeni sipariş geldiğinde bu ekrana düşecek.
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-[1120px]">
+            <div className="grid grid-cols-[130px_150px_minmax(260px,1fr)_70px_120px_100px_130px_125px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[7px] font-black uppercase tracking-wide text-slate-400">
+              <div>Sipariş No</div>
+              <div>Müşteri</div>
+              <div>Ürün</div>
+              <div>Adet</div>
+              <div>Tutar</div>
+              <div>Şehir</div>
+              <div>Durum</div>
+              <div>İşlem</div>
+            </div>
+
+            {orders.map(
+              (order) => (
+                <div
+                  key={
+                    order.id
+                  }
+                  className="grid min-h-[74px] grid-cols-[130px_150px_minmax(260px,1fr)_70px_120px_100px_130px_125px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0 hover:bg-slate-50/70"
+                >
+                  <div>
+                    <div className="font-black text-slate-900">
+                      {
+                        order.orderNumber
+                      }
+                    </div>
+                    <div className="mt-1 text-[7px] font-bold text-slate-400">
+                      {dateTime(
+                        order.orderedAt
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="truncate font-black text-slate-800">
+                      {order
+                        .customer
+                        ?.name ||
+                        "-"}
+                    </div>
+                    <div className="mt-1 truncate text-[7px] font-bold text-slate-400">
+                      {order
+                        .customer
+                        ?.phone ||
+                        order
+                          .customer
+                          ?.email ||
+                        "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="truncate font-black text-slate-800">
+                      {
+                        order.productSummary
+                      }
+                    </div>
+                    {order
+                      .packages
+                      ?.some(
+                        (
+                          pkg: any
+                        ) =>
+                          pkg
+                            ?.trackingNumber
+                      ) && (
+                      <div className="mt-1 text-[7px] font-bold text-violet-600">
+                        Takip:{" "}
+                        {order.packages
+                          .map(
+                            (
+                              pkg: any
+                            ) =>
+                              pkg
+                                ?.trackingNumber
+                          )
+                          .filter(
+                            Boolean
+                          )
+                          .join(
+                            ", "
+                          )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="font-black text-slate-900">
+                    {order.quantity ||
+                      1}
+                  </div>
+
+                  <div className="font-black text-slate-900">
+                    {money(
+                      order.totalFinalPrice
+                    )}
+                  </div>
+
+                  <div className="truncate font-bold text-slate-500">
+                    {order.city ||
+                      "-"}
+                  </div>
+
+                  <div>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${meta.badge}`}
+                    >
+                      {
+                        meta.label
+                      }
+                    </span>
+                    {(order.operationalStatus ||
+                      order.rawStatus) && (
+                      <div className="mt-1 max-w-[125px] truncate text-[6px] font-bold text-slate-400">
+                        {
+                          order.operationalStatus ||
+                          order.rawStatus
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    {meta.next ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void runAction(
+                            order
+                          );
+                        }}
+                        disabled={
+                          actionId ===
+                          order.id
+                        }
+                        className={`h-9 rounded-xl px-3 text-[7px] font-black uppercase text-white transition disabled:cursor-wait disabled:opacity-50 ${
+                          section ===
+                          "new"
+                            ? "bg-blue-600 hover:bg-blue-700"
+                            : section ===
+                              "ready"
+                            ? "bg-violet-600 hover:bg-violet-700"
+                            : "bg-emerald-600 hover:bg-emerald-700"
+                        }`}
+                      >
+                        {actionId ===
+                        order.id
+                          ? "İşleniyor..."
+                          : meta.button}
+                      </button>
+                    ) : (
+                      <span className="text-[8px] font-bold text-slate-400">
+                        Tamamlandı
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400">
+        Kaynak: İkas Admin API · Siparişler 30 saniyede bir yenilenir
+      </div>
+    </div>
   );
-}
-
-async function performAction(
-  token: string,
-  order: any,
-  action: OrderAction
-) {
-  let current =
-    order;
-
-  if (
-    action ===
-      "READY" &&
-    (
-      !Array.isArray(
-        current?.packages
-      ) ||
-      current.packages
-        .length === 0
-    )
-  ) {
-    // Yeni siparişte henüz paket yoksa fulfillment oluşturmayı dene.
-    await callMutationDynamic(
-      token,
-      "fulfillOrder",
-      current,
-      action,
-      null
-    );
-
-    const reread =
-      await findOrderById(
-        token,
-        String(
-          current.id
-        )
-      );
-
-    if (reread) {
-      current =
-        reread;
-    }
-  }
-
-  const packages =
-    Array.isArray(
-      current?.packages
-    )
-      ? current.packages
-      : [];
-
-  if (
-    packages.length ===
-    0
-  ) {
-    // fulfillOrder statüyü doğrudan ilerletmiş olabilir.
-    const bucket =
-      String(
-        current?.bucket ||
-          ""
-      );
-
-    if (
-      (
-        action ===
-          "READY" &&
-        [
-          "ready",
-          "shipped",
-          "delivered",
-        ].includes(
-          bucket
-        )
-      ) ||
-      (
-        action ===
-          "SHIPPED" &&
-        [
-          "shipped",
-          "delivered",
-        ].includes(
-          bucket
-        )
-      ) ||
-      (
-        action ===
-          "DELIVERED" &&
-        bucket ===
-          "delivered"
-      )
-    ) {
-      return current;
-    }
-
-    throw new Error(
-      "İkas sipariş paket ID'si bulunamadı. Statü güvenli şekilde değiştirilemedi."
-    );
-  }
-
-  // Bir siparişte birden fazla paket varsa hepsini aynı hedefe geçir.
-  for (
-    const pkg of
-      packages
-  ) {
-    await callMutationDynamic(
-      token,
-      "updateOrderPackageStatus",
-      current,
-      action,
-      pkg
-    );
-  }
-
-  const verified =
-    await findOrderById(
-      token,
-      String(
-        current.id
-      )
-    );
-
-  if (!verified) {
-    throw new Error(
-      "Statü değişimi sonrası sipariş tekrar okunamadı."
-    );
-  }
-
-  const bucket =
-    String(
-      verified.bucket ||
-        ""
-    );
-
-  const accepted =
-    action === "READY"
-      ? [
-          "ready",
-          "shipped",
-          "delivered",
-        ].includes(
-          bucket
-        )
-      : action ===
-        "SHIPPED"
-      ? [
-          "shipped",
-          "delivered",
-        ].includes(
-          bucket
-        )
-      : bucket ===
-        "delivered";
-
-  if (!accepted) {
-    throw new Error(
-      `İkas statü doğrulaması başarısız. Hedef ${action}, okunan grup ${bucket}, raw status ${verified.rawStatus || "-"}.`
-    );
-  }
-
-  return verified;
-}
-
-export async function GET(
-  request: NextRequest
-) {
-  try {
-    const authError =
-      await requireIkasSuperAdmin(
-        request
-      );
-
-    if (authError) {
-      return authError;
-    }
-
-    const token =
-      await getIkasAccessToken();
-
-    const result =
-      await fetchOrders(
-        token
-      );
-
-    return noStoreJson({
-      success: true,
-      ...result,
-      checkedAt:
-        new Date().toISOString(),
-      refreshSeconds: 30,
-    });
-  } catch (error) {
-    console.error(
-      "IKAS ORDERS GET ERROR:",
-      error
-    );
-
-    return noStoreJson(
-      {
-        success: false,
-        error:
-          error instanceof
-            Error
-            ? error.message
-            : "İkas siparişleri alınamadı.",
-      },
-      500
-    );
-  }
-}
-
-export async function POST(
-  request: NextRequest
-) {
-  try {
-    const authError =
-      await requireIkasSuperAdmin(
-        request
-      );
-
-    if (authError) {
-      return authError;
-    }
-
-    const body =
-      await request
-        .json()
-        .catch(
-          () => null
-        );
-
-    if (
-      !body ||
-      typeof body !==
-        "object" ||
-      Array.isArray(body)
-    ) {
-      return noStoreJson(
-        {
-          success: false,
-          error:
-            "Geçersiz istek.",
-        },
-        400
-      );
-    }
-
-    const orderId =
-      String(
-        body.orderId ||
-          ""
-      ).trim();
-
-    const action =
-      String(
-        body.action ||
-          ""
-      )
-        .trim()
-        .toUpperCase() as
-        OrderAction;
-
-    if (!orderId) {
-      return noStoreJson(
-        {
-          success: false,
-          error:
-            "Sipariş ID zorunlu.",
-        },
-        400
-      );
-    }
-
-    if (
-      ![
-        "READY",
-        "SHIPPED",
-        "DELIVERED",
-      ].includes(action)
-    ) {
-      return noStoreJson(
-        {
-          success: false,
-          error:
-            "Geçersiz sipariş işlemi.",
-        },
-        400
-      );
-    }
-
-    const token =
-      await getIkasAccessToken();
-
-    const order =
-      await findOrderById(
-        token,
-        orderId
-      );
-
-    if (!order) {
-      return noStoreJson(
-        {
-          success: false,
-          error:
-            "Sipariş İkas'ta bulunamadı.",
-        },
-        404
-      );
-    }
-
-    const updated =
-      await performAction(
-        token,
-        order,
-        action
-      );
-
-    return noStoreJson({
-      success: true,
-      message:
-        action === "READY"
-          ? "Sipariş Kargoya Hazır durumuna geçirildi."
-          : action ===
-            "SHIPPED"
-          ? "Sipariş Kargoda durumuna geçirildi."
-          : "Sipariş Teslim Edildi durumuna geçirildi.",
-      order:
-        updated,
-    });
-  } catch (error) {
-    console.error(
-      "IKAS ORDER ACTION ERROR:",
-      error
-    );
-
-    return noStoreJson(
-      {
-        success: false,
-        error:
-          error instanceof
-            Error
-            ? error.message
-            : "İkas sipariş işlemi yapılamadı.",
-      },
-      409
-    );
-  }
 }
