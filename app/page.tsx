@@ -1800,8 +1800,8 @@ export default function CnetmobilCmrFinalUltimate() {
             {
               id: 'ikas',
               label: 'İkas',
-              detail: 'Yeni entegrasyon kurulumu',
-              badge: 'KURULUM',
+              detail: 'Ürün, stok, fiyat ve sipariş yönetimi',
+              badge: 'AKTİF',
               enabled: true
             },
             {
