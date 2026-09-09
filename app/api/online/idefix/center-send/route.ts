@@ -2950,6 +2950,41 @@ async function inventoryResult(
   );
 }
 
+function idefixFailureDetail(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    return value.trim();
+  }
+
+  if (
+    typeof value ===
+    "number" ||
+    typeof value ===
+    "boolean"
+  ) {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(
+      value
+    );
+  } catch {
+    return String(value);
+  }
+}
+
 async function waitInventory(
   batchId:
     string,
@@ -3029,11 +3064,34 @@ async function waitInventory(
       ) ===
         "DECLINE"
     ) {
-      throw new Error(
-        `İdefix stok/fiyat reddedildi: ${text(
+      const failure =
+        idefixFailureDetail(
           item
             ?.failureReasons
-        ) || "DECLINE"}`
+        );
+
+      throw new Error(
+        `İdefix stok/fiyat reddedildi. Barkod: ${text(
+          item?.barcode
+        ) || barcode}. Sebep: ${
+          failure ||
+          "DECLINE"
+        }. Item: ${idefixFailureDetail(
+          item
+        )}`
+      );
+    }
+
+    if (
+      normalizeText(
+        last?.status
+      ) ===
+        "FAILED"
+    ) {
+      throw new Error(
+        `İdefix stok/fiyat batch FAILED. Batch: ${batchId}. Cevap: ${idefixFailureDetail(
+          last
+        )}`
       );
     }
   }
