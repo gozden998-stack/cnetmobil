@@ -121,7 +121,7 @@ type CategoryAttribute = {
 
 type PreparedGroup = {
   group: CenterGroup;
-  action: "EXISTING_PRODUCT" | "CREATE_PRODUCT";
+  action: "EXISTING_PRODUCT" | "FAST_LISTING" | "CREATE_PRODUCT";
   exactProduct: IdefixProduct | null;
   referenceProduct: IdefixProduct | null;
   title: string;
@@ -130,6 +130,7 @@ type PreparedGroup = {
   targetBeforeStock: number;
   targetAfterStock: number;
   barcode: string;
+  catalogBarcode: string | null;
   vendorStockCode: string;
   productMainId: string;
   brandId: number | string | null;
@@ -2389,7 +2390,9 @@ async function prepareGroup(
   salePrice:
     number,
   listPrice:
-    number
+    number,
+  requestedCatalogBarcode:
+    string | null = null
 ): Promise<
   PreparedGroup
 > {
@@ -2502,6 +2505,8 @@ async function prepareGroup(
         currentStock,
       targetAfterStock,
       barcode,
+      catalogBarcode:
+        null,
       vendorStockCode,
       productMainId:
         text(
@@ -2574,6 +2579,59 @@ async function prepareGroup(
     };
   }
 
+  const catalogBarcode =
+    text(
+      requestedCatalogBarcode
+    );
+
+  // İdefix resmi hızlı yükleme akışı:
+  // Satıcının havuzunda ürün yok ama İdefix katalog barkodu biliniyorsa
+  // create/görsel/attribute sürecine GİRMEDEN fast-listing kullanılır.
+  if (
+    catalogBarcode
+  ) {
+    return {
+      group,
+      action:
+        "FAST_LISTING",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        catalogBarcode,
+      catalogBarcode,
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        1,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers: [],
+    };
+  }
+
   try {
     referenceProduct =
       referenceProductForGroup(
@@ -2619,6 +2677,8 @@ async function prepareGroup(
         makeStableBarcode(
           group
         ),
+      catalogBarcode:
+        null,
       vendorStockCode:
         makeVendorStockCode(
           group
@@ -2698,35 +2758,36 @@ async function prepareGroup(
     }
   }
 
-  const localTemplate =
-    await exactColorLocalTemplate(
-      client,
-      group
-    );
-
+  // Create yalnızca gerçekten İdefix kataloğunda bulunmayan yeni ürünler içindir.
+  // Katalogda bulunan ürünlerde yukarıdaki FAST_LISTING yolu kullanılmalıdır.
+  // N11/İkas görseline bağımlılık kaldırıldı.
   const imageUrl =
-    localTemplate
-      ?.imageUrl ||
-    null;
+    Array.isArray(
+      referenceProduct
+        .images
+    )
+      ? text(
+          referenceProduct
+            .images?.[0]
+            ?.url
+        ) || null
+      : null;
 
   if (!imageUrl) {
     blockers.push(
       `${productTitle(
         group
-      )}: aynı renk için N11/İkas kaynaklı HTTPS ürün görseli bulunamadı. İdefix create güvenli şekilde durduruldu.`
+      )}: ürün satıcı havuzunda yok. İdefix kataloğunda mevcutsa katalog barkodunu girerek Hızlı Ürün Ekleme (fast-listing) kullan. Gerçekten yeni ürünse create için ürün görseli gerekir.`
     );
   }
 
   // CNETMOBIL Merkez akışı yenilenmiş cihaz içindir.
-  // Referans ürünlerde İdefix vatRate çoğu zaman null dönebiliyor.
   // Yenilenmiş cihaz iş kuralımız: KDV %1.
   const vatRate =
     numberOrNull(
       referenceProduct
         .vatRate
     ) ??
-    localTemplate
-      ?.vatRate ??
     1;
 
   return {
@@ -2810,6 +2871,8 @@ function previewView(
         .targetAfterStock,
     barcode:
       prepared.barcode,
+    catalogBarcode:
+      prepared.catalogBarcode,
     vendorStockCode:
       prepared
         .vendorStockCode,
@@ -2865,6 +2928,291 @@ function previewView(
           }
         : null,
   };
+}
+
+async function fastListingUpload(
+  prepared:
+    PreparedGroup
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const response =
+    await idefixApi(
+      `/pim/catalog/${encodeURIComponent(
+        vendorId
+      )}/fast-listing`,
+      {
+        method:
+          "POST",
+        body: {
+          items: [
+            {
+              title:
+                prepared.title,
+              barcode:
+                prepared.barcode,
+              price:
+                prepared.salePrice,
+              comparePrice:
+                prepared.listPrice,
+              inventoryQuantity:
+                prepared.targetAfterStock,
+              vendorStockCode:
+                prepared.vendorStockCode,
+            },
+          ],
+        },
+        timeoutMs:
+          35_000,
+      }
+    );
+
+  const batchRequestId =
+    text(
+      response
+        ?.batchRequestId
+    );
+
+  if (
+    !batchRequestId
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix fast-listing batchRequestId döndürmedi.`
+    );
+  }
+
+  return {
+    response,
+    batchRequestId,
+  };
+}
+
+async function fastListingResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  // İdefix dokümanında fast-listing-result POST olarak tanımlı.
+  return idefixApi(
+    `/pim/catalog/${encodeURIComponent(
+      vendorId
+    )}/fast-listing-result/${encodeURIComponent(
+      batchId
+    )}`,
+    {
+      method:
+        "POST",
+      timeoutMs:
+        35_000,
+    }
+  );
+}
+
+function fastListingFailureCode(
+  item:
+    any
+) {
+  const reason =
+    item?.failureReasons;
+
+  if (
+    typeof reason ===
+    "string"
+  ) {
+    return normalizeText(
+      reason
+    );
+  }
+
+  if (
+    reason &&
+    typeof reason ===
+      "object"
+  ) {
+    return normalizeText(
+      reason?.message ||
+      reason?.code ||
+      JSON.stringify(
+        reason
+      )
+    );
+  }
+
+  return "";
+}
+
+async function waitFastListingResult(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 8;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            700
+          )
+      );
+    }
+
+    last =
+      await fastListingResult(
+        batchId
+      );
+
+    const items =
+      Array.isArray(
+        last?.items
+      )
+        ? last.items
+        : [];
+
+    const item =
+      items.find(
+        (row: any) =>
+          text(
+            row?.barcode
+          ) ===
+          barcode
+      ) ||
+      items[0] ||
+      null;
+
+    const itemStatus =
+      normalizeText(
+        item?.status
+      );
+
+    const batchStatus =
+      normalizeText(
+        last?.status
+      );
+
+    if (
+      itemStatus ===
+        "COMPLETED"
+    ) {
+      return {
+        success:
+          true,
+        payload:
+          last,
+        item,
+      };
+    }
+
+    if (
+      itemStatus ===
+        "DECLINE"
+    ) {
+      return {
+        success:
+          false,
+        payload:
+          last,
+        item,
+        failureCode:
+          fastListingFailureCode(
+            item
+          ),
+      };
+    }
+
+    if (
+      [
+        "FAILED",
+        "DECLINE",
+      ].includes(
+        batchStatus
+      )
+    ) {
+      return {
+        success:
+          false,
+        payload:
+          last,
+        item,
+        failureCode:
+          fastListingFailureCode(
+            item
+          ) ||
+          batchStatus,
+      };
+    }
+  }
+
+  return {
+    success:
+      false,
+    payload:
+      last,
+    item:
+      null,
+    failureCode:
+      "FAST_LISTING_TIMEOUT",
+  };
+}
+
+function matchedFastListingLooksSafe(
+  matched:
+    any,
+  prepared:
+    PreparedGroup
+) {
+  const matchedBarcode =
+    text(
+      matched?.barcode
+    );
+
+  if (
+    !matchedBarcode ||
+    matchedBarcode !==
+      prepared.barcode
+  ) {
+    return false;
+  }
+
+  const name =
+    text(
+      matched?.name ||
+      matched?.title
+    );
+
+  if (!name) {
+    return false;
+  }
+
+  // Barkod birebir aynı olduğu için ana güvenlik kriteri güçlü.
+  // Ek olarak marka + model + hafızayı doğrularız.
+  return (
+    containsPhrase(
+      name,
+      prepared.group.brand
+    ) &&
+    containsPhrase(
+      name,
+      `${normalizeText(
+        prepared.group.model
+      )} ${normalizeMemory(
+        prepared.group.memory
+      )}`
+    )
+  );
 }
 
 async function inventoryUpload(
@@ -4563,6 +4911,308 @@ async function processPrepared(
 
   if (
     prepared.action ===
+    "FAST_LISTING"
+  ) {
+    const upload =
+      await fastListingUpload(
+        prepared
+      );
+
+    const fastResult =
+      await waitFastListingResult(
+        upload
+          .batchRequestId,
+        prepared.barcode
+      );
+
+    if (
+      !fastResult.success
+    ) {
+      const code =
+        normalizeText(
+          fastResult
+            .failureCode
+        );
+
+      if (
+        code.includes(
+          "PRODUCT BARCODE NOT EXIST"
+        )
+      ) {
+        throw new Error(
+          `${prepared.title}: verdiğin barkod İdefix kataloğunda yok (PRODUCT_BARCODE_NOT_EXIST). Bu ürün fast-listing ile açılamaz; gerçekten yeni ürünse create gerekir.`
+        );
+      }
+
+      if (
+        code.includes(
+          "PRODUCT POOL ALREADY EXIST"
+        )
+      ) {
+        const existing =
+          await listByBarcode(
+            prepared.barcode
+          );
+
+        const live =
+          existing
+            .products?.[0] ||
+          null;
+
+        if (!live) {
+          throw new Error(
+            `${prepared.title}: ürün İdefix havuzunda mevcut görünüyor fakat barkodla tekrar okunamadı.`
+          );
+        }
+
+        const existingPrepared:
+          PreparedGroup = {
+            ...prepared,
+            action:
+              "EXISTING_PRODUCT",
+            exactProduct:
+              live,
+            title:
+              text(
+                live.title
+              ) ||
+              prepared.title,
+            targetBeforeStock:
+              numberOrNull(
+                live
+                  .inventoryQuantity
+              ) ?? 0,
+            targetAfterStock:
+              Math.max(
+                numberOrNull(
+                  live
+                    .inventoryQuantity
+                ) ?? 0,
+                prepared
+                  .targetAfterStock
+              ),
+            vendorStockCode:
+              text(
+                live
+                  .vendorStockCode
+              ) ||
+              prepared
+                .vendorStockCode,
+            productMainId:
+              text(
+                live
+                  .productMainId
+              ) ||
+              prepared
+                .productMainId,
+            brandId:
+              live.brandId ??
+              null,
+            categoryId:
+              live.categoryId ??
+              null,
+          };
+
+        return processPrepared(
+          client,
+          existingPrepared
+        );
+      }
+
+      throw new Error(
+        `${prepared.title}: İdefix fast-listing başarısız. ${fastResult.failureCode || "Bilinmeyen hata"}. Cevap: ${idefixFailureDetail(
+          fastResult.payload
+        )}`
+      );
+    }
+
+    const item =
+      fastResult.item;
+
+    const matched =
+      item
+        ?.matchedProduct;
+
+    const poolState =
+      normalizeText(
+        item?.poolState
+      );
+
+    if (
+      poolState ===
+        "WAITING VENDOR APPROVE"
+    ) {
+      if (
+        !matchedFastListingLooksSafe(
+          matched,
+          prepared
+        )
+      ) {
+        throw new Error(
+          `${prepared.title}: İdefix katalog eşleşmesi geldi fakat marka/model/hafıza güvenlik kontrolünden geçmedi. Otomatik onay verilmedi.`
+        );
+      }
+
+      await approveProduct(
+        prepared.barcode
+      );
+    }
+
+    // Dokümana göre eşleşme 24 saat içinde onaylanırsa fast-listing'de
+    // gönderilen ilk stok/fiyat bilgileri ile ürün envantere açılır.
+    // Kısa süre sonra satıcı havuzundan tekrar okuyup yerel kaydı tamamla.
+    let liveProduct:
+      IdefixProduct | null =
+        null;
+
+    for (
+      let attempt = 0;
+      attempt < 6;
+      attempt += 1
+    ) {
+      if (
+        attempt > 0
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              650
+            )
+        );
+      }
+
+      const lookup =
+        await listByBarcode(
+          prepared.barcode
+        );
+
+      if (
+        lookup.products
+          .length > 0
+      ) {
+        liveProduct =
+          lookup.products[0];
+        break;
+      }
+    }
+
+    // Fast listing tamamlandı + gerekiyorsa merchant approve başarılı.
+    // Pool read gecikirse bile PENDING yerine LISTED yazmak yerine
+    // doğrulama bekleyen kayıt bırakıyoruz; veri kaybetmiyoruz.
+    const membershipStatus:
+      "LISTED" |
+      "PENDING_CREATE" =
+        liveProduct
+          ? "LISTED"
+          : "PENDING_CREATE";
+
+    await client.query(
+      "BEGIN"
+    );
+
+    try {
+      const local =
+        await persistLocal(
+          client,
+          {
+            prepared,
+            finalProduct:
+              liveProduct ||
+              {
+                barcode:
+                  prepared.barcode,
+                title:
+                  prepared.title,
+                productMainId:
+                  prepared
+                    .productMainId,
+                vendorStockCode:
+                  prepared
+                    .vendorStockCode,
+                inventoryQuantity:
+                  prepared
+                    .targetAfterStock,
+              },
+            membershipStatus,
+            syncStatus:
+              liveProduct
+                ? "SYNCED"
+                : "CREATING",
+            taskStatus:
+              liveProduct
+                ? "SUCCESS"
+                : "WAITING_POOL_READ",
+            batchRequestId:
+              upload
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              fastResult.payload,
+          }
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        success:
+          true,
+        action:
+          "FAST_LISTING",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          0,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (row) =>
+                row.imei
+            ),
+        batchRequestId:
+          upload
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          liveProduct
+            ? "LISTED"
+            : "PENDING_CREATE",
+        pendingApproval:
+          !liveProduct,
+        approved:
+          poolState ===
+          "WAITING VENDOR APPROVE",
+        message:
+          liveProduct
+            ? "İdefix katalog ürünü fast-listing ile satışa açıldı."
+            : "Fast-listing tamamlandı; İdefix havuzunun görünür olması bekleniyor.",
+      };
+    } catch (error) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      throw error;
+    }
+  }
+
+  if (
+    prepared.action ===
     "EXISTING_PRODUCT"
   ) {
     try {
@@ -5427,6 +6077,11 @@ export async function POST(
       );
     }
 
+    const catalogBarcode =
+      text(
+        data.catalogBarcode
+      ) || null;
+
     client =
       await getIdefixDbPool()
         .connect();
@@ -5465,6 +6120,22 @@ export async function POST(
     const groups =
       buildGroups(rows);
 
+    if (
+      catalogBarcode &&
+      groups.length !== 1
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode,
+          error:
+            "İdefix katalog barkodu ile hızlı gönderimde aynı anda tek ürün grubu seçilebilir. Aynı model/hafıza/renk/kalitedeki IMEI'leri birlikte seçebilirsin.",
+        },
+        400
+      );
+    }
+
     const products =
       await fetchAllProducts();
 
@@ -5480,7 +6151,8 @@ export async function POST(
           products,
           group,
           salePrice,
-          listPrice
+          listPrice,
+          catalogBarcode
         )
       );
     }
@@ -5519,6 +6191,12 @@ export async function POST(
             (row) =>
               row.action ===
               "EXISTING_PRODUCT"
+          ).length,
+        fastListingGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "FAST_LISTING"
           ).length,
         createGroups:
           prepared.filter(
