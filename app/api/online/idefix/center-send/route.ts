@@ -758,6 +758,138 @@ async function fetchAllProducts() {
   return rows;
 }
 
+function idefixProductState(
+  product:
+    IdefixProduct | null |
+    undefined
+) {
+  return normalizeText(
+    product?.status ??
+    product?.state
+  );
+}
+
+function isIdefixReadyForSale(
+  product:
+    IdefixProduct | null |
+    undefined
+) {
+  return (
+    idefixProductState(
+      product
+    ) ===
+    "READY FOR SALE"
+  );
+}
+
+function productLooksLikeCenterGroup(
+  product:
+    IdefixProduct,
+  group:
+    CenterGroup,
+  allowMissingGrade =
+    false
+) {
+  const title =
+    product.title;
+
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
+  if (
+    !containsPhrase(
+      title,
+      brand
+    ) ||
+    !containsPhrase(
+      title,
+      modelMemory
+    ) ||
+    !matchedColorAlias(
+      title,
+      group.color
+    )
+  ) {
+    return false;
+  }
+
+  const detectedGrade =
+    detectGradeFromTitle(
+      title
+    );
+
+  if (
+    detectedGrade
+  ) {
+    return (
+      detectedGrade ===
+      normalizeGrade(
+        group.grade
+      )
+    );
+  }
+
+  return allowMissingGrade;
+}
+
+function relaxedProductForGroup(
+  products:
+    IdefixProduct[],
+  group:
+    CenterGroup
+) {
+  // İdefix havuzunda bazı eski ürün başlıklarında "A Kalite / Grade A"
+  // ibaresi bulunmayabiliyor. Marka + model + hafıza + RENK birebir
+  // eşleşiyor ve tek aday varsa barkodu otomatik kullan.
+  const candidates =
+    products.filter(
+      (product) =>
+        productLooksLikeCenterGroup(
+          product,
+          group,
+          true
+        )
+    );
+
+  const distinct =
+    new Map<
+      string,
+      IdefixProduct
+    >();
+
+  for (
+    const product of
+      candidates
+  ) {
+    distinct.set(
+      productKey(product),
+      product
+    );
+  }
+
+  if (
+    distinct.size === 1
+  ) {
+    return (
+      Array.from(
+        distinct.values()
+      )[0] ||
+      null
+    );
+  }
+
+  return null;
+}
+
 function exactProductForGroup(
   products: IdefixProduct[],
   group: CenterGroup
@@ -2539,6 +2671,14 @@ async function prepareGroup(
         products,
         group
       );
+
+    if (!exactProduct) {
+      exactProduct =
+        relaxedProductForGroup(
+          products,
+          group
+        );
+    }
   } catch (error: any) {
     blockers.push(
       error instanceof Error
@@ -5078,6 +5218,20 @@ async function processPrepared(
           );
         }
 
+        if (
+          !productLooksLikeCenterGroup(
+            live,
+            prepared.group,
+            true
+          )
+        ) {
+          throw new Error(
+            `${prepared.title}: girilen ${prepared.barcode} barkodu İdefix ürün listende mevcut fakat seçili cihazla eşleşmiyor. Barkodun İdefix'teki ürünü: "${text(
+              live.title
+            ) || "Başlık yok"}". Hiçbir stok/IMEI gönderilmedi.`
+          );
+        }
+
         const existingPrepared:
           PreparedGroup = {
             ...prepared,
@@ -5204,9 +5358,18 @@ async function processPrepared(
         lookup.products
           .length > 0
       ) {
-        liveProduct =
+        const candidate =
           lookup.products[0];
-        break;
+
+        if (
+          isIdefixReadyForSale(
+            candidate
+          )
+        ) {
+          liveProduct =
+            candidate;
+          break;
+        }
       }
     }
 
@@ -5289,11 +5452,21 @@ async function processPrepared(
           prepared
             .targetAfterStock,
         addedImeis:
-          prepared
-            .group.items.map(
-              (row) =>
-                row.imei
-            ),
+          liveProduct
+            ? prepared
+                .group.items.map(
+                  (row) =>
+                    row.imei
+                )
+            : [],
+        pendingImeis:
+          liveProduct
+            ? []
+            : prepared
+                .group.items.map(
+                  (row) =>
+                    row.imei
+                ),
         batchRequestId:
           upload
             .batchRequestId,
@@ -5329,9 +5502,85 @@ async function processPrepared(
     "EXISTING_PRODUCT"
   ) {
     try {
+      let liveBeforeSend =
+        prepared.exactProduct;
+
+      let liveState =
+        idefixProductState(
+          liveBeforeSend
+        );
+
+      if (
+        liveState ===
+        "WAITING VENDOR APPROVE"
+      ) {
+        await approveProduct(
+          prepared.barcode
+        );
+
+        for (
+          let attempt = 0;
+          attempt < 8;
+          attempt += 1
+        ) {
+          if (
+            attempt > 0
+          ) {
+            await new Promise(
+              (resolve) =>
+                setTimeout(
+                  resolve,
+                  700
+                )
+            );
+          }
+
+          const lookup =
+            await listByBarcode(
+              prepared.barcode
+            );
+
+          const candidate =
+            lookup
+              .products?.[0] ||
+            null;
+
+          if (candidate) {
+            liveBeforeSend =
+              candidate;
+            liveState =
+              idefixProductState(
+                candidate
+              );
+
+            if (
+              isIdefixReadyForSale(
+                candidate
+              )
+            ) {
+              break;
+            }
+          }
+        }
+      }
+
+      if (
+        !isIdefixReadyForSale(
+          liveBeforeSend
+        )
+      ) {
+        throw new Error(
+          `${prepared.title}: ürün İdefix ürün listende mevcut fakat satışa hazır değil. Gerçek İdefix statüsü: ${liveState || "BILINMIYOR"}. Stok ve IMEI gönderilmedi. Önce İdefix ürün durumunu düzelt/onayla.`
+        );
+      }
+
       const upload =
         await inventoryUpload(
-          prepared
+          {
+            ...prepared,
+            exactProduct:
+              liveBeforeSend,
+          }
         );
 
       const verification =
