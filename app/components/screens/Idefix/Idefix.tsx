@@ -30,6 +30,9 @@ type ProductResponse = {
   pendingCount?: number;
   declinedCount?: number;
   inventoryItemCount?: number;
+  poolCount?: number;
+  readyForSalePoolCount?: number;
+  physicalStock?: number;
   products?: IdefixProduct[];
   checkedAt?: string;
   error?: string;
@@ -143,14 +146,24 @@ export default function Idefix() {
     [products]
   );
 
-  const physicalStock = useMemo(
-    () =>
-      openProducts.reduce(
-        (sum, item) => sum + Math.max(0, Number(item.inventoryQuantity || 0)),
-        0
-      ),
-    [openProducts]
-  );
+  const physicalStock = useMemo(() => {
+    if (
+      typeof data?.physicalStock === "number" &&
+      Number.isFinite(data.physicalStock)
+    ) {
+      return Math.max(0, data.physicalStock);
+    }
+
+    return openProducts.reduce(
+      (sum, item) =>
+        sum +
+        Math.max(
+          0,
+          Number(item.inventoryQuantity || 0)
+        ),
+      0
+    );
+  }, [data?.physicalStock, openProducts]);
 
   const averagePrice = useMemo(() => {
     const priced = openProducts
@@ -265,14 +278,14 @@ export default function Idefix() {
             {
               label: "SATIŞTAKİ İLAN",
               value: openProducts.length,
-              sub: "İdefix statüsü ready_for_sale",
+              sub: "Canlı inventory stoklu ilan",
               icon: "◎",
               box: "bg-cyan-50 text-cyan-700",
             },
             {
               label: "FİZİKSEL STOK",
               value: physicalStock,
-              sub: "Canlı satılabilir stok",
+              sub: "Inventory API toplam stok",
               icon: "◉",
               box: "bg-emerald-50 text-emerald-700",
             },
@@ -319,6 +332,15 @@ export default function Idefix() {
             <span>Kanal: İdefix</span>
             <span>Entegratör: CNETMOBİL</span>
             <span>Ürün/Stok: Canlı API</span>
+            <span>
+              İdefix Ürünlerim: <b className="text-slate-900">{Number(data?.totalCount || 0)}</b>
+            </span>
+            <span>
+              Havuz: <b className="text-slate-900">{Number(data?.poolCount || 0)}</b>
+            </span>
+            <span>
+              Inventory API: <b className="text-slate-900">{Number(data?.inventoryItemCount || 0)}</b>
+            </span>
             <span>
               Bekleyen: <b className="text-slate-900">{Number(data?.pendingCount || 0)}</b>
             </span>
@@ -497,6 +519,11 @@ export default function Idefix() {
                         </span>
                         <div className="mt-1 text-[7px] font-semibold uppercase text-slate-400">
                           {normalizeState(product.state ?? product.status) || "-"}
+                        </div>
+                        <div className="mt-0.5 text-[7px] font-semibold text-slate-400">
+                          {product.liveInventoryFound
+                            ? "Inventory API kaydı var"
+                            : "Inventory API kaydı yok · stok 0 kabul edildi"}
                         </div>
                       </td>
 
