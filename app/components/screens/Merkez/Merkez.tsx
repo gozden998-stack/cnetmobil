@@ -157,6 +157,34 @@ type IkasSendGroupResult = {
 };
 
 
+type IdefixSendGroupResult = {
+  success: boolean;
+  action:
+    | "EXISTING_PRODUCT"
+    | "CREATE_PRODUCT";
+  title: string;
+  color: string;
+  barcode: string;
+  beforeStock: number;
+  afterStock: number;
+  addedImeis: string[];
+  batchRequestId:
+    | string
+    | null;
+  inventoryBatchRequestId?:
+    | string
+    | null;
+  listingId: number;
+  state:
+    | "LISTED"
+    | "PENDING_CREATE"
+    | string;
+  pendingApproval?: boolean;
+  approved?: boolean;
+  message?: string;
+};
+
+
 
 
 
@@ -1459,6 +1487,23 @@ export default function Merkez() {
   ] = useState("");
 
 
+  const [
+    idefixSending,
+    setIdefixSending,
+  ] = useState(false);
+
+  const [
+    idefixSendResults,
+    setIdefixSendResults,
+  ] = useState<
+    IdefixSendGroupResult[]
+  >([]);
+
+  const [
+    idefixSendNotice,
+    setIdefixSendNotice,
+  ] = useState("");
+
 
 
   const loadCenter =
@@ -2039,6 +2084,12 @@ export default function Merkez() {
           []
         );
         setIkasSendNotice(
+          ""
+        );
+        setIdefixSendResults(
+          []
+        );
+        setIdefixSendNotice(
           ""
         );
         setChannelOpen(
@@ -2857,6 +2908,346 @@ export default function Merkez() {
         loadCenter,
       ]
     );
+
+  const sendSelectedToIdefix =
+    useCallback(
+      async () => {
+        if (
+          idefixSending
+        ) {
+          return;
+        }
+
+        if (
+          sendChannel !==
+          "IDEFIX"
+        ) {
+          setChannelError(
+            "İdefix gönderimi için İdefix kanalını seç."
+          );
+          return;
+        }
+
+        if (
+          !channelPreview
+            ?.canProceed
+        ) {
+          setChannelError(
+            "Önce başarılı ön kontrol yap."
+          );
+          return;
+        }
+
+        setChannelError(
+          ""
+        );
+        setIdefixSendResults(
+          []
+        );
+        setIdefixSendNotice(
+          ""
+        );
+        setIdefixSending(
+          true
+        );
+
+        try {
+          // 1) İdefix'e özel katalog / ürün / renk / attribute ön kontrolü.
+          const previewResponse =
+            await fetch(
+              "/api/online/idefix/center-send",
+              {
+                method:
+                  "POST",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    mode:
+                      "preview",
+                    deviceIds:
+                      selectedDeviceIds,
+                    salePrice:
+                      channelSalePrice,
+                    listPrice:
+                      channelListPrice,
+                  }),
+              }
+            );
+
+          const previewRaw =
+            await previewResponse.text();
+
+          let idefixPreview:
+            any = null;
+
+          try {
+            idefixPreview =
+              previewRaw
+                ? JSON.parse(
+                    previewRaw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `İdefix ön kontrol API JSON dönmedi. HTTP ${previewResponse.status}.`
+            );
+          }
+
+          if (
+            !previewResponse.ok ||
+            !idefixPreview
+              ?.success
+          ) {
+            const details =
+              Array.isArray(
+                idefixPreview
+                  ?.blockers
+              )
+                ? idefixPreview
+                    .blockers
+                    .join(" | ")
+                : Array.isArray(
+                    idefixPreview
+                      ?.errors
+                  )
+                ? idefixPreview
+                    .errors
+                    .join(" | ")
+                : "";
+
+            throw new Error(
+              idefixPreview
+                ?.error ||
+                details ||
+                "İdefix özel ön kontrolü başarısız."
+            );
+          }
+
+          if (
+            idefixPreview
+              ?.canCommit !==
+            true
+          ) {
+            const blockers =
+              Array.isArray(
+                idefixPreview
+                  ?.preview
+              )
+                ? idefixPreview
+                    .preview
+                    .flatMap(
+                      (
+                        row: any
+                      ) =>
+                        Array.isArray(
+                          row
+                            ?.blockers
+                        )
+                          ? row
+                              .blockers
+                          : []
+                    )
+                : [];
+
+            throw new Error(
+              blockers.length >
+              0
+                ? blockers.join(
+                    " | "
+                  )
+                : "İdefix gerçek gönderimi için gerekli katalog bilgileri hazır değil."
+            );
+          }
+
+          // 2) Gerçek Merkez -> İdefix gönderimi.
+          const response =
+            await fetch(
+              "/api/online/idefix/center-send",
+              {
+                method:
+                  "POST",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    mode:
+                      "commit",
+                    deviceIds:
+                      selectedDeviceIds,
+                    salePrice:
+                      channelSalePrice,
+                    listPrice:
+                      channelListPrice,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez İdefix API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            Array.isArray(
+              payload?.results
+            )
+          ) {
+            setIdefixSendResults(
+              payload.results
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            const details =
+              Array.isArray(
+                payload
+                  ?.blockers
+              )
+                ? payload
+                    .blockers
+                    .join(" | ")
+                : Array.isArray(
+                    payload
+                      ?.errors
+                  )
+                ? payload
+                    .errors
+                    .join(" | ")
+                : "";
+
+            throw new Error(
+              payload?.error ||
+                details ||
+                "İdefix gerçek gönderimi başarısız."
+            );
+          }
+
+          const results =
+            Array.isArray(
+              payload?.results
+            )
+              ? payload.results
+              : [];
+
+          const listed =
+            results.filter(
+              (result: any) =>
+                String(
+                  result?.state ||
+                    ""
+                ).toUpperCase() ===
+                "LISTED"
+            ).length;
+
+          const pending =
+            results.filter(
+              (result: any) =>
+                String(
+                  result?.state ||
+                    ""
+                ).toUpperCase() ===
+                "PENDING_CREATE" ||
+                result
+                  ?.pendingApproval ===
+                  true
+            ).length;
+
+          const sentImeis =
+            Number(
+              payload?.sentImeis ||
+                results.reduce(
+                  (
+                    total:
+                      number,
+                    result:
+                      any
+                  ) =>
+                    total +
+                    (
+                      Array.isArray(
+                        result
+                          ?.addedImeis
+                      )
+                        ? result
+                            .addedImeis
+                            .length
+                        : 0
+                    ),
+                  0
+                )
+            );
+
+          setIdefixSendNotice(
+            pending > 0
+              ? `${sentImeis} IMEI İdefix'e gönderildi. Aktif: ${listed}, İdefix katalog onayı bekleyen: ${pending}.`
+              : `${sentImeis} IMEI İdefix'e gerçek gönderildi. Aktif ürün grubu: ${listed}.`
+          );
+
+          await loadCenter(
+            true
+          );
+
+          setSelectedDeviceIds(
+            []
+          );
+        } catch (error) {
+          setChannelError(
+            error instanceof
+              Error
+              ? error.message
+              : "İdefix gerçek gönderimi başarısız."
+          );
+
+          await loadCenter(
+            true
+          );
+        } finally {
+          setIdefixSending(
+            false
+          );
+        }
+      },
+      [
+        idefixSending,
+        sendChannel,
+        channelPreview,
+        selectedDeviceIds,
+        channelSalePrice,
+        channelListPrice,
+        loadCenter,
+      ]
+    );
+
 
   const groups =
     useMemo(
@@ -3826,7 +4217,7 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 3C · N11 + İkas gerçek gönderim aktif · İdefix şimdilik ön kontrol
+          MERKEZ · N11 + İkas + İdefix gerçek gönderim aktif
         </div>
       </div>
 
@@ -3857,7 +4248,7 @@ export default function Merkez() {
                 </h3>
 
                 <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Seçili IMEI'ler önce kontrol edilir. N11 ve İkas kanallarında başarılı ön kontrolden sonra gerçek gönderim yapılabilir.
+                  Seçili IMEI'ler önce kontrol edilir. N11, İkas ve İdefix kanallarında başarılı ön kontrolden sonra gerçek gönderim yapılabilir.
                 </p>
               </div>
 
@@ -3866,7 +4257,8 @@ export default function Merkez() {
                 disabled={
                   channelLoading ||
                   n11Sending ||
-                  ikasSending
+                  ikasSending ||
+                  idefixSending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -3925,6 +4317,12 @@ export default function Merkez() {
                             []
                           );
                           setIkasSendNotice(
+                            ""
+                          );
+                          setIdefixSendResults(
+                            []
+                          );
+                          setIdefixSendNotice(
                             ""
                           );
                         }}
@@ -4160,7 +4558,7 @@ export default function Merkez() {
                       : sendChannel ===
                         "IKAS"
                       ? "İkas için gerçek gönderim aktif. Ürün/varyant canlı İkas'ta bulunur veya oluşturulur, fiyat ve Ana Depo stoğu yazılır, sonra tekrar okunarak doğrulanır."
-                      : "İdefix gerçek gönderimi henüz açılmadı. Şimdilik yalnızca ön kontrol yapılır."}
+                      : "İdefix için gerçek gönderim aktif. Mevcut ürün varsa stok/fiyat güncellenir; yeni ürün katalog onayı bekliyorsa Merkez'de Hazırlanıyor olarak izlenir."}
                   </div>
                 </div>
               )}
@@ -4177,6 +4575,136 @@ export default function Merkez() {
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <div className="text-[9px] font-black text-emerald-800">
                     ✓ {ikasSendNotice}
+                  </div>
+                </div>
+              )}
+
+              {idefixSendNotice && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
+                  <div className="text-[9px] font-black text-violet-800">
+                    ✓ {idefixSendNotice}
+                  </div>
+                </div>
+              )}
+
+              {idefixSendResults.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                      Gerçek İdefix Gönderim Sonucu
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {idefixSendResults.map(
+                      (
+                        result,
+                        index
+                      ) => {
+                        const pending =
+                          String(
+                            result.state ||
+                              ""
+                          ).toUpperCase() ===
+                            "PENDING_CREATE" ||
+                          result.pendingApproval ===
+                            true;
+
+                        return (
+                          <div
+                            key={`${result.barcode}-${index}`}
+                            className={
+                              pending
+                                ? "bg-amber-50/45 px-4 py-3"
+                                : "bg-emerald-50/35 px-4 py-3"
+                            }
+                          >
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="text-[9px] font-black text-slate-900">
+                                  {result.title}
+                                </div>
+
+                                <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                  {result.color} · Barkod {result.barcode || "-"}
+                                </div>
+
+                                <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                  IMEI: {result.addedImeis.join(", ")}
+                                </div>
+                              </div>
+
+                              <span
+                                className={`inline-flex self-start rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                                  pending
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                                }`}
+                              >
+                                {pending
+                                  ? "İdefix Onayında"
+                                  : "Gönderildi"}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                  İşlem
+                                </div>
+                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                  {result.action ===
+                                  "CREATE_PRODUCT"
+                                    ? "Yeni Ürün"
+                                    : "Mevcut Ürün"}
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                  Stok
+                                </div>
+                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                  {result.beforeStock} → {result.afterStock}
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                  Durum
+                                </div>
+                                <div
+                                  className={`mt-1 text-[7px] font-black ${
+                                    pending
+                                      ? "text-amber-700"
+                                      : "text-emerald-700"
+                                  }`}
+                                >
+                                  {pending
+                                    ? "Katalog Onayı"
+                                    : "Aktif"}
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                  Listing
+                                </div>
+                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                  #{result.listingId || "-"}
+                                </div>
+                              </div>
+                            </div>
+
+                            {result.message && (
+                              <div className="mt-2 text-[7px] font-bold text-slate-500">
+                                {result.message}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
                   </div>
                 </div>
               )}
@@ -4356,7 +4884,8 @@ export default function Merkez() {
                 disabled={
                   channelLoading ||
                   n11Sending ||
-                  ikasSending
+                  ikasSending ||
+                  idefixSending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -4426,6 +4955,28 @@ export default function Merkez() {
                   {ikasSending
                     ? "İkas'a Gönderiliyor..."
                     : `İkas'a Gerçekten Gönder (${selectedDeviceIds.length})`}
+                </button>
+              )}
+
+
+              {sendChannel ===
+                "IDEFIX" && (
+                <button
+                  type="button"
+                  disabled={
+                    channelLoading ||
+                    idefixSending ||
+                    !channelPreview
+                      ?.canProceed
+                  }
+                  onClick={() => {
+                    void sendSelectedToIdefix();
+                  }}
+                  className="h-11 rounded-xl bg-violet-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {idefixSending
+                    ? "İdefix'e Gönderiliyor..."
+                    : `İdefix'e Gerçekten Gönder (${selectedDeviceIds.length})`}
                 </button>
               )}
             </div>
