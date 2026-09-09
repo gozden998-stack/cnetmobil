@@ -4840,11 +4840,30 @@ async function getIkasCreateSchemasCenter(
           fields: [],
         };
 
+  const categoryType =
+    product.fields.find(
+      (field: any) =>
+        field.name ===
+        "categories"
+    )?.namedType;
+
+  const category =
+    categoryType
+      ? await getIkasInputSchemaCenter(
+          accessToken,
+          categoryType
+        )
+      : {
+          name: "",
+          fields: [],
+        };
+
   return {
     product,
     variant,
     price,
     variantValue,
+    category,
   };
 }
 
@@ -5372,8 +5391,53 @@ function buildIkasCreateProductInputCenter(
         "categories"
       )
     ) {
+      const categoryObjects =
+        categoryIds.map(
+          (
+            categoryId: string
+          ) => {
+            const categoryInput:
+              Record<
+                string,
+                unknown
+              > = {};
+
+            if (
+              ikasSchemaHas(
+                schemas.category,
+                "categoryId"
+              )
+            ) {
+              categoryInput.categoryId =
+                categoryId;
+            } else if (
+              ikasSchemaHas(
+                schemas.category,
+                "id"
+              )
+            ) {
+              categoryInput.id =
+                categoryId;
+            } else if (
+              ikasSchemaHas(
+                schemas.category,
+                "productCategoryId"
+              )
+            ) {
+              categoryInput.productCategoryId =
+                categoryId;
+            } else {
+              throw new Error(
+                `İkas category input şeması desteklenmiyor: ${schemas.category?.name || "bilinmiyor"}.`
+              );
+            }
+
+            return categoryInput;
+          }
+        );
+
       input.categories =
-        categoryIds;
+        categoryObjects;
     }
   }
 
