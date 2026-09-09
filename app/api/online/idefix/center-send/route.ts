@@ -2542,7 +2542,7 @@ async function prepareGroup(
         products,
         group
       );
-  } catch (error) {
+  } catch (error: any) {
     blockers.push(
       error instanceof Error
         ? error.message
@@ -2898,7 +2898,7 @@ async function prepareGroup(
         products,
         group
       );
-  } catch (error) {
+  } catch (error: any) {
     blockers.push(
       error instanceof Error
         ? error.message
@@ -3009,7 +3009,7 @@ async function prepareGroup(
           referenceProduct,
           group
         );
-    } catch (error) {
+    } catch (error: any) {
       blockers.push(
         error instanceof Error
           ? error.message
@@ -4668,7 +4668,7 @@ async function persistPendingCatalog(
     );
 
     return local;
-  } catch (error) {
+  } catch (error: any) {
     try {
       await client.query(
         "ROLLBACK"
@@ -5101,7 +5101,7 @@ async function reconcilePendingIdefix(
           "COMMIT"
         );
       } catch (
-        error
+        error: any
       ) {
         try {
           await client.query(
@@ -5126,7 +5126,7 @@ async function reconcilePendingIdefix(
             .batchRequestId,
       });
     } catch (
-      error
+      error: any
     ) {
       if (
         isProductNotFoundError(
@@ -5497,7 +5497,7 @@ async function processPrepared(
             ? "İdefix katalog ürünü fast-listing ile satışa açıldı."
             : "Fast-listing tamamlandı; İdefix havuzunun görünür olması bekleniyor.",
       };
-    } catch (error) {
+    } catch (error: any) {
       try {
         await client.query(
           "ROLLBACK"
@@ -5603,7 +5603,7 @@ async function processPrepared(
             false,
         };
       } catch (
-        error
+        error: any
       ) {
         try {
           await client.query(
@@ -5620,7 +5620,7 @@ async function processPrepared(
         );
       }
     } catch (
-      error
+      error: any
     ) {
       if (
         isProductNotFoundError(
@@ -5892,7 +5892,7 @@ async function processPrepared(
           true,
         approved,
       };
-    } catch (error) {
+    } catch (error: any) {
       try {
         await client.query(
           "ROLLBACK"
@@ -5973,7 +5973,7 @@ async function processPrepared(
         `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
       );
     }
-  } catch (error) {
+  } catch (error: any) {
     if (
       isProductNotFoundError(
         error
@@ -6164,7 +6164,7 @@ async function processPrepared(
         false,
       approved,
     };
-  } catch (error) {
+  } catch (error: any) {
     try {
       await client.query(
         "ROLLBACK"
@@ -6648,7 +6648,7 @@ export async function POST(
           false;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       "CENTER IDEFIX SEND ERROR:",
       error
