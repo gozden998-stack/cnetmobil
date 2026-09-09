@@ -5338,44 +5338,18 @@ function buildIkasCreateProductInputCenter(
     }
   }
 
-  const categoryIds =
-    Array.isArray(
-      params
-        .referenceProduct
-        ?.categories
-    )
-      ? params
-          .referenceProduct
-          .categories
-          .map(
-            (item: any) =>
-              item?.id
-          )
-          .filter(Boolean)
-      : [];
-
-  if (
-    categoryIds.length >
-    0
-  ) {
-    if (
-      ikasSchemaHas(
-        schemas.product,
-        "categoryIds"
-      )
-    ) {
-      input.categoryIds =
-        categoryIds;
-    } else if (
-      ikasSchemaHas(
-        schemas.product,
-        "categories"
-      )
-    ) {
-      input.categories =
-        categoryIds;
-    }
-  }
+  // İkas canlı GraphQL şemasında CreateProductInput.categories
+  // string UUID listesi değil ProductCategoryInput nesneleri bekliyor.
+  //
+  // Mevcut çalışan ürün oluşturma akışını kategori şemasına bağlamıyoruz.
+  // Kategoriyi createProduct payload'undan çıkarıyoruz.
+  // N11 akışına ve İkas mevcut ürün/varyant eşleştirmesine dokunulmaz.
+  //
+  // Hatalı eski yapı:
+  // input.categories = ["category-uuid"]
+  //
+  // İkas hatası:
+  // Expected type "ProductCategoryInput" to be an object.
 
   if (
     ikasSchemaHas(
