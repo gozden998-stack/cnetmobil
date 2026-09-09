@@ -2997,7 +2997,8 @@ async function fastListingResult(
   const vendorId =
     getIdefixVendorId();
 
-  // İdefix dokümanında fast-listing-result POST olarak tanımlı.
+  // Canlı İdefix prod endpointi POST isteğine 405 + Allow: GET dönüyor.
+  // Bu nedenle fast-listing-result canlı ortamda GET ile sorgulanır.
   return idefixApi(
     `/pim/catalog/${encodeURIComponent(
       vendorId
@@ -3006,7 +3007,7 @@ async function fastListingResult(
     )}`,
     {
       method:
-        "POST",
+        "GET",
       timeoutMs:
         35_000,
     }
