@@ -2324,6 +2324,47 @@ async function validateDevices(
   return errors;
 }
 
+async function localManagedIdefixCount(
+  client:
+    PoolClient,
+  barcode:
+    string,
+  vendorStockCode:
+    string
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          COUNT(*)::int AS count
+        FROM public.online_channel_devices ocd
+        JOIN public.online_listings ol
+          ON ol.id =
+             ocd.online_listing_id
+        WHERE ocd.channel = 'IDEFIX'
+          AND ol.channel = 'IDEFIX'
+          AND (
+            ol.external_variant_id = $1
+            OR ol.external_stock_code = $2
+          )
+          AND ocd.membership_status IN (
+            'LISTED',
+            'RESERVED',
+            'PENDING_CREATE'
+          )
+      `,
+      [
+        barcode,
+        vendorStockCode,
+      ]
+    );
+
+  return Number(
+    result.rows?.[0]
+      ?.count || 0
+  );
+}
+
 async function prepareGroup(
   client:
     PoolClient,
@@ -2376,6 +2417,57 @@ async function prepareGroup(
       );
     }
 
+    const vendorStockCode =
+      text(
+        exactProduct
+          .vendorStockCode
+      ) ||
+      makeVendorStockCode(
+        group
+      );
+
+    const currentStock =
+      numberOrNull(
+        exactProduct
+          .inventoryQuantity
+      ) ?? 0;
+
+    const isCnetStableProduct =
+      barcode ===
+      makeStableBarcode(
+        group
+      );
+
+    let targetAfterStock =
+      currentStock +
+      group.items.length;
+
+    // Recovery / idempotency:
+    // Önceki create İdefix'te başarılı olup DB kaydı yazılmadan sonraki
+    // inventory adımında hata verdiyse aynı stabil CNET barkodu tekrar bulunur.
+    // Bu durumda mevcut stok zaten seçili IMEI'yi içeriyor olabilir.
+    // Yerel yönetilen cihaz sayısını baz alarak aynı IMEI'yi ikinci kez artırma.
+    if (
+      isCnetStableProduct
+    ) {
+      const localManagedCount =
+        await localManagedIdefixCount(
+          client,
+          barcode,
+          vendorStockCode
+        );
+
+      const desiredManagedStock =
+        localManagedCount +
+        group.items.length;
+
+      targetAfterStock =
+        Math.max(
+          currentStock,
+          desiredManagedStock
+        );
+    }
+
     return {
       group,
       action:
@@ -2393,27 +2485,10 @@ async function prepareGroup(
       salePrice,
       listPrice,
       targetBeforeStock:
-        numberOrNull(
-          exactProduct
-            .inventoryQuantity
-        ) ?? 0,
-      targetAfterStock:
-        (
-          numberOrNull(
-            exactProduct
-              .inventoryQuantity
-          ) ?? 0
-        ) +
-        group.items.length,
+        currentStock,
+      targetAfterStock,
       barcode,
-      vendorStockCode:
-        text(
-          exactProduct
-            .vendorStockCode
-        ) ||
-        makeVendorStockCode(
-          group
-        ),
+      vendorStockCode,
       productMainId:
         text(
           exactProduct
