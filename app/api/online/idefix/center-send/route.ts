@@ -625,11 +625,30 @@ async function idefixApi(
         text(
           payload?.errors?.[0]
             ?.message
-        ) ||
-        `İdefix HTTP ${response.status}`;
+        );
+
+      let payloadDetail = "";
+
+      if (payload !== null && payload !== undefined) {
+        try {
+          payloadDetail =
+            typeof payload === "string"
+              ? payload
+              : JSON.stringify(payload);
+        } catch {
+          payloadDetail =
+            String(payload);
+        }
+      }
+
+      const detail =
+        apiMessage ||
+        payloadDetail ||
+        raw ||
+        "Response body boş.";
 
       throw new Error(
-        apiMessage
+        `İdefix HTTP ${response.status} [${options?.method || "GET"} ${path}]: ${detail}`
       );
     }
 
@@ -2983,74 +3002,132 @@ async function createProduct(
     prepared
       .referenceProduct;
 
-  const requestProduct = {
-    barcode:
-      prepared.barcode,
-    title:
-      prepared.title,
-    productMainId:
-      prepared
-        .productMainId,
-    brandId:
-      prepared.brandId,
-    categoryId:
-      prepared.categoryId,
-    inventoryQuantity:
-      prepared
-        .targetAfterStock,
-    vendorStockCode:
-      prepared
-        .vendorStockCode,
-    desi:
-      numberOrNull(
-        (reference as any)
-          ?.desi
-      ) ?? 0,
-    weight:
-      numberOrNull(
-        reference
-          ?.weight
-      ) ?? 0,
-    description:
-      prepared.title,
-    price:
-      prepared.salePrice,
-    comparePrice:
-      prepared.listPrice,
-    vatRate:
-      prepared.vatRate,
-    deliveryDuration:
-      numberOrNull(
-        reference
-          ?.deliveryDuration
-      ) ?? 1,
-    deliveryType:
-      text(
-        reference
-          ?.deliveryType
-      ) ||
-      "regular",
-    cargoCompanyId:
+  const requestProduct:
+    Record<
+      string,
+      unknown
+    > = {
+      barcode:
+        prepared.barcode,
+      title:
+        prepared.title,
+      productMainId:
+        prepared
+          .productMainId,
+      brandId:
+        prepared.brandId,
+      categoryId:
+        prepared.categoryId,
+      inventoryQuantity:
+        prepared
+          .targetAfterStock,
+      vendorStockCode:
+        prepared
+          .vendorStockCode,
+      description:
+        prepared.title,
+      price:
+        prepared.salePrice,
+      comparePrice:
+        prepared.listPrice,
+      vatRate:
+        prepared.vatRate,
+      deliveryDuration:
+        numberOrNull(
+          reference
+            ?.deliveryDuration
+        ) ?? 1,
+      deliveryType:
+        text(
+          reference
+            ?.deliveryType
+        ) ||
+        "regular",
+      images: [
+        {
+          url:
+            prepared.imageUrl,
+        },
+      ],
+      attributes:
+        prepared.attributes,
+    };
+
+  // İdefix dokümanında opsiyonel olan alanları yalnızca gerçekten
+  // geçerli bir değer varsa gönder. Bazı API validasyonları null/0
+  // opsiyonel değerleri "alan gönderilmiş ama geçersiz" sayabiliyor.
+  const desi =
+    numberOrNull(
+      (reference as any)
+        ?.desi
+    );
+
+  if (
+    desi !== null &&
+    desi >= 0
+  ) {
+    requestProduct.desi =
+      desi;
+  }
+
+  const weight =
+    numberOrNull(
       reference
-        ?.cargoCompanyId ??
-      null,
-    shipmentAddressId:
+        ?.weight
+    );
+
+  if (
+    weight !== null &&
+    weight > 0
+  ) {
+    requestProduct.weight =
+      weight;
+  }
+
+  const cargoCompanyId =
+    numberOrNull(
       reference
-        ?.shipmentAddressId ??
-      null,
-    returnAddressId:
+        ?.cargoCompanyId
+    );
+
+  if (
+    cargoCompanyId !==
+      null &&
+    cargoCompanyId > 0
+  ) {
+    requestProduct.cargoCompanyId =
+      cargoCompanyId;
+  }
+
+  const shipmentAddressId =
+    numberOrNull(
       reference
-        ?.returnAddressId ??
-      null,
-    images: [
-      {
-        url:
-          prepared.imageUrl,
-      },
-    ],
-    attributes:
-      prepared.attributes,
-  };
+        ?.shipmentAddressId
+    );
+
+  if (
+    shipmentAddressId !==
+      null &&
+    shipmentAddressId > 0
+  ) {
+    requestProduct.shipmentAddressId =
+      shipmentAddressId;
+  }
+
+  const returnAddressId =
+    numberOrNull(
+      reference
+        ?.returnAddressId
+    );
+
+  if (
+    returnAddressId !==
+      null &&
+    returnAddressId > 0
+  ) {
+    requestProduct.returnAddressId =
+      returnAddressId;
+  }
 
   const response =
     await idefixApi(
