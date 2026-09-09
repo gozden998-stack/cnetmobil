@@ -99,166 +99,7 @@ function productStock(
           variant?.stockCount
         );
 
-      const openPriceEditor =
-    useCallback(
-      (
-        product: any,
-        variant: any
-      ) => {
-        const current =
-          variantPrice(
-            variant
-          );
-
-        const list =
-          Number(
-            current.sellPrice ||
-              0
-          );
-
-        const discount =
-          Number(
-            current.discountPrice ||
-              0
-          );
-
-        const sale =
-          discount > 0
-            ? discount
-            : list;
-
-        setPriceError("");
-        setPriceSuccess("");
-        setPriceTarget({
-          productId:
-            String(
-              product?.id ||
-                ""
-            ),
-          productName:
-            String(
-              product?.name ||
-                "İkas Ürünü"
-            ),
-          variantId:
-            String(
-              variant?.id ||
-                ""
-            ),
-          variantName:
-            variantLabel(
-              variant
-            ),
-          salePrice:
-            sale > 0
-              ? String(sale)
-              : "",
-          listPrice:
-            list > 0
-              ? String(list)
-              : "",
-        });
-      },
-      []
-    );
-
-  const savePrice =
-    useCallback(
-      async () => {
-        if (
-          !priceTarget ||
-          priceSaving
-        ) {
-          return;
-        }
-
-        setPriceError("");
-        setPriceSuccess("");
-        setPriceSaving(true);
-
-        try {
-          const response =
-            await fetch(
-              "/api/online/ikas/variant-price",
-              {
-                method: "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    productId:
-                      priceTarget.productId,
-                    variantId:
-                      priceTarget.variantId,
-                    salePrice:
-                      priceTarget.salePrice,
-                    listPrice:
-                      priceTarget.listPrice,
-                  }),
-              }
-            );
-
-          const raw =
-            await response.text();
-
-          let payload:
-            any = null;
-
-          try {
-            payload =
-              raw
-                ? JSON.parse(
-                    raw
-                  )
-                : null;
-          } catch {
-            throw new Error(
-              `İkas fiyat API JSON dönmedi. HTTP ${response.status}.`
-            );
-          }
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            throw new Error(
-              payload?.error ||
-                "İkas fiyatı güncellenemedi."
-            );
-          }
-
-          setPriceSuccess(
-            "İkas fiyatı güncellendi ve canlı API üzerinden doğrulandı."
-          );
-
-          await loadInventory(
-            true
-          );
-        } catch (error) {
-          setPriceError(
-            error instanceof
-              Error
-              ? error.message
-              : "İkas fiyatı güncellenemedi."
-          );
-        } finally {
-          setPriceSaving(false);
-        }
-      },
-      [
-        priceTarget,
-        priceSaving,
-        loadInventory,
-      ]
-    );
-
-  return (
+      return (
         sum +
         (Number.isFinite(
           value
@@ -762,6 +603,166 @@ export default function IkasStock() {
       [
         loadInventory,
         stockDrafts,
+      ]
+    );
+
+  const openPriceEditor =
+    useCallback(
+      (
+        product: any,
+        variant: any
+      ) => {
+        const current =
+          variantPrice(
+            variant
+          );
+
+        const list =
+          Number(
+            current.sellPrice ||
+              0
+          );
+
+        const discount =
+          Number(
+            current.discountPrice ||
+              0
+          );
+
+        const sale =
+          discount > 0
+            ? discount
+            : list;
+
+        setPriceError("");
+        setPriceSuccess("");
+        setPriceTarget({
+          productId:
+            String(
+              product?.id ||
+                ""
+            ),
+          productName:
+            String(
+              product?.name ||
+                "İkas Ürünü"
+            ),
+          variantId:
+            String(
+              variant?.id ||
+                ""
+            ),
+          variantName:
+            variantLabel(
+              variant
+            ),
+          salePrice:
+            sale > 0
+              ? String(sale)
+              : "",
+          listPrice:
+            list > 0
+              ? String(list)
+              : "",
+        });
+      },
+      []
+    );
+
+  const savePrice =
+    useCallback(
+      async () => {
+        if (
+          !priceTarget ||
+          priceSaving
+        ) {
+          return;
+        }
+
+        setPriceError("");
+        setPriceSuccess("");
+        setPriceSaving(true);
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/ikas/variant-price",
+              {
+                method:
+                  "POST",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    productId:
+                      priceTarget.productId,
+                    variantId:
+                      priceTarget.variantId,
+                    salePrice:
+                      priceTarget.salePrice,
+                    listPrice:
+                      priceTarget.listPrice,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `İkas fiyat API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "İkas fiyatı güncellenemedi."
+            );
+          }
+
+          setPriceSuccess(
+            "İkas fiyatı güncellendi ve canlı API üzerinden doğrulandı."
+          );
+
+          await loadInventory(
+            true
+          );
+        } catch (error) {
+          setPriceError(
+            error instanceof
+              Error
+              ? error.message
+              : "İkas fiyatı güncellenemedi."
+          );
+        } finally {
+          setPriceSaving(false);
+        }
+      },
+      [
+        priceTarget,
+        priceSaving,
+        loadInventory,
       ]
     );
 
@@ -1544,7 +1545,7 @@ export default function IkasStock() {
 
                       {isOpen && (
                         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                          <div className="min-w-[1060px]">
+                          <div className="min-w-[1080px]">
                           <div className="grid grid-cols-[minmax(180px,1.3fr)_80px_135px_135px_minmax(120px,1fr)_390px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
                             <div>Varyant</div>
                             <div>Stok</div>
@@ -1804,6 +1805,7 @@ export default function IkasStock() {
           Canlı senkron: 60 saniye · Ürün + renk + fiyat + stok · Kaynak: İkas Admin API
         </div>
       </div>
+
       {priceTarget && (
         <div
           className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-[2px]"
@@ -1913,7 +1915,7 @@ export default function IkasStock() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[7px] font-bold leading-4 text-slate-500">
-                Fiyat İkas API&apos;ye yazılır, ardından İkas&apos;tan tekrar okunarak doğrulanır. N11 fiyatına dokunulmaz.
+                Fiyat İkas API&apos;ye yazılır, ardından tekrar okunarak doğrulanır. N11 fiyatına dokunulmaz.
               </div>
             </div>
 
