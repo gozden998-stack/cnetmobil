@@ -861,7 +861,7 @@ export async function GET(
             created_at,
             updated_at
           FROM public.stock_devices
-          WHERE TRUE
+          WHERE status <> 'PASSIVE'
           ORDER BY
             CASE status
               WHEN 'AVAILABLE'
@@ -1445,12 +1445,6 @@ export async function GET(
             (device: any) =>
               device.status ===
               "SOLD"
-          ).length,
-        passiveDevices:
-          devices.filter(
-            (device: any) =>
-              device.status ===
-              "PASSIVE"
           ).length,
         groupCount:
           groups.length,
