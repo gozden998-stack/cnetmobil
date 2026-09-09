@@ -225,6 +225,28 @@ function containsPhrase(
     : false;
 }
 
+function productIdentityText(
+  product:
+    IdefixProduct
+) {
+  return [
+    product?.title,
+    product?.productMainId,
+    product?.matchedProduct
+      ?.name,
+    product?.matchedProduct
+      ?.slug,
+    product?.matchedProduct
+      ?.productMainId,
+  ]
+    .map(
+      (value) =>
+        text(value)
+    )
+    .filter(Boolean)
+    .join(" ");
+}
+
 function normalizedTokens(
   value:
     unknown
@@ -1016,14 +1038,20 @@ async function productLooksLikeCenterGroup(
   const title =
     product.title;
 
-  // Marka ve model başlıktan güvenle kontrol edilir.
+  // İdefix pool kaydı ile Merchant Center başlığı birebir aynı olmayabiliyor.
+  // Eşleştirmede title + productMainId + matchedProduct alanlarını birlikte kullan.
+  const identity =
+    productIdentityText(
+      product
+    );
+
   if (
     !containsPhrase(
-      title,
+      identity,
       group.brand
     ) ||
     !modelMatchesTitle(
-      title,
+      identity,
       group.model
     )
   ) {
@@ -1043,7 +1071,7 @@ async function productLooksLikeCenterGroup(
           group.memory
         )
       : memoryMatchesTitle(
-          title,
+          identity,
           group.memory
         );
 
@@ -1063,7 +1091,7 @@ async function productLooksLikeCenterGroup(
         )
       : Boolean(
           matchedColorAlias(
-            title,
+            identity,
             group.color
           )
         );
@@ -1082,7 +1110,7 @@ async function productLooksLikeCenterGroup(
 
   const titleGrade =
     detectGradeFromTitle(
-      title
+      identity
     );
 
   const detectedGrade =
@@ -3649,6 +3677,29 @@ function previewView(
                   .exactProduct
                   ?.state
               ),
+            matchedName:
+              text(
+                prepared
+                  .exactProduct
+                  ?.matchedProduct
+                  ?.name
+              ) ||
+              null,
+            matchedSlug:
+              text(
+                prepared
+                  .exactProduct
+                  ?.matchedProduct
+                  ?.slug
+              ) ||
+              null,
+            vendorStockCode:
+              text(
+                prepared
+                  .exactProduct
+                  ?.vendorStockCode
+              ) ||
+              null,
           }
         : null,
     referenceProduct:
