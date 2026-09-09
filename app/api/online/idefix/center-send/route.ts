@@ -1031,15 +1031,95 @@ function isColorAttribute(
   );
 }
 
-function colorAttributeValue(
+function isCosmeticAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "KOZMETIK"
+    ) ||
+    title ===
+      "KALITE" ||
+    title.includes(
+      "KALITE DURUM"
+    ) ||
+    title.includes(
+      "URUN DURUMU"
+    )
+  );
+}
+
+function isMemoryAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "DAHILI HAFIZA"
+    ) ||
+    title ===
+      "HAFIZA" ||
+    title.includes(
+      "DEPOLAMA"
+    ) ||
+    title.includes(
+      "KAPASITE"
+    )
+  );
+}
+
+function isWarrantyAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title.includes(
+      "GARANTI"
+    )
+  );
+}
+
+function pickAttributeValueByAliases(
   attribute:
     CategoryAttribute,
-  color: string
+  aliases:
+    string[],
+  customFallback?:
+    string
 ) {
   if (
     attribute.allowCustom ===
     true
   ) {
+    const custom =
+      text(
+        customFallback ||
+        aliases[0]
+      );
+
+    if (!custom) {
+      return null;
+    }
+
     return {
       attributeId:
         attribute
@@ -1047,12 +1127,9 @@ function colorAttributeValue(
       attributeValueId:
         null,
       customAttributeValue:
-        color,
+        custom,
     };
   }
-
-  const aliases =
-    colorAliases(color);
 
   const values =
     Array.isArray(
@@ -1063,21 +1140,67 @@ function colorAttributeValue(
           .attributeValues
       : [];
 
-  const exact =
+  const normalizedAliases =
+    aliases
+      .map(
+        normalizeText
+      )
+      .filter(Boolean);
+
+  // Önce birebir eşleşme.
+  let selected =
     values.find(
       (value) =>
-        aliases.some(
-          (alias) =>
-            normalizeText(
-              value?.name
-            ) ===
-            normalizeText(
-              alias
-            )
+        normalizedAliases.includes(
+          normalizeText(
+            value?.name
+          )
         )
     );
 
-  if (!exact?.id) {
+  // Sonra güvenli içerme eşleşmesi.
+  // Örnek:
+  // "A Kalite" <-> "A Kalite / Mükemmel"
+  if (!selected) {
+    selected =
+      values.find(
+        (value) => {
+          const name =
+            normalizeText(
+              value?.name
+            );
+
+          if (!name) {
+            return false;
+          }
+
+          return normalizedAliases.some(
+            (alias) =>
+              alias.length >= 3 &&
+              (
+                containsPhrase(
+                  name,
+                  alias
+                ) ||
+                containsPhrase(
+                  alias,
+                  name
+                )
+              )
+          );
+        }
+      );
+  }
+
+  if (
+    selected?.id ===
+      null ||
+    selected?.id ===
+      undefined ||
+    text(
+      selected?.id
+    ) === ""
+  ) {
     return null;
   }
 
@@ -1086,10 +1209,246 @@ function colorAttributeValue(
       attribute
         .attributeId,
     attributeValueId:
-      exact.id,
+      selected.id,
     customAttributeValue:
       null,
   };
+}
+
+function colorAttributeValue(
+  attribute:
+    CategoryAttribute,
+  color: string
+) {
+  return pickAttributeValueByAliases(
+    attribute,
+    colorAliases(
+      color
+    ),
+    color
+  );
+}
+
+function cosmeticAliases(
+  grade:
+    string
+) {
+  const normalized =
+    normalizeGrade(
+      grade
+    );
+
+  if (
+    normalized ===
+    "A"
+  ) {
+    return [
+      "A",
+      "A KALITE",
+      "MUKEMMEL",
+      "MUKEMMEL DURUM",
+      "YENI GIBI",
+    ];
+  }
+
+  if (
+    normalized ===
+    "B"
+  ) {
+    return [
+      "B",
+      "B KALITE",
+      "COK IYI",
+      "COK IYI DURUM",
+    ];
+  }
+
+  if (
+    normalized ===
+    "C"
+  ) {
+    return [
+      "C",
+      "C KALITE",
+      "IYI",
+      "IYI DURUM",
+    ];
+  }
+
+  return [
+    normalized,
+  ].filter(Boolean);
+}
+
+function memoryAliases(
+  memory:
+    string
+) {
+  const normalized =
+    normalizeMemory(
+      memory
+    );
+
+  const compact =
+    normalized.replace(
+      /\s+/g,
+      ""
+    );
+
+  return Array.from(
+    new Set([
+      normalized,
+      compact,
+      text(memory),
+    ])
+  ).filter(Boolean);
+}
+
+function warrantyAliases(
+  warranty:
+    string
+) {
+  const normalized =
+    normalizeText(
+      warranty
+    );
+
+  const aliases =
+    new Set<string>([
+      normalized,
+      text(warranty),
+    ]);
+
+  const monthMatch =
+    normalized.match(
+      /(\d+)\s*AY/
+    );
+
+  if (monthMatch) {
+    const months =
+      Number(
+        monthMatch[1]
+      );
+
+    aliases.add(
+      `${months} AY`
+    );
+    aliases.add(
+      `${months} AY GARANTI`
+    );
+    aliases.add(
+      `${months} AY GARANTILI`
+    );
+
+    if (
+      months === 12
+    ) {
+      aliases.add(
+        "1 YIL"
+      );
+      aliases.add(
+        "1 YIL GARANTI"
+      );
+      aliases.add(
+        "1 YIL GARANTILI"
+      );
+    }
+
+    if (
+      months === 24
+    ) {
+      aliases.add(
+        "2 YIL"
+      );
+      aliases.add(
+        "2 YIL GARANTI"
+      );
+      aliases.add(
+        "2 YIL GARANTILI"
+      );
+    }
+  }
+
+  return Array.from(
+    aliases
+  ).filter(Boolean);
+}
+
+function derivedRequiredAttributeValue(
+  attribute:
+    CategoryAttribute,
+  group:
+    CenterGroup
+) {
+  if (
+    isCosmeticAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      cosmeticAliases(
+        group.grade
+      ),
+      normalizeGrade(
+        group.grade
+      )
+    );
+  }
+
+  if (
+    isMemoryAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      memoryAliases(
+        group.memory
+      ),
+      group.memory
+    );
+  }
+
+  if (
+    isWarrantyAttribute(
+      attribute
+    )
+  ) {
+    return pickAttributeValueByAliases(
+      attribute,
+      warrantyAliases(
+        group.warranty
+      ),
+      group.warranty
+    );
+  }
+
+  return null;
+}
+
+function attributeAvailableValues(
+  attribute:
+    CategoryAttribute
+) {
+  const values =
+    Array.isArray(
+      attribute
+        .attributeValues
+    )
+      ? attribute
+          .attributeValues
+      : [];
+
+  return values
+    .map(
+      (value) =>
+        text(
+          value?.name
+        )
+    )
+    .filter(Boolean)
+    .slice(0, 30);
 }
 
 async function buildCreateAttributes(
@@ -1167,7 +1526,11 @@ async function buildCreateAttributes(
             group.color
           ).join(
             ", "
-          )} bulunamadı.`
+          )} bulunamadı. Kullanılabilir değerler: ${attributeAvailableValues(
+            attribute
+          ).join(
+            ", "
+          ) || "-"}.`
         );
       }
 
@@ -1209,20 +1572,40 @@ async function buildCreateAttributes(
       continue;
     }
 
+    // Referans üründe zorunlu alan eksikse,
+    // Merkez cihaz bilgisinden güvenli şekilde türetmeyi dene.
     if (
       attribute.required ===
       true
     ) {
+      const derived =
+        derivedRequiredAttributeValue(
+          attribute,
+          group
+        );
+
+      if (derived) {
+        output.push(
+          derived
+        );
+
+        continue;
+      }
+
       throw new Error(
         `${productTitle(
           group
-        )}: zorunlu İdefix özelliği referans üründe yok: ${text(
+        )}: zorunlu İdefix özelliği referans üründe yok ve Merkez verisinden güvenli türetilemedi: ${text(
           attribute
             .attributeTitle
         ) || String(
           attribute
             .attributeId
-        )}.`
+        )}. Kullanılabilir değerler: ${attributeAvailableValues(
+          attribute
+        ).join(
+          ", "
+        ) || "-"}.`
       );
     }
   }
