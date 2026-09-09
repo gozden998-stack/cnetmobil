@@ -129,6 +129,29 @@ type N11SendResult = {
 };
 
 
+type IkasSendGroupResult = {
+  success: boolean;
+  action:
+    | "EXISTING_VARIANT"
+    | "ADD_VARIANT"
+    | "CREATE_PRODUCT";
+  productId: string;
+  variantId: string;
+  sku: string;
+  title: string;
+  color: string;
+  addedImeis: string[];
+  addedCount: number;
+  beforeStock: number;
+  afterStock: number;
+  salePrice: number;
+  listPrice: number;
+  stockLocationId: string;
+  listingId: number;
+};
+
+
+
 
 
 
@@ -1412,6 +1435,25 @@ export default function Merkez() {
   ] = useState("");
 
 
+  const [
+    ikasSending,
+    setIkasSending,
+  ] = useState(false);
+
+  const [
+    ikasSendResults,
+    setIkasSendResults,
+  ] = useState<
+    IkasSendGroupResult[]
+  >([]);
+
+  const [
+    ikasSendNotice,
+    setIkasSendNotice,
+  ] = useState("");
+
+
+
 
   const loadCenter =
     useCallback(
@@ -1985,6 +2027,12 @@ export default function Merkez() {
           []
         );
         setN11SendNotice(
+          ""
+        );
+        setIkasSendResults(
+          []
+        );
+        setIkasSendNotice(
           ""
         );
         setChannelOpen(
@@ -2627,6 +2675,179 @@ export default function Merkez() {
         sendChannel,
         fetchFreshChannelPreview,
         commitN11Membership,
+        loadCenter,
+      ]
+    );
+
+  const sendSelectedToIkas =
+    useCallback(
+      async () => {
+        if (
+          ikasSending
+        ) {
+          return;
+        }
+
+        if (
+          sendChannel !==
+          "IKAS"
+        ) {
+          setChannelError(
+            "İkas gönderimi için İkas kanalını seç."
+          );
+          return;
+        }
+
+        if (
+          !channelPreview
+            ?.canProceed
+        ) {
+          setChannelError(
+            "Önce başarılı ön kontrol yap."
+          );
+          return;
+        }
+
+        setChannelError(
+          ""
+        );
+        setIkasSendResults(
+          []
+        );
+        setIkasSendNotice(
+          ""
+        );
+        setIkasSending(
+          true
+        );
+
+        try {
+          const response =
+            await fetch(
+              "/api/online/center/devices",
+              {
+                method:
+                  "PATCH",
+                cache:
+                  "no-store",
+                credentials:
+                  "same-origin",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    action:
+                      "ikas_send",
+                    channel:
+                      "IKAS",
+                    deviceIds:
+                      selectedDeviceIds,
+                    salePrice:
+                      channelSalePrice,
+                    listPrice:
+                      channelListPrice,
+                  }),
+              }
+            );
+
+          const raw =
+            await response.text();
+
+          let payload:
+            any = null;
+
+          try {
+            payload =
+              raw
+                ? JSON.parse(
+                    raw
+                  )
+                : null;
+          } catch {
+            throw new Error(
+              `Merkez İkas API JSON dönmedi. HTTP ${response.status}.`
+            );
+          }
+
+          if (
+            Array.isArray(
+              payload?.results
+            )
+          ) {
+            setIkasSendResults(
+              payload.results
+            );
+          }
+
+          if (
+            payload?.preview
+          ) {
+            setChannelPreview(
+              payload.preview
+            );
+          }
+
+          if (
+            !response.ok ||
+            !payload?.success
+          ) {
+            throw new Error(
+              payload?.error ||
+                "İkas gerçek gönderimi başarısız."
+            );
+          }
+
+          const sent =
+            Number(
+              payload?.sentImeis ||
+                0
+            );
+
+          const locationName =
+            String(
+              payload
+                ?.stockLocation
+                ?.name ||
+                "Ana Depo"
+            );
+
+          setIkasSendNotice(
+            `${sent} IMEI İkas'a gerçek gönderildi. Stok lokasyonu: ${locationName}.`
+          );
+
+          await loadCenter(
+            true
+          );
+
+          setSelectedDeviceIds(
+            []
+          );
+        } catch (error) {
+          setChannelError(
+            error instanceof
+              Error
+              ? error.message
+              : "İkas gerçek gönderimi başarısız."
+          );
+
+          await loadCenter(
+            true
+          );
+        } finally {
+          setIkasSending(
+            false
+          );
+        }
+      },
+      [
+        ikasSending,
+        sendChannel,
+        channelPreview,
+        selectedDeviceIds,
+        channelSalePrice,
+        channelListPrice,
         loadCenter,
       ]
     );
@@ -3599,7 +3820,7 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ ADIM 3B · N11 gerçek gönderim aktif · İkas ve İdefix şimdilik ön kontrol
+          MERKEZ ADIM 3C · N11 + İkas gerçek gönderim aktif · İdefix şimdilik ön kontrol
         </div>
       </div>
 
@@ -3630,7 +3851,7 @@ export default function Merkez() {
                 </h3>
 
                 <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
-                  Seçili IMEI'ler önce kontrol edilir. N11 seçildiğinde onaylı IMEI'ler mevcut çalışan N11 motoruyla gerçekten gönderilebilir.
+                  Seçili IMEI'ler önce kontrol edilir. N11 ve İkas kanallarında başarılı ön kontrolden sonra gerçek gönderim yapılabilir.
                 </p>
               </div>
 
@@ -3638,7 +3859,8 @@ export default function Merkez() {
                 type="button"
                 disabled={
                   channelLoading ||
-                  n11Sending
+                  n11Sending ||
+                  ikasSending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -3691,6 +3913,12 @@ export default function Merkez() {
                             []
                           );
                           setN11SendNotice(
+                            ""
+                          );
+                          setIkasSendResults(
+                            []
+                          );
+                          setIkasSendNotice(
                             ""
                           );
                         }}
@@ -3922,8 +4150,11 @@ export default function Merkez() {
                   <div className="mt-1 text-[7px] font-semibold leading-4 text-emerald-700">
                     {sendChannel ===
                     "N11"
-                      ? "N11 için gerçek gönderim açıldı. Gönder butonunda kontrol bir kez daha canlı yapılır ve ardından mevcut çalışan N11 motoru kullanılır."
-                      : "Bu kanalda gerçek gönderim henüz açılmadı. Şimdilik yalnızca ön kontrol yapılır."}
+                      ? "N11 için gerçek gönderim aktif. Gönderim öncesi kontrol tekrar yapılır ve mevcut çalışan N11 motoru kullanılır."
+                      : sendChannel ===
+                        "IKAS"
+                      ? "İkas için gerçek gönderim aktif. Ürün/varyant canlı İkas'ta bulunur veya oluşturulur, fiyat ve Ana Depo stoğu yazılır, sonra tekrar okunarak doğrulanır."
+                      : "İdefix gerçek gönderimi henüz açılmadı. Şimdilik yalnızca ön kontrol yapılır."}
                   </div>
                 </div>
               )}
@@ -3932,6 +4163,100 @@ export default function Merkez() {
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <div className="text-[9px] font-black text-emerald-800">
                     ✓ {n11SendNotice}
+                  </div>
+                </div>
+              )}
+
+              {ikasSendNotice && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                  <div className="text-[9px] font-black text-emerald-800">
+                    ✓ {ikasSendNotice}
+                  </div>
+                </div>
+              )}
+
+              {ikasSendResults.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                      Gerçek İkas Gönderim Sonucu
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {ikasSendResults.map(
+                      (
+                        result,
+                        index
+                      ) => (
+                        <div
+                          key={`${result.variantId}-${index}`}
+                          className="bg-emerald-50/35 px-4 py-3"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="text-[9px] font-black text-slate-900">
+                                {result.title}
+                              </div>
+
+                              <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                {result.color} · SKU {result.sku || "-"}
+                              </div>
+
+                              <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                IMEI: {result.addedImeis.join(", ")}
+                              </div>
+                            </div>
+
+                            <span className="inline-flex self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[7px] font-black uppercase text-emerald-700">
+                              Gönderildi
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                              <div className="text-[6px] font-black uppercase text-slate-400">
+                                İşlem
+                              </div>
+                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                                {result.action === "CREATE_PRODUCT"
+                                  ? "Yeni Ürün"
+                                  : result.action === "ADD_VARIANT"
+                                  ? "Yeni Varyant"
+                                  : "Mevcut Varyant"}
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                              <div className="text-[6px] font-black uppercase text-slate-400">
+                                Stok
+                              </div>
+                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                                {result.beforeStock} → {result.afterStock}
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                              <div className="text-[6px] font-black uppercase text-slate-400">
+                                Satış
+                              </div>
+                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                                {formatMoney(result.salePrice)}
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
+                              <div className="text-[6px] font-black uppercase text-slate-400">
+                                Liste
+                              </div>
+                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                                {formatMoney(result.listPrice)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -4013,7 +4338,8 @@ export default function Merkez() {
                 type="button"
                 disabled={
                   channelLoading ||
-                  n11Sending
+                  n11Sending ||
+                  ikasSending
                 }
                 onClick={() =>
                   setChannelOpen(
@@ -4061,6 +4387,28 @@ export default function Merkez() {
                   {n11Sending
                     ? "N11'e Gönderiliyor..."
                     : `N11'e Gerçekten Gönder (${selectedDeviceIds.length})`}
+                </button>
+              )}
+
+
+              {sendChannel ===
+                "IKAS" && (
+                <button
+                  type="button"
+                  disabled={
+                    channelLoading ||
+                    ikasSending ||
+                    !channelPreview
+                      ?.canProceed
+                  }
+                  onClick={() => {
+                    void sendSelectedToIkas();
+                  }}
+                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {ikasSending
+                    ? "İkas'a Gönderiliyor..."
+                    : `İkas'a Gerçekten Gönder (${selectedDeviceIds.length})`}
                 </button>
               )}
             </div>
