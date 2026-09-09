@@ -37,6 +37,40 @@ function text(
   ).trim();
 }
 
+function hasProductNotFound(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return false;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    return value
+      .toUpperCase()
+      .includes(
+        "PRODUCT_NOT_FOUND"
+      );
+  }
+
+  try {
+    return JSON.stringify(
+      value
+    )
+      .toUpperCase()
+      .includes(
+        "PRODUCT_NOT_FOUND"
+      );
+  } catch {
+    return false;
+  }
+}
+
 function parseQuantity(
   value: unknown
 ) {
@@ -196,7 +230,8 @@ async function inventoryByBarcode(
 
 async function waitInventoryResult(
   batchId: string,
-  barcode: string
+  barcode: string,
+  targetQuantity: number
 ) {
   const vendorId =
     getIdefixVendorId();
@@ -269,11 +304,37 @@ async function waitInventoryResult(
       batchStatus ===
         "FAILED"
     ) {
+      const failurePayload =
+        item?.failureReasons ||
+        item ||
+        last;
+
+      // Eski yanlış "Gönderildi" kayıtlarında yerel listing bulunabilir
+      // ama İdefix catalog/inventory tarafında ürün hiç oluşmamış olabilir.
+      // Stoktan çıkarma hedefi 0 ise PRODUCT_NOT_FOUND satış açısından
+      // zaten "stok yok / satışta değil" demektir. Yine de aşağıda
+      // inventory-list ile canlı olarak doğrulanır.
+      if (
+        targetQuantity ===
+          0 &&
+        hasProductNotFound(
+          failurePayload
+        )
+      ) {
+        return {
+          success:
+            true,
+          productNotFound:
+            true,
+          payload:
+            last,
+          item,
+        };
+      }
+
       throw new Error(
         `İdefix stok güncellemesi reddedildi: ${JSON.stringify(
-          item?.failureReasons ||
-            item ||
-            last
+          failurePayload
         )}`
       );
     }
@@ -672,7 +733,8 @@ export async function POST(
     const result =
       await waitInventoryResult(
         batchRequestId,
-        barcode
+        barcode,
+        targetQuantity
       );
 
     if (
@@ -680,6 +742,87 @@ export async function POST(
     ) {
       throw new Error(
         `İdefix inventory-result tamamlanmadı. Batch: ${batchRequestId}`
+      );
+    }
+
+    if (
+      result
+        ?.productNotFound ===
+      true
+    ) {
+      const liveCheck =
+        await inventoryByBarcode(
+          barcode
+        );
+
+      // PRODUCT_NOT_FOUND + inventory-list'te de yok:
+      // İdefix'te satılabilir ürün/stok zaten yok.
+      // Hedef yalnız 0 olduğu için işlem güvenli şekilde başarılı sayılır.
+      if (!liveCheck) {
+        await pool.query(
+          `
+            UPDATE public.online_listings
+            SET
+              quantity = 0,
+              sync_status =
+                'STALE',
+              last_task_id =
+                $2,
+              last_task_status =
+                'PRODUCT_NOT_FOUND_ZERO_OK',
+              last_error =
+                NULL,
+              raw_data =
+                COALESCE(
+                  raw_data,
+                  '{}'::jsonb
+                )
+                || $3::jsonb,
+              updated_at =
+                now()
+            WHERE id = $1
+          `,
+          [
+            Number(
+              listing.id
+            ),
+            batchRequestId,
+            JSON.stringify({
+              idefixStockSetAt:
+                new Date()
+                  .toISOString(),
+              liveStock:
+                0,
+              productNotFound:
+                true,
+              source:
+                "CENTER_STOCK_EXIT",
+            }),
+          ]
+        );
+
+        return noStoreJson({
+          success: true,
+          barcode,
+          listingId:
+            Number(
+              listing.id
+            ),
+          beforeQuantity,
+          quantity:
+            0,
+          batchRequestId,
+          productNotFound:
+            true,
+          alreadyOffline:
+            true,
+          message:
+            "İdefix PRODUCT_NOT_FOUND döndürdü ve ürün canlı inventory-list'te de yok. Kanal zaten satışta değil; stok 0 kabul edildi.",
+        });
+      }
+
+      throw new Error(
+        `İdefix PRODUCT_NOT_FOUND döndürdü fakat barkod inventory-list içinde hâlâ mevcut. Güvenlik için stoktan çıkarma durduruldu. Barkod: ${barcode}`
       );
     }
 
