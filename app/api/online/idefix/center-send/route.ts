@@ -161,9 +161,13 @@ function normalizeText(value: unknown) {
 function normalizeGrade(value: unknown) {
   const v = normalizeText(value);
 
+  // Merkez / N11 / İkas taraflarında kalite farklı biçimlerde gelebiliyor:
+  // A, A Kalite, Grade A, A Grade, Mükemmel vb.
   if (
     v === "A" ||
     v === "A KALITE" ||
+    v === "A GRADE" ||
+    v === "GRADE A" ||
     v.includes("MUKEMMEL")
   ) {
     return "A";
@@ -172,6 +176,8 @@ function normalizeGrade(value: unknown) {
   if (
     v === "B" ||
     v === "B KALITE" ||
+    v === "B GRADE" ||
+    v === "GRADE B" ||
     v.includes("COK IYI")
   ) {
     return "B";
@@ -180,6 +186,8 @@ function normalizeGrade(value: unknown) {
   if (
     v === "C" ||
     v === "C KALITE" ||
+    v === "C GRADE" ||
+    v === "GRADE C" ||
     v === "IYI"
   ) {
     return "C";
@@ -298,6 +306,8 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "B KALITE") ||
+    containsPhrase(t, "B GRADE") ||
+    containsPhrase(t, "GRADE B") ||
     containsPhrase(t, "COK IYI")
   ) {
     return "B";
@@ -305,6 +315,8 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "A KALITE") ||
+    containsPhrase(t, "A GRADE") ||
+    containsPhrase(t, "GRADE A") ||
     containsPhrase(t, "MUKEMMEL")
   ) {
     return "A";
@@ -312,6 +324,8 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "C KALITE") ||
+    containsPhrase(t, "C GRADE") ||
+    containsPhrase(t, "GRADE C") ||
     containsPhrase(t, "IYI")
   ) {
     return "C";
@@ -2703,6 +2717,9 @@ async function prepareGroup(
     );
   }
 
+  // CNETMOBIL Merkez akışı yenilenmiş cihaz içindir.
+  // Referans ürünlerde İdefix vatRate çoğu zaman null dönebiliyor.
+  // Yenilenmiş cihaz iş kuralımız: KDV %1.
   const vatRate =
     numberOrNull(
       referenceProduct
@@ -2710,17 +2727,7 @@ async function prepareGroup(
     ) ??
     localTemplate
       ?.vatRate ??
-    null;
-
-  if (
-    vatRate === null
-  ) {
-    blockers.push(
-      `${productTitle(
-        group
-      )}: KDV oranı referans ürünlerden bulunamadı.`
-    );
-  }
+    1;
 
   return {
     group,
