@@ -1,8 +1,9 @@
 // app/api/online/idefix/mapping/route.ts
-// CNETMOBIL - IDEFIX ADIM 2
+// CNETMOBIL - IDEFIX ADIM 2B
 //
 // READ ONLY.
 // Merkez fiziksel IMEI gruplarını mevcut İdefix ürünleriyle güvenli şekilde eşleştirir.
+// Eşleşmeyen gruplarda en yakın İdefix adaylarını ve hangi alanların tuttuğunu gösterir.
 //
 // BU ROUTE:
 // - İdefix'e ürün göndermez.
@@ -119,6 +120,16 @@ type MappingRow = {
     vendorStockCode: string;
     currentStock: number;
     score: number;
+    checks?: {
+      brand: boolean;
+      model: boolean;
+      memory: boolean;
+      modelMemory: boolean;
+      color: boolean;
+      grade: boolean;
+      detectedGrade: string | null;
+      renewed: boolean;
+    };
   }>;
 };
 
@@ -448,6 +459,204 @@ async function fetchAllIdefixProducts() {
   return all;
 }
 
+function getDiagnosticChecks(
+  group: CenterGroup,
+  product: IdefixProduct
+) {
+  const title =
+    normalizeText(
+      product.title
+    );
+
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const model =
+    normalizeText(
+      group.model
+    );
+
+  const memory =
+    normalizeMemory(
+      group.memory
+    );
+
+  const color =
+    normalizeText(
+      group.color
+    );
+
+  const grade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const detectedGrade =
+    detectGradeFromTitle(
+      title
+    );
+
+  return {
+    title,
+    checks: {
+      brand:
+        Boolean(brand) &&
+        containsPhrase(
+          title,
+          brand
+        ),
+
+      model:
+        Boolean(model) &&
+        containsPhrase(
+          title,
+          model
+        ),
+
+      memory:
+        Boolean(memory) &&
+        containsPhrase(
+          title,
+          memory
+        ),
+
+      modelMemory:
+        Boolean(
+          model &&
+          memory
+        ) &&
+        containsPhrase(
+          title,
+          `${model} ${memory}`
+        ),
+
+      color:
+        Boolean(color) &&
+        containsPhrase(
+          title,
+          color
+        ),
+
+      grade:
+        Boolean(
+          grade &&
+          detectedGrade
+        ) &&
+        detectedGrade ===
+          grade,
+
+      detectedGrade,
+
+      renewed:
+        containsPhrase(
+          title,
+          "YENILENMIS"
+        ),
+    },
+  };
+}
+
+function rankNearCandidates(
+  group: CenterGroup,
+  products:
+    IdefixProduct[]
+) {
+  return products
+    .map(
+      (product) => {
+        const {
+          title,
+          checks,
+        } =
+          getDiagnosticChecks(
+            group,
+            product
+          );
+
+        if (!title) {
+          return null;
+        }
+
+        let score = 0;
+
+        if (checks.brand) {
+          score += 35;
+        }
+
+        if (checks.model) {
+          score += 35;
+        }
+
+        if (checks.memory) {
+          score += 20;
+        }
+
+        if (
+          checks.modelMemory
+        ) {
+          score += 20;
+        }
+
+        if (checks.color) {
+          score += 20;
+        }
+
+        if (checks.grade) {
+          score += 20;
+        } else if (
+          checks.detectedGrade
+        ) {
+          score -= 10;
+        }
+
+        if (
+          checks.renewed
+        ) {
+          score += 5;
+        }
+
+        // En az marka veya model benzerliği yoksa
+        // alakasız ürünü "yakın aday" olarak göstermeyelim.
+        if (
+          !checks.brand &&
+          !checks.model
+        ) {
+          return null;
+        }
+
+        return {
+          product,
+          score,
+          normalizedTitle:
+            title,
+          checks,
+        };
+      }
+    )
+    .filter(Boolean)
+    .sort(
+      (
+        a: any,
+        b: any
+      ) =>
+        b.score -
+          a.score ||
+        String(
+          a.product?.title ||
+            ""
+        ).localeCompare(
+          String(
+            b.product?.title ||
+              ""
+          ),
+          "tr"
+        )
+    )
+    .slice(0, 5);
+}
+
 function candidateForGroup(
   group: CenterGroup,
   product: IdefixProduct
@@ -599,8 +808,12 @@ function candidateForGroup(
 }
 
 function toCandidateView(
-  candidate: MatchCandidate
+  candidate: any
 ) {
+  const diagnostic =
+    candidate?.checks ||
+    null;
+
   return {
     barcode:
       text(
@@ -629,6 +842,45 @@ function toCandidateView(
       ) ?? 0,
     score:
       candidate.score,
+    ...(diagnostic
+      ? {
+          checks: {
+            brand:
+              Boolean(
+                diagnostic.brand
+              ),
+            model:
+              Boolean(
+                diagnostic.model
+              ),
+            memory:
+              Boolean(
+                diagnostic.memory
+              ),
+            modelMemory:
+              Boolean(
+                diagnostic
+                  .modelMemory
+              ),
+            color:
+              Boolean(
+                diagnostic.color
+              ),
+            grade:
+              Boolean(
+                diagnostic.grade
+              ),
+            detectedGrade:
+              diagnostic
+                .detectedGrade ||
+              null,
+            renewed:
+              Boolean(
+                diagnostic.renewed
+              ),
+          },
+        }
+      : {}),
   };
 }
 
@@ -740,7 +992,13 @@ function mapCenterGroup(
         null,
       stockDifference:
         null,
-      candidates: [],
+      candidates:
+        rankNearCandidates(
+          group,
+          products
+        ).map(
+          toCandidateView
+        ),
     };
   }
 
