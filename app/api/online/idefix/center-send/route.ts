@@ -1,0 +1,4295 @@
+// app/api/online/idefix/center-send/route.ts
+// CNETMOBIL - IDEFIX ADIM 3
+//
+// Merkez -> İdefix gerçek gönderim motoru.
+// N11 / İkas akışlarına dokunmaz.
+//
+// Akış:
+// 1) Seçili Merkez IMEI'lerini tekrar doğrular.
+// 2) Aynı ürün/renk İdefix satıcı havuzunda varsa mevcut barkoda stok+fiyat ekler.
+// 3) Aynı renk yoksa, aynı model/hafıza/kalite ürününü referans alır.
+// 4) Referanstan brand/category/attribute şablonunu alır.
+// 5) İstenen renk attribute değerini category-attribute servisinden bulur.
+// 6) Aynı renk görselini N11/İkas yerel listinglerinden bulur.
+// 7) Yeni İdefix ürünü create eder.
+// 8) batch-result sonucu güvenli eşleşme ise approve-item ile onaylar.
+// 9) Satışa hazır olduğunda stok/fiyatı inventory-upload ile doğrular.
+// 10) Son olarak PostgreSQL online_listings + online_channel_devices kaydını yazar.
+//
+// Güvenlik:
+// - Aynı IMEI ikinci kez İdefix'e gönderilemez.
+// - AVAILABLE olmayan cihaz gönderilemez.
+// - Eksik marka/model/hafıza/renk/grade/garanti engellenir.
+// - Belirsiz katalog referansında otomatik ürün açılmaz.
+// - Renk attribute bulunamazsa ürün açılmaz.
+// - Doğru renk görseli bulunamazsa ürün açılmaz.
+// - İdefix dış işlem başarılı olup DB yazımı başarısız olursa yeni gönderim durdurulur.
+
+import { NextRequest } from "next/server";
+import crypto from "crypto";
+import type { PoolClient } from "pg";
+
+import {
+  IDEFIX_BASE_URL,
+  getIdefixDbPool,
+  getIdefixProducts,
+  getIdefixVendorId,
+  getIdefixVendorToken,
+  noStoreJson,
+  requireIdefixSuperAdmin,
+} from "@/app/lib/idefix/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type SendMode = "preview" | "commit";
+
+type DeviceRow = {
+  id: number;
+  imei: string;
+  brand: string | null;
+  model: string | null;
+  memory: string | null;
+  color: string | null;
+  grade: string | null;
+  warranty: string | null;
+  current_branch_code: string | null;
+  status: string | null;
+};
+
+type GroupItem = {
+  deviceId: number;
+  imei: string;
+};
+
+type CenterGroup = {
+  key: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  items: GroupItem[];
+};
+
+type IdefixProduct = {
+  barcode?: string | null;
+  title?: string | null;
+  productMainId?: string | null;
+  brandId?: number | string | null;
+  categoryId?: number | string | null;
+  inventoryQuantity?: number | string | null;
+  vendorStockCode?: string | null;
+  weight?: number | string | null;
+  description?: string | null;
+  price?: number | string | null;
+  comparePrice?: number | string | null;
+  vatRate?: number | string | null;
+  deliveryDuration?: number | string | null;
+  deliveryType?: string | null;
+  cargoCompanyId?: number | string | null;
+  shipmentAddressId?: number | string | null;
+  returnAddressId?: number | string | null;
+  images?: Array<{ url?: string | null }> | null;
+  attributes?: Array<{
+    attributeId?: number | string | null;
+    attributeValueId?: number | string | null;
+    customAttributeValue?: string | null;
+  }> | null;
+  status?: string | null;
+  state?: string | null;
+  reference?: number | string | null;
+  matchedProduct?: any;
+  failureReasons?: any;
+  [key: string]: unknown;
+};
+
+type CategoryAttribute = {
+  attributeId: number | string;
+  attributeTitle?: string | null;
+  allowCustom?: boolean | null;
+  required?: boolean | null;
+  isVariant?: boolean | null;
+  isSlicer?: boolean | null;
+  attributeValues?: Array<{
+    id?: number | string | null;
+    name?: string | null;
+  }> | null;
+};
+
+type PreparedGroup = {
+  group: CenterGroup;
+  action: "EXISTING_PRODUCT" | "CREATE_PRODUCT";
+  exactProduct: IdefixProduct | null;
+  referenceProduct: IdefixProduct | null;
+  title: string;
+  salePrice: number;
+  listPrice: number;
+  targetBeforeStock: number;
+  targetAfterStock: number;
+  barcode: string;
+  vendorStockCode: string;
+  productMainId: string;
+  brandId: number | string | null;
+  categoryId: number | string | null;
+  vatRate: number | null;
+  imageUrl: string | null;
+  attributes: Array<{
+    attributeId: number | string;
+    attributeValueId: number | string | null;
+    customAttributeValue: string | null;
+  }>;
+  blockers: string[];
+};
+
+function text(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function normalizeText(value: unknown) {
+  return text(value)
+    .toLocaleUpperCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeGrade(value: unknown) {
+  const v = normalizeText(value);
+
+  if (
+    v === "A" ||
+    v === "A KALITE" ||
+    v.includes("MUKEMMEL")
+  ) {
+    return "A";
+  }
+
+  if (
+    v === "B" ||
+    v === "B KALITE" ||
+    v.includes("COK IYI")
+  ) {
+    return "B";
+  }
+
+  if (
+    v === "C" ||
+    v === "C KALITE" ||
+    v === "IYI"
+  ) {
+    return "C";
+  }
+
+  return v;
+}
+
+function normalizeMemory(value: unknown) {
+  return normalizeText(value).replace(
+    /(\d+(?:[.,]\d+)?)\s*(GB|TB)\b/g,
+    "$1 $2"
+  );
+}
+
+function containsPhrase(
+  haystack: unknown,
+  needle: unknown
+) {
+  const h =
+    ` ${normalizeText(haystack)} `;
+  const n =
+    ` ${normalizeText(needle)} `;
+
+  return normalizeText(needle)
+    ? h.includes(n)
+    : false;
+}
+
+function colorAliases(value: unknown) {
+  const color =
+    normalizeText(value);
+
+  const map:
+    Record<string, string[]> = {
+      KIRMIZI: [
+        "KIRMIZI",
+        "RED",
+        "PRODUCT RED",
+      ],
+      SIYAH: [
+        "SIYAH",
+        "BLACK",
+      ],
+      BEYAZ: [
+        "BEYAZ",
+        "WHITE",
+      ],
+      MAVI: [
+        "MAVI",
+        "BLUE",
+      ],
+      YESIL: [
+        "YESIL",
+        "GREEN",
+      ],
+      MOR: [
+        "MOR",
+        "PURPLE",
+      ],
+      SARI: [
+        "SARI",
+        "YELLOW",
+      ],
+      PEMBE: [
+        "PEMBE",
+        "PINK",
+      ],
+      GRI: [
+        "GRI",
+        "GRAY",
+        "GREY",
+      ],
+      GUMUS: [
+        "GUMUS",
+        "SILVER",
+      ],
+      ALTIN: [
+        "ALTIN",
+        "GOLD",
+      ],
+      LACIVERT: [
+        "LACIVERT",
+        "NAVY",
+        "NAVY BLUE",
+      ],
+    };
+
+  return Array.from(
+    new Set(
+      map[color] || [color]
+    )
+  ).filter(Boolean);
+}
+
+function matchedColorAlias(
+  title: unknown,
+  color: unknown
+) {
+  return (
+    colorAliases(color).find(
+      (alias) =>
+        containsPhrase(
+          title,
+          alias
+        )
+    ) || null
+  );
+}
+
+function detectGradeFromTitle(
+  title: unknown
+) {
+  const t =
+    normalizeText(title);
+
+  if (
+    containsPhrase(t, "B KALITE") ||
+    containsPhrase(t, "COK IYI")
+  ) {
+    return "B";
+  }
+
+  if (
+    containsPhrase(t, "A KALITE") ||
+    containsPhrase(t, "MUKEMMEL")
+  ) {
+    return "A";
+  }
+
+  if (
+    containsPhrase(t, "C KALITE") ||
+    containsPhrase(t, "IYI")
+  ) {
+    return "C";
+  }
+
+  return null;
+}
+
+function numberOrNull(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    text(value) === ""
+  ) {
+    return null;
+  }
+
+  const n =
+    Number(value);
+
+  return Number.isFinite(n)
+    ? n
+    : null;
+}
+
+function money(
+  value: unknown,
+  label: string
+) {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    if (value <= 0) {
+      throw new Error(
+        `${label} 0'dan büyük olmalıdır.`
+      );
+    }
+
+    return Math.round(
+      value * 100
+    ) / 100;
+  }
+
+  let raw =
+    text(value);
+
+  if (!raw) {
+    throw new Error(
+      `${label} zorunludur.`
+    );
+  }
+
+  raw =
+    raw.replace(
+      /[^\d,.-]/g,
+      ""
+    );
+
+  const comma =
+    raw.lastIndexOf(",");
+  const dot =
+    raw.lastIndexOf(".");
+
+  if (
+    comma > dot
+  ) {
+    raw =
+      raw
+        .replace(/\./g, "")
+        .replace(",", ".");
+  } else {
+    raw =
+      raw.replace(/,/g, "");
+  }
+
+  const n =
+    Number(raw);
+
+  if (
+    !Number.isFinite(n) ||
+    n <= 0
+  ) {
+    throw new Error(
+      `${label} geçersiz.`
+    );
+  }
+
+  return Math.round(
+    n * 100
+  ) / 100;
+}
+
+function groupKey(
+  row: DeviceRow
+) {
+  return [
+    normalizeText(row.brand),
+    normalizeText(row.model),
+    normalizeMemory(row.memory),
+    normalizeText(row.color),
+    normalizeGrade(row.grade),
+    normalizeText(row.warranty),
+  ].join("|");
+}
+
+function stableHash(
+  value: string,
+  length = 20
+) {
+  return crypto
+    .createHash("sha256")
+    .update(value)
+    .digest("hex")
+    .toUpperCase()
+    .slice(0, length);
+}
+
+function makeStableBarcode(
+  group: CenterGroup
+) {
+  // İdefix create endpoint barcode alanını zorunlu tutuyor.
+  // CNETMOBIL için ürün grubu bazlı deterministik ve tekrar üretilebilir
+  // benzersiz değer kullanılır. Aynı grup ikinci kez yeni barkod üretmez.
+  return `CNETIDF${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.color,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    18
+  )}`;
+}
+
+function makeVendorStockCode(
+  group: CenterGroup
+) {
+  return `CNET-IDF-${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.color,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    16
+  )}`;
+}
+
+function makeProductMainId(
+  group: CenterGroup
+) {
+  // Renk hariç aile kodu.
+  // Aynı model/hafıza/grade/garanti farklı renkleri aynı ailede tutulabilir.
+  return `CNET-IDF-PM-${stableHash(
+    [
+      group.brand,
+      group.model,
+      group.memory,
+      group.grade,
+      group.warranty,
+    ]
+      .map(normalizeText)
+      .join("|"),
+    16
+  )}`;
+}
+
+function productTitle(
+  group: CenterGroup
+) {
+  const gradeLabel =
+    normalizeGrade(
+      group.grade
+    ) === "A"
+      ? "A Kalite"
+      : normalizeGrade(
+          group.grade
+        ) === "B"
+      ? "B Kalite"
+      : normalizeGrade(
+          group.grade
+        ) === "C"
+      ? "C Kalite"
+      : group.grade;
+
+  return [
+    group.brand,
+    "Yenilenmiş",
+    group.model,
+    group.memory,
+    "-",
+    group.color,
+    "-",
+    gradeLabel,
+    `(${group.warranty} Garantili)`,
+  ]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function productKey(
+  product: IdefixProduct
+) {
+  return (
+    text(product.barcode) ||
+    [
+      text(
+        product.productMainId
+      ),
+      text(
+        product.vendorStockCode
+      ),
+      normalizeText(
+        product.title
+      ),
+    ].join("|")
+  );
+}
+
+async function idefixApi(
+  path: string,
+  options?: {
+    method?:
+      | "GET"
+      | "POST";
+    body?: unknown;
+    timeoutMs?: number;
+  }
+) {
+  const token =
+    getIdefixVendorToken();
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      options?.timeoutMs ??
+        35_000
+    );
+
+  try {
+    const response =
+      await fetch(
+        `${IDEFIX_BASE_URL}${path}`,
+        {
+          method:
+            options?.method ||
+            "GET",
+          cache:
+            "no-store",
+          headers: {
+            Accept:
+              "application/json",
+            "Content-Type":
+              "application/json",
+            "X-API-KEY":
+              token,
+          },
+          body:
+            options?.body ===
+            undefined
+              ? undefined
+              : JSON.stringify(
+                  options.body
+                ),
+          signal:
+            controller.signal,
+        }
+      );
+
+    const raw =
+      await response.text();
+
+    let payload:
+      any = null;
+
+    if (raw) {
+      try {
+        payload =
+          JSON.parse(raw);
+      } catch {
+        payload = {
+          raw,
+        };
+      }
+    }
+
+    if (!response.ok) {
+      const apiMessage =
+        text(
+          payload?.message
+        ) ||
+        text(
+          payload?.error
+        ) ||
+        text(
+          payload?.errors?.[0]
+            ?.message
+        ) ||
+        `İdefix HTTP ${response.status}`;
+
+      throw new Error(
+        apiMessage
+      );
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchAllProducts() {
+  const rows:
+    IdefixProduct[] = [];
+
+  const seen =
+    new Set<string>();
+
+  const pageSignatures =
+    new Set<string>();
+
+  const limit = 50;
+
+  for (
+    let page = 1;
+    page <= 100;
+    page += 1
+  ) {
+    const payload: any =
+      await getIdefixProducts(
+        page,
+        limit
+      );
+
+    const products =
+      Array.isArray(
+        payload?.products
+      )
+        ? payload.products
+        : [];
+
+    if (
+      products.length === 0
+    ) {
+      break;
+    }
+
+    const signature =
+      products
+        .map(
+          (product: any) =>
+            productKey(product)
+        )
+        .join("||");
+
+    if (
+      pageSignatures.has(
+        signature
+      )
+    ) {
+      break;
+    }
+
+    pageSignatures.add(
+      signature
+    );
+
+    for (
+      const product of
+        products
+    ) {
+      const key =
+        productKey(product);
+
+      if (
+        seen.has(key)
+      ) {
+        continue;
+      }
+
+      seen.add(key);
+      rows.push(product);
+    }
+
+    if (
+      products.length <
+      limit
+    ) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+function exactProductForGroup(
+  products: IdefixProduct[],
+  group: CenterGroup
+) {
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
+  const grade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const matches =
+    products.filter(
+      (product) => {
+        const title =
+          product.title;
+
+        return (
+          containsPhrase(
+            title,
+            brand
+          ) &&
+          containsPhrase(
+            title,
+            modelMemory
+          ) &&
+          Boolean(
+            matchedColorAlias(
+              title,
+              group.color
+            )
+          ) &&
+          detectGradeFromTitle(
+            title
+          ) === grade
+        );
+      }
+    );
+
+  if (
+    matches.length > 1
+  ) {
+    // Aynı barkod tekrarı hariç birden fazla gerçek ürün varsa otomatik seçme.
+    const distinct =
+      new Map<
+        string,
+        IdefixProduct
+      >();
+
+    for (
+      const product of
+        matches
+    ) {
+      distinct.set(
+        productKey(product),
+        product
+      );
+    }
+
+    if (
+      distinct.size > 1
+    ) {
+      throw new Error(
+        `${productTitle(
+          group
+        )}: İdefix'te aynı renk için birden fazla ürün bulundu. Otomatik gönderim durduruldu.`
+      );
+    }
+  }
+
+  return (
+    matches[0] ||
+    null
+  );
+}
+
+function referenceProductForGroup(
+  products: IdefixProduct[],
+  group: CenterGroup
+) {
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
+  const grade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const candidates =
+    products
+      .map(
+        (product) => {
+          const title =
+            product.title;
+
+          if (
+            !containsPhrase(
+              title,
+              brand
+            ) ||
+            !containsPhrase(
+              title,
+              modelMemory
+            ) ||
+            detectGradeFromTitle(
+              title
+            ) !== grade
+          ) {
+            return null;
+          }
+
+          let score =
+            100;
+
+          if (
+            containsPhrase(
+              title,
+              "YENILENMIS"
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            text(
+              product.brandId
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            text(
+              product.categoryId
+            )
+          ) {
+            score += 10;
+          }
+
+          if (
+            Array.isArray(
+              product.attributes
+            ) &&
+            product.attributes
+              .length > 0
+          ) {
+            score += 10;
+          }
+
+          if (
+            numberOrNull(
+              product.vatRate
+            ) !== null
+          ) {
+            score += 5;
+          }
+
+          return {
+            product,
+            score,
+          };
+        }
+      )
+      .filter(Boolean)
+      .sort(
+        (
+          a: any,
+          b: any
+        ) =>
+          b.score -
+          a.score
+      ) as Array<{
+        product:
+          IdefixProduct;
+        score: number;
+      }>;
+
+  if (
+    candidates.length === 0
+  ) {
+    return null;
+  }
+
+  const first =
+    candidates[0];
+
+  const top =
+    candidates.filter(
+      (candidate) =>
+        candidate.score ===
+        first.score
+    );
+
+  const uniqueTargets =
+    new Set(
+      top.map(
+        (candidate) =>
+          [
+            text(
+              candidate.product
+                .brandId
+            ),
+            text(
+              candidate.product
+                .categoryId
+            ),
+          ].join("|")
+      )
+    );
+
+  if (
+    uniqueTargets.size > 1
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: aynı model için farklı İdefix brand/category referansları bulundu. Yeni ürün oluşturma durduruldu.`
+    );
+  }
+
+  return first.product;
+}
+
+async function categoryAttributes(
+  categoryId:
+    string | number
+) {
+  const payload =
+    await idefixApi(
+      `/pim/category-attribute/${encodeURIComponent(
+        String(
+          categoryId
+        )
+      )}`
+    );
+
+  return Array.isArray(
+    payload?.categoryAttributes
+  )
+    ? payload.categoryAttributes as
+        CategoryAttribute[]
+    : [];
+}
+
+function attributeById(
+  product: IdefixProduct,
+  attributeId: unknown
+) {
+  const attributes =
+    Array.isArray(
+      product.attributes
+    )
+      ? product.attributes
+      : [];
+
+  return (
+    attributes.find(
+      (attribute) =>
+        String(
+          attribute
+            ?.attributeId ??
+            ""
+        ) ===
+        String(
+          attributeId ??
+            ""
+        )
+    ) || null
+  );
+}
+
+function isColorAttribute(
+  attribute:
+    CategoryAttribute
+) {
+  const title =
+    normalizeText(
+      attribute
+        .attributeTitle
+    );
+
+  return (
+    title === "RENK" ||
+    title.includes("RENK") ||
+    title === "COLOR" ||
+    title.includes("COLOR")
+  );
+}
+
+function colorAttributeValue(
+  attribute:
+    CategoryAttribute,
+  color: string
+) {
+  if (
+    attribute.allowCustom ===
+    true
+  ) {
+    return {
+      attributeId:
+        attribute
+          .attributeId,
+      attributeValueId:
+        null,
+      customAttributeValue:
+        color,
+    };
+  }
+
+  const aliases =
+    colorAliases(color);
+
+  const values =
+    Array.isArray(
+      attribute
+        .attributeValues
+    )
+      ? attribute
+          .attributeValues
+      : [];
+
+  const exact =
+    values.find(
+      (value) =>
+        aliases.some(
+          (alias) =>
+            normalizeText(
+              value?.name
+            ) ===
+            normalizeText(
+              alias
+            )
+        )
+    );
+
+  if (!exact?.id) {
+    return null;
+  }
+
+  return {
+    attributeId:
+      attribute
+        .attributeId,
+    attributeValueId:
+      exact.id,
+    customAttributeValue:
+      null,
+  };
+}
+
+async function buildCreateAttributes(
+  reference:
+    IdefixProduct,
+  group:
+    CenterGroup
+) {
+  const categoryId =
+    reference.categoryId;
+
+  if (
+    categoryId ===
+      null ||
+    categoryId ===
+      undefined ||
+    text(categoryId) ===
+      ""
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: referans üründe categoryId yok.`
+    );
+  }
+
+  const schema =
+    await categoryAttributes(
+      categoryId
+    );
+
+  if (
+    schema.length === 0
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: İdefix kategori özellikleri alınamadı.`
+    );
+  }
+
+  const output:
+    Array<{
+      attributeId:
+        number | string;
+      attributeValueId:
+        number | string | null;
+      customAttributeValue:
+        string | null;
+    }> = [];
+
+  let colorFound =
+    false;
+
+  for (
+    const attribute of
+      schema
+  ) {
+    if (
+      isColorAttribute(
+        attribute
+      )
+    ) {
+      const selected =
+        colorAttributeValue(
+          attribute,
+          group.color
+        );
+
+      if (!selected) {
+        throw new Error(
+          `${productTitle(
+            group
+          )}: İdefix kategori renklerinde "${group.color}" / ${colorAliases(
+            group.color
+          ).join(
+            ", "
+          )} bulunamadı.`
+        );
+      }
+
+      output.push(
+        selected
+      );
+
+      colorFound =
+        true;
+
+      continue;
+    }
+
+    const referenceValue =
+      attributeById(
+        reference,
+        attribute
+          .attributeId
+      );
+
+    if (
+      referenceValue
+    ) {
+      output.push({
+        attributeId:
+          attribute
+            .attributeId,
+        attributeValueId:
+          referenceValue
+            .attributeValueId ??
+          null,
+        customAttributeValue:
+          text(
+            referenceValue
+              .customAttributeValue
+          ) || null,
+      });
+
+      continue;
+    }
+
+    if (
+      attribute.required ===
+      true
+    ) {
+      throw new Error(
+        `${productTitle(
+          group
+        )}: zorunlu İdefix özelliği referans üründe yok: ${text(
+          attribute
+            .attributeTitle
+        ) || String(
+          attribute
+            .attributeId
+        )}.`
+      );
+    }
+  }
+
+  if (
+    !colorFound
+  ) {
+    throw new Error(
+      `${productTitle(
+        group
+      )}: kategori özelliklerinde renk attribute'u bulunamadı.`
+    );
+  }
+
+  return output;
+}
+
+function imageUrlsFromJson(
+  value: unknown,
+  keyHint = "",
+  output = new Set<string>(),
+  depth = 0
+) {
+  if (
+    depth > 8 ||
+    value === null ||
+    value === undefined
+  ) {
+    return output;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const raw =
+      value.trim();
+
+    const key =
+      normalizeText(
+        keyHint
+      );
+
+    if (
+      /^https:\/\//i.test(
+        raw
+      ) &&
+      (
+        key.includes(
+          "IMAGE"
+        ) ||
+        key.includes(
+          "GORSEL"
+        ) ||
+        /\.(?:jpe?g|png|webp)(?:\?|$)/i.test(
+          raw
+        )
+      )
+    ) {
+      output.add(raw);
+    }
+
+    return output;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of value
+    ) {
+      imageUrlsFromJson(
+        item,
+        keyHint,
+        output,
+        depth + 1
+      );
+    }
+
+    return output;
+  }
+
+  if (
+    typeof value ===
+    "object"
+  ) {
+    for (
+      const [
+        key,
+        child,
+      ] of Object.entries(
+        value as Record<
+          string,
+          unknown
+        >
+      )
+    ) {
+      imageUrlsFromJson(
+        child,
+        key,
+        output,
+        depth + 1
+      );
+    }
+  }
+
+  return output;
+}
+
+function findVatInJson(
+  value: unknown,
+  depth = 0
+): number | null {
+  if (
+    depth > 8 ||
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of value
+    ) {
+      const found =
+        findVatInJson(
+          item,
+          depth + 1
+        );
+
+      if (
+        found !== null
+      ) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  if (
+    typeof value ===
+    "object"
+  ) {
+    for (
+      const [
+        key,
+        child,
+      ] of Object.entries(
+        value as Record<
+          string,
+          unknown
+        >
+      )
+    ) {
+      const normalized =
+        normalizeText(key);
+
+      if (
+        [
+          "VATRATE",
+          "VAT RATE",
+          "VAT",
+          "KDV",
+          "KDV ORANI",
+        ].includes(
+          normalized
+        )
+      ) {
+        const n =
+          numberOrNull(
+            child
+          );
+
+        if (
+          n !== null &&
+          [
+            0,
+            1,
+            8,
+            10,
+            18,
+            20,
+          ].includes(n)
+        ) {
+          return n;
+        }
+      }
+
+      const nested =
+        findVatInJson(
+          child,
+          depth + 1
+        );
+
+      if (
+        nested !== null
+      ) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function exactColorLocalTemplate(
+  client:
+    PoolClient,
+  group:
+    CenterGroup
+) {
+  const rows =
+    await client.query(
+      `
+        SELECT
+          id,
+          channel,
+          title,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          raw_data
+        FROM public.online_listings
+        WHERE channel IN (
+          'N11',
+          'IKAS'
+        )
+          AND (
+            model ILIKE $1
+            OR title ILIKE $2
+          )
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 200
+      `,
+      [
+        `%${group.model}%`,
+        `%${group.model}%`,
+      ]
+    );
+
+  const targetBrand =
+    normalizeText(
+      group.brand
+    );
+
+  const targetModel =
+    normalizeText(
+      group.model
+    );
+
+  const targetMemory =
+    normalizeMemory(
+      group.memory
+    );
+
+  const targetGrade =
+    normalizeGrade(
+      group.grade
+    );
+
+  const aliases =
+    colorAliases(
+      group.color
+    );
+
+  const matches =
+    rows.rows.filter(
+      (row: any) => {
+        const haystack =
+          [
+            row?.title,
+            row?.brand,
+            row?.model,
+            row?.memory,
+            row?.color,
+            row?.grade,
+            JSON.stringify(
+              row?.raw_data ||
+              {}
+            ),
+          ].join(" ");
+
+        const normalized =
+          normalizeText(
+            haystack
+          );
+
+        return (
+          (
+            normalizeText(
+              row?.brand
+            ) ===
+              targetBrand ||
+            containsPhrase(
+              normalized,
+              targetBrand
+            )
+          ) &&
+          (
+            normalizeText(
+              row?.model
+            ) ===
+              targetModel ||
+            containsPhrase(
+              normalized,
+              targetModel
+            )
+          ) &&
+          (
+            normalizeMemory(
+              row?.memory
+            ) ===
+              targetMemory ||
+            containsPhrase(
+              normalized,
+              targetMemory
+            )
+          ) &&
+          aliases.some(
+            (alias) =>
+              containsPhrase(
+                normalized,
+                alias
+              )
+          ) &&
+          (
+            !normalizeText(
+              row?.grade
+            ) ||
+            normalizeGrade(
+              row?.grade
+            ) ===
+              targetGrade ||
+            detectGradeFromTitle(
+              normalized
+            ) ===
+              targetGrade
+          )
+        );
+      }
+    );
+
+  if (
+    matches.length === 0
+  ) {
+    return null;
+  }
+
+  for (
+    const row of matches
+  ) {
+    const urls =
+      Array.from(
+        imageUrlsFromJson(
+          row.raw_data
+        )
+      );
+
+    if (
+      urls.length > 0
+    ) {
+      return {
+        row,
+        imageUrl:
+          urls[0],
+        vatRate:
+          findVatInJson(
+            row.raw_data
+          ),
+      };
+    }
+  }
+
+  return {
+    row:
+      matches[0],
+    imageUrl:
+      null,
+    vatRate:
+      findVatInJson(
+        matches[0]
+          .raw_data
+      ),
+  };
+}
+
+function validateOrigin(
+  request:
+    NextRequest
+) {
+  const origin =
+    request.headers.get(
+      "origin"
+    );
+
+  if (!origin) {
+    return true;
+  }
+
+  const appUrl =
+    text(
+      process.env.APP_URL
+    );
+
+  if (appUrl) {
+    try {
+      return (
+        origin ===
+        new URL(
+          appUrl
+        ).origin
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  const host =
+    request.headers.get(
+      "host"
+    );
+
+  const proto =
+    request.headers.get(
+      "x-forwarded-proto"
+    ) ||
+    request.nextUrl.protocol.replace(
+      ":",
+      ""
+    );
+
+  return Boolean(
+    host &&
+    origin ===
+      `${proto}://${host}`
+  );
+}
+
+async function selectedDevices(
+  client:
+    PoolClient,
+  deviceIds:
+    number[]
+) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          id,
+          imei,
+          brand,
+          model,
+          memory,
+          color,
+          grade,
+          warranty,
+          current_branch_code,
+          status
+        FROM public.stock_devices
+        WHERE id = ANY(
+          $1::bigint[]
+        )
+        ORDER BY id
+      `,
+      [
+        deviceIds,
+      ]
+    );
+
+  return result.rows as
+    DeviceRow[];
+}
+
+function buildGroups(
+  rows:
+    DeviceRow[]
+) {
+  const groups =
+    new Map<
+      string,
+      CenterGroup
+    >();
+
+  for (
+    const row of rows
+  ) {
+    const key =
+      groupKey(row);
+
+    if (
+      !groups.has(key)
+    ) {
+      groups.set(
+        key,
+        {
+          key,
+          brand:
+            text(
+              row.brand
+            ),
+          model:
+            text(
+              row.model
+            ),
+          memory:
+            text(
+              row.memory
+            ),
+          color:
+            text(
+              row.color
+            ),
+          grade:
+            normalizeGrade(
+              row.grade
+            ),
+          warranty:
+            text(
+              row.warranty
+            ),
+          items: [],
+        }
+      );
+    }
+
+    groups.get(
+      key
+    )!.items.push({
+      deviceId:
+        Number(row.id),
+      imei:
+        text(row.imei),
+    });
+  }
+
+  return Array.from(
+    groups.values()
+  );
+}
+
+async function validateDevices(
+  client:
+    PoolClient,
+  requestedIds:
+    number[],
+  rows:
+    DeviceRow[]
+) {
+  const errors:
+    string[] = [];
+
+  const byId =
+    new Map(
+      rows.map(
+        (row) => [
+          Number(row.id),
+          row,
+        ]
+      )
+    );
+
+  for (
+    const id of requestedIds
+  ) {
+    const row =
+      byId.get(id);
+
+    if (!row) {
+      errors.push(
+        `Cihaz ID ${id} Merkez stokta bulunamadı.`
+      );
+
+      continue;
+    }
+
+    const imei =
+      text(row.imei);
+
+    if (
+      !/^\d{15}$/.test(
+        imei
+      )
+    ) {
+      errors.push(
+        `${imei || id}: IMEI 15 hane değil.`
+      );
+    }
+
+    if (
+      normalizeText(
+        row.status
+      ) !== "AVAILABLE"
+    ) {
+      errors.push(
+        `${imei}: cihaz durumu AVAILABLE değil (${text(
+          row.status
+        ) || "-"}).`
+      );
+    }
+
+    for (
+      const [
+        label,
+        value,
+      ] of [
+        [
+          "Marka",
+          row.brand,
+        ],
+        [
+          "Model",
+          row.model,
+        ],
+        [
+          "Hafıza",
+          row.memory,
+        ],
+        [
+          "Renk",
+          row.color,
+        ],
+        [
+          "Grade",
+          row.grade,
+        ],
+        [
+          "Garanti",
+          row.warranty,
+        ],
+      ] as Array<
+        [string, unknown]
+      >
+    ) {
+      if (
+        !text(value)
+      ) {
+        errors.push(
+          `${imei}: ${label} eksik.`
+        );
+      }
+    }
+  }
+
+  if (
+    requestedIds.length >
+    100
+  ) {
+    errors.push(
+      "Tek seferde en fazla 100 IMEI İdefix'e gönderilebilir."
+    );
+  }
+
+  if (
+    rows.length > 0
+  ) {
+    const membership =
+      await client.query(
+        `
+          SELECT
+            stock_device_id,
+            imei,
+            membership_status
+          FROM public.online_channel_devices
+          WHERE channel = 'IDEFIX'
+            AND stock_device_id = ANY(
+              $1::bigint[]
+            )
+        `,
+        [
+          requestedIds,
+        ]
+      );
+
+    for (
+      const row of
+        membership.rows
+    ) {
+      errors.push(
+        `${text(
+          row.imei
+        )}: İdefix kanalında zaten kayıtlı (${text(
+          row.membership_status
+        ) || "KAYITLI"}).`
+      );
+    }
+  }
+
+  return errors;
+}
+
+async function prepareGroup(
+  client:
+    PoolClient,
+  products:
+    IdefixProduct[],
+  group:
+    CenterGroup,
+  salePrice:
+    number,
+  listPrice:
+    number
+): Promise<
+  PreparedGroup
+> {
+  const blockers:
+    string[] = [];
+
+  let exactProduct:
+    IdefixProduct | null =
+      null;
+
+  let referenceProduct:
+    IdefixProduct | null =
+      null;
+
+  try {
+    exactProduct =
+      exactProductForGroup(
+        products,
+        group
+      );
+  } catch (error) {
+    blockers.push(
+      error instanceof Error
+        ? error.message
+        : "İdefix mevcut ürün eşleştirme hatası."
+    );
+  }
+
+  if (exactProduct) {
+    const barcode =
+      text(
+        exactProduct
+          .barcode
+      );
+
+    if (!barcode) {
+      blockers.push(
+        "Mevcut İdefix ürününde barkod yok."
+      );
+    }
+
+    return {
+      group,
+      action:
+        "EXISTING_PRODUCT",
+      exactProduct,
+      referenceProduct:
+        null,
+      title:
+        text(
+          exactProduct.title
+        ) ||
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        numberOrNull(
+          exactProduct
+            .inventoryQuantity
+        ) ?? 0,
+      targetAfterStock:
+        (
+          numberOrNull(
+            exactProduct
+              .inventoryQuantity
+          ) ?? 0
+        ) +
+        group.items.length,
+      barcode,
+      vendorStockCode:
+        text(
+          exactProduct
+            .vendorStockCode
+        ) ||
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        text(
+          exactProduct
+            .productMainId
+        ) ||
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        exactProduct.brandId ??
+        null,
+      categoryId:
+        exactProduct
+          .categoryId ??
+        null,
+      vatRate:
+        numberOrNull(
+          exactProduct
+            .vatRate
+        ),
+      imageUrl:
+        Array.isArray(
+          exactProduct.images
+        )
+          ? text(
+              exactProduct
+                .images?.[0]
+                ?.url
+            ) || null
+          : null,
+      attributes:
+        Array.isArray(
+          exactProduct
+            .attributes
+        )
+          ? exactProduct
+              .attributes
+              .map(
+                (
+                  attribute: any
+                ) => ({
+                  attributeId:
+                    attribute
+                      .attributeId,
+                  attributeValueId:
+                    attribute
+                      .attributeValueId ??
+                    null,
+                  customAttributeValue:
+                    text(
+                      attribute
+                        .customAttributeValue
+                    ) || null,
+                })
+              )
+              .filter(
+                (
+                  attribute: any
+                ) =>
+                  attribute
+                    .attributeId !==
+                    null &&
+                  attribute
+                    .attributeId !==
+                    undefined
+              )
+          : [],
+      blockers,
+    };
+  }
+
+  try {
+    referenceProduct =
+      referenceProductForGroup(
+        products,
+        group
+      );
+  } catch (error) {
+    blockers.push(
+      error instanceof Error
+        ? error.message
+        : "İdefix referans ürün seçilemedi."
+    );
+  }
+
+  if (
+    !referenceProduct
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: aynı model + hafıza + kalite için İdefix referans ürünü bulunamadı.`
+    );
+
+    return {
+      group,
+      action:
+        "CREATE_PRODUCT",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        makeStableBarcode(
+          group
+        ),
+      vendorStockCode:
+        makeVendorStockCode(
+          group
+        ),
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        null,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers,
+    };
+  }
+
+  const brandId =
+    referenceProduct
+      .brandId ??
+    null;
+
+  const categoryId =
+    referenceProduct
+      .categoryId ??
+    null;
+
+  if (
+    brandId === null ||
+    text(brandId) ===
+      ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: referans üründe brandId yok.`
+    );
+  }
+
+  if (
+    categoryId === null ||
+    text(categoryId) ===
+      ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: referans üründe categoryId yok.`
+    );
+  }
+
+  let attributes:
+    PreparedGroup[
+      "attributes"
+    ] = [];
+
+  if (
+    categoryId !== null &&
+    text(categoryId)
+  ) {
+    try {
+      attributes =
+        await buildCreateAttributes(
+          referenceProduct,
+          group
+        );
+    } catch (error) {
+      blockers.push(
+        error instanceof Error
+          ? error.message
+          : "İdefix attribute hazırlığı başarısız."
+      );
+    }
+  }
+
+  const localTemplate =
+    await exactColorLocalTemplate(
+      client,
+      group
+    );
+
+  const imageUrl =
+    localTemplate
+      ?.imageUrl ||
+    null;
+
+  if (!imageUrl) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: aynı renk için N11/İkas kaynaklı HTTPS ürün görseli bulunamadı. İdefix create güvenli şekilde durduruldu.`
+    );
+  }
+
+  const vatRate =
+    numberOrNull(
+      referenceProduct
+        .vatRate
+    ) ??
+    localTemplate
+      ?.vatRate ??
+    null;
+
+  if (
+    vatRate === null
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: KDV oranı referans ürünlerden bulunamadı.`
+    );
+  }
+
+  return {
+    group,
+    action:
+      "CREATE_PRODUCT",
+    exactProduct:
+      null,
+    referenceProduct,
+    title:
+      productTitle(
+        group
+      ),
+    salePrice,
+    listPrice,
+    targetBeforeStock:
+      0,
+    targetAfterStock:
+      group.items.length,
+    barcode:
+      makeStableBarcode(
+        group
+      ),
+    vendorStockCode:
+      makeVendorStockCode(
+        group
+      ),
+    productMainId:
+      makeProductMainId(
+        group
+      ),
+    brandId,
+    categoryId,
+    vatRate,
+    imageUrl,
+    attributes,
+    blockers,
+  };
+}
+
+function previewView(
+  prepared:
+    PreparedGroup
+) {
+  return {
+    key:
+      prepared.group.key,
+    action:
+      prepared.action,
+    brand:
+      prepared.group.brand,
+    model:
+      prepared.group.model,
+    memory:
+      prepared.group.memory,
+    color:
+      prepared.group.color,
+    grade:
+      prepared.group.grade,
+    warranty:
+      prepared.group.warranty,
+    imeis:
+      prepared.group.items.map(
+        (item) =>
+          item.imei
+      ),
+    deviceIds:
+      prepared.group.items.map(
+        (item) =>
+          item.deviceId
+      ),
+    salePrice:
+      prepared.salePrice,
+    listPrice:
+      prepared.listPrice,
+    beforeStock:
+      prepared
+        .targetBeforeStock,
+    afterStock:
+      prepared
+        .targetAfterStock,
+    barcode:
+      prepared.barcode,
+    vendorStockCode:
+      prepared
+        .vendorStockCode,
+    productMainId:
+      prepared
+        .productMainId,
+    brandId:
+      prepared.brandId,
+    categoryId:
+      prepared.categoryId,
+    vatRate:
+      prepared.vatRate,
+    imageReady:
+      Boolean(
+        prepared.imageUrl
+      ),
+    imageUrl:
+      prepared.imageUrl,
+    attributeCount:
+      prepared
+        .attributes
+        .length,
+    blockers:
+      prepared.blockers,
+    canCommit:
+      prepared.blockers
+        .length === 0,
+    referenceProduct:
+      prepared.referenceProduct
+        ? {
+            barcode:
+              text(
+                prepared
+                  .referenceProduct
+                  ?.barcode
+              ),
+            title:
+              text(
+                prepared
+                  .referenceProduct
+                  ?.title
+              ),
+            brandId:
+              prepared
+                .referenceProduct
+                ?.brandId ??
+              null,
+            categoryId:
+              prepared
+                .referenceProduct
+                ?.categoryId ??
+              null,
+          }
+        : null,
+  };
+}
+
+async function inventoryUpload(
+  prepared:
+    PreparedGroup
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const payload =
+    await idefixApi(
+      `/pim/catalog/${encodeURIComponent(
+        vendorId
+      )}/inventory-upload`,
+      {
+        method:
+          "POST",
+        body: {
+          items: [
+            {
+              barcode:
+                prepared.barcode,
+              price:
+                prepared
+                  .salePrice,
+              comparePrice:
+                prepared
+                  .listPrice,
+              inventoryQuantity:
+                prepared
+                  .targetAfterStock,
+              maximumPurchasableQuantity:
+                0,
+              deliveryDuration:
+                numberOrNull(
+                  prepared
+                    .exactProduct
+                    ?.deliveryDuration
+                ) ?? 1,
+              deliveryType:
+                text(
+                  prepared
+                    .exactProduct
+                    ?.deliveryType
+                ) ||
+                "regular",
+              isZoneSale:
+                null,
+            },
+          ],
+        },
+      }
+    );
+
+  const batchRequestId =
+    text(
+      payload
+        ?.batchRequestId
+    );
+
+  if (
+    !batchRequestId
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix inventory-upload batchRequestId döndürmedi.`
+    );
+  }
+
+  return {
+    payload,
+    batchRequestId,
+  };
+}
+
+async function inventoryResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  return idefixApi(
+    `/pim/catalog/${encodeURIComponent(
+      vendorId
+    )}/inventory-result/${encodeURIComponent(
+      batchId
+    )}`
+  );
+}
+
+async function waitInventory(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 6;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            700
+          )
+      );
+    }
+
+    last =
+      await inventoryResult(
+        batchId
+      );
+
+    const items =
+      Array.isArray(
+        last?.items
+      )
+        ? last.items
+        : [];
+
+    const item =
+      items.find(
+        (row: any) =>
+          text(
+            row?.barcode
+          ) === barcode
+      ) ||
+      items[0] ||
+      null;
+
+    const status =
+      normalizeText(
+        item?.status ||
+        last?.status
+      );
+
+    if (
+      status ===
+        "COMPLETED" ||
+      status ===
+        "COMPLETED SUCCESS" ||
+      normalizeText(
+        item?.status
+      ) ===
+        "COMPLETED"
+    ) {
+      return {
+        success:
+          true,
+        payload:
+          last,
+        item,
+      };
+    }
+
+    if (
+      normalizeText(
+        item?.status
+      ) ===
+        "DECLINE"
+    ) {
+      throw new Error(
+        `İdefix stok/fiyat reddedildi: ${text(
+          item
+            ?.failureReasons
+        ) || "DECLINE"}`
+      );
+    }
+  }
+
+  return {
+    success:
+      false,
+    payload:
+      last,
+    item:
+      null,
+  };
+}
+
+async function createProduct(
+  prepared:
+    PreparedGroup
+) {
+  if (
+    prepared.action !==
+    "CREATE_PRODUCT"
+  ) {
+    throw new Error(
+      "İdefix create yanlış aksiyonda çağrıldı."
+    );
+  }
+
+  if (
+    prepared.blockers
+      .length > 0
+  ) {
+    throw new Error(
+      prepared.blockers.join(
+        " | "
+      )
+    );
+  }
+
+  const vendorId =
+    getIdefixVendorId();
+
+  const reference =
+    prepared
+      .referenceProduct;
+
+  const requestProduct = {
+    barcode:
+      prepared.barcode,
+    title:
+      prepared.title,
+    productMainId:
+      prepared
+        .productMainId,
+    brandId:
+      prepared.brandId,
+    categoryId:
+      prepared.categoryId,
+    inventoryQuantity:
+      prepared
+        .targetAfterStock,
+    vendorStockCode:
+      prepared
+        .vendorStockCode,
+    desi:
+      numberOrNull(
+        (reference as any)
+          ?.desi
+      ) ?? 0,
+    weight:
+      numberOrNull(
+        reference
+          ?.weight
+      ) ?? 0,
+    description:
+      prepared.title,
+    price:
+      prepared.salePrice,
+    comparePrice:
+      prepared.listPrice,
+    vatRate:
+      prepared.vatRate,
+    deliveryDuration:
+      numberOrNull(
+        reference
+          ?.deliveryDuration
+      ) ?? 1,
+    deliveryType:
+      text(
+        reference
+          ?.deliveryType
+      ) ||
+      "regular",
+    cargoCompanyId:
+      reference
+        ?.cargoCompanyId ??
+      null,
+    shipmentAddressId:
+      reference
+        ?.shipmentAddressId ??
+      null,
+    returnAddressId:
+      reference
+        ?.returnAddressId ??
+      null,
+    images: [
+      {
+        url:
+          prepared.imageUrl,
+      },
+    ],
+    attributes:
+      prepared.attributes,
+  };
+
+  const response =
+    await idefixApi(
+      `/pim/pool/${encodeURIComponent(
+        vendorId
+      )}/create`,
+      {
+        method:
+          "POST",
+        body: {
+          products: [
+            requestProduct,
+          ],
+        },
+        timeoutMs:
+          45_000,
+      }
+    );
+
+  const batchRequestId =
+    text(
+      response
+        ?.batchRequestId
+    );
+
+  if (
+    !batchRequestId
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create batchRequestId döndürmedi.`
+    );
+  }
+
+  return {
+    requestProduct,
+    response,
+    batchRequestId,
+  };
+}
+
+async function batchResult(
+  batchId:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  return idefixApi(
+    `/pim/pool/${encodeURIComponent(
+      vendorId
+    )}/batch-result/${encodeURIComponent(
+      batchId
+    )}`,
+    {
+      timeoutMs:
+        35_000,
+    }
+  );
+}
+
+function productState(
+  payload:
+    any,
+  barcode:
+    string
+) {
+  const products =
+    Array.isArray(
+      payload?.products
+    )
+      ? payload.products
+      : [];
+
+  const product =
+    products.find(
+      (row: any) =>
+        text(
+          row?.barcode
+        ) === barcode
+    ) ||
+    products[0] ||
+    null;
+
+  return {
+    product,
+    state:
+      normalizeText(
+        product?.status ||
+        product?.state
+      ),
+  };
+}
+
+async function waitCreateResult(
+  batchId:
+    string,
+  barcode:
+    string
+) {
+  let last:
+    any = null;
+
+  for (
+    let attempt = 0;
+    attempt < 7;
+    attempt += 1
+  ) {
+    if (
+      attempt > 0
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            850
+          )
+      );
+    }
+
+    last =
+      await batchResult(
+        batchId
+      );
+
+    const state =
+      productState(
+        last,
+        barcode
+      );
+
+    if (
+      state.product &&
+      [
+        "WAITING VENDOR APPROVE",
+        "READY FOR SALE",
+        "NOT MATCHED",
+        "WAITING CATALOG ACTION",
+        "AUTO MATCHED",
+        "MANUAL MATCHED",
+        "MISSING INFO",
+        "PLATFORM DECLINED",
+      ].includes(
+        state.state
+      )
+    ) {
+      return {
+        payload:
+          last,
+        ...state,
+      };
+    }
+
+    const batchStatus =
+      normalizeText(
+        last?.status
+      );
+
+    if (
+      [
+        "FAILED",
+        "CANCELLED",
+      ].includes(
+        batchStatus
+      )
+    ) {
+      return {
+        payload:
+          last,
+        ...state,
+      };
+    }
+  }
+
+  return {
+    payload:
+      last,
+    ...productState(
+      last,
+      barcode
+    ),
+  };
+}
+
+function matchedProductLooksSafe(
+  matched:
+    any,
+  group:
+    CenterGroup
+) {
+  const name =
+    text(
+      matched?.name ||
+      matched?.title
+    );
+
+  if (!name) {
+    return false;
+  }
+
+  return (
+    containsPhrase(
+      name,
+      group.brand
+    ) &&
+    containsPhrase(
+      name,
+      `${normalizeText(
+        group.model
+      )} ${normalizeMemory(
+        group.memory
+      )}`
+    ) &&
+    Boolean(
+      matchedColorAlias(
+        name,
+        group.color
+      )
+    )
+  );
+}
+
+async function approveProduct(
+  barcode:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  return idefixApi(
+    `/pim/pool/${encodeURIComponent(
+      vendorId
+    )}/approve-item`,
+    {
+      method:
+        "POST",
+      body: {
+        items: [
+          {
+            barcode,
+          },
+        ],
+      },
+    }
+  );
+}
+
+async function listByBarcode(
+  barcode:
+    string
+) {
+  const vendorId =
+    getIdefixVendorId();
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "page",
+    "1"
+  );
+
+  params.set(
+    "limit",
+    "10"
+  );
+
+  params.set(
+    "barcode",
+    barcode
+  );
+
+  const payload =
+    await idefixApi(
+      `/pim/pool/${encodeURIComponent(
+        vendorId
+      )}/list?${params.toString()}`
+    );
+
+  const products =
+    Array.isArray(
+      payload?.products
+    )
+      ? payload.products as
+          IdefixProduct[]
+      : [];
+
+  return {
+    payload,
+    products,
+  };
+}
+
+async function persistLocal(
+  client:
+    PoolClient,
+  params: {
+    prepared:
+      PreparedGroup;
+    finalProduct:
+      IdefixProduct | null;
+    membershipStatus:
+      "LISTED" |
+      "PENDING_CREATE";
+    syncStatus:
+      string;
+    taskStatus:
+      string;
+    batchRequestId:
+      string | null;
+    finalStock:
+      number;
+    apiResult:
+      unknown;
+  }
+) {
+  const {
+    prepared,
+    finalProduct,
+    membershipStatus,
+    syncStatus,
+    taskStatus,
+    batchRequestId,
+    finalStock,
+    apiResult,
+  } = params;
+
+  const externalProductId =
+    text(
+      finalProduct
+        ?.reference
+    ) ||
+    text(
+      finalProduct
+        ?.productMainId
+    ) ||
+    prepared.productMainId;
+
+  const externalVariantId =
+    text(
+      finalProduct
+        ?.barcode
+    ) ||
+    prepared.barcode;
+
+  const externalStockCode =
+    text(
+      finalProduct
+        ?.vendorStockCode
+    ) ||
+    prepared.vendorStockCode;
+
+  const existing =
+    await client.query(
+      `
+        SELECT
+          id,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'IDEFIX'
+          AND (
+            external_variant_id = $1
+            OR external_stock_code = $2
+          )
+        ORDER BY
+          updated_at DESC,
+          id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [
+        externalVariantId,
+        externalStockCode,
+      ]
+    );
+
+  const imeis =
+    prepared.group.items.map(
+      (item) =>
+        item.imei
+    );
+
+  let listingId:
+    number;
+
+  if (
+    existing.rowCount
+  ) {
+    const row =
+      existing.rows[0];
+
+    const oldRaw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
+
+    const oldImeis =
+      Array.isArray(
+        oldRaw?.centerImeis
+      )
+        ? oldRaw
+            .centerImeis
+            .map(
+              (value: any) =>
+                text(value)
+            )
+            .filter(Boolean)
+        : [];
+
+    const centerImeis =
+      Array.from(
+        new Set([
+          ...oldImeis,
+          ...imeis,
+        ])
+      );
+
+    const updated =
+      await client.query(
+        `
+          UPDATE public.online_listings
+          SET
+            external_product_id = $2,
+            external_variant_id = $3,
+            external_stock_code = $4,
+            title = $5,
+            sale_price = $6,
+            list_price = $7,
+            quantity = $8,
+            sync_status = $9,
+            last_task_id = $10,
+            last_task_status = $11,
+            brand = $12,
+            model = $13,
+            memory = $14,
+            color = $15,
+            grade = $16,
+            warranty = $17,
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $18::jsonb,
+            updated_at = now()
+          WHERE id = $1
+          RETURNING id
+        `,
+        [
+          Number(row.id),
+          externalProductId,
+          externalVariantId,
+          externalStockCode,
+          text(
+            finalProduct?.title
+          ) ||
+            prepared.title,
+          prepared.salePrice,
+          prepared.listPrice,
+          finalStock,
+          syncStatus,
+          batchRequestId,
+          taskStatus,
+          prepared.group.brand,
+          prepared.group.model,
+          prepared.group.memory,
+          prepared.group.color,
+          prepared.group.grade,
+          prepared.group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis,
+            idefixBarcode:
+              externalVariantId,
+            idefixBatchRequestId:
+              batchRequestId,
+            finalStock,
+            apiResult,
+            lastCenterSyncAt:
+              new Date()
+                .toISOString(),
+          }),
+        ]
+      );
+
+    listingId =
+      Number(
+        updated.rows[0]
+          .id
+      );
+  } else {
+    const inserted =
+      await client.query(
+        `
+          INSERT INTO public.online_listings (
+            stock_device_id,
+            channel,
+            external_product_id,
+            external_variant_id,
+            external_stock_code,
+            title,
+            sale_price,
+            list_price,
+            quantity,
+            sync_status,
+            last_task_id,
+            last_task_status,
+            brand,
+            model,
+            memory,
+            color,
+            grade,
+            warranty,
+            raw_data,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            NULL,
+            'IDEFIX',
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17::jsonb,
+            now(),
+            now()
+          )
+          RETURNING id
+        `,
+        [
+          externalProductId,
+          externalVariantId,
+          externalStockCode,
+          text(
+            finalProduct?.title
+          ) ||
+            prepared.title,
+          prepared.salePrice,
+          prepared.listPrice,
+          finalStock,
+          syncStatus,
+          batchRequestId,
+          taskStatus,
+          prepared.group.brand,
+          prepared.group.model,
+          prepared.group.memory,
+          prepared.group.color,
+          prepared.group.grade,
+          prepared.group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis:
+              imeis,
+            idefixBarcode:
+              externalVariantId,
+            idefixBatchRequestId:
+              batchRequestId,
+            finalStock,
+            createdFrom:
+              "CENTER",
+            apiResult,
+            lastCenterSyncAt:
+              new Date()
+                .toISOString(),
+          }),
+        ]
+      );
+
+    listingId =
+      Number(
+        inserted.rows[0]
+          .id
+      );
+  }
+
+  for (
+    const item of
+      prepared.group.items
+  ) {
+    const exists =
+      await client.query(
+        `
+          SELECT id
+          FROM public.online_channel_devices
+          WHERE channel = 'IDEFIX'
+            AND stock_device_id = $1
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [
+          item.deviceId,
+        ]
+      );
+
+    if (
+      exists.rowCount
+    ) {
+      throw new Error(
+        `${item.imei}: İdefix kanal üyeliği işlem sırasında oluşmuş.`
+      );
+    }
+
+    await client.query(
+      `
+        INSERT INTO public.online_channel_devices (
+          stock_device_id,
+          imei,
+          channel,
+          online_listing_id,
+          membership_status,
+          channel_sale_price,
+          channel_list_price,
+          source_channel,
+          source_listing_id,
+          metadata,
+          listed_at,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          $2,
+          'IDEFIX',
+          $3,
+          $4,
+          $5,
+          $6,
+          'CENTER',
+          NULL,
+          $7::jsonb,
+          CASE
+            WHEN $4 = 'LISTED'
+              THEN now()
+            ELSE NULL
+          END,
+          now(),
+          now()
+        )
+      `,
+      [
+        item.deviceId,
+        item.imei,
+        listingId,
+        membershipStatus,
+        prepared.salePrice,
+        prepared.listPrice,
+        JSON.stringify({
+          source:
+            "CENTER_IDEFIX_SEND",
+          barcode:
+            externalVariantId,
+          vendorStockCode:
+            externalStockCode,
+          productMainId:
+            externalProductId,
+          batchRequestId,
+          state:
+            taskStatus,
+          createdAt:
+            new Date()
+              .toISOString(),
+        }),
+      ]
+    );
+  }
+
+  return {
+    listingId,
+    externalProductId,
+    externalVariantId,
+    externalStockCode,
+  };
+}
+
+async function processPrepared(
+  client:
+    PoolClient,
+  prepared:
+    PreparedGroup
+) {
+  if (
+    prepared.blockers
+      .length > 0
+  ) {
+    throw new Error(
+      prepared.blockers.join(
+        " | "
+      )
+    );
+  }
+
+  if (
+    prepared.action ===
+    "EXISTING_PRODUCT"
+  ) {
+    const upload =
+      await inventoryUpload(
+        prepared
+      );
+
+    const verification =
+      await waitInventory(
+        upload
+          .batchRequestId,
+        prepared.barcode
+      );
+
+    if (
+      !verification.success
+    ) {
+      throw new Error(
+        `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. DB kanal kaydı yazılmadı. Batch: ${upload.batchRequestId}`
+      );
+    }
+
+    await client.query(
+      "BEGIN"
+    );
+
+    try {
+      const local =
+        await persistLocal(
+          client,
+          {
+            prepared,
+            finalProduct:
+              prepared
+                .exactProduct,
+            membershipStatus:
+              "LISTED",
+            syncStatus:
+              "SYNCED",
+            taskStatus:
+              "SUCCESS",
+            batchRequestId:
+              upload
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              verification
+                .payload,
+          }
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        success:
+          true,
+        action:
+          "EXISTING_PRODUCT",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          prepared
+            .targetBeforeStock,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (item) =>
+                item.imei
+            ),
+        batchRequestId:
+          upload
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          "LISTED",
+      };
+    } catch (error) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      throw new Error(
+        `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+          error instanceof Error
+            ? error.message
+            : ""
+        }`
+      );
+    }
+  }
+
+  const create =
+    await createProduct(
+      prepared
+    );
+
+  const createState =
+    await waitCreateResult(
+      create.batchRequestId,
+      prepared.barcode
+    );
+
+  let state =
+    createState.state;
+
+  let finalBarcode =
+    prepared.barcode;
+
+  let approved =
+    false;
+
+  const matched =
+    createState.product
+      ?.matchedProduct;
+
+  if (
+    state ===
+      "WAITING VENDOR APPROVE"
+  ) {
+    if (
+      !matchedProductLooksSafe(
+        matched,
+        prepared.group
+      )
+    ) {
+      throw new Error(
+        `${prepared.title}: İdefix mevcut katalog ürünü önerdi fakat eşleşme otomatik onay için güvenli değil. Merchant onayı bekleniyor. Batch: ${create.batchRequestId}`
+      );
+    }
+
+    await approveProduct(
+      prepared.barcode
+    );
+
+    approved =
+      true;
+
+    const matchedBarcode =
+      text(
+        matched?.barcode
+      );
+
+    if (
+      matchedBarcode
+    ) {
+      finalBarcode =
+        matchedBarcode;
+    }
+
+    // Kısa bekleme sonrası mevcut havuzu tekrar kontrol et.
+    await new Promise(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          900
+        )
+    );
+
+    state =
+      "APPROVED";
+  }
+
+  if (
+    [
+      "MISSING INFO",
+      "PLATFORM DECLINED",
+    ].includes(state)
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create reddedildi/eksik bilgi. ${JSON.stringify(
+        createState.product
+          ?.failureReasons ||
+        null
+      )}`
+    );
+  }
+
+  // Satıcı havuzunda oluştu mu kontrol et.
+  let listedProduct:
+    IdefixProduct | null =
+      null;
+
+  const lookupCandidates =
+    Array.from(
+      new Set([
+        finalBarcode,
+        prepared.barcode,
+      ])
+    ).filter(Boolean);
+
+  for (
+    const barcode of
+      lookupCandidates
+  ) {
+    const listed =
+      await listByBarcode(
+        barcode
+      );
+
+    if (
+      listed.products
+        .length > 0
+    ) {
+      listedProduct =
+        listed.products[0];
+
+      finalBarcode =
+        text(
+          listedProduct
+            .barcode
+        ) ||
+        barcode;
+
+      break;
+    }
+  }
+
+  const pendingStates = [
+    "NOT MATCHED",
+    "WAITING CATALOG ACTION",
+    "AUTO MATCHED",
+    "MANUAL MATCHED",
+    "",
+  ];
+
+  if (
+    !listedProduct &&
+    pendingStates.includes(
+      state
+    )
+  ) {
+    // İdefix operatör incelemesi gereken yeni ürün.
+    // API create kabul edildiği için yerelde PENDING_CREATE olarak işaretle.
+    await client.query(
+      "BEGIN"
+    );
+
+    try {
+      const local =
+        await persistLocal(
+          client,
+          {
+            prepared,
+            finalProduct:
+              null,
+            membershipStatus:
+              "PENDING_CREATE",
+            syncStatus:
+              "CREATING",
+            taskStatus:
+              state ||
+              "PENDING",
+            batchRequestId:
+              create
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              createState
+                .payload,
+          }
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        success:
+          true,
+        action:
+          "CREATE_PRODUCT",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          0,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (item) =>
+                item.imei
+            ),
+        batchRequestId:
+          create
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          state ||
+          "PENDING_CREATE",
+        pendingApproval:
+          true,
+        approved,
+      };
+    } catch (error) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      throw new Error(
+        `${prepared.title}: İdefix create kabul edildi ancak PostgreSQL PENDING_CREATE kaydı yazılamadı. ${
+          error instanceof Error
+            ? error.message
+            : ""
+        }`
+      );
+    }
+  }
+
+  if (
+    !listedProduct
+  ) {
+    throw new Error(
+      `${prepared.title}: İdefix create/approve sonrası ürün satıcı havuzunda doğrulanamadı. Batch: ${create.batchRequestId}`
+    );
+  }
+
+  // Create/approve sonrası kesin barkoda stok ve fiyatı yaz.
+  const finalPrepared:
+    PreparedGroup = {
+      ...prepared,
+      exactProduct:
+        listedProduct,
+      barcode:
+        finalBarcode,
+      targetBeforeStock:
+        numberOrNull(
+          listedProduct
+            .inventoryQuantity
+        ) ?? 0,
+      targetAfterStock:
+        Math.max(
+          prepared
+            .targetAfterStock,
+          numberOrNull(
+            listedProduct
+              .inventoryQuantity
+          ) ?? 0
+        ),
+  };
+
+  const upload =
+    await inventoryUpload(
+      finalPrepared
+    );
+
+  const inventoryVerified =
+    await waitInventory(
+      upload.batchRequestId,
+      finalBarcode
+    );
+
+  if (
+    !inventoryVerified.success
+  ) {
+    throw new Error(
+      `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
+    );
+  }
+
+  await client.query(
+    "BEGIN"
+  );
+
+  try {
+    const local =
+      await persistLocal(
+        client,
+        {
+          prepared:
+            finalPrepared,
+          finalProduct:
+            listedProduct,
+          membershipStatus:
+            "LISTED",
+          syncStatus:
+            "SYNCED",
+          taskStatus:
+            "SUCCESS",
+          batchRequestId:
+            create
+              .batchRequestId,
+          finalStock:
+            finalPrepared
+              .targetAfterStock,
+          apiResult: {
+            create:
+              createState
+                .payload,
+            inventory:
+              inventoryVerified
+                .payload,
+          },
+        }
+      );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return {
+      success:
+        true,
+      action:
+        "CREATE_PRODUCT",
+      title:
+        prepared.title,
+      color:
+        prepared.group.color,
+      barcode:
+        finalBarcode,
+      beforeStock:
+        finalPrepared
+          .targetBeforeStock,
+      afterStock:
+        finalPrepared
+          .targetAfterStock,
+      addedImeis:
+        prepared
+          .group.items.map(
+            (item) =>
+              item.imei
+          ),
+      batchRequestId:
+        create
+          .batchRequestId,
+      inventoryBatchRequestId:
+        upload
+          .batchRequestId,
+      listingId:
+        local.listingId,
+      state:
+        "LISTED",
+      pendingApproval:
+        false,
+      approved,
+    };
+  } catch (error) {
+    try {
+      await client.query(
+        "ROLLBACK"
+      );
+    } catch {}
+
+    throw new Error(
+      `${prepared.title}: İdefix dış işlemler başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+        error instanceof Error
+          ? error.message
+          : ""
+      }`
+    );
+  }
+}
+
+export async function POST(
+  request:
+    NextRequest
+) {
+  let client:
+    PoolClient | null =
+      null;
+
+  try {
+    const authError =
+      await requireIdefixSuperAdmin(
+        request
+      );
+
+    if (authError) {
+      return authError;
+    }
+
+    if (
+      !validateOrigin(
+        request
+      )
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Geçersiz istek kaynağı.",
+        },
+        403
+      );
+    }
+
+    const body =
+      await request
+        .json()
+        .catch(
+          () => null
+        );
+
+    if (
+      !body ||
+      typeof body !==
+        "object" ||
+      Array.isArray(body)
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Geçersiz istek.",
+        },
+        400
+      );
+    }
+
+    const data =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const modeRaw =
+      text(
+        data.mode ||
+        "preview"
+      ).toLowerCase();
+
+    if (
+      modeRaw !==
+        "preview" &&
+      modeRaw !==
+        "commit"
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "mode yalnızca preview veya commit olabilir.",
+        },
+        400
+      );
+    }
+
+    const mode =
+      modeRaw as
+        SendMode;
+
+    if (
+      !Array.isArray(
+        data.deviceIds
+      )
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "deviceIds bulunamadı.",
+        },
+        400
+      );
+    }
+
+    const deviceIds =
+      Array.from(
+        new Set(
+          data.deviceIds
+            .map(
+              (value) =>
+                Number(value)
+            )
+            .filter(
+              (value) =>
+                Number.isInteger(
+                  value
+                ) &&
+                value > 0
+            )
+        )
+      );
+
+    if (
+      deviceIds.length ===
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "En az 1 cihaz seç.",
+        },
+        400
+      );
+    }
+
+    const salePrice =
+      money(
+        data.salePrice,
+        "Satış fiyatı"
+      );
+
+    const listPrice =
+      money(
+        data.listPrice,
+        "Liste fiyatı"
+      );
+
+    if (
+      listPrice <
+      salePrice
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          error:
+            "Liste fiyatı satış fiyatından düşük olamaz.",
+        },
+        400
+      );
+    }
+
+    client =
+      await getIdefixDbPool()
+        .connect();
+
+    const rows =
+      await selectedDevices(
+        client,
+        deviceIds
+      );
+
+    const deviceErrors =
+      await validateDevices(
+        client,
+        deviceIds,
+        rows
+      );
+
+    if (
+      deviceErrors.length >
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode,
+          error:
+            "İdefix gönderimi ön kontrolde durduruldu.",
+          errors:
+            deviceErrors,
+        },
+        409
+      );
+    }
+
+    const groups =
+      buildGroups(rows);
+
+    const products =
+      await fetchAllProducts();
+
+    const prepared:
+      PreparedGroup[] = [];
+
+    for (
+      const group of groups
+    ) {
+      prepared.push(
+        await prepareGroup(
+          client,
+          products,
+          group,
+          salePrice,
+          listPrice
+        )
+      );
+    }
+
+    const preview =
+      prepared.map(
+        previewView
+      );
+
+    const blockers =
+      preview.flatMap(
+        (row) =>
+          row.blockers
+      );
+
+    if (
+      mode ===
+      "preview"
+    ) {
+      return noStoreJson({
+        success:
+          true,
+        mode:
+          "preview",
+        channel:
+          "IDEFIX",
+        canCommit:
+          blockers.length ===
+          0,
+        totalDevices:
+          deviceIds.length,
+        totalGroups:
+          groups.length,
+        existingGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "EXISTING_PRODUCT"
+          ).length,
+        createGroups:
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "CREATE_PRODUCT"
+          ).length,
+        preview,
+        safety: {
+          databaseWrite:
+            false,
+          idefixWrite:
+            false,
+          n11Write:
+            false,
+          ikasWrite:
+            false,
+        },
+      });
+    }
+
+    if (
+      blockers.length >
+      0
+    ) {
+      return noStoreJson(
+        {
+          success:
+            false,
+          mode:
+            "commit",
+          channel:
+            "IDEFIX",
+          error:
+            "İdefix gerçek gönderimi engellendi. Önce aşağıdaki eksikleri çöz.",
+          blockers,
+          preview,
+        },
+        409
+      );
+    }
+
+    // Aynı anda iki Merkez -> İdefix gönderimi olmasın.
+    await client.query(
+      `
+        SELECT
+          pg_advisory_lock(
+            hashtext(
+              'cnet_center_idefix_send'
+            )
+          )
+      `
+    );
+
+    let lockHeld =
+      true;
+
+    try {
+      // Kilit alındıktan sonra IMEI üyeliklerini tekrar kontrol.
+      const recheck =
+        await validateDevices(
+          client,
+          deviceIds,
+          await selectedDevices(
+            client,
+            deviceIds
+          )
+        );
+
+      if (
+        recheck.length >
+        0
+      ) {
+        return noStoreJson(
+          {
+            success:
+              false,
+            mode:
+              "commit",
+            channel:
+              "IDEFIX",
+            error:
+              "İdefix gönderimi kilit sonrası durduruldu.",
+            errors:
+              recheck,
+          },
+          409
+        );
+      }
+
+      const results:
+        any[] = [];
+
+      for (
+        const item of
+          prepared
+      ) {
+        results.push(
+          await processPrepared(
+            client,
+            item
+          )
+        );
+      }
+
+      return noStoreJson({
+        success:
+          true,
+        mode:
+          "commit",
+        channel:
+          "IDEFIX",
+        message:
+          `${deviceIds.length} cihaz için İdefix işlemi tamamlandı.`,
+        sentImeis:
+          results.reduce(
+            (
+              sum,
+              result
+            ) =>
+              sum +
+              (
+                Array.isArray(
+                  result
+                    ?.addedImeis
+                )
+                  ? result
+                      .addedImeis
+                      .length
+                  : 0
+              ),
+            0
+          ),
+        results,
+      });
+    } finally {
+      if (lockHeld) {
+        try {
+          await client.query(
+            `
+              SELECT
+                pg_advisory_unlock(
+                  hashtext(
+                    'cnet_center_idefix_send'
+                  )
+                )
+            `
+          );
+        } catch {}
+
+        lockHeld =
+          false;
+      }
+    }
+  } catch (error) {
+    console.error(
+      "CENTER IDEFIX SEND ERROR:",
+      error
+    );
+
+    return noStoreJson(
+      {
+        success:
+          false,
+        channel:
+          "IDEFIX",
+        error:
+          error instanceof Error
+            ? error.message
+            : "İdefix gerçek gönderimi başarısız.",
+      },
+      500
+    );
+  } finally {
+    client?.release();
+  }
+}
