@@ -1272,16 +1272,9 @@ export default function Merkez() {
   ] = useState("");
 
   const [
-    stockView,
-    setStockView,
-  ] = useState<
-    "in_stock" |
-    "out_of_stock"
-  >("in_stock");
-
-  const onlyAvailable =
-    stockView ===
-    "in_stock";
+    onlyAvailable,
+    setOnlyAvailable,
+  ] = useState(true);
 
   const [
     expandedKey,
@@ -1418,21 +1411,6 @@ export default function Merkez() {
   ] = useState<number[]>(
     []
   );
-
-  const [
-    stockStateBusy,
-    setStockStateBusy,
-  ] = useState(false);
-
-  const [
-    stockStateError,
-    setStockStateError,
-  ] = useState("");
-
-  const [
-    stockStateNotice,
-    setStockStateNotice,
-  ] = useState("");
 
   const [
     channelOpen,
@@ -3538,415 +3516,6 @@ export default function Merkez() {
     );
 
 
-  const stockApiJson =
-    useCallback(
-      async (
-        url: string,
-        options:
-          RequestInit
-      ) => {
-        const response =
-          await fetch(
-            url,
-            options
-          );
-
-        const raw =
-          await response.text();
-
-        let payload:
-          any = null;
-
-        try {
-          payload =
-            raw
-              ? JSON.parse(
-                  raw
-                )
-              : null;
-        } catch {
-          throw new Error(
-            `API JSON dönmedi. HTTP ${response.status}.`
-          );
-        }
-
-        if (
-          !response.ok ||
-          !payload?.success
-        ) {
-          throw new Error(
-            payload?.error ||
-              `İşlem başarısız. HTTP ${response.status}`
-          );
-        }
-
-        return payload;
-      },
-      []
-    );
-
-  const exitSelectedFromStock =
-    useCallback(
-      async () => {
-        if (
-          stockStateBusy ||
-          selectedDeviceIds.length ===
-            0
-        ) {
-          return;
-        }
-
-        const confirmed =
-          window.confirm(
-            `${selectedDeviceIds.length} cihaz stoktan çıkarılacak. Bağlı N11 / İkas / İdefix stokları kalan gerçek IMEI adedine düşürülecek. Son cihazsa kanal stoğu 0 olur. Devam edilsin mi?`
-          );
-
-        if (!confirmed) {
-          return;
-        }
-
-        setStockStateBusy(
-          true
-        );
-        setStockStateError(
-          ""
-        );
-        setStockStateNotice(
-          ""
-        );
-
-        try {
-          const preview =
-            await stockApiJson(
-              "/api/online/center/devices/manage",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "exit_preview",
-                    deviceIds:
-                      selectedDeviceIds,
-                  }),
-              }
-            );
-
-          const plan =
-            preview?.plan;
-
-          if (
-            plan?.canProceed !==
-            true
-          ) {
-            const blockers =
-              Array.isArray(
-                plan?.blockers
-              )
-                ? plan.blockers
-                : [];
-
-            throw new Error(
-              blockers.length >
-              0
-                ? blockers.join(
-                    " | "
-                  )
-                : "Stoktan çıkarma planı hazırlanamadı."
-            );
-          }
-
-          // N11:
-          // Mevcut Merkez yapısında fiziksel cihaz stockCode=IMEI ile açılıyor.
-          // Seçilen N11 listing stok 0 yapılır.
-          for (
-            const action of
-              Array.isArray(
-                plan
-                  ?.n11Actions
-              )
-                ? plan
-                    .n11Actions
-                : []
-          ) {
-            await stockApiJson(
-              "/api/online/listings",
-              {
-                method:
-                  "PATCH",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "SET_STOCK_ZERO",
-                    listingId:
-                      action
-                        .listingId,
-                  }),
-              }
-            );
-          }
-
-          // İkas:
-          // Aynı varyantta kalan AVAILABLE IMEI kadar stok bırak.
-          for (
-            const action of
-              Array.isArray(
-                plan
-                  ?.ikasActions
-              )
-                ? plan
-                    .ikasActions
-                : []
-          ) {
-            await stockApiJson(
-              "/api/online/ikas/variant-stock",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    productId:
-                      action
-                        .productId,
-                    variantId:
-                      action
-                        .variantId,
-                    action:
-                      "set",
-                    quantity:
-                      Number(
-                        action
-                          .targetQuantity ||
-                          0
-                      ),
-                  }),
-              }
-            );
-          }
-
-          // İdefix:
-          // Exact quantity yazar, inventory-result + inventory-list ile doğrular.
-          for (
-            const action of
-              Array.isArray(
-                plan
-                  ?.idefixActions
-              )
-                ? plan
-                    .idefixActions
-                : []
-          ) {
-            await stockApiJson(
-              "/api/online/idefix/variant-stock",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    barcode:
-                      action
-                        .barcode,
-                    quantity:
-                      Number(
-                        action
-                          .targetQuantity ||
-                          0
-                      ),
-                  }),
-              }
-            );
-          }
-
-          // Tüm dış kanal stok çağrıları başarıyla geçmeden
-          // cihazı PASSIVE yapma.
-          const finalized =
-            await stockApiJson(
-              "/api/online/center/devices/manage",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "finalize_exit",
-                    deviceIds:
-                      selectedDeviceIds,
-                    marketplaceSyncCompleted:
-                      true,
-                  }),
-              }
-            );
-
-          setStockStateNotice(
-            finalized?.message ||
-              `${selectedDeviceIds.length} cihaz stoktan çıkarıldı.`
-          );
-
-          setSelectedDeviceIds(
-            []
-          );
-          setChannelPreview(
-            null
-          );
-
-          await loadCenter(
-            true
-          );
-        } catch (error) {
-          const message =
-            error instanceof
-            Error
-              ? error.message
-              : "Stoktan çıkarma başarısız.";
-
-          setStockStateError(
-            message +
-              " Tekrar denediğinde aynı hedef stok adetleri yeniden yazılır; cihaz Merkez'de PASSIVE yapılmadan işlem tamamlanmış sayılmaz."
-          );
-
-          await loadCenter(
-            true
-          );
-        } finally {
-          setStockStateBusy(
-            false
-          );
-        }
-      },
-      [
-        stockStateBusy,
-        selectedDeviceIds,
-        stockApiJson,
-        loadCenter,
-      ]
-    );
-
-  const restoreSelectedToStock =
-    useCallback(
-      async () => {
-        if (
-          stockStateBusy ||
-          selectedDeviceIds.length ===
-            0
-        ) {
-          return;
-        }
-
-        setStockStateBusy(
-          true
-        );
-        setStockStateError(
-          ""
-        );
-        setStockStateNotice(
-          ""
-        );
-
-        try {
-          const payload =
-            await stockApiJson(
-              "/api/online/center/devices/manage",
-              {
-                method:
-                  "POST",
-                cache:
-                  "no-store",
-                credentials:
-                  "same-origin",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    action:
-                      "restore_selected",
-                    deviceIds:
-                      selectedDeviceIds,
-                  }),
-              }
-            );
-
-          setStockStateNotice(
-            payload?.message ||
-              "Cihaz tekrar stoğa alındı."
-          );
-
-          setSelectedDeviceIds(
-            []
-          );
-          setChannelPreview(
-            null
-          );
-          setStockView(
-            "in_stock"
-          );
-
-          await loadCenter(
-            true
-          );
-        } catch (error) {
-          setStockStateError(
-            error instanceof
-            Error
-              ? error.message
-              : "Tekrar stoğa alma başarısız."
-          );
-        } finally {
-          setStockStateBusy(
-            false
-          );
-        }
-      },
-      [
-        stockStateBusy,
-        selectedDeviceIds,
-        stockApiJson,
-        loadCenter,
-      ]
-    );
-
-
   const groups =
     useMemo(
       () =>
@@ -3979,13 +3548,10 @@ export default function Merkez() {
                   device: any
                 ) => {
                   if (
-                    onlyAvailable
-                      ? device
-                          ?.status !==
-                        "AVAILABLE"
-                      : device
-                          ?.status !==
-                        "PASSIVE"
+                    onlyAvailable &&
+                    device
+                      ?.status !==
+                      "AVAILABLE"
                   ) {
                     return false;
                   }
@@ -4075,13 +3641,10 @@ export default function Merkez() {
                     (
                       device: any
                     ) =>
-                      onlyAvailable
-                        ? device
-                            ?.status ===
-                          "AVAILABLE"
-                        : device
-                            ?.status ===
-                          "PASSIVE"
+                      !onlyAvailable ||
+                      device
+                        ?.status ===
+                        "AVAILABLE"
                   )
                 : devices;
 
@@ -4170,16 +3733,6 @@ export default function Merkez() {
         0,
       detail:
         "AVAILABLE cihaz",
-    },
-    {
-      label:
-        "Stokta Olmayan",
-      value:
-        summary
-          ?.passiveDevices ??
-        0,
-      detail:
-        "PASSIVE IMEI",
     },
     {
       label: "N11",
@@ -4338,7 +3891,7 @@ export default function Merkez() {
             </div>
           )}
 
-        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-6 sm:p-6">
+        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5 sm:p-6">
           {cards.map(
             (
               card,
@@ -4375,58 +3928,34 @@ export default function Merkez() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setStockView(
-                    "in_stock"
-                  );
-                  setSelectedDeviceIds(
-                    []
-                  );
-                  setChannelPreview(
-                    null
-                  );
-                }}
+                onClick={() =>
+                  setOnlyAvailable(
+                    true
+                  )
+                }
                 className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
                   onlyAvailable
-                    ? "bg-emerald-600 text-white"
+                    ? "bg-slate-950 text-white"
                     : "border border-slate-200 bg-white text-slate-500"
                 }`}
               >
-                Stokta Olanlar (
-                {Number(
-                  summary
-                    ?.availableDevices ||
-                    0
-                )}
-                )
+                Sadece AVAILABLE
               </button>
 
               <button
                 type="button"
-                onClick={() => {
-                  setStockView(
-                    "out_of_stock"
-                  );
-                  setSelectedDeviceIds(
-                    []
-                  );
-                  setChannelPreview(
-                    null
-                  );
-                }}
+                onClick={() =>
+                  setOnlyAvailable(
+                    false
+                  )
+                }
                 className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
                   !onlyAvailable
-                    ? "bg-rose-600 text-white"
+                    ? "bg-slate-950 text-white"
                     : "border border-slate-200 bg-white text-slate-500"
                 }`}
               >
-                Stokta Olmayanlar (
-                {Number(
-                  summary
-                    ?.passiveDevices ||
-                    0
-                )}
-                )
+                Tüm Durumlar
               </button>
 
               <span className="rounded-full bg-white px-2.5 py-1.5 text-[8px] font-black text-slate-500 ring-1 ring-slate-200">
@@ -4468,18 +3997,6 @@ export default function Merkez() {
             </div>
           </div>
 
-          {stockStateError && (
-            <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[8px] font-black text-rose-700 sm:px-6">
-              {stockStateError}
-            </div>
-          )}
-
-          {stockStateNotice && (
-            <div className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 text-[8px] font-black text-emerald-700 sm:px-6">
-              {stockStateNotice}
-            </div>
-          )}
-
           {selectedDeviceIds.length > 0 && (
             <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/70 px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
               <div className="flex flex-wrap items-center gap-2">
@@ -4504,75 +4021,41 @@ export default function Merkez() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {onlyAvailable ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "N11"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
-                    >
-                      N11'e Gönder
-                    </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "N11"
+                    )
+                  }
+                  className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
+                >
+                  N11'e Hazırla
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "IKAS"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
-                    >
-                      İkas'a Gönder
-                    </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "IKAS"
+                    )
+                  }
+                  className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
+                >
+                  İkas'a Hazırla
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "IDEFIX"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-violet-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-violet-700"
-                    >
-                      İdefix'e Gönder
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={
-                        stockStateBusy
-                      }
-                      onClick={() => {
-                        void exitSelectedFromStock();
-                      }}
-                      className="h-10 rounded-xl bg-rose-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-rose-700 disabled:opacity-50"
-                    >
-                      {stockStateBusy
-                        ? "Stoklar Güncelleniyor..."
-                        : "Stoktan Çıkar"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={
-                      stockStateBusy
-                    }
-                    onClick={() => {
-                      void restoreSelectedToStock();
-                    }}
-                    className="h-10 rounded-xl bg-emerald-600 px-5 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    {stockStateBusy
-                      ? "Stoğa Alınıyor..."
-                      : "Tekrar Stoğa Al"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChannelSend(
+                      "IDEFIX"
+                    )
+                  }
+                  className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-4 text-[8px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
+                >
+                  İdefix'e Hazırla
+                </button>
               </div>
             </div>
           )}
@@ -4732,9 +4215,7 @@ export default function Merkez() {
                         <>
                           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                             <div className="text-[8px] font-bold text-slate-500">
-                              {onlyAvailable
-                                ? "Kanala göndermek veya stoktan çıkarmak için AVAILABLE IMEI seç."
-                                : "Tekrar stoğa almak için PASSIVE IMEI seç."}
+                              Kanal gönderimi için yalnızca AVAILABLE IMEI'ler seçilebilir.
                             </div>
 
                             <div className="flex gap-2">
@@ -4753,11 +4234,8 @@ export default function Merkez() {
                                         (
                                           device: any
                                         ) =>
-                                          onlyAvailable
-                                            ? device?.status ===
-                                              "AVAILABLE"
-                                            : device?.status ===
-                                              "PASSIVE"
+                                          device?.status ===
+                                          "AVAILABLE"
                                       )
                                       .map(
                                         (
@@ -4784,9 +4262,7 @@ export default function Merkez() {
                                 }}
                                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-600"
                               >
-                                {onlyAvailable
-                                  ? "AVAILABLE Tümünü Seç"
-                                  : "PASSIVE Tümünü Seç"}
+                                AVAILABLE Tümünü Seç
                               </button>
 
                               <button
@@ -4895,11 +4371,8 @@ export default function Merkez() {
                                           )
                                         }
                                         disabled={
-                                          onlyAvailable
-                                            ? device?.status !==
-                                              "AVAILABLE"
-                                            : device?.status !==
-                                              "PASSIVE"
+                                          device?.status !==
+                                          "AVAILABLE"
                                         }
                                         onChange={() =>
                                           toggleDeviceSelection(
@@ -4910,9 +4383,10 @@ export default function Merkez() {
                                         }
                                         className="h-4 w-4 rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
                                         title={
-                                          onlyAvailable
-                                            ? "Kanal gönderimi / stoktan çıkarma için seç"
-                                            : "Tekrar stoğa almak için seç"
+                                          device?.status ===
+                                          "AVAILABLE"
+                                            ? "Kanal gönderimi için seç"
+                                            : "Yalnızca AVAILABLE cihaz seçilebilir"
                                         }
                                       />
                                     </div>
@@ -5010,124 +4484,9 @@ export default function Merkez() {
         </div>
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
-          MERKEZ · Stokta Olan / Stokta Olmayan · N11 + İkas + İdefix gerçek stok senkronu
+          MERKEZ · N11 + İkas + İdefix gerçek gönderim aktif
         </div>
       </div>
-
-      {selectedDeviceIds.length >
-        0 &&
-        !channelOpen && (
-          <div className="fixed bottom-4 left-1/2 z-[115] w-[calc(100%-24px)] max-w-[930px] -translate-x-1/2 rounded-[22px] border border-slate-200 bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.20)] backdrop-blur-xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-[9px] font-black text-white">
-                  {
-                    selectedDeviceIds.length
-                  }
-                </span>
-
-                <div>
-                  <div className="text-[9px] font-black text-slate-900">
-                    {onlyAvailable
-                      ? "Stoktaki IMEI seçildi"
-                      : "Stok dışı IMEI seçildi"}
-                  </div>
-
-                  <div className="text-[7px] font-semibold text-slate-400">
-                    Yukarı kaydırmadan işlemi tamamla
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 sm:flex">
-                {onlyAvailable ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "N11"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase text-white"
-                    >
-                      N11'e Gönder
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "IKAS"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase text-white"
-                    >
-                      İkas'a Gönder
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openChannelSend(
-                          "IDEFIX"
-                        )
-                      }
-                      className="h-10 rounded-xl bg-violet-600 px-4 text-[8px] font-black uppercase text-white"
-                    >
-                      İdefix'e Gönder
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={
-                        stockStateBusy
-                      }
-                      onClick={() => {
-                        void exitSelectedFromStock();
-                      }}
-                      className="h-10 rounded-xl bg-rose-600 px-4 text-[8px] font-black uppercase text-white disabled:opacity-50"
-                    >
-                      {stockStateBusy
-                        ? "İşleniyor..."
-                        : "Stoktan Çıkar"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={
-                      stockStateBusy
-                    }
-                    onClick={() => {
-                      void restoreSelectedToStock();
-                    }}
-                    className="h-10 rounded-xl bg-emerald-600 px-5 text-[8px] font-black uppercase text-white disabled:opacity-50"
-                  >
-                    {stockStateBusy
-                      ? "Stoğa Alınıyor..."
-                      : "Tekrar Stoğa Al"}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDeviceIds(
-                      []
-                    );
-                    setChannelPreview(
-                      null
-                    );
-                  }}
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[8px] font-black uppercase text-slate-500"
-                >
-                  Seçimi Temizle
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
       {channelOpen && (
         <div
