@@ -1440,6 +1440,11 @@ export default function Merkez() {
   ] = useState("");
 
   const [
+    idefixNeedsCatalogBarcode,
+    setIdefixNeedsCatalogBarcode,
+  ] = useState(false);
+
+  const [
     channelPreview,
     setChannelPreview,
   ] = useState<
@@ -2077,6 +2082,9 @@ export default function Merkez() {
         setIdefixCatalogBarcode(
           ""
         );
+        setIdefixNeedsCatalogBarcode(
+          false
+        );
         setChannelPreview(
           null
         );
@@ -2198,6 +2206,142 @@ export default function Merkez() {
           setChannelPreview(
             payload.preview
           );
+
+          if (
+            sendChannel ===
+              "IDEFIX" &&
+            payload.preview
+              ?.canProceed
+          ) {
+            const idefixResponse =
+              await fetch(
+                "/api/online/idefix/center-send",
+                {
+                  method:
+                    "POST",
+                  cache:
+                    "no-store",
+                  credentials:
+                    "same-origin",
+                  headers: {
+                    "Content-Type":
+                      "application/json",
+                  },
+                  body:
+                    JSON.stringify({
+                      mode:
+                        "preview",
+                      deviceIds:
+                        selectedDeviceIds,
+                      salePrice:
+                        channelSalePrice,
+                      listPrice:
+                        channelListPrice,
+                      catalogBarcode:
+                        idefixCatalogBarcode,
+                    }),
+                }
+              );
+
+            const idefixRaw =
+              await idefixResponse.text();
+
+            let idefixPayload:
+              any = null;
+
+            try {
+              idefixPayload =
+                idefixRaw
+                  ? JSON.parse(
+                      idefixRaw
+                    )
+                  : null;
+            } catch {
+              throw new Error(
+                `İdefix ürün ön kontrol API JSON dönmedi. HTTP ${idefixResponse.status}.`
+              );
+            }
+
+            const needsBarcode =
+              Array.isArray(
+                idefixPayload
+                  ?.preview
+              ) &&
+              idefixPayload
+                .preview
+                .some(
+                  (row: any) =>
+                    row
+                      ?.needsCatalogBarcode ===
+                    true
+                );
+
+            setIdefixNeedsCatalogBarcode(
+              needsBarcode
+            );
+
+            if (
+              !idefixResponse.ok ||
+              !idefixPayload
+                ?.success
+            ) {
+              throw new Error(
+                idefixPayload
+                  ?.error ||
+                  "İdefix ürün ön kontrolü başarısız."
+              );
+            }
+
+            if (
+              idefixPayload
+                ?.canCommit !==
+              true
+            ) {
+              if (
+                needsBarcode
+              ) {
+                setChannelError(
+                  "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip tekrar Ön Kontrol Yap. Sonraki aynı ürünlerde barkod otomatik kullanılacak."
+                );
+                return;
+              }
+
+              const blockers =
+                Array.isArray(
+                  idefixPayload
+                    ?.preview
+                )
+                  ? idefixPayload
+                      .preview
+                      .flatMap(
+                        (
+                          row: any
+                        ) =>
+                          Array.isArray(
+                            row
+                              ?.blockers
+                          )
+                            ? row
+                                .blockers
+                            : []
+                      )
+                  : [];
+
+              setChannelError(
+                blockers.length >
+                0
+                  ? blockers.join(
+                      " | "
+                    )
+                  : "İdefix ürün ön kontrolü tamamlanamadı."
+              );
+              return;
+            }
+
+            setIdefixNeedsCatalogBarcode(
+              false
+            );
+          }
         } catch (error) {
           setChannelError(
             error instanceof
@@ -2216,6 +2360,7 @@ export default function Merkez() {
         sendChannel,
         channelSalePrice,
         channelListPrice,
+        idefixCatalogBarcode,
         channelLoading,
       ]
     );
@@ -3046,6 +3191,32 @@ export default function Merkez() {
               ?.canCommit !==
             true
           ) {
+            const needsBarcode =
+              Array.isArray(
+                idefixPreview
+                  ?.preview
+              ) &&
+              idefixPreview
+                .preview
+                .some(
+                  (row: any) =>
+                    row
+                      ?.needsCatalogBarcode ===
+                    true
+                );
+
+            setIdefixNeedsCatalogBarcode(
+              needsBarcode
+            );
+
+            if (
+              needsBarcode
+            ) {
+              throw new Error(
+                "Bu ürün İdefix'te ilk kez eşleştirilecek. Katalog barkodunu bir kez girip Ön Kontrol Yap."
+              );
+            }
+
             const blockers =
               Array.isArray(
                 idefixPreview
@@ -4342,6 +4513,9 @@ export default function Merkez() {
                           setIdefixCatalogBarcode(
                             ""
                           );
+                          setIdefixNeedsCatalogBarcode(
+                            false
+                          );
                         }}
                         className={`h-12 rounded-xl border text-[9px] font-black uppercase transition ${
                           sendChannel ===
@@ -4423,10 +4597,16 @@ export default function Merkez() {
               </div>
 
               {sendChannel ===
-                "IDEFIX" && (
+                "IDEFIX" &&
+                (
+                  idefixNeedsCatalogBarcode ||
+                  Boolean(
+                    idefixCatalogBarcode
+                  )
+                ) && (
                 <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
                   <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-violet-700">
-                    İdefix Katalog Barkodu
+                    İdefix Katalog Barkodu · Sadece İlk Eşleştirme
                   </label>
                   <input
                     value={
@@ -4452,7 +4632,7 @@ export default function Merkez() {
                     className="h-12 w-full rounded-xl border border-violet-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
                   />
                   <div className="mt-2 text-[7px] font-bold leading-4 text-violet-700">
-                    Katalogda mevcut üründe bu barkod İdefix'in resmi fast-listing servisiyle kullanılır; görsel, KDV ve kategori create akışına girilmez. Aynı ürün bir kez açıldıktan sonra sonraki IMEI'lerde barkod tekrar istenmez.
+                    Bu alan yalnızca ürün CNETMOBİL İdefix havuzunda ilk kez açılırken görünür. Bir kez doğru katalog barkoduyla eşleşince sistem kaydeder; sonraki aynı model/hafıza/renk/kalite cihazlarda N11 gibi otomatik kullanır.
                   </div>
                 </div>
               )}
@@ -5022,7 +5202,11 @@ export default function Merkez() {
                     channelLoading ||
                     idefixSending ||
                     !channelPreview
-                      ?.canProceed
+                      ?.canProceed ||
+                    (
+                      idefixNeedsCatalogBarcode &&
+                      !idefixCatalogBarcode
+                    )
                   }
                   onClick={() => {
                     void sendSelectedToIdefix();
