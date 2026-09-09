@@ -219,6 +219,207 @@ function containsPhrase(
     : false;
 }
 
+function normalizedTokens(
+  value:
+    unknown
+) {
+  return normalizeText(
+    value
+  )
+    .split(" ")
+    .filter(Boolean);
+}
+
+function compactNormalized(
+  value:
+    unknown
+) {
+  return normalizeText(
+    value
+  ).replace(
+    /\s+/g,
+    ""
+  );
+}
+
+function modelMatchesTitle(
+  title:
+    unknown,
+  model:
+    unknown
+) {
+  const titleTokens =
+    normalizedTokens(
+      title
+    );
+
+  const modelTokens =
+    normalizedTokens(
+      model
+    );
+
+  if (
+    modelTokens.length === 0
+  ) {
+    return false;
+  }
+
+  let startIndex = -1;
+
+  for (
+    let i = 0;
+    i <=
+      titleTokens.length -
+        modelTokens.length;
+    i += 1
+  ) {
+    let same = true;
+
+    for (
+      let j = 0;
+      j <
+        modelTokens.length;
+      j += 1
+    ) {
+      if (
+        titleTokens[i + j] !==
+        modelTokens[j]
+      ) {
+        same = false;
+        break;
+      }
+    }
+
+    if (same) {
+      startIndex = i;
+      break;
+    }
+  }
+
+  if (
+    startIndex < 0
+  ) {
+    return false;
+  }
+
+  // iPhone 11 ile iPhone 11 Pro / Pro Max gibi cihazları
+  // yanlış eşleştirmemek için modelin hemen sonundaki varyantı kontrol et.
+  const variantTokens =
+    new Set([
+      "PRO",
+      "MAX",
+      "MINI",
+      "PLUS",
+      "ULTRA",
+      "FE",
+      "LITE",
+    ]);
+
+  const nextToken =
+    titleTokens[
+      startIndex +
+      modelTokens.length
+    ] || "";
+
+  if (
+    variantTokens.has(
+      nextToken
+    ) &&
+    !modelTokens.includes(
+      nextToken
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function memoryMatchesTitle(
+  title:
+    unknown,
+  memory:
+    unknown
+) {
+  const memoryNormalized =
+    normalizeMemory(
+      memory
+    );
+
+  if (
+    !memoryNormalized
+  ) {
+    return false;
+  }
+
+  // 64 GB / 64GB gibi farklı yazımları aynı kabul et.
+  const titleCompact =
+    compactNormalized(
+      title
+    );
+
+  const memoryCompact =
+    compactNormalized(
+      memoryNormalized
+    );
+
+  if (
+    titleCompact.includes(
+      memoryCompact
+    )
+  ) {
+    return true;
+  }
+
+  // Merkez hafıza alanı yalnızca "64" gibi geldiyse,
+  // başlıkta 64GB / 64 GB biçimlerini de yakala.
+  const numericOnly =
+    memoryNormalized.match(
+      /^\d+(?:[.,]\d+)?$/
+    );
+
+  if (
+    numericOnly
+  ) {
+    const number =
+      numericOnly[0]
+        .replace(",", ".");
+
+    return (
+      titleCompact.includes(
+        `${number}GB`
+      ) ||
+      titleCompact.includes(
+        `${number}TB`
+      )
+    );
+  }
+
+  return false;
+}
+
+function baseIdentityMatchesTitle(
+  title:
+    unknown,
+  group:
+    CenterGroup
+) {
+  return (
+    containsPhrase(
+      title,
+      group.brand
+    ) &&
+    modelMatchesTitle(
+      title,
+      group.model
+    ) &&
+    memoryMatchesTitle(
+      title,
+      group.memory
+    )
+  );
+}
+
 function colorAliases(value: unknown) {
   const color =
     normalizeText(value);
@@ -674,6 +875,24 @@ async function idefixApi(
   }
 }
 
+function pickIdefixProducts(
+  payload:
+    any
+): IdefixProduct[] {
+  const rows =
+    payload?.products ??
+    payload?.items ??
+    payload?.content ??
+    payload?.data?.products ??
+    payload?.data?.items ??
+    payload?.data?.content ??
+    [];
+
+  return Array.isArray(rows)
+    ? rows
+    : [];
+}
+
 async function fetchAllProducts() {
   const rows:
     IdefixProduct[] = [];
@@ -698,11 +917,9 @@ async function fetchAllProducts() {
       );
 
     const products =
-      Array.isArray(
-        payload?.products
-      )
-        ? payload.products
-        : [];
+      pickIdefixProducts(
+        payload
+      );
 
     if (
       products.length === 0
@@ -793,26 +1010,10 @@ function productLooksLikeCenterGroup(
   const title =
     product.title;
 
-  const brand =
-    normalizeText(
-      group.brand
-    );
-
-  const modelMemory =
-    `${normalizeText(
-      group.model
-    )} ${normalizeMemory(
-      group.memory
-    )}`;
-
   if (
-    !containsPhrase(
+    !baseIdentityMatchesTitle(
       title,
-      brand
-    ) ||
-    !containsPhrase(
-      title,
-      modelMemory
+      group
     ) ||
     !matchedColorAlias(
       title,
@@ -894,18 +1095,6 @@ function exactProductForGroup(
   products: IdefixProduct[],
   group: CenterGroup
 ) {
-  const brand =
-    normalizeText(
-      group.brand
-    );
-
-  const modelMemory =
-    `${normalizeText(
-      group.model
-    )} ${normalizeMemory(
-      group.memory
-    )}`;
-
   const grade =
     normalizeGrade(
       group.grade
@@ -918,13 +1107,9 @@ function exactProductForGroup(
           product.title;
 
         return (
-          containsPhrase(
+          baseIdentityMatchesTitle(
             title,
-            brand
-          ) &&
-          containsPhrase(
-            title,
-            modelMemory
+            group
           ) &&
           Boolean(
             matchedColorAlias(
@@ -980,18 +1165,6 @@ function referenceProductForGroup(
   products: IdefixProduct[],
   group: CenterGroup
 ) {
-  const brand =
-    normalizeText(
-      group.brand
-    );
-
-  const modelMemory =
-    `${normalizeText(
-      group.model
-    )} ${normalizeMemory(
-      group.memory
-    )}`;
-
   const grade =
     normalizeGrade(
       group.grade
@@ -1005,13 +1178,9 @@ function referenceProductForGroup(
             product.title;
 
           if (
-            !containsPhrase(
+            !baseIdentityMatchesTitle(
               title,
-              brand
-            ) ||
-            !containsPhrase(
-              title,
-              modelMemory
+              group
             ) ||
             detectGradeFromTitle(
               title
@@ -3114,6 +3283,32 @@ function previewView(
     canCommit:
       prepared.blockers
         .length === 0,
+    matchedProduct:
+      prepared.exactProduct
+        ? {
+            barcode:
+              text(
+                prepared
+                  .exactProduct
+                  ?.barcode
+              ),
+            title:
+              text(
+                prepared
+                  .exactProduct
+                  ?.title
+              ),
+            status:
+              text(
+                prepared
+                  .exactProduct
+                  ?.status ??
+                prepared
+                  .exactProduct
+                  ?.state
+              ),
+          }
+        : null,
     referenceProduct:
       prepared.referenceProduct
         ? {
