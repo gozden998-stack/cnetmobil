@@ -47,6 +47,13 @@ const COOKIE_NAME =
 const CENTER_BRANCH_CODE =
   "CNET";
 
+
+const IKAS_TOKEN_URL =
+  "https://api.myikas.com/api/admin/oauth/token";
+
+const IKAS_GRAPHQL_URL =
+  "https://api.myikas.com/api/v2/admin/graphql";
+
 type SessionPayload = {
   userId: number | null;
   role:
@@ -4232,6 +4239,2584 @@ async function commitN11CenterMembership(
   };
 }
 
+
+type IkasTypeRef = {
+  kind?: string | null;
+  name?: string | null;
+  ofType?: IkasTypeRef | null;
+};
+
+type IkasInputField = {
+  name?: string | null;
+  type?: IkasTypeRef | null;
+};
+
+type IkasProductSnapshot = {
+  id: string;
+  name: string;
+  brand: any;
+  categories: any[];
+  variants: any[];
+};
+
+function ikasNormalizeText(
+  value: unknown
+) {
+  return String(
+    value ?? ""
+  )
+    .trim()
+    .toLocaleLowerCase(
+      "tr-TR"
+    )
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .replace(/ı/g, "i");
+}
+
+function ikasSignature(
+  value: unknown
+) {
+  return ikasNormalizeText(
+    value
+  )
+    .replace(
+      /[^a-z0-9]+/g,
+      ""
+    );
+}
+
+function ikasSlug(
+  value: unknown
+) {
+  return ikasNormalizeText(
+    value
+  )
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      ""
+    )
+    .toUpperCase();
+}
+
+function ikasGradeLabel(
+  grade: unknown
+) {
+  const value =
+    String(
+      grade ?? ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (value === "A") {
+    return "Mükemmel";
+  }
+
+  if (value === "B") {
+    return "Çok İyi";
+  }
+
+  if (value === "C") {
+    return "İyi";
+  }
+
+  return String(
+    grade ?? ""
+  ).trim();
+}
+
+function makeIkasStableSku(
+  brand: string,
+  model: string,
+  memory: string,
+  grade: string,
+  warranty: string,
+  color: string
+) {
+  const signature = [
+    brand,
+    model,
+    memory,
+    grade,
+    warranty,
+    color,
+  ]
+    .map(ikasNormalizeText)
+    .join("|");
+
+  const hash =
+    crypto
+      .createHash("sha1")
+      .update(signature)
+      .digest("hex")
+      .slice(0, 8)
+      .toUpperCase();
+
+  const readable =
+    [
+      "CNET",
+      ikasSlug(model),
+      ikasSlug(memory),
+      ikasSlug(grade),
+      ikasSlug(color),
+    ]
+      .filter(Boolean)
+      .join("-")
+      .slice(0, 46)
+      .replace(
+        /-+$/g,
+        ""
+      );
+
+  return `${readable}-${hash}`;
+}
+
+async function getIkasAccessTokenForCenter() {
+  const clientId =
+    String(
+      process.env
+        .IKAS_CLIENT_ID ||
+        ""
+    ).trim();
+
+  const clientSecret =
+    String(
+      process.env
+        .IKAS_CLIENT_SECRET ||
+        ""
+    ).trim();
+
+  if (!clientId) {
+    throw new Error(
+      "IKAS_CLIENT_ID bulunamadı."
+    );
+  }
+
+  if (!clientSecret) {
+    throw new Error(
+      "IKAS_CLIENT_SECRET bulunamadı."
+    );
+  }
+
+  const form =
+    new URLSearchParams();
+
+  form.set(
+    "grant_type",
+    "client_credentials"
+  );
+  form.set(
+    "client_id",
+    clientId
+  );
+  form.set(
+    "client_secret",
+    clientSecret
+  );
+
+  const controller =
+    new AbortController();
+
+  const timeoutId =
+    setTimeout(
+      () =>
+        controller.abort(),
+      15_000
+    );
+
+  try {
+    const response =
+      await fetch(
+        IKAS_TOKEN_URL,
+        {
+          method: "POST",
+          cache:
+            "no-store",
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+            Accept:
+              "application/json",
+          },
+          body:
+            form.toString(),
+          signal:
+            controller.signal,
+        }
+      );
+
+    const raw =
+      await response.text();
+
+    let payload:
+      any = null;
+
+    try {
+      payload =
+        raw
+          ? JSON.parse(
+              raw
+            )
+          : null;
+    } catch {
+      payload = null;
+    }
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        payload
+          ?.error_description ||
+          payload?.message ||
+          payload?.error ||
+          `İkas token HTTP ${response.status}`
+      );
+    }
+
+    const token =
+      String(
+        payload
+          ?.access_token ||
+          ""
+      ).trim();
+
+    if (!token) {
+      throw new Error(
+        "İkas access_token alınamadı."
+      );
+    }
+
+    return token;
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+async function ikasGraphqlCenter(
+  accessToken: string,
+  query: string,
+  variables:
+    Record<
+      string,
+      unknown
+    > = {}
+) {
+  const controller =
+    new AbortController();
+
+  const timeoutId =
+    setTimeout(
+      () =>
+        controller.abort(),
+      35_000
+    );
+
+  try {
+    const response =
+      await fetch(
+        IKAS_GRAPHQL_URL,
+        {
+          method: "POST",
+          cache:
+            "no-store",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Accept:
+              "application/json",
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+          body:
+            JSON.stringify({
+              query,
+              variables,
+            }),
+          signal:
+            controller.signal,
+        }
+      );
+
+    const raw =
+      await response.text();
+
+    let payload:
+      any = null;
+
+    try {
+      payload =
+        raw
+          ? JSON.parse(
+              raw
+            )
+          : null;
+    } catch {
+      payload = null;
+    }
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        payload?.errors?.[0]
+          ?.message ||
+          payload?.message ||
+          `İkas GraphQL HTTP ${response.status}`
+      );
+    }
+
+    if (
+      Array.isArray(
+        payload?.errors
+      ) &&
+      payload.errors
+        .length > 0
+    ) {
+      throw new Error(
+        payload.errors
+          .map(
+            (
+              item: any
+            ) =>
+              String(
+                item?.message ||
+                  "GraphQL hata"
+              )
+          )
+          .join(" | ")
+      );
+    }
+
+    return (
+      payload?.data ??
+      {}
+    );
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+function ikasTypeRefText(
+  type:
+    | IkasTypeRef
+    | null
+    | undefined
+): string {
+  if (!type) {
+    return "";
+  }
+
+  if (
+    type.kind ===
+    "NON_NULL"
+  ) {
+    return `${ikasTypeRefText(
+      type.ofType
+    )}!`;
+  }
+
+  if (
+    type.kind === "LIST"
+  ) {
+    return `[${ikasTypeRefText(
+      type.ofType
+    )}]`;
+  }
+
+  return String(
+    type.name ||
+      type.kind ||
+      ""
+  );
+}
+
+function ikasUnwrapType(
+  type:
+    | IkasTypeRef
+    | null
+    | undefined
+) {
+  let current =
+    type || null;
+
+  while (
+    current &&
+    (
+      current.kind ===
+        "NON_NULL" ||
+      current.kind ===
+        "LIST"
+    )
+  ) {
+    current =
+      current.ofType ||
+      null;
+  }
+
+  return {
+    kind:
+      String(
+        current?.kind ||
+          ""
+      ),
+    name:
+      String(
+        current?.name ||
+          ""
+      ),
+  };
+}
+
+const IKAS_INPUT_SCHEMA_QUERY = `
+  query CnetCenterIkasInputSchema(
+    $name: String!
+  ) {
+    __type(name: $name) {
+      kind
+      name
+      inputFields {
+        name
+        type {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+async function getIkasInputSchemaCenter(
+  accessToken: string,
+  inputName: string
+) {
+  const data =
+    await ikasGraphqlCenter(
+      accessToken,
+      IKAS_INPUT_SCHEMA_QUERY,
+      {
+        name:
+          inputName,
+      }
+    );
+
+  const fields =
+    Array.isArray(
+      data?.__type
+        ?.inputFields
+    )
+      ? data.__type
+          .inputFields
+      : [];
+
+  return {
+    name:
+      String(
+        data?.__type
+          ?.name ||
+          inputName
+      ),
+    fields:
+      fields.map(
+        (
+          field:
+            IkasInputField
+        ) => ({
+          name:
+            String(
+              field?.name ||
+                ""
+            ),
+          type:
+            ikasTypeRefText(
+              field?.type
+            ),
+          namedType:
+            ikasUnwrapType(
+              field?.type
+            ).name,
+        })
+      ),
+  };
+}
+
+function ikasSchemaHas(
+  schema: any,
+  fieldName: string
+) {
+  return Boolean(
+    schema?.fields?.some(
+      (field: any) =>
+        field?.name ===
+        fieldName
+    )
+  );
+}
+
+async function getIkasCreateSchemasCenter(
+  accessToken: string
+) {
+  const product =
+    await getIkasInputSchemaCenter(
+      accessToken,
+      "CreateProductInput"
+    );
+
+  const variantType =
+    product.fields.find(
+      (field: any) =>
+        field.name ===
+        "variants"
+    )?.namedType;
+
+  const variant =
+    variantType
+      ? await getIkasInputSchemaCenter(
+          accessToken,
+          variantType
+        )
+      : {
+          name: "",
+          fields: [],
+        };
+
+  const priceType =
+    variant.fields.find(
+      (field: any) =>
+        field.name ===
+        "prices"
+    )?.namedType;
+
+  const price =
+    priceType
+      ? await getIkasInputSchemaCenter(
+          accessToken,
+          priceType
+        )
+      : {
+          name: "",
+          fields: [],
+        };
+
+  const valueType =
+    variant.fields.find(
+      (field: any) =>
+        field.name ===
+        "variantValues"
+    )?.namedType;
+
+  const variantValue =
+    valueType
+      ? await getIkasInputSchemaCenter(
+          accessToken,
+          valueType
+        )
+      : {
+          name: "",
+          fields: [],
+        };
+
+  return {
+    product,
+    variant,
+    price,
+    variantValue,
+  };
+}
+
+const IKAS_CENTER_PRODUCTS_QUERY = `
+  query CnetCenterIkasProducts(
+    $pagination: PaginationInput
+  ) {
+    listProduct(
+      pagination: $pagination
+    ) {
+      count
+      hasNext
+      page
+      data {
+        id
+        name
+        description
+        updatedAt
+        totalStock
+
+        brand {
+          id
+          name
+        }
+
+        categories {
+          id
+          name
+        }
+
+        variants {
+          id
+          sku
+          barcodeList
+
+          variantValues {
+            variantTypeName
+            variantValueName
+          }
+
+          prices {
+            priceListId
+            sellPrice
+            discountPrice
+          }
+
+          stocks {
+            id
+            productId
+            variantId
+            stockLocationId
+            stockCount
+          }
+        }
+      }
+    }
+  }
+`;
+
+async function fetchAllIkasProductsCenter(
+  accessToken: string
+) {
+  const all:
+    IkasProductSnapshot[] =
+      [];
+
+  for (
+    let page = 0;
+    page < 50;
+    page += 1
+  ) {
+    const data =
+      await ikasGraphqlCenter(
+        accessToken,
+        IKAS_CENTER_PRODUCTS_QUERY,
+        {
+          pagination: {
+            page,
+            limit: 100,
+          },
+        }
+      );
+
+    const response =
+      data?.listProduct;
+
+    const items =
+      Array.isArray(
+        response?.data
+      )
+        ? response.data
+        : [];
+
+    all.push(
+      ...items
+    );
+
+    if (
+      response
+        ?.hasNext !==
+        true ||
+      items.length === 0
+    ) {
+      break;
+    }
+  }
+
+  return all;
+}
+
+async function getIkasStockLocationsCenter(
+  accessToken: string
+) {
+  const data =
+    await ikasGraphqlCenter(
+      accessToken,
+      `
+        query CnetCenterIkasStockLocations {
+          listStockLocation {
+            id
+            name
+          }
+        }
+      `
+    );
+
+  const rows =
+    Array.isArray(
+      data?.listStockLocation
+    )
+      ? data.listStockLocation
+      : data
+          ?.listStockLocation
+      ? [
+          data.listStockLocation,
+        ]
+      : [];
+
+  const cleaned =
+    rows
+      .map(
+        (row: any) => ({
+          id:
+            String(
+              row?.id || ""
+            ).trim(),
+          name:
+            String(
+              row?.name || ""
+            ).trim(),
+        })
+      )
+      .filter(
+        (row: any) =>
+          row.id
+      );
+
+  if (
+    cleaned.length === 0
+  ) {
+    throw new Error(
+      "İkas stok lokasyonu bulunamadı."
+    );
+  }
+
+  const main =
+    cleaned.find(
+      (row: any) =>
+        ikasNormalizeText(
+          row.name
+        ).includes(
+          "ana depo"
+        )
+    );
+
+  if (main) {
+    return {
+      selected: main,
+      all: cleaned,
+    };
+  }
+
+  if (
+    cleaned.length === 1
+  ) {
+    return {
+      selected:
+        cleaned[0],
+      all: cleaned,
+    };
+  }
+
+  throw new Error(
+    "Birden fazla İkas stok lokasyonu var ve Ana Depo otomatik seçilemedi."
+  );
+}
+
+function findIkasReferenceProductCenter(
+  products:
+    IkasProductSnapshot[],
+  brand: string,
+  model: string,
+  memory: string
+) {
+  const wantedBrand =
+    ikasSignature(brand);
+
+  const wantedModel =
+    ikasSignature(model);
+
+  const wantedMemory =
+    ikasSignature(memory);
+
+  const ranked =
+    products
+      .map(
+        (product: any) => {
+          const name =
+            ikasSignature(
+              product?.name
+            );
+
+          const brandName =
+            ikasSignature(
+              product?.brand
+                ?.name
+            );
+
+          let score = 0;
+
+          if (
+            brandName ===
+            wantedBrand
+          ) {
+            score += 40;
+          }
+
+          if (
+            wantedModel &&
+            name.includes(
+              wantedModel
+            )
+          ) {
+            score += 40;
+          }
+
+          if (
+            wantedMemory &&
+            name.includes(
+              wantedMemory
+            )
+          ) {
+            score += 15;
+          }
+
+          if (
+            name.includes(
+              "yenilenmis"
+            )
+          ) {
+            score += 5;
+          }
+
+          return {
+            product,
+            score,
+          };
+        }
+      )
+      .filter(
+        (item) =>
+          item.score >= 80
+      )
+      .sort(
+        (a, b) =>
+          b.score -
+          a.score
+      );
+
+  return (
+    ranked[0]
+      ?.product ||
+    null
+  );
+}
+
+function buildIkasPriceInputCenter(
+  schema: any,
+  salePrice: number,
+  listPrice: number
+) {
+  const price:
+    Record<
+      string,
+      unknown
+    > = {};
+
+  // İkas fiyat modeli:
+  // sellPrice = normal/liste fiyatı
+  // discountPrice = indirimli satış fiyatı
+  // Liste == satış ise discountPrice gönderilmez.
+  if (
+    ikasSchemaHas(
+      schema,
+      "sellPrice"
+    )
+  ) {
+    price.sellPrice =
+      listPrice;
+  }
+
+  if (
+    listPrice >
+      salePrice &&
+    ikasSchemaHas(
+      schema,
+      "discountPrice"
+    )
+  ) {
+    price.discountPrice =
+      salePrice;
+  }
+
+  if (
+    ikasSchemaHas(
+      schema,
+      "currency"
+    )
+  ) {
+    price.currency =
+      "TRY";
+  }
+
+  return price;
+}
+
+function buildIkasVariantInputCenter(
+  schemas: any,
+  params: {
+    sku: string;
+    colorTypeName: string;
+    color: string;
+    salePrice: number;
+    listPrice: number;
+  }
+) {
+  const variant:
+    Record<
+      string,
+      unknown
+    > = {};
+
+  if (
+    ikasSchemaHas(
+      schemas.variant,
+      "sku"
+    )
+  ) {
+    variant.sku =
+      params.sku;
+  }
+
+  if (
+    ikasSchemaHas(
+      schemas.variant,
+      "isActive"
+    )
+  ) {
+    variant.isActive =
+      true;
+  }
+
+  if (
+    ikasSchemaHas(
+      schemas.variant,
+      "prices"
+    )
+  ) {
+    variant.prices = [
+      buildIkasPriceInputCenter(
+        schemas.price,
+        params.salePrice,
+        params.listPrice
+      ),
+    ];
+  }
+
+  if (
+    ikasSchemaHas(
+      schemas.variant,
+      "variantValues"
+    )
+  ) {
+    const value:
+      Record<
+        string,
+        unknown
+      > = {};
+
+    if (
+      ikasSchemaHas(
+        schemas
+          .variantValue,
+        "variantTypeName"
+      )
+    ) {
+      value.variantTypeName =
+        params.colorTypeName;
+    }
+
+    if (
+      ikasSchemaHas(
+        schemas
+          .variantValue,
+        "variantValueName"
+      )
+    ) {
+      value.variantValueName =
+        params.color;
+    }
+
+    variant.variantValues = [
+      value,
+    ];
+  }
+
+  return variant;
+}
+
+function buildIkasCreateProductInputCenter(
+  schemas: any,
+  params: {
+    title: string;
+    variant:
+      Record<
+        string,
+        unknown
+      >;
+    referenceProduct:
+      any | null;
+  }
+) {
+  const input:
+    Record<
+      string,
+      unknown
+    > = {};
+
+  if (
+    ikasSchemaHas(
+      schemas.product,
+      "name"
+    )
+  ) {
+    input.name =
+      params.title;
+  }
+
+  if (
+    ikasSchemaHas(
+      schemas.product,
+      "type"
+    )
+  ) {
+    input.type =
+      "PHYSICAL";
+  }
+
+  const brandId =
+    params
+      .referenceProduct
+      ?.brand?.id;
+
+  if (brandId) {
+    if (
+      ikasSchemaHas(
+        schemas.product,
+        "brandId"
+      )
+    ) {
+      input.brandId =
+        brandId;
+    } else if (
+      ikasSchemaHas(
+        schemas.product,
+        "productBrandId"
+      )
+    ) {
+      input.productBrandId =
+        brandId;
+    }
+  }
+
+  const categoryIds =
+    Array.isArray(
+      params
+        .referenceProduct
+        ?.categories
+    )
+      ? params
+          .referenceProduct
+          .categories
+          .map(
+            (item: any) =>
+              item?.id
+          )
+          .filter(Boolean)
+      : [];
+
+  if (
+    categoryIds.length >
+    0
+  ) {
+    if (
+      ikasSchemaHas(
+        schemas.product,
+        "categoryIds"
+      )
+    ) {
+      input.categoryIds =
+        categoryIds;
+    } else if (
+      ikasSchemaHas(
+        schemas.product,
+        "categories"
+      )
+    ) {
+      input.categories =
+        categoryIds;
+    }
+  }
+
+  if (
+    ikasSchemaHas(
+      schemas.product,
+      "variants"
+    )
+  ) {
+    input.variants = [
+      params.variant,
+    ];
+  }
+
+  return input;
+}
+
+function getIkasProductTitleCenter(
+  device: any
+) {
+  return `Yenilenmiş ${String(
+    device.brand || ""
+  ).trim()} ${String(
+    device.model || ""
+  ).trim()} ${String(
+    device.memory || ""
+  ).trim()} ${ikasGradeLabel(
+    device.grade
+  )}`
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+function getIkasColorTypeNameCenter(
+  product: any,
+  model: string
+) {
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  for (
+    const variant of
+      variants
+  ) {
+    const values =
+      Array.isArray(
+        variant
+          ?.variantValues
+      )
+        ? variant
+            .variantValues
+        : [];
+
+    for (
+      const value of
+        values
+    ) {
+      const typeName =
+        String(
+          value
+            ?.variantTypeName ||
+            ""
+        ).trim();
+
+      if (typeName) {
+        return typeName;
+      }
+    }
+  }
+
+  return `${model} Renkleri`;
+}
+
+function findIkasProductByExactTitleCenter(
+  products:
+    IkasProductSnapshot[],
+  title: string,
+  brand: string
+) {
+  const wantedTitle =
+    ikasSignature(
+      title
+    );
+
+  const wantedBrand =
+    ikasSignature(
+      brand
+    );
+
+  const matches =
+    products.filter(
+      (product: any) =>
+        ikasSignature(
+          product?.name
+        ) ===
+          wantedTitle &&
+        (
+          !wantedBrand ||
+          !product?.brand
+            ?.name ||
+          ikasSignature(
+            product.brand
+              .name
+          ) ===
+            wantedBrand
+        )
+    );
+
+  if (
+    matches.length > 1
+  ) {
+    throw new Error(
+      `İkas'ta aynı başlıkla birden fazla ürün var: ${title}. Otomatik eşleştirme durduruldu.`
+    );
+  }
+
+  return (
+    matches[0] ||
+    null
+  );
+}
+
+function findIkasVariantBySkuCenter(
+  products:
+    IkasProductSnapshot[],
+  sku: string
+) {
+  for (
+    const product of
+      products
+  ) {
+    const variants =
+      Array.isArray(
+        product?.variants
+      )
+        ? product.variants
+        : [];
+
+    const variant =
+      variants.find(
+        (item: any) =>
+          String(
+            item?.sku ||
+              ""
+          ).trim() ===
+          sku
+      );
+
+    if (variant) {
+      return {
+        product,
+        variant,
+      };
+    }
+  }
+
+  return null;
+}
+
+function findIkasVariantByColorCenter(
+  product: any,
+  color: string
+) {
+  const wantedColor =
+    ikasSignature(
+      color
+    );
+
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  const matches =
+    variants.filter(
+      (variant: any) =>
+        (
+          Array.isArray(
+            variant
+              ?.variantValues
+          )
+            ? variant
+                .variantValues
+            : []
+        ).some(
+          (value: any) =>
+            ikasSignature(
+              value
+                ?.variantValueName
+            ) ===
+            wantedColor
+        )
+    );
+
+  if (
+    matches.length > 1
+  ) {
+    throw new Error(
+      `İkas ürününde ${color} için birden fazla varyant bulundu. Otomatik eşleştirme durduruldu.`
+    );
+  }
+
+  return (
+    matches[0] ||
+    null
+  );
+}
+
+function getVariantStockAtLocationCenter(
+  variant: any,
+  stockLocationId: string
+) {
+  const stocks =
+    Array.isArray(
+      variant?.stocks
+    )
+      ? variant.stocks
+      : [];
+
+  const row =
+    stocks.find(
+      (stock: any) =>
+        String(
+          stock
+            ?.stockLocationId ||
+            ""
+        ) ===
+        stockLocationId
+    );
+
+  return {
+    stockCount:
+      numberOrNull(
+        row?.stockCount
+      ) || 0,
+    row:
+      row || null,
+  };
+}
+
+async function createIkasProductCenter(
+  accessToken: string,
+  input:
+    Record<
+      string,
+      unknown
+    >
+) {
+  const data =
+    await ikasGraphqlCenter(
+      accessToken,
+      `
+        mutation CnetCenterCreateProduct(
+          $input: CreateProductInput!
+        ) {
+          createProduct(
+            input: $input
+          ) {
+            id
+            name
+            variants {
+              id
+              sku
+              variantValues {
+                variantTypeName
+                variantValueName
+              }
+            }
+          }
+        }
+      `,
+      {
+        input,
+      }
+    );
+
+  const product =
+    data?.createProduct;
+
+  if (
+    !product?.id
+  ) {
+    throw new Error(
+      "İkas createProduct başarılı sonuç döndürmedi."
+    );
+  }
+
+  return product;
+}
+
+async function addIkasVariantCenter(
+  accessToken: string,
+  productId: string,
+  variant:
+    Record<
+      string,
+      unknown
+    >
+) {
+  await ikasGraphqlCenter(
+    accessToken,
+    `
+      mutation CnetCenterAddVariant(
+        $input: AddVariantToProductInput!
+      ) {
+        addVariantToProduct(
+          input: $input
+        )
+      }
+    `,
+    {
+      input: {
+        productId,
+        variant,
+      },
+    }
+  );
+}
+
+async function updateIkasVariantPriceCenter(
+  accessToken: string,
+  productId: string,
+  variantId: string,
+  salePrice: number,
+  listPrice: number
+) {
+  const price:
+    Record<
+      string,
+      unknown
+    > = {
+      sellPrice:
+        listPrice,
+    };
+
+  if (
+    listPrice >
+    salePrice
+  ) {
+    price.discountPrice =
+      salePrice;
+  }
+
+  await ikasGraphqlCenter(
+    accessToken,
+    `
+      mutation CnetCenterUpdateVariantPrices(
+        $input: UpdateVariantPricesInput!
+      ) {
+        updateVariantPrices(
+          input: $input
+        ) {
+          __typename
+        }
+      }
+    `,
+    {
+      input: {
+        priceListId: null,
+        variantPriceInputs: [
+          {
+            deleted: false,
+            price,
+            productId,
+            variantId,
+          },
+        ],
+      },
+    }
+  );
+}
+
+async function saveIkasVariantStockCenter(
+  accessToken: string,
+  params: {
+    productId: string;
+    variantId: string;
+    stockLocationId: string;
+    stockCount: number;
+  }
+) {
+  await ikasGraphqlCenter(
+    accessToken,
+    `
+      mutation CnetCenterSaveVariantStocks(
+        $input: SaveVariantStocksInput!
+      ) {
+        saveVariantStocks(
+          input: $input
+        ) {
+          __typename
+        }
+      }
+    `,
+    {
+      input: {
+        stockInputs: [
+          {
+            deleted: false,
+            productId:
+              params.productId,
+            stockCount:
+              params.stockCount,
+            stockLocationId:
+              params.stockLocationId,
+            variantId:
+              params.variantId,
+          },
+        ],
+      },
+    }
+  );
+}
+
+function groupIkasPreviewItemsCenter(
+  items: any[]
+) {
+  const groups =
+    new Map<
+      string,
+      any
+    >();
+
+  for (
+    const item of
+      items
+  ) {
+    const key = [
+      ikasSignature(
+        item.brand
+      ),
+      ikasSignature(
+        item.model
+      ),
+      ikasSignature(
+        item.memory
+      ),
+      ikasSignature(
+        item.grade
+      ),
+      ikasSignature(
+        item.warranty
+      ),
+      ikasSignature(
+        item.color
+      ),
+    ].join("|");
+
+    if (
+      !groups.has(
+        key
+      )
+    ) {
+      groups.set(
+        key,
+        {
+          key,
+          brand:
+            item.brand,
+          model:
+            item.model,
+          memory:
+            item.memory,
+          color:
+            item.color,
+          grade:
+            item.grade,
+          warranty:
+            item.warranty,
+          items: [],
+        }
+      );
+    }
+
+    groups.get(
+      key
+    ).items.push(
+      item
+    );
+  }
+
+  return Array.from(
+    groups.values()
+  );
+}
+
+async function upsertIkasCenterLocalRecords(
+  client: PoolClient,
+  params: {
+    group: any;
+    product: any;
+    variant: any;
+    stockLocationId: string;
+    verifiedStock: number;
+    salePrice: number;
+    listPrice: number;
+  }
+) {
+  const {
+    group,
+    product,
+    variant,
+    stockLocationId,
+    verifiedStock,
+    salePrice,
+    listPrice,
+  } = params;
+
+  const externalProductId =
+    String(
+      product?.id || ""
+    ).trim();
+
+  const externalVariantId =
+    String(
+      variant?.id || ""
+    ).trim();
+
+  const sku =
+    String(
+      variant?.sku || ""
+    ).trim();
+
+  if (
+    !externalProductId ||
+    !externalVariantId
+  ) {
+    throw new Error(
+      "İkas product/variant ID doğrulanamadı."
+    );
+  }
+
+  const existingListing =
+    await client.query(
+      `
+        SELECT
+          id,
+          raw_data
+        FROM public.online_listings
+        WHERE channel = 'IKAS'
+          AND external_variant_id = $1
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [
+        externalVariantId,
+      ]
+    );
+
+  const imeis =
+    group.items.map(
+      (item: any) =>
+        item.imei
+    );
+
+  let listingId:
+    number;
+
+  if (
+    existingListing
+      .rowCount
+  ) {
+    const row =
+      existingListing
+        .rows[0];
+
+    const oldRaw =
+      row?.raw_data &&
+      typeof row.raw_data ===
+        "object"
+        ? row.raw_data
+        : {};
+
+    const oldCenterImeis =
+      Array.isArray(
+        oldRaw?.centerImeis
+      )
+        ? oldRaw
+            .centerImeis
+            .map(
+              (value: any) =>
+                String(
+                  value || ""
+                )
+            )
+        : [];
+
+    const centerImeis =
+      Array.from(
+        new Set([
+          ...oldCenterImeis,
+          ...imeis,
+        ])
+      );
+
+    const updated =
+      await client.query(
+        `
+          UPDATE public.online_listings
+          SET
+            external_product_id = $2,
+            external_stock_code = $3,
+            title = $4,
+            sale_price = $5,
+            list_price = $6,
+            quantity = $7,
+            sync_status = 'SYNCED',
+            last_task_status = 'SUCCESS',
+            stock_location_id = $8,
+            brand = $9,
+            model = $10,
+            memory = $11,
+            color = $12,
+            grade = $13,
+            warranty = $14,
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $15::jsonb,
+            updated_at = now()
+          WHERE id = $1
+          RETURNING id
+        `,
+        [
+          Number(
+            row.id
+          ),
+          externalProductId,
+          sku ||
+            `IKASVAR-${externalVariantId}`,
+          String(
+            product?.name ||
+              ""
+          ),
+          salePrice,
+          listPrice,
+          verifiedStock,
+          stockLocationId,
+          group.brand,
+          group.model,
+          group.memory,
+          group.color,
+          group.grade,
+          group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis,
+            externalVariantId,
+            verifiedStock,
+            lastCenterSyncAt:
+              new Date().toISOString(),
+          }),
+        ]
+      );
+
+    listingId =
+      Number(
+        updated.rows[0]
+          .id
+      );
+  } else {
+    const inserted =
+      await client.query(
+        `
+          INSERT INTO public.online_listings (
+            stock_device_id,
+            channel,
+            external_product_id,
+            external_variant_id,
+            external_stock_code,
+            title,
+            sale_price,
+            list_price,
+            quantity,
+            sync_status,
+            last_task_status,
+            stock_location_id,
+            brand,
+            model,
+            memory,
+            color,
+            grade,
+            warranty,
+            raw_data,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            NULL,
+            'IKAS',
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            'SYNCED',
+            'SUCCESS',
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15::jsonb,
+            now(),
+            now()
+          )
+          RETURNING id
+        `,
+        [
+          externalProductId,
+          externalVariantId,
+          sku ||
+            `IKASVAR-${externalVariantId}`,
+          String(
+            product?.name ||
+              ""
+          ),
+          salePrice,
+          listPrice,
+          verifiedStock,
+          stockLocationId,
+          group.brand,
+          group.model,
+          group.memory,
+          group.color,
+          group.grade,
+          group.warranty,
+          JSON.stringify({
+            centerManaged:
+              true,
+            centerImeis:
+              imeis,
+            externalVariantId,
+            verifiedStock,
+            createdFrom:
+              "CENTER",
+            lastCenterSyncAt:
+              new Date().toISOString(),
+          }),
+        ]
+      );
+
+    listingId =
+      Number(
+        inserted.rows[0]
+          .id
+      );
+  }
+
+  for (
+    const item of
+      group.items
+  ) {
+    const existingMembership =
+      await client.query(
+        `
+          SELECT id
+          FROM public.online_channel_devices
+          WHERE channel = 'IKAS'
+            AND stock_device_id = $1
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [
+          item.deviceId,
+        ]
+      );
+
+    if (
+      existingMembership
+        .rowCount
+    ) {
+      throw new Error(
+        `${item.imei} için İkas kanal üyeliği işlem sırasında oluşmuş. Yerel kayıt durduruldu.`
+      );
+    }
+
+    await client.query(
+      `
+        INSERT INTO public.online_channel_devices (
+          stock_device_id,
+          imei,
+          channel,
+          online_listing_id,
+          membership_status,
+          channel_sale_price,
+          channel_list_price,
+          source_channel,
+          source_listing_id,
+          metadata,
+          listed_at,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          $2,
+          'IKAS',
+          $3,
+          'LISTED',
+          $4,
+          $5,
+          'CENTER',
+          NULL,
+          $6::jsonb,
+          now(),
+          now(),
+          now()
+        )
+      `,
+      [
+        item.deviceId,
+        item.imei,
+        listingId,
+        salePrice,
+        listPrice,
+        JSON.stringify({
+          source:
+            "CENTER_IKAS_SEND",
+          productId:
+            externalProductId,
+          variantId:
+            externalVariantId,
+          sku:
+            sku || null,
+          stockLocationId,
+          listedAt:
+            new Date().toISOString(),
+        }),
+      ]
+    );
+  }
+
+  return {
+    listingId,
+  };
+}
+
+async function sendCenterDevicesToIkas(
+  client: PoolClient,
+  data: Record<
+    string,
+    unknown
+  >
+) {
+  const preview =
+    await previewCenterChannelSend(
+      client,
+      {
+        ...data,
+        channel:
+          "IKAS",
+      }
+    );
+
+  if (
+    !preview.canProceed
+  ) {
+    return {
+      success: false,
+      preview,
+      results: [],
+      error:
+        "İkas gönderimi durduruldu. Ön kontrolde engelli IMEI var.",
+    };
+  }
+
+  if (
+    preview.total > 100
+  ) {
+    throw new Error(
+      "Tek seferde en fazla 100 IMEI İkas'a gönderilebilir."
+    );
+  }
+
+  // Aynı anda iki Merkez → İkas gönderimi olmasın.
+  await client.query(
+    `
+      SELECT
+        pg_advisory_lock(
+          hashtext(
+            'cnet_center_ikas_send'
+          )
+        )
+    `
+  );
+
+  let lockHeld = true;
+
+  try {
+    // Kilit alındıktan sonra tekrar kontrol.
+    const lockedPreview =
+      await previewCenterChannelSend(
+        client,
+        {
+          ...data,
+          channel:
+            "IKAS",
+        }
+      );
+
+    if (
+      !lockedPreview
+        .canProceed
+    ) {
+      return {
+        success: false,
+        preview:
+          lockedPreview,
+        results: [],
+        error:
+          "İkas gönderimi durduruldu. Kilit sonrası bir IMEI artık uygun değil.",
+      };
+    }
+
+    const salePrice =
+      lockedPreview
+        .salePrice;
+
+    const listPrice =
+      lockedPreview
+        .listPrice;
+
+    const groups =
+      groupIkasPreviewItemsCenter(
+        lockedPreview.items
+      );
+
+    const accessToken =
+      await getIkasAccessTokenForCenter();
+
+    const [
+      schemas,
+      stockLocations,
+    ] =
+      await Promise.all([
+        getIkasCreateSchemasCenter(
+          accessToken
+        ),
+        getIkasStockLocationsCenter(
+          accessToken
+        ),
+      ]);
+
+    const stockLocationId =
+      String(
+        stockLocations
+          .selected.id
+      );
+
+    let products =
+      await fetchAllIkasProductsCenter(
+        accessToken
+      );
+
+    const results:
+      any[] = [];
+
+    for (
+      const group of
+        groups
+    ) {
+      const title =
+        getIkasProductTitleCenter(
+          group
+        );
+
+      const sku =
+        makeIkasStableSku(
+          group.brand,
+          group.model,
+          group.memory,
+          group.grade,
+          group.warranty,
+          group.color
+        );
+
+      let matched =
+        findIkasVariantBySkuCenter(
+          products,
+          sku
+        );
+
+      let product:
+        any = null;
+
+      let variant:
+        any = null;
+
+      let action:
+        | "EXISTING_VARIANT"
+        | "ADD_VARIANT"
+        | "CREATE_PRODUCT";
+
+      if (matched) {
+        product =
+          matched.product;
+        variant =
+          matched.variant;
+        action =
+          "EXISTING_VARIANT";
+      } else {
+        product =
+          findIkasProductByExactTitleCenter(
+            products,
+            title,
+            group.brand
+          );
+
+        if (product) {
+          // Kontrollü geçiş:
+          // Eski İkas kataloğunda aynı renk varyantı varsa
+          // onu kullan. Böylece duplicate renk varyantı açmayız.
+          const sameColor =
+            findIkasVariantByColorCenter(
+              product,
+              group.color
+            );
+
+          if (sameColor) {
+            variant =
+              sameColor;
+            action =
+              "EXISTING_VARIANT";
+          } else {
+            const colorTypeName =
+              getIkasColorTypeNameCenter(
+                product,
+                group.model
+              );
+
+            const variantInput =
+              buildIkasVariantInputCenter(
+                schemas,
+                {
+                  sku,
+                  colorTypeName,
+                  color:
+                    group.color,
+                  salePrice,
+                  listPrice,
+                }
+              );
+
+            await addIkasVariantCenter(
+              accessToken,
+              String(
+                product.id
+              ),
+              variantInput
+            );
+
+            action =
+              "ADD_VARIANT";
+
+            products =
+              await fetchAllIkasProductsCenter(
+                accessToken
+              );
+
+            const added =
+              findIkasVariantBySkuCenter(
+                products,
+                sku
+              );
+
+            if (!added) {
+              throw new Error(
+                `${title} / ${group.color}: İkas yeni varyantı oluşturdu ancak tekrar okumada bulunamadı.`
+              );
+            }
+
+            product =
+              added.product;
+            variant =
+              added.variant;
+          }
+        } else {
+          const reference =
+            findIkasReferenceProductCenter(
+              products,
+              group.brand,
+              group.model,
+              group.memory
+            );
+
+          const colorTypeName =
+            getIkasColorTypeNameCenter(
+              reference,
+              group.model
+            );
+
+          const variantInput =
+            buildIkasVariantInputCenter(
+              schemas,
+              {
+                sku,
+                colorTypeName,
+                color:
+                  group.color,
+                salePrice,
+                listPrice,
+              }
+            );
+
+          const createInput =
+            buildIkasCreateProductInputCenter(
+              schemas,
+              {
+                title,
+                variant:
+                  variantInput,
+                referenceProduct:
+                  reference,
+              }
+            );
+
+          const created =
+            await createIkasProductCenter(
+              accessToken,
+              createInput
+            );
+
+          action =
+            "CREATE_PRODUCT";
+
+          products =
+            await fetchAllIkasProductsCenter(
+              accessToken
+            );
+
+          matched =
+            findIkasVariantBySkuCenter(
+              products,
+              sku
+            );
+
+          if (!matched) {
+            const createdProduct =
+              products.find(
+                (
+                  item: any
+                ) =>
+                  String(
+                    item.id
+                  ) ===
+                  String(
+                    created.id
+                  )
+              );
+
+            if (
+              createdProduct
+            ) {
+              const byColor =
+                findIkasVariantByColorCenter(
+                  createdProduct,
+                  group.color
+                );
+
+              if (
+                byColor
+              ) {
+                matched = {
+                  product:
+                    createdProduct,
+                  variant:
+                    byColor,
+                };
+              }
+            }
+          }
+
+          if (!matched) {
+            throw new Error(
+              `${title}: İkas ürünü oluşturuldu ancak varyant tekrar okumada bulunamadı. Yerel kanal kaydı yapılmadı.`
+            );
+          }
+
+          product =
+            matched.product;
+          variant =
+            matched.variant;
+        }
+      }
+
+      const productId =
+        String(
+          product?.id ||
+            ""
+        ).trim();
+
+      const variantId =
+        String(
+          variant?.id ||
+            ""
+        ).trim();
+
+      if (
+        !productId ||
+        !variantId
+      ) {
+        throw new Error(
+          `${title}: İkas ürün/varyant ID bulunamadı.`
+        );
+      }
+
+      // Eski varyant kullanılmış olsa bile,
+      // fiyat bu gönderimde kullanıcının girdiği İkas fiyatına çekilir.
+      await updateIkasVariantPriceCenter(
+        accessToken,
+        productId,
+        variantId,
+        salePrice,
+        listPrice
+      );
+
+      const beforeStock =
+        getVariantStockAtLocationCenter(
+          variant,
+          stockLocationId
+        ).stockCount;
+
+      const targetStock =
+        beforeStock +
+        group.items.length;
+
+      await saveIkasVariantStockCenter(
+        accessToken,
+        {
+          productId,
+          variantId,
+          stockLocationId,
+          stockCount:
+            targetStock,
+        }
+      );
+
+      // Canlı doğrulama.
+      products =
+        await fetchAllIkasProductsCenter(
+          accessToken
+        );
+
+      const verifiedProduct =
+        products.find(
+          (
+            item: any
+          ) =>
+            String(
+              item.id
+            ) ===
+            productId
+        );
+
+      const verifiedVariant =
+        (
+          Array.isArray(
+            verifiedProduct
+              ?.variants
+          )
+            ? verifiedProduct
+                .variants
+            : []
+        ).find(
+          (item: any) =>
+            String(
+              item?.id ||
+                ""
+            ) ===
+            variantId
+        );
+
+      if (
+        !verifiedProduct ||
+        !verifiedVariant
+      ) {
+        throw new Error(
+          `${title}: İkas gönderimi sonrası ürün/varyant doğrulanamadı.`
+        );
+      }
+
+      const verifiedStock =
+        getVariantStockAtLocationCenter(
+          verifiedVariant,
+          stockLocationId
+        ).stockCount;
+
+      if (
+        verifiedStock !==
+        targetStock
+      ) {
+        throw new Error(
+          `${title} / ${group.color}: İkas stok doğrulaması başarısız. Beklenen ${targetStock}, okunan ${verifiedStock}.`
+        );
+      }
+
+      // Dış API başarılı ve doğrulandıktan sonra
+      // yerel DB tek transaction.
+      await client.query(
+        "BEGIN"
+      );
+
+      try {
+        const local =
+          await upsertIkasCenterLocalRecords(
+            client,
+            {
+              group,
+              product:
+                verifiedProduct,
+              variant:
+                verifiedVariant,
+              stockLocationId,
+              verifiedStock,
+              salePrice,
+              listPrice,
+            }
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        results.push({
+          success: true,
+          action,
+          productId,
+          variantId,
+          sku:
+            String(
+              verifiedVariant
+                ?.sku ||
+                sku
+            ),
+          title:
+            String(
+              verifiedProduct
+                ?.name ||
+                title
+            ),
+          color:
+            group.color,
+          addedImeis:
+            group.items.map(
+              (item: any) =>
+                item.imei
+            ),
+          addedCount:
+            group.items
+              .length,
+          beforeStock,
+          afterStock:
+            verifiedStock,
+          salePrice,
+          listPrice,
+          stockLocationId,
+          listingId:
+            local.listingId,
+        });
+      } catch (error) {
+        try {
+          await client.query(
+            "ROLLBACK"
+          );
+        } catch {
+          // ignored
+        }
+
+        throw new Error(
+          `${title}: İkas dış işlemi başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. Yeni gönderim durduruldu. ${
+            error instanceof
+              Error
+              ? error.message
+              : ""
+          }`
+        );
+      }
+    }
+
+    return {
+      success: true,
+      preview:
+        lockedPreview,
+      stockLocation:
+        stockLocations
+          .selected,
+      results,
+      sentImeis:
+        results.reduce(
+          (
+            sum: number,
+            result: any
+          ) =>
+            sum +
+            Number(
+              result
+                ?.addedCount ||
+                0
+            ),
+          0
+        ),
+    };
+  } finally {
+    if (lockHeld) {
+      try {
+        await client.query(
+          `
+            SELECT
+              pg_advisory_unlock(
+                hashtext(
+                  'cnet_center_ikas_send'
+                )
+              )
+          `
+        );
+      } catch {
+        // unlock failure ignored;
+        // connection release also releases session lock
+      }
+
+      lockHeld =
+        false;
+    }
+  }
+}
+
 export async function PATCH(
   request: NextRequest
 ) {
@@ -4412,6 +6997,57 @@ export async function PATCH(
                 Error
                 ? error.message
                 : "N11 kanal üyeliği kaydedilemedi.",
+          },
+          409
+        );
+      }
+    }
+
+    if (
+      action ===
+      "ikas_send"
+    ) {
+      client =
+        await getPool().connect();
+
+      try {
+        const result =
+          await sendCenterDevicesToIkas(
+            client,
+            data
+          );
+
+        if (
+          !result.success
+        ) {
+          return json(
+            {
+              success: false,
+              action:
+                "ikas_send",
+              ...result,
+            },
+            409
+          );
+        }
+
+        return json({
+          success: true,
+          action:
+            "ikas_send",
+          ...result,
+        });
+      } catch (error) {
+        return json(
+          {
+            success: false,
+            action:
+              "ikas_send",
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : "İkas gerçek gönderimi başarısız.",
           },
           409
         );
