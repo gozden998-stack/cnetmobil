@@ -119,6 +119,12 @@ type CategoryAttribute = {
   }> | null;
 };
 
+const idefixCategoryAttributeCache =
+  new Map<
+    string,
+    Promise<CategoryAttribute[]>
+  >();
+
 type PreparedGroup = {
   group: CenterGroup;
   action: "EXISTING_PRODUCT" | "FAST_LISTING" | "CREATE_PRODUCT";
@@ -999,7 +1005,7 @@ function isIdefixReadyForSale(
   );
 }
 
-function productLooksLikeCenterGroup(
+async function productLooksLikeCenterGroup(
   product:
     IdefixProduct,
   group:
@@ -1010,27 +1016,80 @@ function productLooksLikeCenterGroup(
   const title =
     product.title;
 
+  // Marka ve model başlıktan güvenle kontrol edilir.
   if (
-    !baseIdentityMatchesTitle(
+    !containsPhrase(
       title,
-      group
+      group.brand
     ) ||
-    !matchedColorAlias(
+    !modelMatchesTitle(
       title,
-      group.color
+      group.model
     )
   ) {
     return false;
   }
 
-  const detectedGrade =
+  const facts =
+    await structuredProductFacts(
+      product
+    );
+
+  // Hafıza: önce İdefix structured attribute, yoksa başlık.
+  const memoryMatches =
+    facts.memory
+      ? memoryValueMatches(
+          facts.memory,
+          group.memory
+        )
+      : memoryMatchesTitle(
+          title,
+          group.memory
+        );
+
+  if (!memoryMatches) {
+    return false;
+  }
+
+  // RENK: kritik düzeltme.
+  // İdefix Merchant Center'da renk başlıkta her zaman yazmıyor.
+  // Önce product.attributes içindeki gerçek "Renk" değerini kullan.
+  // Sadece attribute çözülemezse başlığa fallback yap.
+  const colorMatches =
+    facts.color
+      ? colorValueMatches(
+          facts.color,
+          group.color
+        )
+      : Boolean(
+          matchedColorAlias(
+            title,
+            group.color
+          )
+        );
+
+  if (!colorMatches) {
+    return false;
+  }
+
+  // Kozmetik kalite: yine structured attribute önce, başlık sonra.
+  const structuredGrade =
+    facts.grade
+      ? normalizeGrade(
+          facts.grade
+        )
+      : null;
+
+  const titleGrade =
     detectGradeFromTitle(
       title
     );
 
-  if (
-    detectedGrade
-  ) {
+  const detectedGrade =
+    structuredGrade ||
+    titleGrade;
+
+  if (detectedGrade) {
     return (
       detectedGrade ===
       normalizeGrade(
@@ -1042,24 +1101,31 @@ function productLooksLikeCenterGroup(
   return allowMissingGrade;
 }
 
-function relaxedProductForGroup(
+async function relaxedProductForGroup(
   products:
     IdefixProduct[],
   group:
     CenterGroup
 ) {
-  // İdefix havuzunda bazı eski ürün başlıklarında "A Kalite / Grade A"
-  // ibaresi bulunmayabiliyor. Marka + model + hafıza + RENK birebir
-  // eşleşiyor ve tek aday varsa barkodu otomatik kullan.
-  const candidates =
-    products.filter(
-      (product) =>
-        productLooksLikeCenterGroup(
-          product,
-          group,
-          true
-        )
-    );
+  const candidates:
+    IdefixProduct[] = [];
+
+  for (
+    const product of
+      products
+  ) {
+    if (
+      await productLooksLikeCenterGroup(
+        product,
+        group,
+        true
+      )
+    ) {
+      candidates.push(
+        product
+      );
+    }
+  }
 
   const distinct =
     new Map<
@@ -1091,43 +1157,35 @@ function relaxedProductForGroup(
   return null;
 }
 
-function exactProductForGroup(
-  products: IdefixProduct[],
-  group: CenterGroup
+async function exactProductForGroup(
+  products:
+    IdefixProduct[],
+  group:
+    CenterGroup
 ) {
-  const grade =
-    normalizeGrade(
-      group.grade
-    );
+  const matches:
+    IdefixProduct[] = [];
 
-  const matches =
-    products.filter(
-      (product) => {
-        const title =
-          product.title;
-
-        return (
-          baseIdentityMatchesTitle(
-            title,
-            group
-          ) &&
-          Boolean(
-            matchedColorAlias(
-              title,
-              group.color
-            )
-          ) &&
-          detectGradeFromTitle(
-            title
-          ) === grade
-        );
-      }
-    );
+  for (
+    const product of
+      products
+  ) {
+    if (
+      await productLooksLikeCenterGroup(
+        product,
+        group,
+        false
+      )
+    ) {
+      matches.push(
+        product
+      );
+    }
+  }
 
   if (
     matches.length > 1
   ) {
-    // Aynı barkod tekrarı hariç birden fazla gerçek ürün varsa otomatik seçme.
     const distinct =
       new Map<
         string,
@@ -1150,7 +1208,7 @@ function exactProductForGroup(
       throw new Error(
         `${productTitle(
           group
-        )}: İdefix'te aynı renk için birden fazla ürün bulundu. Otomatik gönderim durduruldu.`
+        )}: İdefix'te aynı model/hafıza/renk/kalite için birden fazla ürün bulundu. Yanlış barkod seçmemek için otomatik gönderim durduruldu.`
       );
     }
   }
@@ -1346,6 +1404,283 @@ function attributeById(
             ""
         )
     ) || null
+  );
+}
+
+function attributeValueName(
+  product:
+    IdefixProduct,
+  definition:
+    CategoryAttribute
+) {
+  const selected =
+    attributeById(
+      product,
+      definition.attributeId
+    );
+
+  if (!selected) {
+    return null;
+  }
+
+  const custom =
+    text(
+      selected
+        .customAttributeValue
+    );
+
+  if (custom) {
+    return custom;
+  }
+
+  const selectedId =
+    text(
+      selected
+        .attributeValueId
+    );
+
+  if (!selectedId) {
+    return null;
+  }
+
+  const values =
+    Array.isArray(
+      definition
+        .attributeValues
+    )
+      ? definition
+          .attributeValues
+      : [];
+
+  const value =
+    values.find(
+      (item) =>
+        text(item?.id) ===
+        selectedId
+    );
+
+  return (
+    text(
+      value?.name
+    ) || null
+  );
+}
+
+async function cachedCategoryAttributes(
+  categoryId:
+    string | number
+) {
+  const key =
+    String(
+      categoryId
+    );
+
+  let pending =
+    idefixCategoryAttributeCache.get(
+      key
+    );
+
+  if (!pending) {
+    pending =
+      categoryAttributes(
+        categoryId
+      );
+
+    idefixCategoryAttributeCache.set(
+      key,
+      pending
+    );
+  }
+
+  try {
+    return await pending;
+  } catch (error) {
+    idefixCategoryAttributeCache.delete(
+      key
+    );
+    throw error;
+  }
+}
+
+async function structuredProductFacts(
+  product:
+    IdefixProduct
+) {
+  const categoryId =
+    text(
+      product.categoryId
+    );
+
+  if (
+    !categoryId ||
+    !Array.isArray(
+      product.attributes
+    ) ||
+    product.attributes.length ===
+      0
+  ) {
+    return {
+      color:
+        null as string | null,
+      memory:
+        null as string | null,
+      grade:
+        null as string | null,
+      warranty:
+        null as string | null,
+    };
+  }
+
+  let definitions:
+    CategoryAttribute[] = [];
+
+  try {
+    definitions =
+      await cachedCategoryAttributes(
+        categoryId
+      );
+  } catch {
+    return {
+      color:
+        null as string | null,
+      memory:
+        null as string | null,
+      grade:
+        null as string | null,
+      warranty:
+        null as string | null,
+    };
+  }
+
+  let color:
+    string | null = null;
+  let memory:
+    string | null = null;
+  let grade:
+    string | null = null;
+  let warranty:
+    string | null = null;
+
+  for (
+    const definition of
+      definitions
+  ) {
+    const value =
+      attributeValueName(
+        product,
+        definition
+      );
+
+    if (!value) {
+      continue;
+    }
+
+    if (
+      !color &&
+      isColorAttribute(
+        definition
+      )
+    ) {
+      color = value;
+      continue;
+    }
+
+    if (
+      !memory &&
+      isMemoryAttribute(
+        definition
+      )
+    ) {
+      memory = value;
+      continue;
+    }
+
+    if (
+      !grade &&
+      isCosmeticAttribute(
+        definition
+      )
+    ) {
+      grade = value;
+      continue;
+    }
+
+    if (
+      !warranty &&
+      isWarrantyAttribute(
+        definition
+      )
+    ) {
+      warranty = value;
+    }
+  }
+
+  return {
+    color,
+    memory,
+    grade,
+    warranty,
+  };
+}
+
+function colorValueMatches(
+  actual:
+    unknown,
+  desired:
+    unknown
+) {
+  const actualNormalized =
+    normalizeText(
+      actual
+    );
+
+  if (!actualNormalized) {
+    return false;
+  }
+
+  return colorAliases(
+    desired
+  ).some(
+    (alias) =>
+      actualNormalized ===
+        normalizeText(
+          alias
+        ) ||
+      containsPhrase(
+        actualNormalized,
+        alias
+      )
+  );
+}
+
+function memoryValueMatches(
+  actual:
+    unknown,
+  desired:
+    unknown
+) {
+  const a =
+    compactNormalized(
+      normalizeMemory(
+        actual
+      )
+    );
+
+  const d =
+    compactNormalized(
+      normalizeMemory(
+        desired
+      )
+    );
+
+  if (!a || !d) {
+    return false;
+  }
+
+  return (
+    a === d ||
+    a.includes(d) ||
+    d.includes(a)
   );
 }
 
@@ -2836,14 +3171,14 @@ async function prepareGroup(
 
   try {
     exactProduct =
-      exactProductForGroup(
+      await exactProductForGroup(
         products,
         group
       );
 
     if (!exactProduct) {
       exactProduct =
-        relaxedProductForGroup(
+        await relaxedProductForGroup(
           products,
           group
         );
@@ -5414,11 +5749,11 @@ async function processPrepared(
         }
 
         if (
-          !productLooksLikeCenterGroup(
+          !(await productLooksLikeCenterGroup(
             live,
             prepared.group,
             true
-          )
+          ))
         ) {
           throw new Error(
             `${prepared.title}: girilen ${prepared.barcode} barkodu İdefix ürün listende mevcut fakat seçili cihazla eşleşmiyor. Barkodun İdefix'teki ürünü: "${text(
