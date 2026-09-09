@@ -1385,7 +1385,7 @@ async function enumValueForAction(
   ) {
     const exact =
       values.find(
-        (value) =>
+        (value: string) =>
           normalizeEnum(
             value
           ) ===
@@ -1403,7 +1403,7 @@ async function enumValueForAction(
   ) {
     const contains =
       values.find(
-        (value) =>
+        (value: string) =>
           normalizeEnum(
             value
           ).includes(
