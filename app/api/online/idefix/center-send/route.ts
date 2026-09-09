@@ -5046,6 +5046,20 @@ async function processPrepared(
       if (
         code.includes(
           "PRODUCT POOL ALREADY EXIST"
+        ) ||
+        code.includes(
+          "URUN LISTENIZDE MEVCUTTUR"
+        ) ||
+        code.includes(
+          "BARKODLU URUN URUN LISTENIZDE MEVCUTTUR"
+        ) ||
+        (
+          code.includes(
+            "BARKODLU URUN"
+          ) &&
+          code.includes(
+            "MEVCUTTUR"
+          )
         )
       ) {
         const existing =
