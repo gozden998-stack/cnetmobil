@@ -26,6 +26,64 @@ type ProductResponse = {
   error?: string;
 };
 
+
+type IdefixOrderItem = {
+  id?: number | null;
+  productName?: string;
+  barcode?: string;
+  merchantSku?: string;
+  image?: string;
+  price?: number;
+  discountedTotalPrice?: number;
+  itemStatus?: string;
+  brandName?: string;
+};
+
+type IdefixOrder = {
+  id: number;
+  orderNumber?: string;
+  status?: string;
+  statusDescription?: string;
+  discountedTotalPrice?: number;
+  customerContactName?: string;
+  customerContactMail?: string;
+  shippingAddress?: {
+    fullName?: string;
+    fullAddress?: string;
+    city?: string;
+    county?: string;
+    phone?: string;
+  };
+  cargoTrackingNumber?: string;
+  cargoTrackingUrl?: string;
+  cargoCompany?: string;
+  cargoProfileName?: string;
+  cargoKey?: string;
+  invoiceNumber?: string;
+  orderDate?: string;
+  updatedAt?: string;
+  estimatedDeliveryDate?: string;
+  items?: IdefixOrderItem[];
+};
+
+type OrdersResponse = {
+  success?: boolean;
+  vendorId?: string;
+  totalCount?: number;
+  counts?: {
+    new?: number;
+    preparing?: number;
+    cargo?: number;
+    delivered?: number;
+    other?: number;
+  };
+  orders?: IdefixOrder[];
+  checkedAt?: string;
+  error?: string;
+};
+
+type OrderFilter = "all" | "new" | "preparing" | "cargo" | "delivered";
+
 type TabKey = "orders" | "open" | "closed";
 
 function money(value: unknown) {
@@ -53,6 +111,43 @@ function isOpenProduct(product: IdefixProduct) {
   return Number(product.inventoryQuantity || 0) > 0;
 }
 
+
+function orderBucket(status?: string | null): OrderFilter | "other" {
+  const value = text(status).toLowerCase();
+  if (["created", "shipment_ready"].includes(value)) return "new";
+  if (["shipment_picking", "shipment_invoiced"].includes(value)) return "preparing";
+  if (value === "shipment_in_cargo") return "cargo";
+  if (["shipment_delivered", "shipment_approved"].includes(value)) return "delivered";
+  return "other";
+}
+
+function orderStatusLabel(status?: string | null, description?: string | null) {
+  if (text(description)) return text(description);
+  const labels: Record<string, string> = {
+    created: "Oluşturuldu",
+    shipment_ready: "Yeni Sipariş",
+    shipment_picking: "Hazırlanıyor",
+    shipment_invoiced: "Faturalandı",
+    shipment_in_cargo: "Kargoda",
+    shipment_delivered: "Teslim Edildi",
+    shipment_approved: "Tamamlandı",
+    shipment_cancelled: "İptal Edildi",
+    shipment_unsupplied: "Tedarik Edilemedi",
+    shipment_undeliver: "Teslim Edilemedi",
+    shipment_split: "Bölündü",
+  };
+  return labels[text(status).toLowerCase()] || text(status) || "-";
+}
+
+function orderStatusClass(status?: string | null) {
+  const bucket = orderBucket(status);
+  if (bucket === "new") return "bg-blue-100 text-blue-700";
+  if (bucket === "preparing") return "bg-amber-100 text-amber-700";
+  if (bucket === "cargo") return "bg-violet-100 text-violet-700";
+  if (bucket === "delivered") return "bg-emerald-100 text-emerald-700";
+  return "bg-slate-100 text-slate-600";
+}
+
 export default function Idefix() {
   const [data, setData] = useState<ProductResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +155,133 @@ export default function Idefix() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TabKey>("open");
   const [sort, setSort] = useState("newest");
+  const [ordersData, setOrdersData] = useState<OrdersResponse | null>(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [orderMessage, setOrderMessage] = useState("");
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderActionId, setOrderActionId] = useState<number | null>(null);
+
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    setOrdersError("");
+
+    try {
+      const response = await fetch("/api/online/idefix/orders", {
+        method: "GET",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "İdefix siparişleri alınamadı.");
+      }
+
+      setOrdersData(payload);
+    } catch (e: any) {
+      setOrdersError(e?.message || "İdefix siparişleri alınamadı.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const runOrderAction = async (
+    order: IdefixOrder,
+    action: "PICKING" | "INVOICED" | "TRACKING"
+  ) => {
+    let body: Record<string, unknown> = {
+      action,
+      shipmentId: order.id,
+    };
+
+    if (action === "INVOICED") {
+      const invoiceNumber = window.prompt(
+        `${order.orderNumber || "Sipariş"} için fatura numarası:` ,
+        order.invoiceNumber || ""
+      );
+      if (invoiceNumber === null) return;
+      if (!invoiceNumber.trim()) {
+        setOrdersError("Fatura numarası boş bırakılamaz.");
+        return;
+      }
+      body.invoiceNumber = invoiceNumber.trim();
+    }
+
+    if (action === "TRACKING") {
+      const trackingNumber = window.prompt(
+        `${order.orderNumber || "Sipariş"} için kargo takip numarası:`,
+        order.cargoTrackingNumber || ""
+      );
+      if (trackingNumber === null) return;
+      if (!trackingNumber.trim()) {
+        setOrdersError("Kargo takip numarası boş bırakılamaz.");
+        return;
+      }
+
+      const trackingUrl = window.prompt(
+        "Kargo takip linkini gir:",
+        order.cargoTrackingUrl || "https://"
+      );
+      if (trackingUrl === null) return;
+      if (!trackingUrl.trim() || trackingUrl.trim() === "https://") {
+        setOrdersError("Kargo takip linki boş bırakılamaz.");
+        return;
+      }
+
+      body.trackingNumber = trackingNumber.trim();
+      body.trackingUrl = trackingUrl.trim();
+    }
+
+    setOrderActionId(order.id);
+    setOrdersError("");
+    setOrderMessage("");
+
+    try {
+      const response = await fetch("/api/online/idefix/orders", {
+        method: "PUT",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "İdefix sipariş işlemi başarısız.");
+      }
+
+      setOrderMessage(payload?.message || "İdefix sipariş işlemi tamamlandı.");
+      await loadOrders();
+    } catch (e: any) {
+      setOrdersError(e?.message || "İdefix sipariş işlemi başarısız.");
+    } finally {
+      setOrderActionId(null);
+    }
+  };
+
+  const openTracking = async (order: IdefixOrder) => {
+    if (order.cargoTrackingUrl) {
+      window.open(order.cargoTrackingUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (order.cargoTrackingNumber) {
+      try {
+        await navigator.clipboard.writeText(order.cargoTrackingNumber);
+        setOrderMessage(`Kargo takip numarası kopyalandı: ${order.cargoTrackingNumber}`);
+      } catch {
+        setOrderMessage(`Kargo takip numarası: ${order.cargoTrackingNumber}`);
+      }
+      return;
+    }
+
+    setOrderMessage("Bu sipariş için henüz kargo takip bilgisi yok.");
+  };
 
   const load = async () => {
     setLoading(true);
@@ -88,6 +310,7 @@ export default function Idefix() {
 
   useEffect(() => {
     load();
+    loadOrders();
   }, []);
 
   const products = useMemo(
@@ -99,6 +322,34 @@ export default function Idefix() {
     () => products.filter(isOpenProduct),
     [products]
   );
+
+  const orders = useMemo(
+    () => (Array.isArray(ordersData?.orders) ? ordersData!.orders! : []),
+    [ordersData]
+  );
+
+  const filteredOrders = useMemo(() => {
+    const q = orderSearch.trim().toLocaleLowerCase("tr-TR");
+
+    return orders.filter((order) => {
+      if (orderFilter !== "all" && orderBucket(order.status) !== orderFilter) {
+        return false;
+      }
+
+      if (!q) return true;
+
+      return [
+        order.orderNumber,
+        order.customerContactName,
+        order.cargoTrackingNumber,
+        order.cargoCompany,
+        ...(Array.isArray(order.items) ? order.items.map((item) => item.productName) : []),
+      ]
+        .map((value) => text(value).toLocaleLowerCase("tr-TR"))
+        .some((value) => value.includes(q));
+    });
+  }, [orders, orderFilter, orderSearch]);
+
 
   const closedProducts = useMemo(
     () => products.filter((item) => !isOpenProduct(item)),
@@ -198,11 +449,14 @@ export default function Idefix() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={load}
-                disabled={loading}
+                onClick={() => {
+                  load();
+                  loadOrders();
+                }}
+                disabled={loading || ordersLoading}
                 className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
-                {loading ? "Yenileniyor..." : "Yenile"}
+                {loading || ordersLoading ? "Yenileniyor..." : "Yenile"}
               </button>
             </div>
           </div>
@@ -219,8 +473,8 @@ export default function Idefix() {
             },
             {
               label: "SİPARİŞLER",
-              value: "...",
-              sub: "Yeni İdefix siparişi",
+              value: Number(ordersData?.counts?.new || 0),
+              sub: `${Number(ordersData?.totalCount || 0)} toplam sipariş`,
               icon: "🛒",
               box: "bg-emerald-50 text-emerald-700",
             },
@@ -302,7 +556,7 @@ export default function Idefix() {
                   : "text-slate-700 hover:bg-slate-50"
               }`}
             >
-              Siparişler (...)
+              Siparişler ({Number(ordersData?.totalCount || 0)})
             </button>
 
             <button
@@ -363,14 +617,183 @@ export default function Idefix() {
         )}
 
         {tab === "orders" ? (
-          <div className="flex min-h-[260px] flex-col items-center justify-center px-6 py-12 text-center">
-            <div className="text-4xl">🛒</div>
-            <div className="mt-3 text-sm font-black text-slate-800">
-              İdefix Siparişleri
+          <div>
+            <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["all", "Tümü", orders.length],
+                    ["new", "Yeni", Number(ordersData?.counts?.new || 0)],
+                    ["preparing", "Hazırlanıyor", Number(ordersData?.counts?.preparing || 0)],
+                    ["cargo", "Kargoda", Number(ordersData?.counts?.cargo || 0)],
+                    ["delivered", "Teslim", Number(ordersData?.counts?.delivered || 0)],
+                  ].map(([key, label, count]) => (
+                    <button
+                      key={String(key)}
+                      type="button"
+                      onClick={() => setOrderFilter(key as OrderFilter)}
+                      className={`rounded-xl px-3 py-2 text-[8px] font-black transition ${
+                        orderFilter === key
+                          ? "bg-slate-900 text-white"
+                          : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {String(label)} ({Number(count)})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={orderSearch}
+                    onChange={(e) => setOrderSearch(e.target.value)}
+                    placeholder="Sipariş, müşteri, ürün, kargo ara..."
+                    className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[9px] font-semibold outline-none focus:border-blue-400 sm:w-[300px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={loadOrders}
+                    disabled={ordersLoading}
+                    className="h-9 rounded-xl border border-blue-200 bg-blue-50 px-3 text-[8px] font-black text-blue-700 disabled:opacity-50"
+                  >
+                    {ordersLoading ? "..." : "Sipariş Yenile"}
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="mt-1 max-w-md text-[10px] font-semibold leading-5 text-slate-400">
-              Görsel yapı hazır. Sipariş API route'u bağlandığında N11 ile aynı kart / tablo düzeninde gerçek siparişler burada gösterilecek.
-            </div>
+
+            {ordersError && (
+              <div className="m-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-bold leading-5 text-rose-700">
+                {ordersError}
+              </div>
+            )}
+
+            {orderMessage && (
+              <div className="m-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-bold leading-5 text-emerald-700">
+                {orderMessage}
+              </div>
+            )}
+
+            {ordersLoading && orders.length === 0 ? (
+              <div className="flex min-h-[280px] items-center justify-center text-[10px] font-black text-slate-400">
+                İdefix siparişleri yükleniyor...
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1250px] text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-white text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3">Sipariş</th>
+                      <th className="px-4 py-3">Müşteri</th>
+                      <th className="px-4 py-3">Ürün</th>
+                      <th className="px-4 py-3">Tutar</th>
+                      <th className="px-4 py-3">Kargo / Takip</th>
+                      <th className="px-4 py-3">Durum</th>
+                      <th className="px-4 py-3">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredOrders.map((order) => {
+                      const status = text(order.status).toLowerCase();
+                      const firstItem = Array.isArray(order.items) ? order.items[0] : null;
+                      const busy = orderActionId === order.id;
+
+                      return (
+                        <tr key={order.id} className="align-top hover:bg-slate-50/60">
+                          <td className="px-4 py-4">
+                            <div className="text-[10px] font-black text-slate-950">{order.orderNumber || `#${order.id}`}</div>
+                            <div className="mt-1 text-[7px] font-semibold text-slate-400">Shipment: {order.id}</div>
+                            <div className="mt-1 text-[7px] font-semibold text-slate-400">{formatDateTime(order.orderDate)}</div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="max-w-[190px] truncate text-[9px] font-black text-slate-800">{order.customerContactName || order.shippingAddress?.fullName || "-"}</div>
+                            <div className="mt-1 text-[7px] font-semibold text-slate-500">{[order.shippingAddress?.county, order.shippingAddress?.city].filter(Boolean).join(" / ") || "-"}</div>
+                            <div className="mt-1 max-w-[220px] text-[7px] font-medium leading-4 text-slate-400">{order.shippingAddress?.fullAddress || ""}</div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="flex min-w-[270px] items-start gap-2.5">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                {firstItem?.image ? (
+                                  <img src={firstItem.image} alt={firstItem.productName || "Ürün"} className="h-full w-full object-contain" />
+                                ) : (
+                                  <span className="text-lg">📱</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="max-w-[320px] text-[9px] font-black leading-4 text-slate-900">{firstItem?.productName || "İdefix Ürünü"}</div>
+                                <div className="mt-1 text-[7px] font-semibold text-slate-400">{order.items?.length || 0} kalem</div>
+                                {firstItem?.merchantSku && <div className="mt-0.5 text-[7px] font-semibold text-slate-400">SKU: {firstItem.merchantSku}</div>}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="text-[11px] font-black text-slate-950">{money(order.discountedTotalPrice)}</div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="text-[8px] font-black text-slate-700">{order.cargoCompany || order.cargoProfileName || "Kargo bekleniyor"}</div>
+                            {order.cargoKey && <div className="mt-1 text-[7px] font-semibold text-slate-500">Kargo kodu: {order.cargoKey}</div>}
+                            {order.cargoTrackingNumber && <div className="mt-1 text-[7px] font-semibold text-violet-600">Takip: {order.cargoTrackingNumber}</div>}
+                            {order.estimatedDeliveryDate && <div className="mt-1 text-[7px] font-semibold text-slate-400">Tahmini: {formatDateTime(order.estimatedDeliveryDate)}</div>}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${orderStatusClass(order.status)}`}>
+                              {orderStatusLabel(order.status, order.statusDescription)}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="flex min-w-[200px] flex-wrap gap-1.5">
+                              {["created", "shipment_ready"].includes(status) && (
+                                <button type="button" onClick={() => runOrderAction(order, "PICKING")} disabled={busy} className="h-8 rounded-lg border border-amber-200 bg-amber-50 px-3 text-[7px] font-black text-amber-700 disabled:opacity-50">
+                                  {busy ? "..." : "Hazırlamaya Başla"}
+                                </button>
+                              )}
+
+                              {status === "shipment_picking" && (
+                                <button type="button" onClick={() => runOrderAction(order, "INVOICED")} disabled={busy} className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[7px] font-black text-blue-700 disabled:opacity-50">
+                                  {busy ? "..." : "Faturalandı"}
+                                </button>
+                              )}
+
+                              {status === "shipment_invoiced" && !order.cargoTrackingNumber && (
+                                <button type="button" onClick={() => runOrderAction(order, "TRACKING")} disabled={busy} className="h-8 rounded-lg bg-violet-700 px-3 text-[7px] font-black text-white disabled:opacity-50">
+                                  {busy ? "..." : "Kargoya Ver"}
+                                </button>
+                              )}
+
+                              {(order.cargoTrackingNumber || order.cargoTrackingUrl) && (
+                                <button type="button" onClick={() => openTracking(order)} className="h-8 rounded-lg border border-violet-200 bg-violet-50 px-3 text-[7px] font-black text-violet-700">
+                                  Kargo Takip
+                                </button>
+                              )}
+
+                              {status === "shipment_in_cargo" && !order.cargoTrackingNumber && (
+                                <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[7px] font-black text-slate-500">
+                                  Takip kodu bekleniyor
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {filteredOrders.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-16 text-center text-[10px] font-bold text-slate-400">
+                          Bu filtrede İdefix siparişi bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         ) : loading ? (
           <div className="flex min-h-[300px] items-center justify-center text-[11px] font-black text-slate-400">
