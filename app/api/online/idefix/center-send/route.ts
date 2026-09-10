@@ -4368,7 +4368,7 @@ async function waitInventory(
 
   for (
     let attempt = 0;
-    attempt < 6;
+    attempt < 8;
     attempt += 1
   ) {
     if (
@@ -4378,7 +4378,7 @@ async function waitInventory(
         (resolve) =>
           setTimeout(
             resolve,
-            700
+            900
           )
       );
     }
@@ -4405,21 +4405,61 @@ async function waitInventory(
       items[0] ||
       null;
 
-    const status =
+    const itemStatus =
       normalizeText(
-        item?.status ||
+        item?.status
+      );
+
+    const batchStatus =
+      normalizeText(
         last?.status
       );
 
+    // KRİTİK İDEFIX DAVRANIŞI:
+    // Batch status "COMPLETED" olabilirken item status "decline" olabilir.
+    // Bu yüzden batch COMPLETED tek başına ASLA başarı değildir.
     if (
-      status ===
-        "COMPLETED" ||
-      status ===
-        "COMPLETED SUCCESS" ||
-      normalizeText(
-        item?.status
-      ) ===
-        "COMPLETED"
+      [
+        "DECLINE",
+        "FAILED",
+      ].includes(
+        itemStatus
+      )
+    ) {
+      const failure =
+        idefixFailureDetail(
+          item
+            ?.failureReasons
+        );
+
+      throw new Error(
+        `İdefix stok/fiyat item reddedildi. Barkod: ${
+          text(
+            item?.barcode
+          ) || barcode
+        }. Item status: ${
+          itemStatus ||
+          "-"
+        }. Batch status: ${
+          batchStatus ||
+          "-"
+        }. Sebep: ${
+          failure ||
+          "BILINMIYOR"
+        }. Item: ${idefixFailureDetail(
+          item
+        )}`
+      );
+    }
+
+    // Gerçek başarı yalnız item seviyesinde COMPLETED ise kabul edilir.
+    if (
+      [
+        "COMPLETED",
+        "COMPLETED SUCCESS",
+      ].includes(
+        itemStatus
+      )
     ) {
       return {
         success:
@@ -4431,37 +4471,38 @@ async function waitInventory(
     }
 
     if (
-      normalizeText(
-        item?.status
-      ) ===
-        "DECLINE"
+      [
+        "FAILED",
+        "CANCELLED",
+      ].includes(
+        batchStatus
+      )
     ) {
-      const failure =
-        idefixFailureDetail(
-          item
-            ?.failureReasons
-        );
-
       throw new Error(
-        `İdefix stok/fiyat reddedildi. Barkod: ${text(
-          item?.barcode
-        ) || barcode}. Sebep: ${
-          failure ||
-          "DECLINE"
-        }. Item: ${idefixFailureDetail(
-          item
+        `İdefix stok/fiyat batch başarısız. Batch: ${batchId}. Batch status: ${
+          batchStatus ||
+          "-"
+        }. Cevap: ${idefixFailureDetail(
+          last
         )}`
       );
     }
 
+    // İdefix dokümanında batch COMPLETED + item DECLINE mümkün.
+    // Buraya geldiysek item ne COMPLETED ne de DECLINE.
+    // Birkaç tur daha bekle; son turda teşhisli hata döndür.
     if (
-      normalizeText(
-        last?.status
-      ) ===
-        "FAILED"
+      batchStatus ===
+        "COMPLETED" &&
+      attempt >= 2
     ) {
       throw new Error(
-        `İdefix stok/fiyat batch FAILED. Batch: ${batchId}. Cevap: ${idefixFailureDetail(
+        `İdefix batch COMPLETED döndü fakat item başarıya geçmedi. Barkod: ${barcode}. Item status: ${
+          itemStatus ||
+          "BOS"
+        }. Batch: ${batchId}. Item: ${idefixFailureDetail(
+          item
+        )}. Batch cevabı: ${idefixFailureDetail(
           last
         )}`
       );
@@ -6361,7 +6402,10 @@ async function processPrepared(
           .success
       ) {
         throw new Error(
-          `${prepared.title}: inventory-result COMPLETED döndü fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Gönderilen barkod: ${prepared.barcode}. Pool barkod: ${text(prepared.exactProduct?.barcode) || "-"}. Matched barkod: ${text(prepared.exactProduct?.matchedProduct?.barcode) || "-"}. Batch: ${upload.batchRequestId}. Canlı inventory: ${idefixFailureDetail(
+          `${prepared.title}: inventory item COMPLETED oldu fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Gönderilen barkod: ${prepared.barcode}. Pool barkod: ${text(prepared.exactProduct?.barcode) || "-"}. Matched barkod: ${text(prepared.exactProduct?.matchedProduct?.barcode) || "-"}. Batch: ${upload.batchRequestId}. Inventory-result item: ${idefixFailureDetail(
+            verification
+              .item
+          )}. Canlı inventory: ${idefixFailureDetail(
             liveVerification
               .item
           )}`
