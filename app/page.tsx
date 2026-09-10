@@ -3492,24 +3492,6 @@ export default function CnetmobilCmrFinalUltimate() {
                         </button>
                       </div>
 
-                      <div className="mt-5 flex flex-col gap-3 rounded-[18px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.4-2.8 8.1-7 10-4.2-1.9-7-5.6-7-10V6l7-3z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-black text-slate-900">
-                              CNETMOBIL Partner erişimi
-                            </div>
-                            <div className="text-xs font-medium text-slate-500">
-                              Partner hesabınız e-posta ve şifreyle çalışır; mağaza IP kısıtları aynen korunur.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                     </section>
                  </div>
               ) : (
