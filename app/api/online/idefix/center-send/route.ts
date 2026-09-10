@@ -6388,54 +6388,29 @@ async function processPrepared(
         );
       }
 
-      // İdefix'in resmi akışında item.status = "completed" ise
-      // stok/fiyat işlemi başarıyla tamamlanmıştır.
-      //
-      // inventory-list ayrı bir okuma ekranıdır ve aynı saniyede
-      // güncellenmeyebilir. Bu yüzden artık inventory-list gecikmesi
-      // başarılı gönderimi BLOKE ETMEZ.
-      //
-      // Yine de teşhis için bir kez canlı inventory okuruz.
-      const liveItem =
-        await liveInventoryByBarcode(
-          prepared.barcode
+      const liveVerification =
+        await waitLiveInventory(
+          prepared.barcode,
+          prepared
+            .targetAfterStock,
+          prepared
+            .salePrice
         );
 
-      const liveStock =
-        numberOrNull(
-          liveItem
-            ?.inventoryQuantity
-        ) ?? 0;
-
-      const livePrice =
-        numberOrNull(
-          liveItem
-            ?.price
-        ) ?? 0;
-
-      const liveVerified =
-        Boolean(
-          liveItem
-        ) &&
-        liveStock >=
-          prepared
-            .targetAfterStock &&
-        (
-          prepared
-            .salePrice <= 0 ||
-          Math.abs(
-            livePrice -
-            prepared
-              .salePrice
-          ) < 0.01
+      if (
+        !liveVerification
+          .success
+      ) {
+        throw new Error(
+          `${prepared.title}: inventory item COMPLETED oldu fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Gönderilen barkod: ${prepared.barcode}. Pool barkod: ${text(prepared.exactProduct?.barcode) || "-"}. Matched barkod: ${text(prepared.exactProduct?.matchedProduct?.barcode) || "-"}. Batch: ${upload.batchRequestId}. Inventory-result item: ${idefixFailureDetail(
+            verification
+              .item
+          )}. Canlı inventory: ${idefixFailureDetail(
+            liveVerification
+              .item
+          )}`
         );
-
-      const liveVerification = {
-        success:
-          liveVerified,
-        item:
-          liveItem,
-      };
+      }
 
       await client.query(
         "BEGIN"
@@ -6461,11 +6436,6 @@ async function processPrepared(
                   .batchRequestId,
               finalStock:
                 numberOrNull(
-                  verification
-                    .item
-                    ?.inventoryQuantity
-                ) ??
-                numberOrNull(
                   liveVerification
                     .item
                     ?.inventoryQuantity
@@ -6476,20 +6446,9 @@ async function processPrepared(
                 inventoryResult:
                   verification
                     .payload,
-                inventoryResultItem:
-                  verification
-                    .item,
                 liveInventory:
                   liveVerification
                     .item,
-                liveInventoryVerified:
-                  liveVerification
-                    .success,
-                propagationPending:
-                  !liveVerification
-                    .success,
-                acceptedByIdefix:
-                  true,
               },
             }
           );
@@ -6531,19 +6490,6 @@ async function processPrepared(
             "LISTED",
           pendingApproval:
             false,
-          acceptedByIdefix:
-            true,
-          liveInventoryVerified:
-            liveVerification
-              .success,
-          propagationPending:
-            !liveVerification
-              .success,
-          message:
-            liveVerification
-              .success
-              ? "İdefix stok/fiyat işlemi tamamlandı ve canlı envanter doğrulandı."
-              : "İdefix stok/fiyat işlemi COMPLETED olarak kabul edildi. Canlı envanter ekranının yansıması bekleniyor.",
         };
       } catch (
         error: any
