@@ -429,8 +429,8 @@ function AdminDynamicSheetEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[250] overflow-hidden bg-slate-950/65 backdrop-blur-sm p-2 sm:p-4 print:hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-[22px] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[250] overflow-hidden bg-slate-950/65 p-0 backdrop-blur-sm print:hidden sm:p-4">
+      <div className="mx-auto flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-none bg-white shadow-2xl sm:rounded-[22px]">
         <div className="flex shrink-0 flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
@@ -446,7 +446,7 @@ function AdminDynamicSheetEditor({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Listede ara..."
-              className="h-10 min-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-blue-500"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base font-semibold outline-none focus:border-blue-500 sm:h-10 sm:w-auto sm:min-w-[220px] sm:text-sm"
             />
 
             <button
@@ -479,13 +479,13 @@ function AdminDynamicSheetEditor({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 custom-scrollbar">
+        <div className="mobile-safe-scroll min-h-0 flex-1 overflow-auto p-3 sm:p-4 custom-scrollbar">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm font-black text-slate-400">
               Liste yükleniyor...
             </div>
           ) : (
-            <table className="w-full table-fixed border-separate border-spacing-0 text-[10px] sm:text-[11px]">
+            <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-[10px] sm:min-w-0 sm:text-[11px]">
               <thead className="sticky top-0 z-20">
                 <tr>
                   <th className="w-[52px] border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white">
@@ -702,6 +702,32 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const currentAdminEditableSheet = ADMIN_EDITABLE_SHEETS[appMode] || null;
 
+  // Mobil menü açıkken arka plan kaymasın.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : previousOverflow;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  // Tablet / masaüstüne dönüldüğünde mobil drawer kapansın.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
   const initialThhForm = {
@@ -747,6 +773,10 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSubMenuOpen, setMobileSubMenuOpen] = useState(false);
+
+  // MOBİL ANA MENÜ / DRAWER
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const secondHandMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [secondHandMenuPos, setSecondHandMenuPos] = useState({
     left: 0,
@@ -2113,7 +2143,7 @@ export default function CnetmobilCmrFinalUltimate() {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#edf2f7] px-4 py-6 sm:px-6 lg:px-8 flex items-center justify-center font-sans">
-        <div className="w-full max-w-[1180px] min-h-[690px] overflow-hidden rounded-[28px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] border border-slate-200 grid lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="w-full max-w-[1180px] min-h-0 sm:min-h-[690px] overflow-hidden rounded-[22px] sm:rounded-[28px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] border border-slate-200 grid lg:grid-cols-[0.9fr_1.1fr]">
           {/* SOL MARKA ALANI */}
           <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-[#07192d] px-12 py-12 text-white">
             <div className="absolute inset-0 opacity-100" style={{ background: 'radial-gradient(circle at 18% 18%, rgba(59,130,246,0.24), transparent 34%), radial-gradient(circle at 80% 72%, rgba(30,64,175,0.22), transparent 38%), linear-gradient(145deg, #07192d 0%, #0b223d 55%, #061426 100%)' }} />
@@ -2469,21 +2499,74 @@ export default function CnetmobilCmrFinalUltimate() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 transition-colors duration-500 bg-[#F8FAFC] text-slate-900">
+    <div className="cnet-mobile-root flex min-h-screen flex-col bg-[#F8FAFC] pb-[76px] font-sans text-slate-900 selection:bg-blue-100 transition-colors duration-500 lg:pb-0">
       <style>{`
         #print-area { display: none !important; }
+
         @media print {
           header, nav, main, footer, .print\\:hidden { display: none !important; }
           #print-area { display: block !important; visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; background: white !important; color: black !important; margin: 0 !important; padding: 40px !important; }
           #print-area * { visibility: visible !important; }
         }
-        .btn-click { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+
+        .btn-click {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+
         .btn-click:active { transform: scale(0.96); }
+
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* ==================================================
+           MOBİL UX
+           Masaüstü class'larına dokunmadan < 640 px iyileştirmeleri
+           ================================================== */
+        @media (max-width: 639px) {
+          html {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+          }
+
+          .cnet-mobile-root input,
+          .cnet-mobile-root select,
+          .cnet-mobile-root textarea {
+            font-size: 16px !important;
+          }
+
+          .cnet-mobile-root button,
+          .cnet-mobile-root a {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .cnet-mobile-root .mobile-content-shell {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            padding-top: 12px !important;
+          }
+
+          .cnet-mobile-root .mobile-touch-target {
+            min-height: 44px;
+            min-width: 44px;
+          }
+
+          .cnet-mobile-root .mobile-safe-scroll {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+          }
+        }
+
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+          .cnet-mobile-bottom-safe {
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+          }
+        }
       `}</style>
 
       {/* TOPBAR V2 */}
@@ -2496,7 +2579,7 @@ export default function CnetmobilCmrFinalUltimate() {
       >
         {/* ÜST SATIR */}
         <div className="border-b border-white/10">
-          <div className="mx-auto flex min-h-[64px] max-w-[1920px] items-center justify-between gap-4 px-4 lg:px-6">
+          <div className="mx-auto flex min-h-[60px] max-w-[1920px] items-center justify-between gap-2 px-3 sm:min-h-[64px] sm:gap-4 sm:px-4 lg:px-6">
             <button
               type="button"
               onClick={() => {
@@ -2505,7 +2588,7 @@ export default function CnetmobilCmrFinalUltimate() {
               }}
               className="group flex shrink-0 items-center gap-3 text-left"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15 sm:h-10 sm:w-10">
                 <span className="text-sm font-black text-white">
                   {isZumay ? 'CP' : 'CM'}
                 </span>
@@ -2535,6 +2618,17 @@ export default function CnetmobilCmrFinalUltimate() {
             </button>
 
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Menüyü aç"
+                className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/80 transition active:scale-95 lg:hidden"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              </button>
+
               {!isZumay && step < 99 && (
                 <>
                   <button
@@ -2586,7 +2680,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
               <div className="hidden h-8 w-px bg-white/10 lg:block" />
 
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 pr-2">
+              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1 sm:gap-2 sm:rounded-2xl sm:p-1.5 sm:pr-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black text-white shadow-lg shadow-blue-950/20">
                   {branchInitials || 'CM'}
                 </div>
@@ -2664,8 +2758,8 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
 
         {/* MODÜL NAVBAR */}
-        <div className="border-b border-white/5 bg-black/5">
-          <div className="mx-auto flex max-w-[1920px] items-stretch justify-start overflow-x-auto px-2 no-scrollbar lg:justify-center lg:px-5">
+        <div className="hidden border-b border-white/5 bg-black/5 lg:block">
+          <div className="mx-auto flex max-w-[1920px] items-stretch justify-center overflow-visible px-5 no-scrollbar">
             {step < 99 &&
               menuGroups
                 .flatMap((g: any) => g.items)
@@ -3336,10 +3430,391 @@ export default function CnetmobilCmrFinalUltimate() {
         </div>
       </header>
 
+      {/* =========================================================
+          MOBİL MENÜ DRAWER
+          Desktop navbar aynen kalır; bu alan sadece < 1024px görünür.
+          ========================================================= */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[100000] lg:hidden print:hidden">
+          <button
+            type="button"
+            aria-label="Menüyü kapat"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+          />
+
+          <aside className="absolute inset-y-0 left-0 flex w-[88%] max-w-[360px] flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-left duration-200">
+            <div className="shrink-0 border-b border-slate-200 bg-gradient-to-br from-[#0f2748] via-[#174a7e] to-[#0f2748] px-5 pb-5 pt-5 text-white">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    resetAll();
+                    setAppMode('ana_sayfa');
+                  }}
+                  className="flex min-w-0 items-center gap-3 text-left"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+                    <span className="text-xs font-black">{isZumay ? 'CP' : 'CM'}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-lg font-black tracking-tight">
+                      Cnet<span className="text-blue-300">mobil</span>
+                      {isZumay && (
+                        <span className="ml-1.5 text-[9px] uppercase tracking-[0.15em] text-blue-200">
+                          Partner
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.15em] text-blue-100/60">
+                      {visibleBranchName}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mobile-touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/80"
+                  aria-label="Kapat"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4">
+              {step === 99 ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                    Yönetici Paneli
+                  </div>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">
+                    Normal menüye dönmek için aşağıdaki butonu kullanın.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="mt-4 h-11 w-full rounded-xl bg-blue-600 text-xs font-black text-white"
+                  >
+                    NORMAL PANELE DÖN
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {menuGroups.map((group: any) => {
+                    const visibleItems = group.items.filter((item: any) => item.visible);
+                    if (!visibleItems.length) return null;
+
+                    return (
+                      <section key={group.title}>
+                        <div className="mb-2 px-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                          {group.title}
+                        </div>
+
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                          {visibleItems.map((item: any) => {
+                            if (item.integrationItems) {
+                              return (
+                                <div key={item.id} className="border-b border-slate-100 last:border-0">
+                                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 text-xs font-black text-slate-800">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                      {navIcon(item.id)}
+                                    </span>
+                                    <span>{item.label}</span>
+                                  </div>
+
+                                  <div>
+                                    {item.integrationItems
+                                      .filter((sub: any) => sub.enabled)
+                                      .map((sub: any) => (
+                                        <button
+                                          type="button"
+                                          key={sub.id}
+                                          onClick={() => {
+                                            setAppMode(sub.id as any);
+                                            setStep(1);
+                                            resetSelection();
+                                            setMobileMenuOpen(false);
+                                          }}
+                                          className={`flex min-h-[52px] w-full items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-left ${
+                                            appMode === sub.id ? 'bg-blue-50' : 'bg-white'
+                                          }`}
+                                        >
+                                          <div className="min-w-0">
+                                            <div className={`text-xs font-black ${appMode === sub.id ? 'text-blue-700' : 'text-slate-800'}`}>
+                                              {sub.label}
+                                            </div>
+                                            <div className="mt-0.5 truncate text-[9px] font-semibold text-slate-400">
+                                              {sub.detail}
+                                            </div>
+                                          </div>
+                                          <span className="shrink-0 text-slate-300">→</span>
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            if (item.branchItems) {
+                              return (
+                                <div key={item.id} className="border-b border-slate-100 last:border-0">
+                                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 text-xs font-black text-slate-800">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                      {navIcon(item.id)}
+                                    </span>
+                                    <span>Cihaz Talep</span>
+                                  </div>
+
+                                  {item.branchItems.map((branchItem: any) => {
+                                    const branchActive =
+                                      appMode === 'cihaz_talep' &&
+                                      cihazTalepSourceBranch === branchItem.code;
+
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={branchItem.code}
+                                        onClick={() => {
+                                          setCihazTalepSourceBranch(branchItem.code);
+                                          setAppMode('cihaz_talep');
+                                          setStep(1);
+                                          resetSelection();
+                                          setMobileMenuOpen(false);
+                                        }}
+                                        className={`flex min-h-[52px] w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-left ${
+                                          branchActive ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-800'
+                                        }`}
+                                      >
+                                        <div>
+                                          <div className="text-xs font-black">{branchItem.label}</div>
+                                          <div className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                                            {branchItem.detail}
+                                          </div>
+                                        </div>
+                                        <span className="text-slate-300">→</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            }
+
+                            if (item.subItems) {
+                              return (
+                                <div key={item.id} className="border-b border-slate-100 last:border-0">
+                                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 text-xs font-black text-slate-800">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                      {navIcon(item.id)}
+                                    </span>
+                                    <span>2. El Listesi</span>
+                                  </div>
+
+                                  {item.subItems.map((sub: any) => (
+                                    <button
+                                      type="button"
+                                      key={sub.id}
+                                      onClick={() => {
+                                        setAppMode(sub.id as any);
+                                        setStep(1);
+                                        resetSelection();
+                                        setMobileMenuOpen(false);
+                                      }}
+                                      className={`flex min-h-[52px] w-full items-center justify-between border-t border-slate-100 px-4 py-3 text-left text-xs font-black ${
+                                        appMode === sub.id ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-800'
+                                      }`}
+                                    >
+                                      <span>{sub.label}</span>
+                                      <span className="text-slate-300">→</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                key={item.id}
+                                onClick={() => {
+                                  setAppMode(item.id as any);
+                                  setStep(1);
+                                  resetSelection();
+                                  setMobileMenuOpen(false);
+                                }}
+                                className={`flex min-h-[56px] w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 ${
+                                  appMode === item.id ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-800'
+                                }`}
+                              >
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <span
+                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                                      appMode === item.id
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-100 text-slate-500'
+                                    }`}
+                                  >
+                                    {navIcon(item.id)}
+                                  </span>
+                                  <span className="truncate text-xs font-black">{item.label}</span>
+                                </div>
+                                <span className="text-slate-300">→</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep(99);
+                        setMobileMenuOpen(false);
+                      }}
+                      className="flex min-h-[54px] w-full items-center justify-between rounded-2xl border border-violet-200 bg-violet-50 px-4 text-left text-xs font-black text-violet-700"
+                    >
+                      <span>Yönetici Paneli</span>
+                      <span>→</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="cnet-mobile-bottom-safe shrink-0 border-t border-slate-200 bg-white p-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-xs font-black text-rose-600"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                ÇIKIŞ YAP
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* =========================================================
+          MOBİL ALT MENÜ
+          Parmakla tek elle erişim için sabit 4/5 ana aksiyon
+          ========================================================= */}
+      {step < 99 && (
+        <nav
+          className="cnet-mobile-bottom-safe fixed inset-x-0 bottom-0 z-[9990] border-t border-slate-200 bg-white/95 px-2 pt-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden print:hidden"
+        >
+          <div className={`mx-auto grid max-w-lg ${isZumay ? 'grid-cols-4' : 'grid-cols-5'} gap-1`}>
+            <button
+              type="button"
+              onClick={() => {
+                resetAll();
+                setAppMode('ana_sayfa');
+              }}
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+                appMode === 'ana_sayfa' ? 'text-blue-600' : 'text-slate-500'
+              }`}
+            >
+              <span className={appMode === 'ana_sayfa' ? 'text-blue-600' : 'text-slate-400'}>
+                {navIcon('ana_sayfa')}
+              </span>
+              <span>Ana Sayfa</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAppMode('alim');
+                setStep(1);
+                resetSelection();
+              }}
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+                appMode === 'alim' ? 'text-blue-600' : 'text-slate-500'
+              }`}
+            >
+              <span className={appMode === 'alim' ? 'text-blue-600' : 'text-slate-400'}>
+                {navIcon('alim')}
+              </span>
+              <span>Cihaz Alım</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAppMode('dis_kanal');
+                setStep(1);
+                resetSelection();
+              }}
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+                appMode === 'dis_kanal' ? 'text-blue-600' : 'text-slate-500'
+              }`}
+            >
+              <span className={appMode === 'dis_kanal' ? 'text-blue-600' : 'text-slate-400'}>
+                {navIcon('dis_kanal')}
+              </span>
+              <span>Dış Kanal</span>
+            </button>
+
+            {!isZumay && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedBranch === 'VODAFONE KANALI') {
+                    setAppMode('imei_list');
+                  } else {
+                    setAppMode('cep_tablet');
+                  }
+                  setStep(1);
+                  resetSelection();
+                }}
+                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+                  (selectedBranch === 'VODAFONE KANALI' && appMode === 'imei_list') ||
+                  (selectedBranch !== 'VODAFONE KANALI' && appMode === 'cep_tablet')
+                    ? 'text-blue-600'
+                    : 'text-slate-500'
+                }`}
+              >
+                <span className="text-slate-400">
+                  {navIcon(selectedBranch === 'VODAFONE KANALI' ? 'imei_list' : 'cep_tablet')}
+                </span>
+                <span>{selectedBranch === 'VODAFONE KANALI' ? 'Depo' : 'Fiyatlar'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black text-slate-500"
+            >
+              <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+              </svg>
+              <span>Daha Fazla</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
       {/* ANA İÇERİK ALANI */}
-      <div className="flex-1 w-full min-w-0 flex flex-col relative">
+      <div className="relative flex w-full min-w-0 flex-1 flex-col overflow-x-hidden">
         <main
-          className={`mx-auto w-full print:hidden ${
+          className={`mobile-content-shell mx-auto w-full min-w-0 print:hidden ${
             (appMode === 'cihaz_talep' ||
               appMode === 'online' ||
               appMode === 'merkez' ||
@@ -3359,7 +3834,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       <img
                         src="/partner-hero.png"
                         alt="CNETMOBIL Partner"
-                        className="block h-auto w-full object-cover"
+                        className="block h-[150px] w-full object-cover object-left sm:h-auto sm:object-center"
                       />
                     </section>
 
@@ -3934,12 +4409,12 @@ export default function CnetmobilCmrFinalUltimate() {
         </main>
       </div>
 
-      <footer className="mt-auto w-full border-t border-slate-200 py-6 text-center print:hidden bg-transparent">
+      <footer className="mt-auto w-full border-t border-slate-200 bg-transparent py-6 pb-24 text-center print:hidden lg:pb-6">
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'CNETMOBIL PARTNER • BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
       {/* TOAST BİLDİRİMLERİ */}
-      <div className="fixed top-24 right-6 z-[200] flex flex-col gap-3 pointer-events-none print:hidden">
+      <div className="pointer-events-none fixed left-3 right-3 top-20 z-[200] flex flex-col gap-3 print:hidden sm:left-auto sm:right-6 sm:top-24">
         {toastMessages.map((toast) => (
           <div key={toast.id} className={`animate-in slide-in-from-right-8 fade-in duration-500 rounded-2xl shadow-2xl p-4 border flex items-center gap-3 backdrop-blur-md ${toast.type === 'new' ? 'bg-emerald-500/90 border-emerald-400 text-white' : 'bg-blue-600/90 border-blue-500 text-white'}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'new' ? 'bg-emerald-400' : 'bg-blue-500'}`}>
@@ -3959,8 +4434,8 @@ export default function CnetmobilCmrFinalUltimate() {
 
       {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/80 p-0 backdrop-blur-md print:hidden sm:items-center sm:p-4">
+          <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col rounded-t-[26px] border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-300 sm:max-h-[90vh] sm:rounded-[40px] sm:p-8">
             <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
               <div className="flex items-center gap-4">
                 <div className="bg-emerald-50 text-emerald-600 w-12 h-12 rounded-2xl flex items-center justify-center">
@@ -4046,8 +4521,8 @@ export default function CnetmobilCmrFinalUltimate() {
 
       {/* KASKO MODALI */}
       {isKaskoModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/80 backdrop-blur-md print:hidden p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-4xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/80 p-0 backdrop-blur-md print:hidden sm:items-center sm:p-4">
+          <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col rounded-t-[26px] border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-300 sm:max-h-[90vh] sm:rounded-[40px] sm:p-8">
             <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
               <div className="flex items-center gap-4">
                 <div className="bg-purple-50 text-purple-600 w-12 h-12 rounded-2xl flex items-center justify-center">
@@ -4204,8 +4679,8 @@ export default function CnetmobilCmrFinalUltimate() {
       )}
 
       {ekspertizModalData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 print:hidden">
-          <div className="bg-white rounded-[32px] shadow-2xl p-8 w-full max-w-2xl border border-slate-200 flex flex-col animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm print:hidden sm:items-center sm:p-4">
+          <div className="flex max-h-[94vh] w-full max-w-2xl flex-col rounded-t-[26px] border border-slate-200 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-300 sm:rounded-[32px] sm:p-8">
              <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-6 shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
