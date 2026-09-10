@@ -3330,22 +3330,120 @@ export default function CnetmobilCmrFinalUltimate() {
  
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
-                 <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
-                    <div className="w-24 h-24 bg-blue-600 rounded-3xl flex items-center justify-center shadow-xl shadow-blue-500/20 text-white text-3xl font-black italic">CP</div>
-                    <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-800 uppercase text-center">
-                       CNETMOBIL <span className="text-blue-600">PARTNER</span>
-                    </h2>
-                    <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
-                       Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-blue-500">
-                          CİHAZ ALIMI YAP
-                       </button>
-                       <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200/50 transition-all active:scale-95 text-xs sm:text-sm">
-                          DIŞ KANAL LİSTESİ
-                       </button>
-                    </div>
+                 <div className="animate-in fade-in duration-500">
+                    {/* CNETMOBIL PARTNER HERO */}
+                    <section className="overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-sm">
+                      <img
+                        src="/partner-hero.png"
+                        alt="CNETMOBIL Partner"
+                        className="block h-auto w-full object-cover"
+                      />
+                    </section>
+
+                    {/* HIZLI İŞLEMLER - mevcut Zumay yetkileri korunur */}
+                    <section className="mt-7">
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">
+                            CNETMOBIL PARTNER
+                          </div>
+                          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                            Hızlı İşlemler
+                          </h2>
+                        </div>
+
+                        <div className="hidden rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-blue-700 sm:block">
+                          Partner Bayi Ekranı
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppMode('alim');
+                            setStep(1);
+                            resetSelection();
+                          }}
+                          className="group flex min-h-[142px] items-center gap-5 rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg active:scale-[0.99] sm:p-6"
+                        >
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 transition group-hover:bg-blue-600 group-hover:text-white">
+                            <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
+                              <rect x="7" y="2.5" width="10" height="19" rx="2.2" />
+                              <path strokeLinecap="round" d="M10 5.5h4M11 18.5h2" />
+                            </svg>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="text-lg font-black text-slate-900 sm:text-xl">
+                              Cihaz Alımı
+                            </div>
+                            <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                              Müşteri cihazını değerlendirin, teklif oluşturun ve alım işlemini tamamlayın.
+                            </p>
+                          </div>
+
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition group-hover:bg-blue-50 group-hover:text-blue-600">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppMode('dis_kanal');
+                            setStep(1);
+                            resetSelection();
+                          }}
+                          className="group flex min-h-[142px] items-center gap-5 rounded-[22px] border border-slate-200 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg active:scale-[0.99] sm:p-6"
+                        >
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 ring-1 ring-violet-100 transition group-hover:bg-violet-600 group-hover:text-white">
+                            <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
+                              <circle cx="12" cy="5" r="2.2" />
+                              <circle cx="6" cy="18" r="2.2" />
+                              <circle cx="18" cy="18" r="2.2" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.2v4M12 11.2H6v4.6M12 11.2h6v4.6" />
+                            </svg>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="text-lg font-black text-slate-900 sm:text-xl">
+                              Dış Kanal Listesi
+                            </div>
+                            <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                              Güncel dış kanal satın alma listesini hızlıca görüntüleyin.
+                            </p>
+                          </div>
+
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition group-hover:bg-violet-50 group-hover:text-violet-600">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </button>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-3 rounded-[18px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.4-2.8 8.1-7 10-4.2-1.9-7-5.6-7-10V6l7-3z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-black text-slate-900">
+                              CNETMOBIL Partner erişimi
+                            </div>
+                            <div className="text-xs font-medium text-slate-500">
+                              Partner hesabınız e-posta ve şifreyle çalışır; mağaza IP kısıtları aynen korunur.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
                  </div>
               ) : (
                  <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} />
