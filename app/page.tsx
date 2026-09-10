@@ -619,7 +619,7 @@ const MASTER_IPLER = [
 // Dizi boşken mevcut Vodafone erişimi bozulmaz.
 // Diziye IP girildiği anda Vodafone personel erişimi SADECE bu IP'lerden olur.
 // ======================================================
-const VODAFONE_IPLER = [
+const VODAFONE_IPLER: string[] = [
   // "1.2.3.4",   // Vodafone Mağaza 1
   // "1.2.3.5",   // Vodafone Mağaza 2
   // "1.2.3.6",   // Vodafone Mağaza 3
