@@ -3331,80 +3331,13 @@ export default function CnetmobilCmrFinalUltimate() {
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
                  <div className="animate-in fade-in duration-500">
-                    {/* CNETMOBIL PARTNER HERO - TAMAMEN KOD, HARICI GÖRSEL YOK */}
-                    <section className="relative min-h-[230px] overflow-hidden rounded-[22px] border border-blue-100 bg-gradient-to-r from-[#f5f9ff] via-[#eaf4ff] to-[#cfe7ff] shadow-sm sm:min-h-[250px]">
-                      {/* arka plan ışıkları */}
-                      <div className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-white/70 blur-3xl" />
-                      <div className="pointer-events-none absolute left-[38%] top-[-80px] h-72 w-72 rounded-full bg-blue-200/40 blur-3xl" />
-                      <div className="pointer-events-none absolute right-[-80px] bottom-[-100px] h-72 w-72 rounded-full bg-blue-300/30 blur-3xl" />
-
-                      <div className="relative z-10 grid min-h-[230px] grid-cols-1 items-center gap-6 px-6 py-7 sm:min-h-[250px] sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:px-10">
-                        {/* SOL METİN */}
-                        <div className="max-w-[600px]">
-                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-700 sm:text-[12px]">
-                            İŞ ORTAĞIMIZ, HOŞ GELDİNİZ
-                          </div>
-
-                          <h1 className="mt-2 text-[30px] font-black leading-[1.02] tracking-[-0.045em] text-[#0b2141] sm:text-[38px] lg:text-[44px]">
-                            CNETMOBIL PARTNER
-                          </h1>
-
-                          <p className="mt-4 max-w-[440px] text-[13px] font-medium leading-6 text-slate-500 sm:text-[15px]">
-                            Yenilenmiş cihaz dünyasında güvenilir iş ortağınız.
-                            <br />
-                            Kolay alım, hızlı süreç, güçlü destek.
-                          </p>
-                        </div>
-
-                        {/* SAĞ TELEFON KOMPOZİSYONU - CSS/SVG */}
-                        <div className="relative hidden h-[205px] lg:block">
-                          {/* iPhone arka */}
-                          <div className="absolute bottom-[-28px] left-[6%] h-[175px] w-[88px] rotate-[-4deg] rounded-[22px] border border-slate-300 bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 shadow-2xl">
-                            <div className="absolute left-3 top-3 grid h-[48px] w-[48px] grid-cols-2 gap-1 rounded-[14px] bg-slate-800 p-1.5 shadow-inner">
-                              <span className="rounded-full bg-slate-950 ring-2 ring-slate-500" />
-                              <span className="rounded-full bg-slate-950 ring-2 ring-slate-500" />
-                              <span className="rounded-full bg-slate-950 ring-2 ring-slate-500" />
-                              <span className="rounded-full bg-slate-500" />
-                            </div>
-                          </div>
-
-                          {/* büyük ön telefon */}
-                          <div className="absolute bottom-[-25px] left-[23%] h-[205px] w-[108px] rounded-[25px] border-[3px] border-slate-900 bg-slate-950 shadow-2xl">
-                            <div className="absolute inset-[4px] overflow-hidden rounded-[20px] bg-gradient-to-b from-fuchsia-300 via-violet-600 to-slate-950">
-                              <div className="absolute left-1/2 top-2 h-[15px] w-[50px] -translate-x-1/2 rounded-full bg-black" />
-                              <div className="absolute -left-10 top-12 h-28 w-36 rounded-full bg-purple-400/35 blur-2xl" />
-                            </div>
-                          </div>
-
-                          {/* orta koyu telefon */}
-                          <div className="absolute bottom-[-30px] left-[43%] z-20 h-[145px] w-[76px] rotate-[1deg] rounded-[18px] border border-slate-600 bg-gradient-to-br from-slate-700 to-slate-950 shadow-xl">
-                            <div className="absolute left-2.5 top-2.5 grid h-[41px] w-[41px] grid-cols-2 gap-1 rounded-[12px] bg-slate-800 p-1">
-                              <span className="rounded-full bg-black ring-1 ring-slate-400" />
-                              <span className="rounded-full bg-black ring-1 ring-slate-400" />
-                              <span className="rounded-full bg-black ring-1 ring-slate-400" />
-                              <span className="rounded-full bg-slate-500" />
-                            </div>
-                          </div>
-
-                          {/* samsung sağ */}
-                          <div className="absolute bottom-[-30px] left-[56%] h-[178px] w-[91px] rotate-[2deg] rounded-[19px] border border-indigo-200 bg-gradient-to-br from-[#dfe4ff] via-[#aeb9e7] to-[#7d8ab8] shadow-2xl">
-                            <div className="absolute left-3 top-4 flex flex-col gap-2">
-                              <span className="h-7 w-7 rounded-full bg-slate-950 ring-2 ring-slate-400" />
-                              <span className="h-7 w-7 rounded-full bg-slate-950 ring-2 ring-slate-400" />
-                              <span className="h-7 w-7 rounded-full bg-slate-950 ring-2 ring-slate-400" />
-                            </div>
-                            <span className="absolute left-[48px] top-[26px] h-2.5 w-2.5 rounded-full bg-slate-100/80 ring-1 ring-slate-500" />
-                          </div>
-
-                          {/* sağ slogan */}
-                          <div className="absolute right-1 top-6 rotate-[-4deg] text-right text-[25px] font-black italic leading-[0.9] tracking-[-0.04em] text-blue-700">
-                            <div>Daha</div>
-                            <div>Güçlü</div>
-                            <div>Birlikte</div>
-                            <div className="ml-auto mt-2 h-[3px] w-24 rotate-[-8deg] rounded-full bg-blue-700" />
-                          </div>
-                        </div>
-                      </div>
+                    {/* CNETMOBIL PARTNER HERO */}
+                    <section className="overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-sm">
+                      <img
+                        src="/partner-hero.png"
+                        alt="CNETMOBIL Partner"
+                        className="block h-auto w-full object-cover"
+                      />
                     </section>
 
                     {/* HIZLI İŞLEMLER - mevcut Zumay yetkileri korunur */}
@@ -3492,6 +3425,24 @@ export default function CnetmobilCmrFinalUltimate() {
                         </button>
                       </div>
 
+                      <div className="mt-5 flex flex-col gap-3 rounded-[18px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.4-2.8 8.1-7 10-4.2-1.9-7-5.6-7-10V6l7-3z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-black text-slate-900">
+                              CNETMOBIL Partner erişimi
+                            </div>
+                            <div className="text-xs font-medium text-slate-500">
+                              Partner hesabınız e-posta ve şifreyle çalışır; mağaza IP kısıtları aynen korunur.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </section>
                  </div>
               ) : (
