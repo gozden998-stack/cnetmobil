@@ -702,32 +702,6 @@ export default function CnetmobilCmrFinalUltimate() {
 
   const currentAdminEditableSheet = ADMIN_EDITABLE_SHEETS[appMode] || null;
 
-  // Mobil menü açıkken arka plan kaymasın.
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = mobileMenuOpen ? 'hidden' : previousOverflow;
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [mobileMenuOpen]);
-
-  // Tablet / masaüstüne dönüldüğünde mobil drawer kapansın.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMobileMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // --- THH MODÜLÜ STATE'LERİ ---
   const [thhData, setThhData] = useState<any[][]>([]);
   const initialThhForm = {
@@ -776,6 +750,32 @@ export default function CnetmobilCmrFinalUltimate() {
 
   // MOBİL ANA MENÜ / DRAWER
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Mobil menü açıkken arka plan kaymasın.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : previousOverflow;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  // Tablet / masaüstüne dönüldüğünde mobil drawer kapansın.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const secondHandMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [secondHandMenuPos, setSecondHandMenuPos] = useState({
