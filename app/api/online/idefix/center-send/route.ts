@@ -1,8 +1,8 @@
-// app/api/online/idefix/center-send/route.ts
-// CNETMOBIL - IDEFIX ADIM 3
+// app/api/online/idefix/direct-create/route.ts
+// CNETMOBIL - IDEFIX DIREKT CIHAZ EKLE / CREATE MOTORU
 //
-// Merkez -> İdefix gerçek gönderim motoru.
-// N11 / İkas akışlarına dokunmaz.
+// İdefix ekranındaki + Cihaz Ekle akışı için özel motor.
+// N11 / İkas dosyalarına dokunmaz; yalnız referans/görsel okur.
 //
 // Akış:
 // 1) Seçili Merkez IMEI'lerini tekrar doğrular.
@@ -43,7 +43,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type SendMode = "preview" | "commit" | "reconcile";
+type SendMode = "preview" | "commit";
 
 type DeviceRow = {
   id: number;
@@ -119,15 +119,9 @@ type CategoryAttribute = {
   }> | null;
 };
 
-const idefixCategoryAttributeCache =
-  new Map<
-    string,
-    Promise<CategoryAttribute[]>
-  >();
-
 type PreparedGroup = {
   group: CenterGroup;
-  action: "EXISTING_PRODUCT" | "FAST_LISTING" | "CREATE_PRODUCT";
+  action: "EXISTING_PRODUCT" | "CREATE_PRODUCT";
   exactProduct: IdefixProduct | null;
   referenceProduct: IdefixProduct | null;
   title: string;
@@ -136,8 +130,6 @@ type PreparedGroup = {
   targetBeforeStock: number;
   targetAfterStock: number;
   barcode: string;
-  catalogBarcode: string | null;
-  catalogBarcodeSource?: "REQUEST" | "LOCAL_MAPPING" | "POOL" | null;
   vendorStockCode: string;
   productMainId: string;
   brandId: number | string | null;
@@ -169,13 +161,9 @@ function normalizeText(value: unknown) {
 function normalizeGrade(value: unknown) {
   const v = normalizeText(value);
 
-  // Merkez / N11 / İkas taraflarında kalite farklı biçimlerde gelebiliyor:
-  // A, A Kalite, Grade A, A Grade, Mükemmel vb.
   if (
     v === "A" ||
     v === "A KALITE" ||
-    v === "A GRADE" ||
-    v === "GRADE A" ||
     v.includes("MUKEMMEL")
   ) {
     return "A";
@@ -184,8 +172,6 @@ function normalizeGrade(value: unknown) {
   if (
     v === "B" ||
     v === "B KALITE" ||
-    v === "B GRADE" ||
-    v === "GRADE B" ||
     v.includes("COK IYI")
   ) {
     return "B";
@@ -194,8 +180,6 @@ function normalizeGrade(value: unknown) {
   if (
     v === "C" ||
     v === "C KALITE" ||
-    v === "C GRADE" ||
-    v === "GRADE C" ||
     v === "IYI"
   ) {
     return "C";
@@ -223,263 +207,6 @@ function containsPhrase(
   return normalizeText(needle)
     ? h.includes(n)
     : false;
-}
-
-function automaticIdefixBarcode(
-  product:
-    IdefixProduct | null |
-    undefined
-) {
-  // KRİTİK:
-  // İdefix /pim/pool listesindeki TOP-LEVEL product.barcode,
-  // /pim/catalog/{vendorId}/inventory/list ile eşleşen gerçek satıcı barkodudur.
-  // matchedProduct.barcode katalog eşleşme bilgisidir ve bazı ürünlerde
-  // TYB... gibi farklı bir kod dönebilir. Inventory-upload / live verification
-  // için önce MUTLAKA top-level barcode kullanılır.
-  const candidates = [
-    product
-      ?.barcode,
-    product
-      ?.matchedProduct
-      ?.barcode,
-  ]
-    .map(
-      (value) =>
-        text(value)
-    )
-    .filter(Boolean);
-
-  return (
-    Array.from(
-      new Set(
-        candidates
-      )
-    )[0] ||
-    ""
-  );
-}
-
-function productIdentityText(
-  product:
-    IdefixProduct
-) {
-  return [
-    product?.title,
-    product?.productMainId,
-    product?.matchedProduct
-      ?.name,
-    product?.matchedProduct
-      ?.slug,
-    product?.matchedProduct
-      ?.productMainId,
-  ]
-    .map(
-      (value) =>
-        text(value)
-    )
-    .filter(Boolean)
-    .join(" ");
-}
-
-function normalizedTokens(
-  value:
-    unknown
-) {
-  return normalizeText(
-    value
-  )
-    .split(" ")
-    .filter(Boolean);
-}
-
-function compactNormalized(
-  value:
-    unknown
-) {
-  return normalizeText(
-    value
-  ).replace(
-    /\s+/g,
-    ""
-  );
-}
-
-function modelMatchesTitle(
-  title:
-    unknown,
-  model:
-    unknown
-) {
-  const titleTokens =
-    normalizedTokens(
-      title
-    );
-
-  const modelTokens =
-    normalizedTokens(
-      model
-    );
-
-  if (
-    modelTokens.length === 0
-  ) {
-    return false;
-  }
-
-  let startIndex = -1;
-
-  for (
-    let i = 0;
-    i <=
-      titleTokens.length -
-        modelTokens.length;
-    i += 1
-  ) {
-    let same = true;
-
-    for (
-      let j = 0;
-      j <
-        modelTokens.length;
-      j += 1
-    ) {
-      if (
-        titleTokens[i + j] !==
-        modelTokens[j]
-      ) {
-        same = false;
-        break;
-      }
-    }
-
-    if (same) {
-      startIndex = i;
-      break;
-    }
-  }
-
-  if (
-    startIndex < 0
-  ) {
-    return false;
-  }
-
-  // iPhone 11 ile iPhone 11 Pro / Pro Max gibi cihazları
-  // yanlış eşleştirmemek için modelin hemen sonundaki varyantı kontrol et.
-  const variantTokens =
-    new Set([
-      "PRO",
-      "MAX",
-      "MINI",
-      "PLUS",
-      "ULTRA",
-      "FE",
-      "LITE",
-    ]);
-
-  const nextToken =
-    titleTokens[
-      startIndex +
-      modelTokens.length
-    ] || "";
-
-  if (
-    variantTokens.has(
-      nextToken
-    ) &&
-    !modelTokens.includes(
-      nextToken
-    )
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function memoryMatchesTitle(
-  title:
-    unknown,
-  memory:
-    unknown
-) {
-  const memoryNormalized =
-    normalizeMemory(
-      memory
-    );
-
-  if (
-    !memoryNormalized
-  ) {
-    return false;
-  }
-
-  // 64 GB / 64GB gibi farklı yazımları aynı kabul et.
-  const titleCompact =
-    compactNormalized(
-      title
-    );
-
-  const memoryCompact =
-    compactNormalized(
-      memoryNormalized
-    );
-
-  if (
-    titleCompact.includes(
-      memoryCompact
-    )
-  ) {
-    return true;
-  }
-
-  // Merkez hafıza alanı yalnızca "64" gibi geldiyse,
-  // başlıkta 64GB / 64 GB biçimlerini de yakala.
-  const numericOnly =
-    memoryNormalized.match(
-      /^\d+(?:[.,]\d+)?$/
-    );
-
-  if (
-    numericOnly
-  ) {
-    const number =
-      numericOnly[0]
-        .replace(",", ".");
-
-    return (
-      titleCompact.includes(
-        `${number}GB`
-      ) ||
-      titleCompact.includes(
-        `${number}TB`
-      )
-    );
-  }
-
-  return false;
-}
-
-function baseIdentityMatchesTitle(
-  title:
-    unknown,
-  group:
-    CenterGroup
-) {
-  return (
-    containsPhrase(
-      title,
-      group.brand
-    ) &&
-    modelMatchesTitle(
-      title,
-      group.model
-    ) &&
-    memoryMatchesTitle(
-      title,
-      group.memory
-    )
-  );
 }
 
 function colorAliases(value: unknown) {
@@ -571,8 +298,6 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "B KALITE") ||
-    containsPhrase(t, "B GRADE") ||
-    containsPhrase(t, "GRADE B") ||
     containsPhrase(t, "COK IYI")
   ) {
     return "B";
@@ -580,8 +305,6 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "A KALITE") ||
-    containsPhrase(t, "A GRADE") ||
-    containsPhrase(t, "GRADE A") ||
     containsPhrase(t, "MUKEMMEL")
   ) {
     return "A";
@@ -589,8 +312,6 @@ function detectGradeFromTitle(
 
   if (
     containsPhrase(t, "C KALITE") ||
-    containsPhrase(t, "C GRADE") ||
-    containsPhrase(t, "GRADE C") ||
     containsPhrase(t, "IYI")
   ) {
     return "C";
@@ -717,7 +438,7 @@ function makeStableBarcode(
   // İdefix create endpoint barcode alanını zorunlu tutuyor.
   // CNETMOBIL için ürün grubu bazlı deterministik ve tekrar üretilebilir
   // benzersiz değer kullanılır. Aynı grup ikinci kez yeni barkod üretmez.
-  return `CNETIDF${stableHash(
+  return `CNETDFX${stableHash(
     [
       group.brand,
       group.model,
@@ -735,7 +456,7 @@ function makeStableBarcode(
 function makeVendorStockCode(
   group: CenterGroup
 ) {
-  return `CNET-IDF-${stableHash(
+  return `CNET-DFX-${stableHash(
     [
       group.brand,
       group.model,
@@ -755,7 +476,7 @@ function makeProductMainId(
 ) {
   // Renk hariç aile kodu.
   // Aynı model/hafıza/grade/garanti farklı renkleri aynı ailede tutulabilir.
-  return `CNET-IDF-PM-${stableHash(
+  return `CNET-DFX-PM-${stableHash(
     [
       group.brand,
       group.model,
@@ -904,30 +625,11 @@ async function idefixApi(
         text(
           payload?.errors?.[0]
             ?.message
-        );
-
-      let payloadDetail = "";
-
-      if (payload !== null && payload !== undefined) {
-        try {
-          payloadDetail =
-            typeof payload === "string"
-              ? payload
-              : JSON.stringify(payload);
-        } catch {
-          payloadDetail =
-            String(payload);
-        }
-      }
-
-      const detail =
-        apiMessage ||
-        payloadDetail ||
-        raw ||
-        "Response body boş.";
+        ) ||
+        `İdefix HTTP ${response.status}`;
 
       throw new Error(
-        `İdefix HTTP ${response.status} [${options?.method || "GET"} ${path}]: ${detail}`
+        apiMessage
       );
     }
 
@@ -935,24 +637,6 @@ async function idefixApi(
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function pickIdefixProducts(
-  payload:
-    any
-): IdefixProduct[] {
-  const rows =
-    payload?.products ??
-    payload?.items ??
-    payload?.content ??
-    payload?.data?.products ??
-    payload?.data?.items ??
-    payload?.data?.content ??
-    [];
-
-  return Array.isArray(rows)
-    ? rows
-    : [];
 }
 
 async function fetchAllProducts() {
@@ -979,9 +663,11 @@ async function fetchAllProducts() {
       );
 
     const products =
-      pickIdefixProducts(
-        payload
-      );
+      Array.isArray(
+        payload?.products
+      )
+        ? payload.products
+        : [];
 
     if (
       products.length === 0
@@ -1037,217 +723,59 @@ async function fetchAllProducts() {
   return rows;
 }
 
-function idefixProductState(
-  product:
-    IdefixProduct | null |
-    undefined
+function exactProductForGroup(
+  products: IdefixProduct[],
+  group: CenterGroup
 ) {
-  return normalizeText(
-    product?.status ??
-    product?.state
-  );
-}
-
-function isIdefixReadyForSale(
-  product:
-    IdefixProduct | null |
-    undefined
-) {
-  return (
-    idefixProductState(
-      product
-    ) ===
-    "READY FOR SALE"
-  );
-}
-
-async function productLooksLikeCenterGroup(
-  product:
-    IdefixProduct,
-  group:
-    CenterGroup,
-  allowMissingGrade =
-    false
-) {
-  const title =
-    product.title;
-
-  // İdefix pool kaydı ile Merchant Center başlığı birebir aynı olmayabiliyor.
-  // Eşleştirmede title + productMainId + matchedProduct alanlarını birlikte kullan.
-  const identity =
-    productIdentityText(
-      product
-    );
-
-  if (
-    !containsPhrase(
-      identity,
+  const brand =
+    normalizeText(
       group.brand
-    ) ||
-    !modelMatchesTitle(
-      identity,
+    );
+
+  const modelMemory =
+    `${normalizeText(
       group.model
-    )
-  ) {
-    return false;
-  }
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
 
-  const facts =
-    await structuredProductFacts(
-      product
+  const grade =
+    normalizeGrade(
+      group.grade
     );
 
-  // Hafıza: önce İdefix structured attribute, yoksa başlık.
-  const memoryMatches =
-    facts.memory
-      ? memoryValueMatches(
-          facts.memory,
-          group.memory
-        )
-      : memoryMatchesTitle(
-          identity,
-          group.memory
+  const matches =
+    products.filter(
+      (product) => {
+        const title =
+          product.title;
+
+        return (
+          containsPhrase(
+            title,
+            brand
+          ) &&
+          containsPhrase(
+            title,
+            modelMemory
+          ) &&
+          Boolean(
+            matchedColorAlias(
+              title,
+              group.color
+            )
+          ) &&
+          detectGradeFromTitle(
+            title
+          ) === grade
         );
-
-  if (!memoryMatches) {
-    return false;
-  }
-
-  // RENK: kritik düzeltme.
-  // İdefix Merchant Center'da renk başlıkta her zaman yazmıyor.
-  // Önce product.attributes içindeki gerçek "Renk" değerini kullan.
-  // Sadece attribute çözülemezse başlığa fallback yap.
-  const colorMatches =
-    facts.color
-      ? colorValueMatches(
-          facts.color,
-          group.color
-        )
-      : Boolean(
-          matchedColorAlias(
-            identity,
-            group.color
-          )
-        );
-
-  if (!colorMatches) {
-    return false;
-  }
-
-  // Kozmetik kalite: yine structured attribute önce, başlık sonra.
-  const structuredGrade =
-    facts.grade
-      ? normalizeGrade(
-          facts.grade
-        )
-      : null;
-
-  const titleGrade =
-    detectGradeFromTitle(
-      identity
+      }
     );
-
-  const detectedGrade =
-    structuredGrade ||
-    titleGrade;
-
-  if (detectedGrade) {
-    return (
-      detectedGrade ===
-      normalizeGrade(
-        group.grade
-      )
-    );
-  }
-
-  return allowMissingGrade;
-}
-
-async function relaxedProductForGroup(
-  products:
-    IdefixProduct[],
-  group:
-    CenterGroup
-) {
-  const candidates:
-    IdefixProduct[] = [];
-
-  for (
-    const product of
-      products
-  ) {
-    if (
-      await productLooksLikeCenterGroup(
-        product,
-        group,
-        true
-      )
-    ) {
-      candidates.push(
-        product
-      );
-    }
-  }
-
-  const distinct =
-    new Map<
-      string,
-      IdefixProduct
-    >();
-
-  for (
-    const product of
-      candidates
-  ) {
-    distinct.set(
-      productKey(product),
-      product
-    );
-  }
-
-  if (
-    distinct.size === 1
-  ) {
-    return (
-      Array.from(
-        distinct.values()
-      )[0] ||
-      null
-    );
-  }
-
-  return null;
-}
-
-async function exactProductForGroup(
-  products:
-    IdefixProduct[],
-  group:
-    CenterGroup
-) {
-  const matches:
-    IdefixProduct[] = [];
-
-  for (
-    const product of
-      products
-  ) {
-    if (
-      await productLooksLikeCenterGroup(
-        product,
-        group,
-        false
-      )
-    ) {
-      matches.push(
-        product
-      );
-    }
-  }
 
   if (
     matches.length > 1
   ) {
+    // Aynı barkod tekrarı hariç birden fazla gerçek ürün varsa otomatik seçme.
     const distinct =
       new Map<
         string,
@@ -1270,7 +798,7 @@ async function exactProductForGroup(
       throw new Error(
         `${productTitle(
           group
-        )}: İdefix'te aynı model/hafıza/renk/kalite için birden fazla ürün bulundu. Yanlış barkod seçmemek için otomatik gönderim durduruldu.`
+        )}: İdefix'te aynı renk için birden fazla ürün bulundu. Otomatik gönderim durduruldu.`
       );
     }
   }
@@ -1285,6 +813,18 @@ function referenceProductForGroup(
   products: IdefixProduct[],
   group: CenterGroup
 ) {
+  const brand =
+    normalizeText(
+      group.brand
+    );
+
+  const modelMemory =
+    `${normalizeText(
+      group.model
+    )} ${normalizeMemory(
+      group.memory
+    )}`;
+
   const grade =
     normalizeGrade(
       group.grade
@@ -1298,9 +838,13 @@ function referenceProductForGroup(
             product.title;
 
           if (
-            !baseIdentityMatchesTitle(
+            !containsPhrase(
               title,
-              group
+              brand
+            ) ||
+            !containsPhrase(
+              title,
+              modelMemory
             ) ||
             detectGradeFromTitle(
               title
@@ -1466,283 +1010,6 @@ function attributeById(
             ""
         )
     ) || null
-  );
-}
-
-function attributeValueName(
-  product:
-    IdefixProduct,
-  definition:
-    CategoryAttribute
-) {
-  const selected =
-    attributeById(
-      product,
-      definition.attributeId
-    );
-
-  if (!selected) {
-    return null;
-  }
-
-  const custom =
-    text(
-      selected
-        .customAttributeValue
-    );
-
-  if (custom) {
-    return custom;
-  }
-
-  const selectedId =
-    text(
-      selected
-        .attributeValueId
-    );
-
-  if (!selectedId) {
-    return null;
-  }
-
-  const values =
-    Array.isArray(
-      definition
-        .attributeValues
-    )
-      ? definition
-          .attributeValues
-      : [];
-
-  const value =
-    values.find(
-      (item) =>
-        text(item?.id) ===
-        selectedId
-    );
-
-  return (
-    text(
-      value?.name
-    ) || null
-  );
-}
-
-async function cachedCategoryAttributes(
-  categoryId:
-    string | number
-) {
-  const key =
-    String(
-      categoryId
-    );
-
-  let pending =
-    idefixCategoryAttributeCache.get(
-      key
-    );
-
-  if (!pending) {
-    pending =
-      categoryAttributes(
-        categoryId
-      );
-
-    idefixCategoryAttributeCache.set(
-      key,
-      pending
-    );
-  }
-
-  try {
-    return await pending;
-  } catch (error) {
-    idefixCategoryAttributeCache.delete(
-      key
-    );
-    throw error;
-  }
-}
-
-async function structuredProductFacts(
-  product:
-    IdefixProduct
-) {
-  const categoryId =
-    text(
-      product.categoryId
-    );
-
-  if (
-    !categoryId ||
-    !Array.isArray(
-      product.attributes
-    ) ||
-    product.attributes.length ===
-      0
-  ) {
-    return {
-      color:
-        null as string | null,
-      memory:
-        null as string | null,
-      grade:
-        null as string | null,
-      warranty:
-        null as string | null,
-    };
-  }
-
-  let definitions:
-    CategoryAttribute[] = [];
-
-  try {
-    definitions =
-      await cachedCategoryAttributes(
-        categoryId
-      );
-  } catch {
-    return {
-      color:
-        null as string | null,
-      memory:
-        null as string | null,
-      grade:
-        null as string | null,
-      warranty:
-        null as string | null,
-    };
-  }
-
-  let color:
-    string | null = null;
-  let memory:
-    string | null = null;
-  let grade:
-    string | null = null;
-  let warranty:
-    string | null = null;
-
-  for (
-    const definition of
-      definitions
-  ) {
-    const value =
-      attributeValueName(
-        product,
-        definition
-      );
-
-    if (!value) {
-      continue;
-    }
-
-    if (
-      !color &&
-      isColorAttribute(
-        definition
-      )
-    ) {
-      color = value;
-      continue;
-    }
-
-    if (
-      !memory &&
-      isMemoryAttribute(
-        definition
-      )
-    ) {
-      memory = value;
-      continue;
-    }
-
-    if (
-      !grade &&
-      isCosmeticAttribute(
-        definition
-      )
-    ) {
-      grade = value;
-      continue;
-    }
-
-    if (
-      !warranty &&
-      isWarrantyAttribute(
-        definition
-      )
-    ) {
-      warranty = value;
-    }
-  }
-
-  return {
-    color,
-    memory,
-    grade,
-    warranty,
-  };
-}
-
-function colorValueMatches(
-  actual:
-    unknown,
-  desired:
-    unknown
-) {
-  const actualNormalized =
-    normalizeText(
-      actual
-    );
-
-  if (!actualNormalized) {
-    return false;
-  }
-
-  return colorAliases(
-    desired
-  ).some(
-    (alias) =>
-      actualNormalized ===
-        normalizeText(
-          alias
-        ) ||
-      containsPhrase(
-        actualNormalized,
-        alias
-      )
-  );
-}
-
-function memoryValueMatches(
-  actual:
-    unknown,
-  desired:
-    unknown
-) {
-  const a =
-    compactNormalized(
-      normalizeMemory(
-        actual
-      )
-    );
-
-  const d =
-    compactNormalized(
-      normalizeMemory(
-        desired
-      )
-    );
-
-  if (!a || !d) {
-    return false;
-  }
-
-  return (
-    a === d ||
-    a.includes(d) ||
-    d.includes(a)
   );
 }
 
@@ -3038,175 +2305,6 @@ async function validateDevices(
   return errors;
 }
 
-function isGlobalCatalogBarcode(
-  value: unknown
-) {
-  return /^\d{8,14}$/.test(
-    text(value)
-  );
-}
-
-async function localCatalogBarcodeForGroup(
-  client:
-    PoolClient,
-  group:
-    CenterGroup
-) {
-  const result =
-    await client.query(
-      `
-        SELECT
-          id,
-          external_variant_id,
-          brand,
-          model,
-          memory,
-          color,
-          grade,
-          warranty,
-          raw_data
-        FROM public.online_listings
-        WHERE channel = 'IDEFIX'
-          AND (
-            brand ILIKE $1
-            OR title ILIKE $2
-          )
-          AND (
-            model ILIKE $3
-            OR title ILIKE $4
-          )
-        ORDER BY
-          updated_at DESC,
-          id DESC
-        LIMIT 100
-      `,
-      [
-        group.brand,
-        `%${group.brand}%`,
-        group.model,
-        `%${group.model}%`,
-      ]
-    );
-
-  for (
-    const row of
-      result.rows
-  ) {
-    const sameGroup =
-      normalizeText(
-        row?.brand
-      ) ===
-        normalizeText(
-          group.brand
-        ) &&
-      normalizeText(
-        row?.model
-      ) ===
-        normalizeText(
-          group.model
-        ) &&
-      normalizeMemory(
-        row?.memory
-      ) ===
-        normalizeMemory(
-          group.memory
-        ) &&
-      normalizeText(
-        row?.color
-      ) ===
-        normalizeText(
-          group.color
-        ) &&
-      normalizeGrade(
-        row?.grade
-      ) ===
-        normalizeGrade(
-          group.grade
-        ) &&
-      normalizeText(
-        row?.warranty
-      ) ===
-        normalizeText(
-          group.warranty
-        );
-
-    if (!sameGroup) {
-      continue;
-    }
-
-    const raw =
-      row?.raw_data &&
-      typeof row.raw_data ===
-        "object"
-        ? row.raw_data
-        : {};
-
-    const candidates = [
-      raw?.catalogBarcode,
-      raw?.idefixCatalogBarcode,
-      row?.external_variant_id,
-    ];
-
-    for (
-      const candidate of
-        candidates
-    ) {
-      if (
-        isGlobalCatalogBarcode(
-          candidate
-        )
-      ) {
-        return text(
-          candidate
-        );
-      }
-    }
-  }
-
-  return null;
-}
-
-async function localManagedIdefixCount(
-  client:
-    PoolClient,
-  barcode:
-    string,
-  vendorStockCode:
-    string
-) {
-  const result =
-    await client.query(
-      `
-        SELECT
-          COUNT(*)::int AS count
-        FROM public.online_channel_devices ocd
-        JOIN public.online_listings ol
-          ON ol.id =
-             ocd.online_listing_id
-        WHERE ocd.channel = 'IDEFIX'
-          AND ol.channel = 'IDEFIX'
-          AND (
-            ol.external_variant_id = $1
-            OR ol.external_stock_code = $2
-          )
-          AND ocd.membership_status IN (
-            'LISTED',
-            'RESERVED',
-            'PENDING_CREATE'
-          )
-      `,
-      [
-        barcode,
-        vendorStockCode,
-      ]
-    );
-
-  return Number(
-    result.rows?.[0]
-      ?.count || 0
-  );
-}
-
 async function prepareGroup(
   client:
     PoolClient,
@@ -3217,122 +2315,83 @@ async function prepareGroup(
   salePrice:
     number,
   listPrice:
-    number,
-  requestedCatalogBarcode:
-    string | null = null
+    number
 ): Promise<
   PreparedGroup
 > {
   const blockers:
     string[] = [];
 
-  let exactProduct:
-    IdefixProduct | null =
-      null;
-
-
-  try {
-    exactProduct =
-      await exactProductForGroup(
-        products,
-        group
-      );
-
-    if (!exactProduct) {
-      exactProduct =
-        await relaxedProductForGroup(
-          products,
-          group
-        );
-    }
-  } catch (error: any) {
-    blockers.push(
-      error instanceof Error
-        ? error.message
-        : "İdefix mevcut ürün eşleştirme hatası."
+  const directBarcode =
+    makeStableBarcode(
+      group
     );
-  }
 
-  if (exactProduct) {
+  const directStockCode =
+    makeVendorStockCode(
+      group
+    );
+
+  // Bu endpoint eski İdefix pool ürününe stok basmaz.
+  // Sadece daha önce BU direkt-create motorunun oluşturduğu CNET ürünü
+  // varsa EXISTING_PRODUCT olarak devam eder.
+  const directProduct =
+    products.find(
+      (product) =>
+        text(
+          product?.barcode
+        ) === directBarcode ||
+        text(
+          product?.vendorStockCode
+        ) === directStockCode
+    ) || null;
+
+  if (directProduct) {
     const barcode =
-      automaticIdefixBarcode(
-        exactProduct
-      );
-
-    if (!barcode) {
-      blockers.push(
-        "Mevcut İdefix ürününde barkod yok."
-      );
-    }
-
-    const vendorStockCode =
       text(
-        exactProduct
-          .vendorStockCode
+        directProduct
+          .barcode
       ) ||
-      makeVendorStockCode(
-        group
-      );
-
-    const liveInventory =
-      barcode
-        ? await liveInventoryByBarcode(
-            barcode
-          )
-        : null;
+      directBarcode;
 
     const currentStock =
       numberOrNull(
-        liveInventory
-          ?.inventoryQuantity
+        directProduct
+          .inventoryQuantity
       ) ?? 0;
 
-    const isCnetStableProduct =
-      barcode ===
-      makeStableBarcode(
-        group
+    const state =
+      normalizeText(
+        directProduct
+          .status ||
+        directProduct
+          .state
       );
 
-    let targetAfterStock =
-      currentStock +
-      group.items.length;
-
-    // Recovery / idempotency:
-    // Önceki create İdefix'te başarılı olup DB kaydı yazılmadan sonraki
-    // inventory adımında hata verdiyse aynı stabil CNET barkodu tekrar bulunur.
-    // Bu durumda mevcut stok zaten seçili IMEI'yi içeriyor olabilir.
-    // Yerel yönetilen cihaz sayısını baz alarak aynı IMEI'yi ikinci kez artırma.
     if (
-      isCnetStableProduct
+      state &&
+      state !==
+        "READY FOR SALE"
     ) {
-      const localManagedCount =
-        await localManagedIdefixCount(
-          client,
-          barcode,
-          vendorStockCode
-        );
-
-      const desiredManagedStock =
-        localManagedCount +
-        group.items.length;
-
-      targetAfterStock =
-        Math.max(
-          currentStock,
-          desiredManagedStock
-        );
+      blockers.push(
+        `${productTitle(
+          group
+        )}: CNET direkt İdefix ürünü daha önce oluşturulmuş fakat henüz ready_for_sale değil. Durum: ${state}.`
+      );
     }
 
     return {
       group,
       action:
         "EXISTING_PRODUCT",
-      exactProduct,
+      exactProduct:
+        directProduct,
       referenceProduct:
         null,
       title:
         text(
-          exactProduct.title
+          directProduct
+            .title
         ) ||
         productTitle(
           group
@@ -3341,57 +2400,50 @@ async function prepareGroup(
       listPrice,
       targetBeforeStock:
         currentStock,
-      targetAfterStock,
+      targetAfterStock:
+        currentStock +
+        group.items.length,
       barcode,
-      catalogBarcode:
-        isGlobalCatalogBarcode(
-          barcode
-        )
-          ? barcode
-          : null,
-      catalogBarcodeSource:
-        isGlobalCatalogBarcode(
-          barcode
-        )
-          ? "POOL"
-          : null,
-      vendorStockCode,
+      vendorStockCode:
+        directStockCode,
       productMainId:
         text(
-          exactProduct
+          directProduct
             .productMainId
         ) ||
         makeProductMainId(
           group
         ),
       brandId:
-        exactProduct.brandId ??
+        directProduct
+          .brandId ??
         null,
       categoryId:
-        exactProduct
+        directProduct
           .categoryId ??
         null,
       vatRate:
         numberOrNull(
-          exactProduct
+          directProduct
             .vatRate
         ),
       imageUrl:
         Array.isArray(
-          exactProduct.images
+          directProduct
+            .images
         )
           ? text(
-              exactProduct
+              directProduct
                 .images?.[0]
                 ?.url
             ) || null
           : null,
       attributes:
         Array.isArray(
-          exactProduct
+          directProduct
             .attributes
         )
-          ? exactProduct
+          ? directProduct
               .attributes
               .map(
                 (
@@ -3427,14 +2479,208 @@ async function prepareGroup(
     };
   }
 
+  // Referans için İdefix'teki gerçek aynı ürünü kullanabiliriz; fakat onu
+  // satıcı stoğu olarak güncellemiyoruz. Sadece brand/category/attribute
+  // şablonunu alıp KENDİ CNET ürünümüzü create ediyoruz.
+  let exactReference:
+    IdefixProduct | null =
+      null;
+
+  try {
+    exactReference =
+      exactProductForGroup(
+        products,
+        group
+      );
+  } catch (error) {
+    blockers.push(
+      error instanceof Error
+        ? error.message
+        : "İdefix aynı ürün referansı seçilemedi."
+    );
+  }
+
+  let referenceProduct:
+    IdefixProduct | null =
+      exactReference;
+
+  if (!referenceProduct) {
+    try {
+      referenceProduct =
+        referenceProductForGroup(
+          products,
+          group
+        );
+    } catch (error) {
+      blockers.push(
+        error instanceof Error
+          ? error.message
+          : "İdefix kategori referansı seçilemedi."
+      );
+    }
+  }
+
+  if (!referenceProduct) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: İdefix hesabında aynı model/hafıza için güvenli kategori referansı bulunamadı. Kategori ve zorunlu özellikleri tahmin ederek göndermiyoruz.`
+    );
+
+    return {
+      group,
+      action:
+        "CREATE_PRODUCT",
+      exactProduct:
+        null,
+      referenceProduct:
+        null,
+      title:
+        productTitle(
+          group
+        ),
+      salePrice,
+      listPrice,
+      targetBeforeStock:
+        0,
+      targetAfterStock:
+        group.items.length,
+      barcode:
+        directBarcode,
+      vendorStockCode:
+        directStockCode,
+      productMainId:
+        makeProductMainId(
+          group
+        ),
+      brandId:
+        null,
+      categoryId:
+        null,
+      vatRate:
+        null,
+      imageUrl:
+        null,
+      attributes: [],
+      blockers,
+    };
+  }
+
+  const brandId =
+    referenceProduct
+      .brandId ??
+    null;
+
+  const categoryId =
+    referenceProduct
+      .categoryId ??
+    null;
+
+  if (
+    brandId === null ||
+    text(brandId) === ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: İdefix referansında brandId yok.`
+    );
+  }
+
+  if (
+    categoryId === null ||
+    text(categoryId) === ""
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: İdefix referansında categoryId yok.`
+    );
+  }
+
+  let attributes:
+    PreparedGroup[
+      "attributes"
+    ] = [];
+
+  if (
+    categoryId !== null &&
+    text(categoryId)
+  ) {
+    try {
+      attributes =
+        await buildCreateAttributes(
+          referenceProduct,
+          group
+        );
+    } catch (error) {
+      blockers.push(
+        error instanceof Error
+          ? error.message
+          : "İdefix attribute hazırlığı başarısız."
+      );
+    }
+  }
+
+  const localTemplate =
+    await exactColorLocalTemplate(
+      client,
+      group
+    );
+
+  const exactReferenceImage =
+    exactReference &&
+    Array.isArray(
+      exactReference
+        .images
+    )
+      ? text(
+          exactReference
+            .images?.[0]
+            ?.url
+        ) || null
+      : null;
+
+  const imageUrl =
+    exactReferenceImage ||
+    localTemplate
+      ?.imageUrl ||
+    null;
+
+  if (!imageUrl) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: aynı renk için otomatik ürün görseli bulunamadı. İdefix'e yanlış görsel göndermemek için işlem durduruldu.`
+    );
+  }
+
+  const vatRate =
+    numberOrNull(
+      referenceProduct
+        .vatRate
+    ) ??
+    localTemplate
+      ?.vatRate ??
+    null;
+
+  if (
+    vatRate === null
+  ) {
+    blockers.push(
+      `${productTitle(
+        group
+      )}: KDV oranı referans verilerden bulunamadı.`
+    );
+  }
+
   return {
     group,
     action:
       "CREATE_PRODUCT",
     exactProduct:
       null,
-    referenceProduct:
-      null,
+    referenceProduct,
     title:
       productTitle(
         group
@@ -3446,35 +2692,20 @@ async function prepareGroup(
     targetAfterStock:
       group.items.length,
     barcode:
-      "",
-    catalogBarcode:
-      null,
-    catalogBarcodeSource:
-      null,
+      directBarcode,
     vendorStockCode:
-      makeVendorStockCode(
-        group
-      ),
+      directStockCode,
     productMainId:
       makeProductMainId(
         group
       ),
-    brandId:
-      null,
-    categoryId:
-      null,
-    vatRate:
-      1,
-    imageUrl:
-      null,
-    attributes: [],
-    blockers: [
-      "İdefix'te bu model / hafıza / renk / kalite için birebir mevcut ürün bulunamadı. Katalog barkodu istenmedi ve otomatik stok gönderimi güvenlik için durduruldu.",
-    ],
+    brandId,
+    categoryId,
+    vatRate,
+    imageUrl,
+    attributes,
+    blockers,
   };
-
-
-
 }
 
 function previewView(
@@ -3520,13 +2751,6 @@ function previewView(
         .targetAfterStock,
     barcode:
       prepared.barcode,
-    catalogBarcode:
-      prepared.catalogBarcode,
-    catalogBarcodeSource:
-      prepared.catalogBarcodeSource ||
-      null,
-    needsCatalogBarcode:
-      false,
     vendorStockCode:
       prepared
         .vendorStockCode,
@@ -3554,55 +2778,6 @@ function previewView(
     canCommit:
       prepared.blockers
         .length === 0,
-    matchedProduct:
-      prepared.exactProduct
-        ? {
-            barcode:
-              text(
-                prepared
-                  .exactProduct
-                  ?.barcode
-              ),
-            title:
-              text(
-                prepared
-                  .exactProduct
-                  ?.title
-              ),
-            status:
-              text(
-                prepared
-                  .exactProduct
-                  ?.status ??
-                prepared
-                  .exactProduct
-                  ?.state
-              ),
-            matchedName:
-              text(
-                prepared
-                  .exactProduct
-                  ?.matchedProduct
-                  ?.name
-              ) ||
-              null,
-            matchedSlug:
-              text(
-                prepared
-                  .exactProduct
-                  ?.matchedProduct
-                  ?.slug
-              ) ||
-              null,
-            vendorStockCode:
-              text(
-                prepared
-                  .exactProduct
-                  ?.vendorStockCode
-              ) ||
-              null,
-          }
-        : null,
     referenceProduct:
       prepared.referenceProduct
         ? {
@@ -3630,605 +2805,6 @@ function previewView(
               null,
           }
         : null,
-  };
-}
-
-async function fastListingUpload(
-  prepared:
-    PreparedGroup
-) {
-  const vendorId =
-    getIdefixVendorId();
-
-  const response =
-    await idefixApi(
-      `/pim/catalog/${encodeURIComponent(
-        vendorId
-      )}/fast-listing`,
-      {
-        method:
-          "POST",
-        body: {
-          items: [
-            {
-              title:
-                prepared.title,
-              barcode:
-                prepared.barcode,
-              price:
-                prepared.salePrice,
-              comparePrice:
-                prepared.listPrice,
-              inventoryQuantity:
-                prepared.targetAfterStock,
-              vendorStockCode:
-                prepared.vendorStockCode,
-            },
-          ],
-        },
-        timeoutMs:
-          35_000,
-      }
-    );
-
-  const batchRequestId =
-    text(
-      response
-        ?.batchRequestId
-    );
-
-  if (
-    !batchRequestId
-  ) {
-    throw new Error(
-      `${prepared.title}: İdefix fast-listing batchRequestId döndürmedi.`
-    );
-  }
-
-  return {
-    response,
-    batchRequestId,
-  };
-}
-
-async function fastListingResult(
-  batchId:
-    string
-) {
-  const vendorId =
-    getIdefixVendorId();
-
-  // Canlı İdefix prod endpointi POST isteğine 405 + Allow: GET dönüyor.
-  // Bu nedenle fast-listing-result canlı ortamda GET ile sorgulanır.
-  return idefixApi(
-    `/pim/catalog/${encodeURIComponent(
-      vendorId
-    )}/fast-listing-result/${encodeURIComponent(
-      batchId
-    )}`,
-    {
-      method:
-        "GET",
-      timeoutMs:
-        35_000,
-    }
-  );
-}
-
-function fastListingFailureCode(
-  item:
-    any
-) {
-  const reason =
-    item?.failureReasons;
-
-  if (
-    typeof reason ===
-    "string"
-  ) {
-    return normalizeText(
-      reason
-    );
-  }
-
-  if (
-    reason &&
-    typeof reason ===
-      "object"
-  ) {
-    return normalizeText(
-      reason?.message ||
-      reason?.code ||
-      JSON.stringify(
-        reason
-      )
-    );
-  }
-
-  return "";
-}
-
-async function waitFastListingResult(
-  batchId:
-    string,
-  barcode:
-    string
-) {
-  let last:
-    any = null;
-
-  for (
-    let attempt = 0;
-    attempt < 8;
-    attempt += 1
-  ) {
-    if (
-      attempt > 0
-    ) {
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            700
-          )
-      );
-    }
-
-    last =
-      await fastListingResult(
-        batchId
-      );
-
-    const items =
-      Array.isArray(
-        last?.items
-      )
-        ? last.items
-        : [];
-
-    const item =
-      items.find(
-        (row: any) =>
-          text(
-            row?.barcode
-          ) ===
-          barcode
-      ) ||
-      items[0] ||
-      null;
-
-    const itemStatus =
-      normalizeText(
-        item?.status
-      );
-
-    const batchStatus =
-      normalizeText(
-        last?.status
-      );
-
-    if (
-      itemStatus ===
-        "COMPLETED"
-    ) {
-      return {
-        success:
-          true,
-        payload:
-          last,
-        item,
-      };
-    }
-
-    if (
-      itemStatus ===
-        "DECLINE"
-    ) {
-      return {
-        success:
-          false,
-        payload:
-          last,
-        item,
-        failureCode:
-          fastListingFailureCode(
-            item
-          ),
-      };
-    }
-
-    if (
-      [
-        "FAILED",
-        "DECLINE",
-      ].includes(
-        batchStatus
-      )
-    ) {
-      return {
-        success:
-          false,
-        payload:
-          last,
-        item,
-        failureCode:
-          fastListingFailureCode(
-            item
-          ) ||
-          batchStatus,
-      };
-    }
-  }
-
-  return {
-    success:
-      false,
-    payload:
-      last,
-    item:
-      null,
-    failureCode:
-      "FAST_LISTING_TIMEOUT",
-  };
-}
-
-function matchedFastListingLooksSafe(
-  matched:
-    any,
-  prepared:
-    PreparedGroup
-) {
-  const matchedBarcode =
-    text(
-      matched?.barcode
-    );
-
-  if (
-    !matchedBarcode ||
-    matchedBarcode !==
-      prepared.barcode
-  ) {
-    return false;
-  }
-
-  const name =
-    text(
-      matched?.name ||
-      matched?.title
-    );
-
-  if (!name) {
-    return false;
-  }
-
-  // Barkod birebir aynı olduğu için ana güvenlik kriteri güçlü.
-  // Ek olarak marka + model + hafızayı doğrularız.
-  return (
-    containsPhrase(
-      name,
-      prepared.group.brand
-    ) &&
-    containsPhrase(
-      name,
-      `${normalizeText(
-        prepared.group.model
-      )} ${normalizeMemory(
-        prepared.group.memory
-      )}`
-    )
-  );
-}
-
-async function liveInventoryItems() {
-  const vendorId =
-    getIdefixVendorId();
-
-  const payload =
-    await idefixApi(
-      `/pim/catalog/${encodeURIComponent(
-        vendorId
-      )}/inventory/list`
-    );
-
-  const rows =
-    payload?.items ??
-    payload?.products ??
-    payload?.data?.items ??
-    payload?.data?.products ??
-    [];
-
-  return Array.isArray(rows)
-    ? rows
-    : [];
-}
-
-async function liveInventoryByBarcode(
-  barcode:
-    string
-) {
-  const rows =
-    await liveInventoryItems();
-
-  return (
-    rows.find(
-      (row: any) =>
-        text(
-          row?.barcode
-        ) === barcode
-    ) ||
-    null
-  );
-}
-
-async function waitLiveInventory(
-  barcode:
-    string,
-  expectedStock:
-    number,
-  expectedPrice:
-    number
-) {
-  let lastItem:
-    any = null;
-
-  for (
-    let attempt = 0;
-    attempt < 30;
-    attempt += 1
-  ) {
-    if (
-      attempt > 0
-    ) {
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            1500
-          )
-      );
-    }
-
-    lastItem =
-      await liveInventoryByBarcode(
-        barcode
-      );
-
-    if (!lastItem) {
-      continue;
-    }
-
-    const stock =
-      numberOrNull(
-        lastItem
-          ?.inventoryQuantity
-      ) ?? 0;
-
-    const price =
-      numberOrNull(
-        lastItem
-          ?.price
-      ) ?? 0;
-
-    const stockOk =
-      stock >=
-      expectedStock;
-
-    const priceOk =
-      expectedPrice <= 0 ||
-      Math.abs(
-        price -
-        expectedPrice
-      ) < 0.01;
-
-    if (
-      stockOk &&
-      priceOk
-    ) {
-      return {
-        success:
-          true,
-        item:
-          lastItem,
-      };
-    }
-  }
-
-  return {
-    success:
-      false,
-    item:
-      lastItem,
-  };
-}
-
-async function cleanupLegacyFalseIdefixMemberships(
-  client:
-    PoolClient,
-  deviceIds:
-    number[]
-) {
-  if (
-    deviceIds.length ===
-    0
-  ) {
-    return {
-      cleaned:
-        0,
-    };
-  }
-
-  const membership =
-    await client.query(
-      `
-        SELECT
-          ocd.id,
-          ocd.stock_device_id,
-          ocd.imei,
-          ocd.online_listing_id,
-          ocd.membership_status,
-          ocd.metadata,
-          ol.external_variant_id
-        FROM public.online_channel_devices ocd
-        LEFT JOIN public.online_listings ol
-          ON ol.id =
-            ocd.online_listing_id
-        WHERE ocd.channel = 'IDEFIX'
-          AND ocd.stock_device_id =
-            ANY($1::bigint[])
-      `,
-      [
-        deviceIds,
-      ]
-    );
-
-  if (
-    membership.rowCount ===
-    0
-  ) {
-    return {
-      cleaned:
-        0,
-    };
-  }
-
-  const inventory =
-    await liveInventoryItems();
-
-  const inventoryByBarcode =
-    new Map<
-      string,
-      any
-    >();
-
-  for (
-    const item of
-      inventory
-  ) {
-    const barcode =
-      text(
-        item?.barcode
-      );
-
-    if (barcode) {
-      inventoryByBarcode.set(
-        barcode,
-        item
-      );
-    }
-  }
-
-  const staleIds:
-    number[] = [];
-
-  const staleListingIds =
-    new Set<
-      number
-    >();
-
-  for (
-    const row of
-      membership.rows
-  ) {
-    const barcode =
-      text(
-        row
-          .external_variant_id
-      ) ||
-      text(
-        row?.metadata
-          ?.barcode
-      );
-
-    const live =
-      barcode
-        ? inventoryByBarcode.get(
-            barcode
-          )
-        : null;
-
-    const liveStock =
-      numberOrNull(
-        live
-          ?.inventoryQuantity
-      ) ?? 0;
-
-    // Cihaz hâlâ Merkez'de AVAILABLE iken İdefix live inventory'de
-    // bu barkoda satılabilir stok yoksa eski yerel "gönderildi/pending"
-    // kaydı gerçek dışıdır. Retry öncesi sadece bu kanal üyeliğini temizle.
-    if (
-      !live ||
-      liveStock <= 0
-    ) {
-      staleIds.push(
-        Number(row.id)
-      );
-
-      const listingId =
-        Number(
-          row.online_listing_id
-        );
-
-      if (
-        Number.isInteger(
-          listingId
-        ) &&
-        listingId > 0
-      ) {
-        staleListingIds.add(
-          listingId
-        );
-      }
-    }
-  }
-
-  if (
-    staleIds.length ===
-    0
-  ) {
-    return {
-      cleaned:
-        0,
-    };
-  }
-
-  await client.query(
-    `
-      DELETE FROM public.online_channel_devices
-      WHERE id =
-        ANY($1::bigint[])
-    `,
-    [
-      staleIds,
-    ]
-  );
-
-  if (
-    staleListingIds.size >
-    0
-  ) {
-    await client.query(
-      `
-        UPDATE public.online_listings
-        SET
-          quantity = 0,
-          sync_status = 'STALE',
-          last_task_status =
-            'LIVE_INVENTORY_MISSING',
-          updated_at = now()
-        WHERE id =
-          ANY($1::bigint[])
-      `,
-      [
-        Array.from(
-          staleListingIds
-        ),
-      ]
-    );
-  }
-
-  return {
-    cleaned:
-      staleIds.length,
   };
 }
 
@@ -4261,10 +2837,8 @@ async function inventoryUpload(
               inventoryQuantity:
                 prepared
                   .targetAfterStock,
-              // İdefix validasyonu: 1-50 arası zorunlu.
-              // Yenilenmiş tekil cihaz akışında güvenli değer 1.
               maximumPurchasableQuantity:
-                1,
+                0,
               deliveryDuration:
                 numberOrNull(
                   prepared
@@ -4322,41 +2896,6 @@ async function inventoryResult(
   );
 }
 
-function idefixFailureDetail(
-  value: unknown
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "";
-  }
-
-  if (
-    typeof value ===
-    "string"
-  ) {
-    return value.trim();
-  }
-
-  if (
-    typeof value ===
-    "number" ||
-    typeof value ===
-    "boolean"
-  ) {
-    return String(value);
-  }
-
-  try {
-    return JSON.stringify(
-      value
-    );
-  } catch {
-    return String(value);
-  }
-}
-
 async function waitInventory(
   batchId:
     string,
@@ -4368,7 +2907,7 @@ async function waitInventory(
 
   for (
     let attempt = 0;
-    attempt < 8;
+    attempt < 6;
     attempt += 1
   ) {
     if (
@@ -4378,7 +2917,7 @@ async function waitInventory(
         (resolve) =>
           setTimeout(
             resolve,
-            900
+            700
           )
       );
     }
@@ -4405,61 +2944,21 @@ async function waitInventory(
       items[0] ||
       null;
 
-    const itemStatus =
+    const status =
       normalizeText(
-        item?.status
-      );
-
-    const batchStatus =
-      normalizeText(
+        item?.status ||
         last?.status
       );
 
-    // KRİTİK İDEFIX DAVRANIŞI:
-    // Batch status "COMPLETED" olabilirken item status "decline" olabilir.
-    // Bu yüzden batch COMPLETED tek başına ASLA başarı değildir.
     if (
-      [
-        "DECLINE",
-        "FAILED",
-      ].includes(
-        itemStatus
-      )
-    ) {
-      const failure =
-        idefixFailureDetail(
-          item
-            ?.failureReasons
-        );
-
-      throw new Error(
-        `İdefix stok/fiyat item reddedildi. Barkod: ${
-          text(
-            item?.barcode
-          ) || barcode
-        }. Item status: ${
-          itemStatus ||
-          "-"
-        }. Batch status: ${
-          batchStatus ||
-          "-"
-        }. Sebep: ${
-          failure ||
-          "BILINMIYOR"
-        }. Item: ${idefixFailureDetail(
-          item
-        )}`
-      );
-    }
-
-    // Gerçek başarı yalnız item seviyesinde COMPLETED ise kabul edilir.
-    if (
-      [
-        "COMPLETED",
-        "COMPLETED SUCCESS",
-      ].includes(
-        itemStatus
-      )
+      status ===
+        "COMPLETED" ||
+      status ===
+        "COMPLETED SUCCESS" ||
+      normalizeText(
+        item?.status
+      ) ===
+        "COMPLETED"
     ) {
       return {
         success:
@@ -4471,40 +2970,16 @@ async function waitInventory(
     }
 
     if (
-      [
-        "FAILED",
-        "CANCELLED",
-      ].includes(
-        batchStatus
-      )
+      normalizeText(
+        item?.status
+      ) ===
+        "DECLINE"
     ) {
       throw new Error(
-        `İdefix stok/fiyat batch başarısız. Batch: ${batchId}. Batch status: ${
-          batchStatus ||
-          "-"
-        }. Cevap: ${idefixFailureDetail(
-          last
-        )}`
-      );
-    }
-
-    // İdefix dokümanında batch COMPLETED + item DECLINE mümkün.
-    // Buraya geldiysek item ne COMPLETED ne de DECLINE.
-    // Birkaç tur daha bekle; son turda teşhisli hata döndür.
-    if (
-      batchStatus ===
-        "COMPLETED" &&
-      attempt >= 2
-    ) {
-      throw new Error(
-        `İdefix batch COMPLETED döndü fakat item başarıya geçmedi. Barkod: ${barcode}. Item status: ${
-          itemStatus ||
-          "BOS"
-        }. Batch: ${batchId}. Item: ${idefixFailureDetail(
+        `İdefix stok/fiyat reddedildi: ${text(
           item
-        )}. Batch cevabı: ${idefixFailureDetail(
-          last
-        )}`
+            ?.failureReasons
+        ) || "DECLINE"}`
       );
     }
   }
@@ -4550,132 +3025,74 @@ async function createProduct(
     prepared
       .referenceProduct;
 
-  const requestProduct:
-    Record<
-      string,
-      unknown
-    > = {
-      barcode:
-        prepared.barcode,
-      title:
-        prepared.title,
-      productMainId:
-        prepared
-          .productMainId,
-      brandId:
-        prepared.brandId,
-      categoryId:
-        prepared.categoryId,
-      inventoryQuantity:
-        prepared
-          .targetAfterStock,
-      vendorStockCode:
-        prepared
-          .vendorStockCode,
-      description:
-        prepared.title,
-      price:
-        prepared.salePrice,
-      comparePrice:
-        prepared.listPrice,
-      vatRate:
-        prepared.vatRate,
-      deliveryDuration:
-        numberOrNull(
-          reference
-            ?.deliveryDuration
-        ) ?? 1,
-      deliveryType:
-        text(
-          reference
-            ?.deliveryType
-        ) ||
-        "regular",
-      images: [
-        {
-          url:
-            prepared.imageUrl,
-        },
-      ],
-      attributes:
-        prepared.attributes,
-    };
-
-  // İdefix dokümanında opsiyonel olan alanları yalnızca gerçekten
-  // geçerli bir değer varsa gönder. Bazı API validasyonları null/0
-  // opsiyonel değerleri "alan gönderilmiş ama geçersiz" sayabiliyor.
-  const desi =
-    numberOrNull(
-      (reference as any)
-        ?.desi
-    );
-
-  if (
-    desi !== null &&
-    desi >= 0
-  ) {
-    requestProduct.desi =
-      desi;
-  }
-
-  const weight =
-    numberOrNull(
+  const requestProduct = {
+    barcode:
+      prepared.barcode,
+    title:
+      prepared.title,
+    productMainId:
+      prepared
+        .productMainId,
+    brandId:
+      prepared.brandId,
+    categoryId:
+      prepared.categoryId,
+    inventoryQuantity:
+      prepared
+        .targetAfterStock,
+    vendorStockCode:
+      prepared
+        .vendorStockCode,
+    desi:
+      numberOrNull(
+        (reference as any)
+          ?.desi
+      ) ?? 0,
+    weight:
+      numberOrNull(
+        reference
+          ?.weight
+      ) ?? 0,
+    description:
+      prepared.title,
+    price:
+      prepared.salePrice,
+    comparePrice:
+      prepared.listPrice,
+    vatRate:
+      prepared.vatRate,
+    deliveryDuration:
+      numberOrNull(
+        reference
+          ?.deliveryDuration
+      ) ?? 1,
+    deliveryType:
+      text(
+        reference
+          ?.deliveryType
+      ) ||
+      "regular",
+    cargoCompanyId:
       reference
-        ?.weight
-    );
-
-  if (
-    weight !== null &&
-    weight > 0
-  ) {
-    requestProduct.weight =
-      weight;
-  }
-
-  const cargoCompanyId =
-    numberOrNull(
+        ?.cargoCompanyId ??
+      null,
+    shipmentAddressId:
       reference
-        ?.cargoCompanyId
-    );
-
-  if (
-    cargoCompanyId !==
-      null &&
-    cargoCompanyId > 0
-  ) {
-    requestProduct.cargoCompanyId =
-      cargoCompanyId;
-  }
-
-  const shipmentAddressId =
-    numberOrNull(
+        ?.shipmentAddressId ??
+      null,
+    returnAddressId:
       reference
-        ?.shipmentAddressId
-    );
-
-  if (
-    shipmentAddressId !==
-      null &&
-    shipmentAddressId > 0
-  ) {
-    requestProduct.shipmentAddressId =
-      shipmentAddressId;
-  }
-
-  const returnAddressId =
-    numberOrNull(
-      reference
-        ?.returnAddressId
-    );
-
-  if (
-    returnAddressId !==
-      null &&
-    returnAddressId > 0
-  ) {
-    requestProduct.returnAddressId =
-      returnAddressId;
-  }
+        ?.returnAddressId ??
+      null,
+    images: [
+      {
+        url:
+          prepared.imageUrl,
+      },
+    ],
+    attributes:
+      prepared.attributes,
+  };
 
   const response =
     await idefixApi(
@@ -4865,32 +3282,37 @@ function matchedProductLooksSafe(
   group:
     CenterGroup
 ) {
-  const name =
-    text(
-      matched?.name ||
-      matched?.title
-    );
+  const identity =
+    [
+      matched?.name,
+      matched?.title,
+      matched?.slug,
+      matched?.productMainId,
+    ]
+      .map(text)
+      .filter(Boolean)
+      .join(" ");
 
-  if (!name) {
+  if (!identity) {
     return false;
   }
 
   return (
     containsPhrase(
-      name,
+      identity,
       group.brand
     ) &&
-    containsPhrase(
-      name,
-      `${normalizeText(
-        group.model
-      )} ${normalizeMemory(
-        group.memory
-      )}`
+    modelMatchesTitle(
+      identity,
+      group.model
+    ) &&
+    memoryMatchesTitle(
+      identity,
+      group.memory
     ) &&
     Boolean(
       matchedColorAlias(
-        name,
+        identity,
         group.color
       )
     )
@@ -4968,6 +3390,167 @@ async function listByBarcode(
   };
 }
 
+async function directLiveInventoryItems() {
+  const vendorId =
+    getIdefixVendorId();
+
+  const payload =
+    await idefixApi(
+      `/pim/catalog/${encodeURIComponent(
+        vendorId
+      )}/inventory/list`,
+      {
+        timeoutMs:
+          35_000,
+      }
+    );
+
+  const rows =
+    payload?.items ??
+    payload?.products ??
+    payload?.data?.items ??
+    payload?.data?.products ??
+    [];
+
+  return Array.isArray(rows)
+    ? rows
+    : [];
+}
+
+async function waitDirectCreateVisibility(
+  candidates:
+    string[],
+  expectedStock:
+    number,
+  expectedPrice:
+    number
+) {
+  const barcodes =
+    Array.from(
+      new Set(
+        candidates
+          .map(text)
+          .filter(Boolean)
+      )
+    );
+
+  let lastProduct:
+    IdefixProduct | null =
+      null;
+  let lastLive:
+    any = null;
+  let lastState =
+    "";
+
+  for (
+    let attempt = 0;
+    attempt < 16;
+    attempt += 1
+  ) {
+    if (attempt > 0) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            1200
+          )
+      );
+    }
+
+    for (
+      const barcode of
+        barcodes
+    ) {
+      const listed =
+        await listByBarcode(
+          barcode
+        );
+
+      if (
+        listed.products
+          .length > 0
+      ) {
+        lastProduct =
+          listed.products[0];
+        lastState =
+          normalizeText(
+            lastProduct
+              ?.status ||
+            lastProduct
+              ?.state
+          );
+        break;
+      }
+    }
+
+    const liveRows =
+      await directLiveInventoryItems();
+
+    lastLive =
+      liveRows.find(
+        (row: any) =>
+          barcodes.includes(
+            text(
+              row?.barcode
+            )
+          )
+      ) || null;
+
+    const stock =
+      numberOrNull(
+        lastLive
+          ?.inventoryQuantity
+      ) ?? 0;
+
+    const price =
+      numberOrNull(
+        lastLive
+          ?.price
+      ) ?? 0;
+
+    const stockOk =
+      stock >=
+      expectedStock;
+
+    const priceOk =
+      expectedPrice <= 0 ||
+      Math.abs(
+        price -
+        expectedPrice
+      ) < 0.01;
+
+    if (
+      lastState ===
+        "READY FOR SALE" &&
+      lastLive &&
+      stockOk &&
+      priceOk
+    ) {
+      return {
+        ready:
+          true,
+        product:
+          lastProduct,
+        productState:
+          lastState,
+        liveItem:
+          lastLive,
+      };
+    }
+  }
+
+  return {
+    ready:
+      false,
+    product:
+      lastProduct,
+    productState:
+      lastState,
+    liveItem:
+      lastLive,
+  };
+}
+
 async function persistLocal(
   client:
     PoolClient,
@@ -5014,16 +3597,11 @@ async function persistLocal(
     prepared.productMainId;
 
   const externalVariantId =
-    prepared.barcode ||
     text(
       finalProduct
-        ?.matchedProduct
         ?.barcode
     ) ||
-    text(
-      finalProduct
-        ?.barcode
-    );
+    prepared.barcode;
 
   const externalStockCode =
     text(
@@ -5157,17 +3735,6 @@ async function persistLocal(
             centerImeis,
             idefixBarcode:
               externalVariantId,
-            catalogBarcode:
-              prepared.catalogBarcode ||
-              (
-                isGlobalCatalogBarcode(
-                  externalVariantId
-                )
-                  ? externalVariantId
-                  : null
-              ),
-            centerGroupKey:
-              prepared.group.key,
             idefixBatchRequestId:
               batchRequestId,
             finalStock,
@@ -5263,17 +3830,6 @@ async function persistLocal(
               imeis,
             idefixBarcode:
               externalVariantId,
-            catalogBarcode:
-              prepared.catalogBarcode ||
-              (
-                isGlobalCatalogBarcode(
-                  externalVariantId
-                )
-                  ? externalVariantId
-                  : null
-              ),
-            centerGroupKey:
-              prepared.group.key,
             idefixBatchRequestId:
               batchRequestId,
             finalStock,
@@ -5393,592 +3949,6 @@ async function persistLocal(
   };
 }
 
-function isProductNotFoundError(
-  error: unknown
-) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : String(error ?? "");
-
-  return normalizeText(
-    message
-  ).includes(
-    "PRODUCT NOT FOUND"
-  );
-}
-
-async function persistPendingCatalog(
-  client:
-    PoolClient,
-  prepared:
-    PreparedGroup,
-  reason:
-    string
-) {
-  await client.query(
-    "BEGIN"
-  );
-
-  try {
-    const local =
-      await persistLocal(
-        client,
-        {
-          prepared,
-          finalProduct:
-            prepared
-              .exactProduct,
-          membershipStatus:
-            "PENDING_CREATE",
-          syncStatus:
-            "CREATING",
-          taskStatus:
-            "WAITING_CATALOG",
-          batchRequestId:
-            null,
-          finalStock:
-            prepared
-              .targetAfterStock,
-          apiResult: {
-            source:
-              "IDEFIX_INVENTORY_PRODUCT_NOT_FOUND",
-            reason,
-            waitingCatalog:
-              true,
-            savedAt:
-              new Date()
-                .toISOString(),
-          },
-        }
-      );
-
-    await client.query(
-      "COMMIT"
-    );
-
-    return local;
-  } catch (error: any) {
-    try {
-      await client.query(
-        "ROLLBACK"
-      );
-    } catch {}
-
-    throw error;
-  }
-}
-
-async function reconcilePendingIdefix(
-  client:
-    PoolClient
-) {
-  const pending =
-    await client.query(
-      `
-        SELECT DISTINCT
-          ol.id,
-          ol.external_product_id,
-          ol.external_variant_id,
-          ol.external_stock_code,
-          ol.title,
-          ol.sale_price,
-          ol.list_price,
-          ol.quantity,
-          ol.brand,
-          ol.model,
-          ol.memory,
-          ol.color,
-          ol.grade,
-          ol.warranty
-        FROM public.online_listings ol
-        JOIN public.online_channel_devices ocd
-          ON ocd.online_listing_id =
-             ol.id
-        WHERE ol.channel = 'IDEFIX'
-          AND ocd.channel = 'IDEFIX'
-          AND ocd.membership_status =
-              'PENDING_CREATE'
-        ORDER BY ol.id
-        LIMIT 100
-      `
-    );
-
-  if (
-    pending.rowCount === 0
-  ) {
-    return {
-      success:
-        true,
-      pending:
-        0,
-      completed:
-        0,
-      stillPending:
-        0,
-      failed:
-        0,
-      results: [],
-    };
-  }
-
-  const results:
-    any[] = [];
-
-  for (
-    const listing of
-      pending.rows
-  ) {
-    const listingId =
-      Number(
-        listing.id
-      );
-
-    const barcode =
-      text(
-        listing
-          .external_variant_id
-      );
-
-    if (!barcode) {
-      results.push({
-        listingId,
-        state:
-          "ERROR",
-        error:
-          "İdefix pending listing barkodu eksik.",
-      });
-
-      continue;
-    }
-
-    const stockResult =
-      await client.query(
-        `
-          SELECT
-            COUNT(*)::int AS count
-          FROM public.online_channel_devices ocd
-          JOIN public.stock_devices sd
-            ON sd.id =
-               ocd.stock_device_id
-          WHERE ocd.channel = 'IDEFIX'
-            AND ocd.online_listing_id = $1
-            AND ocd.membership_status IN (
-              'PENDING_CREATE',
-              'LISTED',
-              'RESERVED'
-            )
-            AND sd.status = 'AVAILABLE'
-        `,
-        [
-          listingId,
-        ]
-      );
-
-    const desiredStock =
-      Math.max(
-        0,
-        Number(
-          stockResult
-            .rows?.[0]
-            ?.count || 0
-        )
-      );
-
-    const salePrice =
-      numberOrNull(
-        listing.sale_price
-      );
-
-    const listPrice =
-      numberOrNull(
-        listing.list_price
-      );
-
-    if (
-      salePrice === null ||
-      listPrice === null ||
-      salePrice <= 0 ||
-      listPrice <= 0
-    ) {
-      results.push({
-        listingId,
-        barcode,
-        state:
-          "ERROR",
-        error:
-          "Pending İdefix listing fiyatları geçersiz.",
-      });
-
-      continue;
-    }
-
-    const productLookup =
-      await listByBarcode(
-        barcode
-      );
-
-    const liveProduct =
-      productLookup
-        .products?.[0] ||
-      null;
-
-    const pseudoPrepared:
-      PreparedGroup = {
-        group: {
-          key:
-            [
-              normalizeText(
-                listing.brand
-              ),
-              normalizeText(
-                listing.model
-              ),
-              normalizeMemory(
-                listing.memory
-              ),
-              normalizeText(
-                listing.color
-              ),
-              normalizeGrade(
-                listing.grade
-              ),
-              normalizeText(
-                listing.warranty
-              ),
-            ].join("|"),
-          brand:
-            text(
-              listing.brand
-            ),
-          model:
-            text(
-              listing.model
-            ),
-          memory:
-            text(
-              listing.memory
-            ),
-          color:
-            text(
-              listing.color
-            ),
-          grade:
-            normalizeGrade(
-              listing.grade
-            ),
-          warranty:
-            text(
-              listing.warranty
-            ),
-          items: [],
-        },
-        action:
-          "EXISTING_PRODUCT",
-        exactProduct:
-          liveProduct,
-        referenceProduct:
-          null,
-        title:
-          text(
-            listing.title
-          ) ||
-          `${text(
-            listing.brand
-          )} ${text(
-            listing.model
-          )}`,
-        salePrice,
-        listPrice,
-        targetBeforeStock:
-          numberOrNull(
-            liveProduct
-              ?.inventoryQuantity
-          ) ?? 0,
-        targetAfterStock:
-          desiredStock,
-        barcode,
-        catalogBarcode:
-          null,
-        vendorStockCode:
-          text(
-            listing
-              .external_stock_code
-          ),
-        productMainId:
-          text(
-            listing
-              .external_product_id
-          ),
-        brandId:
-          liveProduct
-            ?.brandId ??
-          null,
-        categoryId:
-          liveProduct
-            ?.categoryId ??
-          null,
-        vatRate:
-          numberOrNull(
-            liveProduct
-              ?.vatRate
-          ),
-        imageUrl:
-          Array.isArray(
-            liveProduct
-              ?.images
-          )
-            ? text(
-                liveProduct
-                  ?.images?.[0]
-                  ?.url
-              ) || null
-            : null,
-        attributes:
-          Array.isArray(
-            liveProduct
-              ?.attributes
-          )
-            ? liveProduct!
-                .attributes!
-                .map(
-                  (
-                    attribute:
-                      any
-                  ) => ({
-                    attributeId:
-                      attribute
-                        .attributeId,
-                    attributeValueId:
-                      attribute
-                        .attributeValueId ??
-                      null,
-                    customAttributeValue:
-                      text(
-                        attribute
-                          .customAttributeValue
-                      ) || null,
-                  })
-                )
-                .filter(
-                  (
-                    attribute:
-                      any
-                  ) =>
-                    attribute
-                      .attributeId !==
-                      null &&
-                    attribute
-                      .attributeId !==
-                      undefined
-                )
-            : [],
-        blockers: [],
-      };
-
-    try {
-      const upload =
-        await inventoryUpload(
-          pseudoPrepared
-        );
-
-      const verified =
-        await waitInventory(
-          upload
-            .batchRequestId,
-          barcode
-        );
-
-      if (
-        !verified.success
-      ) {
-        results.push({
-          listingId,
-          barcode,
-          state:
-            "PENDING_CREATE",
-          pending:
-            true,
-          message:
-            "İdefix inventory sonucu henüz tamamlanmadı.",
-          batchRequestId:
-            upload
-              .batchRequestId,
-        });
-
-        continue;
-      }
-
-      await client.query(
-        "BEGIN"
-      );
-
-      try {
-        await client.query(
-          `
-            UPDATE public.online_listings
-            SET
-              quantity = $2,
-              sync_status = 'SYNCED',
-              last_task_id = $3,
-              last_task_status = 'SUCCESS',
-              raw_data =
-                COALESCE(
-                  raw_data,
-                  '{}'::jsonb
-                )
-                || $4::jsonb,
-              updated_at = now()
-            WHERE id = $1
-          `,
-          [
-            listingId,
-            desiredStock,
-            upload
-              .batchRequestId,
-            JSON.stringify({
-              idefixPendingResolved:
-                true,
-              finalStock:
-                desiredStock,
-              inventoryResult:
-                verified.payload,
-              resolvedAt:
-                new Date()
-                  .toISOString(),
-            }),
-          ]
-        );
-
-        await client.query(
-          `
-            UPDATE public.online_channel_devices
-            SET
-              membership_status = 'LISTED',
-              listed_at =
-                COALESCE(
-                  listed_at,
-                  now()
-                ),
-              metadata =
-                COALESCE(
-                  metadata,
-                  '{}'::jsonb
-                )
-                || $2::jsonb,
-              updated_at = now()
-            WHERE channel = 'IDEFIX'
-              AND online_listing_id = $1
-              AND membership_status =
-                  'PENDING_CREATE'
-          `,
-          [
-            listingId,
-            JSON.stringify({
-              idefixPendingResolved:
-                true,
-              inventoryBatchRequestId:
-                upload
-                  .batchRequestId,
-              resolvedAt:
-                new Date()
-                  .toISOString(),
-            }),
-          ]
-        );
-
-        await client.query(
-          "COMMIT"
-        );
-      } catch (
-        error: any
-      ) {
-        try {
-          await client.query(
-            "ROLLBACK"
-          );
-        } catch {}
-
-        throw error;
-      }
-
-      results.push({
-        listingId,
-        barcode,
-        state:
-          "LISTED",
-        pending:
-          false,
-        finalStock:
-          desiredStock,
-        batchRequestId:
-          upload
-            .batchRequestId,
-      });
-    } catch (
-      error: any
-    ) {
-      if (
-        isProductNotFoundError(
-          error
-        )
-      ) {
-        results.push({
-          listingId,
-          barcode,
-          state:
-            "PENDING_CREATE",
-          pending:
-            true,
-          message:
-            "İdefix katalog onayı bekleniyor.",
-        });
-
-        continue;
-      }
-
-      results.push({
-        listingId,
-        barcode,
-        state:
-          "ERROR",
-        pending:
-          false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "İdefix pending kontrolü başarısız.",
-      });
-    }
-  }
-
-  return {
-    success:
-      true,
-    pending:
-      pending.rowCount,
-    completed:
-      results.filter(
-        (row) =>
-          row.state ===
-          "LISTED"
-      ).length,
-    stillPending:
-      results.filter(
-        (row) =>
-          row.state ===
-          "PENDING_CREATE"
-      ).length,
-    failed:
-      results.filter(
-        (row) =>
-          row.state ===
-          "ERROR"
-      ).length,
-    results,
-  };
-}
-
 async function processPrepared(
   client:
     PoolClient,
@@ -5998,534 +3968,109 @@ async function processPrepared(
 
   if (
     prepared.action ===
-    "FAST_LISTING"
+    "EXISTING_PRODUCT"
   ) {
     const upload =
-      await fastListingUpload(
+      await inventoryUpload(
         prepared
       );
 
-    const fastResult =
-      await waitFastListingResult(
+    const verification =
+      await waitInventory(
         upload
           .batchRequestId,
         prepared.barcode
       );
 
     if (
-      !fastResult.success
-    ) {
-      const code =
-        normalizeText(
-          fastResult
-            .failureCode
-        );
-
-      if (
-        code.includes(
-          "PRODUCT BARCODE NOT EXIST"
-        )
-      ) {
-        throw new Error(
-          `${prepared.title}: verdiğin barkod İdefix kataloğunda yok (PRODUCT_BARCODE_NOT_EXIST). Bu ürün fast-listing ile açılamaz; gerçekten yeni ürünse create gerekir.`
-        );
-      }
-
-      if (
-        code.includes(
-          "PRODUCT POOL ALREADY EXIST"
-        ) ||
-        code.includes(
-          "URUN LISTENIZDE MEVCUTTUR"
-        ) ||
-        code.includes(
-          "BARKODLU URUN URUN LISTENIZDE MEVCUTTUR"
-        ) ||
-        (
-          code.includes(
-            "BARKODLU URUN"
-          ) &&
-          code.includes(
-            "MEVCUTTUR"
-          )
-        )
-      ) {
-        const existing =
-          await listByBarcode(
-            prepared.barcode
-          );
-
-        const live =
-          existing
-            .products?.[0] ||
-          null;
-
-        if (!live) {
-          throw new Error(
-            `${prepared.title}: ürün İdefix havuzunda mevcut görünüyor fakat barkodla tekrar okunamadı.`
-          );
-        }
-
-        if (
-          !(await productLooksLikeCenterGroup(
-            live,
-            prepared.group,
-            true
-          ))
-        ) {
-          throw new Error(
-            `${prepared.title}: girilen ${prepared.barcode} barkodu İdefix ürün listende mevcut fakat seçili cihazla eşleşmiyor. Barkodun İdefix'teki ürünü: "${text(
-              live.title
-            ) || "Başlık yok"}". Hiçbir stok/IMEI gönderilmedi.`
-          );
-        }
-
-        const existingPrepared:
-          PreparedGroup = {
-            ...prepared,
-            action:
-              "EXISTING_PRODUCT",
-            exactProduct:
-              live,
-            title:
-              text(
-                live.title
-              ) ||
-              prepared.title,
-            targetBeforeStock:
-              numberOrNull(
-                live
-                  .inventoryQuantity
-              ) ?? 0,
-            targetAfterStock:
-              Math.max(
-                numberOrNull(
-                  live
-                    .inventoryQuantity
-                ) ?? 0,
-                prepared
-                  .targetAfterStock
-              ),
-            vendorStockCode:
-              text(
-                live
-                  .vendorStockCode
-              ) ||
-              prepared
-                .vendorStockCode,
-            productMainId:
-              text(
-                live
-                  .productMainId
-              ) ||
-              prepared
-                .productMainId,
-            brandId:
-              live.brandId ??
-              null,
-            categoryId:
-              live.categoryId ??
-              null,
-          };
-
-        return processPrepared(
-          client,
-          existingPrepared
-        );
-      }
-
-      throw new Error(
-        `${prepared.title}: İdefix fast-listing başarısız. ${fastResult.failureCode || "Bilinmeyen hata"}. Cevap: ${idefixFailureDetail(
-          fastResult.payload
-        )}`
-      );
-    }
-
-    const item =
-      fastResult.item;
-
-    const matched =
-      item
-        ?.matchedProduct;
-
-    const poolState =
-      normalizeText(
-        item?.poolState
-      );
-
-    if (
-      poolState ===
-        "WAITING VENDOR APPROVE"
-    ) {
-      if (
-        !matchedFastListingLooksSafe(
-          matched,
-          prepared
-        )
-      ) {
-        throw new Error(
-          `${prepared.title}: İdefix katalog eşleşmesi geldi fakat marka/model/hafıza güvenlik kontrolünden geçmedi. Otomatik onay verilmedi.`
-        );
-      }
-
-      await approveProduct(
-        prepared.barcode
-      );
-    }
-
-    // Dokümana göre eşleşme 24 saat içinde onaylanırsa fast-listing'de
-    // gönderilen ilk stok/fiyat bilgileri ile ürün envantere açılır.
-    // Kısa süre sonra satıcı havuzundan tekrar okuyup yerel kaydı tamamla.
-    let liveProduct:
-      IdefixProduct | null =
-        null;
-
-    for (
-      let attempt = 0;
-      attempt < 6;
-      attempt += 1
-    ) {
-      if (
-        attempt > 0
-      ) {
-        await new Promise(
-          (resolve) =>
-            setTimeout(
-              resolve,
-              650
-            )
-        );
-      }
-
-      const lookup =
-        await listByBarcode(
-          prepared.barcode
-        );
-
-      if (
-        lookup.products
-          .length > 0
-      ) {
-        const candidate =
-          lookup.products[0];
-
-        if (
-          isIdefixReadyForSale(
-            candidate
-          )
-        ) {
-          liveProduct =
-            candidate;
-          break;
-        }
-      }
-    }
-
-    if (
-      !liveProduct
+      !verification.success
     ) {
       throw new Error(
-        `${prepared.title}: fast-listing işlemi kabul edildi ancak ürün İdefix'te READY_FOR_SALE durumuna geçmedi. Yerel sistemde GÖNDERİLDİ yazılmadı.`
+        `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. DB kanal kaydı yazılmadı. Batch: ${upload.batchRequestId}`
       );
     }
 
-    const currentInventory =
-      await liveInventoryByBarcode(
-        prepared.barcode
-      );
-
-    const currentStock =
-      numberOrNull(
-        currentInventory
-          ?.inventoryQuantity
-      ) ?? 0;
-
-    const existingPrepared:
-      PreparedGroup = {
-        ...prepared,
-        action:
-          "EXISTING_PRODUCT",
-        exactProduct:
-          liveProduct,
-        targetBeforeStock:
-          currentStock,
-        targetAfterStock:
-          Math.max(
-            currentStock,
-            prepared
-              .targetAfterStock
-          ),
-        vendorStockCode:
-          text(
-            liveProduct
-              .vendorStockCode
-          ) ||
-          prepared
-            .vendorStockCode,
-        productMainId:
-          text(
-            liveProduct
-              .productMainId
-          ) ||
-          prepared
-            .productMainId,
-        brandId:
-          liveProduct
-            .brandId ??
-          prepared
-            .brandId,
-        categoryId:
-          liveProduct
-            .categoryId ??
-          prepared
-            .categoryId,
-      };
-
-    return processPrepared(
-      client,
-      existingPrepared
+    await client.query(
+      "BEGIN"
     );
-  }
 
-  if (
-    prepared.action ===
-    "EXISTING_PRODUCT"
-  ) {
     try {
-      let liveBeforeSend =
-        prepared.exactProduct;
-
-      let liveState =
-        idefixProductState(
-          liveBeforeSend
-        );
-
-      if (
-        liveState ===
-        "WAITING VENDOR APPROVE"
-      ) {
-        await approveProduct(
-          prepared.barcode
-        );
-
-        for (
-          let attempt = 0;
-          attempt < 8;
-          attempt += 1
-        ) {
-          if (
-            attempt > 0
-          ) {
-            await new Promise(
-              (resolve) =>
-                setTimeout(
-                  resolve,
-                  700
-                )
-            );
-          }
-
-          const lookup =
-            await listByBarcode(
-              prepared.barcode
-            );
-
-          const candidate =
-            lookup
-              .products?.[0] ||
-            null;
-
-          if (candidate) {
-            liveBeforeSend =
-              candidate;
-            liveState =
-              idefixProductState(
-                candidate
-              );
-
-            if (
-              isIdefixReadyForSale(
-                candidate
-              )
-            ) {
-              break;
-            }
-          }
-        }
-      }
-
-      if (
-        !isIdefixReadyForSale(
-          liveBeforeSend
-        )
-      ) {
-        throw new Error(
-          `${prepared.title}: ürün İdefix ürün listende mevcut fakat satışa hazır değil. Gerçek İdefix statüsü: ${liveState || "BILINMIYOR"}. Stok ve IMEI gönderilmedi. Önce İdefix ürün durumunu düzelt/onayla.`
-        );
-      }
-
-      const upload =
-        await inventoryUpload(
+      const local =
+        await persistLocal(
+          client,
           {
-            ...prepared,
-            exactProduct:
-              liveBeforeSend,
+            prepared,
+            finalProduct:
+              prepared
+                .exactProduct,
+            membershipStatus:
+              "LISTED",
+            syncStatus:
+              "SYNCED",
+            taskStatus:
+              "SUCCESS",
+            batchRequestId:
+              upload
+                .batchRequestId,
+            finalStock:
+              prepared
+                .targetAfterStock,
+            apiResult:
+              verification
+                .payload,
           }
         );
-
-      const verification =
-        await waitInventory(
-          upload
-            .batchRequestId,
-          prepared.barcode
-        );
-
-      if (
-        !verification.success
-      ) {
-        throw new Error(
-          `${prepared.title}: İdefix stok/fiyat işlemi başlatıldı fakat süre içinde COMPLETED doğrulanamadı. Batch: ${upload.batchRequestId}`
-        );
-      }
-
-      const liveVerification =
-        await waitLiveInventory(
-          prepared.barcode,
-          prepared
-            .targetAfterStock,
-          prepared
-            .salePrice
-        );
-
-      if (
-        !liveVerification
-          .success
-      ) {
-        throw new Error(
-          `${prepared.title}: inventory item COMPLETED oldu fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Gönderilen barkod: ${prepared.barcode}. Pool barkod: ${text(prepared.exactProduct?.barcode) || "-"}. Matched barkod: ${text(prepared.exactProduct?.matchedProduct?.barcode) || "-"}. Batch: ${upload.batchRequestId}. Inventory-result item: ${idefixFailureDetail(
-            verification
-              .item
-          )}. Canlı inventory: ${idefixFailureDetail(
-            liveVerification
-              .item
-          )}`
-        );
-      }
 
       await client.query(
-        "BEGIN"
+        "COMMIT"
       );
 
+      return {
+        success:
+          true,
+        action:
+          "EXISTING_PRODUCT",
+        title:
+          prepared.title,
+        color:
+          prepared
+            .group.color,
+        barcode:
+          prepared.barcode,
+        beforeStock:
+          prepared
+            .targetBeforeStock,
+        afterStock:
+          prepared
+            .targetAfterStock,
+        addedImeis:
+          prepared
+            .group.items.map(
+              (item) =>
+                item.imei
+            ),
+        batchRequestId:
+          upload
+            .batchRequestId,
+        listingId:
+          local.listingId,
+        state:
+          "LISTED",
+      };
+    } catch (error) {
       try {
-        const local =
-          await persistLocal(
-            client,
-            {
-              prepared,
-              finalProduct:
-                prepared
-                  .exactProduct,
-              membershipStatus:
-                "LISTED",
-              syncStatus:
-                "SYNCED",
-              taskStatus:
-                "SUCCESS",
-              batchRequestId:
-                upload
-                  .batchRequestId,
-              finalStock:
-                numberOrNull(
-                  liveVerification
-                    .item
-                    ?.inventoryQuantity
-                ) ??
-                prepared
-                  .targetAfterStock,
-              apiResult: {
-                inventoryResult:
-                  verification
-                    .payload,
-                liveInventory:
-                  liveVerification
-                    .item,
-              },
-            }
-          );
-
         await client.query(
-          "COMMIT"
+          "ROLLBACK"
         );
+      } catch {}
 
-        return {
-          success:
-            true,
-          action:
-            "EXISTING_PRODUCT",
-          title:
-            prepared.title,
-          color:
-            prepared
-              .group.color,
-          barcode:
-            prepared.barcode,
-          beforeStock:
-            prepared
-              .targetBeforeStock,
-          afterStock:
-            prepared
-              .targetAfterStock,
-          addedImeis:
-            prepared
-              .group.items.map(
-                (item) =>
-                  item.imei
-              ),
-          batchRequestId:
-            upload
-              .batchRequestId,
-          listingId:
-            local.listingId,
-          state:
-            "LISTED",
-          pendingApproval:
-            false,
-        };
-      } catch (
-        error: any
-      ) {
-        try {
-          await client.query(
-            "ROLLBACK"
-          );
-        } catch {}
-
-        throw new Error(
-          `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
-            error instanceof Error
-              ? error.message
-              : ""
-          }`
-        );
-      }
-    } catch (
-      error: any
-    ) {
-      if (
-        isProductNotFoundError(
-          error
-        )
-      ) {
-        throw new Error(
-          `${prepared.title}: İdefix inventory PRODUCT_NOT_FOUND döndürdü. Hiçbir yerel GÖNDERİLDİ kaydı yazılmadı. Barkod: ${prepared.barcode}. Detay: ${
-            error instanceof Error
-              ? error.message
-              : String(error ?? "")
-          }`
-        );
-      }
-
-      throw error;
+      throw new Error(
+        `${prepared.title}: İdefix stok/fiyat başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+          error instanceof Error
+            ? error.message
+            : ""
+        }`
+      );
     }
   }
 
@@ -6542,9 +4087,6 @@ async function processPrepared(
 
   let state =
     createState.state;
-
-  let finalBarcode =
-    prepared.barcode;
 
   let approved =
     false;
@@ -6564,7 +4106,9 @@ async function processPrepared(
       )
     ) {
       throw new Error(
-        `${prepared.title}: İdefix mevcut katalog ürünü önerdi fakat eşleşme otomatik onay için güvenli değil. Merchant onayı bekleniyor. Batch: ${create.batchRequestId}`
+        `${prepared.title}: İdefix katalog eşleşmesi geldi fakat model/hafıza/renk otomatik onay için güvenli değil. Yanlış ürünü onaylamadık. Batch: ${create.batchRequestId}. Eşleşme: ${idefixFailureDetail(
+          matched
+        )}`
       );
     }
 
@@ -6574,27 +4118,6 @@ async function processPrepared(
 
     approved =
       true;
-
-    const matchedBarcode =
-      text(
-        matched?.barcode
-      );
-
-    if (
-      matchedBarcode
-    ) {
-      finalBarcode =
-        matchedBarcode;
-    }
-
-    // Kısa bekleme sonrası mevcut havuzu tekrar kontrol et.
-    await new Promise(
-      (resolve) =>
-        setTimeout(
-          resolve,
-          900
-        )
-    );
 
     state =
       "APPROVED";
@@ -6615,62 +4138,60 @@ async function processPrepared(
     );
   }
 
-  // Satıcı havuzunda oluştu mu kontrol et.
-  let listedProduct:
-    IdefixProduct | null =
+  const matchedBarcode =
+    text(
+      matched?.barcode
+    );
+
+  const visibility =
+    await waitDirectCreateVisibility(
+      [
+        prepared.barcode,
+        matchedBarcode,
+      ],
+      prepared
+        .targetAfterStock,
+      prepared
+        .salePrice
+    );
+
+  if (visibility.ready) {
+    const finalProduct =
+      visibility.product ||
+      createState.product ||
       null;
 
-  const lookupCandidates =
-    Array.from(
-      new Set([
-        finalBarcode,
-        prepared.barcode,
-      ])
-    ).filter(Boolean);
+    const finalBarcode =
+      text(
+        visibility
+          .liveItem
+          ?.barcode
+      ) ||
+      text(
+        finalProduct
+          ?.barcode
+      ) ||
+      prepared.barcode;
 
-  for (
-    const barcode of
-      lookupCandidates
-  ) {
-    const listed =
-      await listByBarcode(
-        barcode
-      );
+    const finalPrepared:
+      PreparedGroup = {
+        ...prepared,
+        barcode:
+          finalBarcode,
+        exactProduct:
+          finalProduct,
+        targetBeforeStock:
+          0,
+        targetAfterStock:
+          numberOrNull(
+            visibility
+              .liveItem
+              ?.inventoryQuantity
+          ) ??
+          prepared
+            .targetAfterStock,
+      };
 
-    if (
-      listed.products
-        .length > 0
-    ) {
-      listedProduct =
-        listed.products[0];
-
-      finalBarcode =
-        text(
-          listedProduct
-            .barcode
-        ) ||
-        barcode;
-
-      break;
-    }
-  }
-
-  const pendingStates = [
-    "NOT MATCHED",
-    "WAITING CATALOG ACTION",
-    "AUTO MATCHED",
-    "MANUAL MATCHED",
-    "",
-  ];
-
-  if (
-    !listedProduct &&
-    pendingStates.includes(
-      state
-    )
-  ) {
-    // İdefix operatör incelemesi gereken yeni ürün.
-    // API create kabul edildiği için yerelde PENDING_CREATE olarak işaretle.
     await client.query(
       "BEGIN"
     );
@@ -6680,25 +4201,33 @@ async function processPrepared(
         await persistLocal(
           client,
           {
-            prepared,
-            finalProduct:
-              null,
+            prepared:
+              finalPrepared,
+            finalProduct,
             membershipStatus:
-              "PENDING_CREATE",
+              "LISTED",
             syncStatus:
-              "CREATING",
+              "SYNCED",
             taskStatus:
-              state ||
-              "PENDING",
+              "SUCCESS",
             batchRequestId:
               create
                 .batchRequestId,
             finalStock:
-              prepared
+              finalPrepared
                 .targetAfterStock,
-            apiResult:
-              createState
-                .payload,
+            apiResult: {
+              create:
+                createState
+                  .payload,
+              approve:
+                approved,
+              liveInventory:
+                visibility
+                  .liveItem,
+              directCreate:
+                true,
+            },
           }
         );
 
@@ -6711,17 +4240,28 @@ async function processPrepared(
           true,
         action:
           "CREATE_PRODUCT",
+        directCreate:
+          true,
+        saleOpen:
+          true,
         title:
           prepared.title,
         color:
           prepared
             .group.color,
         barcode:
-          prepared.barcode,
-        beforeStock:
-          0,
-        afterStock:
+          finalBarcode,
+        vendorStockCode:
           prepared
+            .vendorStockCode,
+        productMainId:
+          prepared
+            .productMainId,
+        imageUrl:
+          prepared
+            .imageUrl,
+        afterStock:
+          finalPrepared
             .targetAfterStock,
         addedImeis:
           prepared
@@ -6735,13 +4275,14 @@ async function processPrepared(
         listingId:
           local.listingId,
         state:
-          state ||
-          "PENDING_CREATE",
+          "LISTED",
         pendingApproval:
-          true,
+          false,
         approved,
+        message:
+          "İdefix ürünü create edildi, gerekli eşleşme onaylandı ve canlı envanterde satışa açık doğrulandı.",
       };
-    } catch (error: any) {
+    } catch (error) {
       try {
         await client.query(
           "ROLLBACK"
@@ -6749,191 +4290,13 @@ async function processPrepared(
       } catch {}
 
       throw new Error(
-        `${prepared.title}: İdefix create kabul edildi ancak PostgreSQL PENDING_CREATE kaydı yazılamadı. ${
+        `${prepared.title}: İdefix create ve canlı doğrulama başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
           error instanceof Error
             ? error.message
             : ""
         }`
       );
     }
-  }
-
-  if (
-    !listedProduct
-  ) {
-    throw new Error(
-      `${prepared.title}: İdefix create/approve sonrası ürün satıcı havuzunda doğrulanamadı. Batch: ${create.batchRequestId}`
-    );
-  }
-
-  // Create/approve sonrası kesin barkoda stok ve fiyatı yaz.
-  const finalPrepared:
-    PreparedGroup = {
-      ...prepared,
-      exactProduct:
-        listedProduct,
-      barcode:
-        finalBarcode,
-      targetBeforeStock:
-        numberOrNull(
-          listedProduct
-            .inventoryQuantity
-        ) ?? 0,
-      targetAfterStock:
-        Math.max(
-          prepared
-            .targetAfterStock,
-          numberOrNull(
-            listedProduct
-              .inventoryQuantity
-          ) ?? 0
-        ),
-  };
-
-  let upload:
-    {
-      payload: any;
-      batchRequestId: string;
-    };
-
-  let inventoryVerified:
-    {
-      success: boolean;
-      payload: any;
-      item: any;
-    };
-
-  try {
-    upload =
-      await inventoryUpload(
-        finalPrepared
-      );
-
-    inventoryVerified =
-      await waitInventory(
-        upload.batchRequestId,
-        finalBarcode
-      );
-
-    if (
-      !inventoryVerified.success
-    ) {
-      throw new Error(
-        `${prepared.title}: ürün oluşturuldu fakat stok/fiyat COMPLETED doğrulanamadı. Inventory batch: ${upload.batchRequestId}`
-      );
-    }
-  } catch (error: any) {
-    if (
-      isProductNotFoundError(
-        error
-      )
-    ) {
-      // Yeni ürün pool/list içinde görünmüş olabilir ama katalog inventory
-      // tarafında henüz satışa hazır değildir. Bu durumda gönderimi hata
-      // sayma; IMEI'yi PENDING_CREATE kaydet ve tekrar ürün create etme.
-      await client.query(
-        "BEGIN"
-      );
-
-      try {
-        const local =
-          await persistLocal(
-            client,
-            {
-              prepared:
-                finalPrepared,
-              finalProduct:
-                listedProduct,
-              membershipStatus:
-                "PENDING_CREATE",
-              syncStatus:
-                "CREATING",
-              taskStatus:
-                "WAITING_CATALOG",
-              batchRequestId:
-                create
-                  .batchRequestId,
-              finalStock:
-                finalPrepared
-                  .targetAfterStock,
-              apiResult: {
-                create:
-                  createState
-                    .payload,
-                inventoryError:
-                  error instanceof Error
-                    ? error.message
-                    : "PRODUCT_NOT_FOUND",
-                waitingCatalog:
-                  true,
-                savedAt:
-                  new Date()
-                    .toISOString(),
-              },
-            }
-          );
-
-        await client.query(
-          "COMMIT"
-        );
-
-        return {
-          success:
-            true,
-          action:
-            "CREATE_PRODUCT",
-          title:
-            prepared.title,
-          color:
-            prepared
-              .group.color,
-          barcode:
-            finalBarcode,
-          beforeStock:
-            finalPrepared
-              .targetBeforeStock,
-          afterStock:
-            finalPrepared
-              .targetAfterStock,
-          addedImeis:
-            prepared
-              .group.items.map(
-                (item) =>
-                  item.imei
-              ),
-          batchRequestId:
-            create
-              .batchRequestId,
-          listingId:
-            local.listingId,
-          state:
-            "PENDING_CREATE",
-          pendingApproval:
-            true,
-          approved,
-          message:
-            "Ürün İdefix'e gönderildi. Katalog onayı bekleniyor; stok/fiyat onay sonrası senkronlanacak.",
-        };
-      } catch (
-        persistError
-      ) {
-        try {
-          await client.query(
-            "ROLLBACK"
-          );
-        } catch {}
-
-        throw new Error(
-          `${prepared.title}: ürün İdefix'e gönderildi ancak PENDING_CREATE kaydı yazılamadı. ${
-            persistError instanceof Error
-              ? persistError.message
-              : ""
-          }`
-        );
-      }
-    }
-
-    throw error;
   }
 
   await client.query(
@@ -6945,29 +4308,40 @@ async function processPrepared(
       await persistLocal(
         client,
         {
-          prepared:
-            finalPrepared,
+          prepared,
           finalProduct:
-            listedProduct,
+            visibility.product ||
+            createState.product ||
+            null,
           membershipStatus:
-            "LISTED",
+            "PENDING_CREATE",
           syncStatus:
-            "SYNCED",
+            "CREATING",
           taskStatus:
-            "SUCCESS",
+            visibility
+              .productState ||
+            state ||
+            "PENDING",
           batchRequestId:
             create
               .batchRequestId,
           finalStock:
-            finalPrepared
+            prepared
               .targetAfterStock,
           apiResult: {
             create:
               createState
                 .payload,
-            inventory:
-              inventoryVerified
-                .payload,
+            approve:
+              approved,
+            poolState:
+              visibility
+                .productState,
+            liveInventory:
+              visibility
+                .liveItem,
+            directCreate:
+              true,
           },
         }
       );
@@ -6981,17 +4355,31 @@ async function processPrepared(
         true,
       action:
         "CREATE_PRODUCT",
+      directCreate:
+        true,
+      saleOpen:
+        false,
       title:
         prepared.title,
       color:
-        prepared.group.color,
+        prepared
+          .group.color,
       barcode:
-        finalBarcode,
-      beforeStock:
-        finalPrepared
-          .targetBeforeStock,
+        prepared.barcode,
+      matchedBarcode:
+        matchedBarcode ||
+        null,
+      vendorStockCode:
+        prepared
+          .vendorStockCode,
+      productMainId:
+        prepared
+          .productMainId,
+      imageUrl:
+        prepared
+          .imageUrl,
       afterStock:
-        finalPrepared
+        prepared
           .targetAfterStock,
       addedImeis:
         prepared
@@ -7002,18 +4390,24 @@ async function processPrepared(
       batchRequestId:
         create
           .batchRequestId,
-      inventoryBatchRequestId:
-        upload
-          .batchRequestId,
       listingId:
         local.listingId,
       state:
-        "LISTED",
+        "PENDING_CREATE",
       pendingApproval:
-        false,
+        true,
       approved,
+      idefixState:
+        visibility
+          .productState ||
+        state ||
+        "PENDING",
+      message:
+        approved
+          ? "İdefix ürünü create edildi ve güvenli katalog eşleşmesi otomatik onaylandı. İdefix'in satışa açma/yayın işlemi devam ediyor; canlı envanter görünmeden SATIŞTA sayılmadı."
+          : "İdefix ürünü create edildi. Katalog/yayın işlemi devam ediyor; canlı envanter görünmeden SATIŞTA sayılmadı.",
     };
-  } catch (error: any) {
+  } catch (error) {
     try {
       await client.query(
         "ROLLBACK"
@@ -7021,13 +4415,14 @@ async function processPrepared(
     } catch {}
 
     throw new Error(
-      `${prepared.title}: İdefix dış işlemler başarılı oldu ancak PostgreSQL kanal kaydı yazılamadı. ${
+      `${prepared.title}: İdefix create kabul edildi ancak PostgreSQL PENDING_CREATE kaydı yazılamadı. ${
         error instanceof Error
           ? error.message
           : ""
       }`
     );
   }
+
 }
 
 export async function POST(
@@ -7104,16 +4499,14 @@ export async function POST(
       modeRaw !==
         "preview" &&
       modeRaw !==
-        "commit" &&
-      modeRaw !==
-        "reconcile"
+        "commit"
     ) {
       return noStoreJson(
         {
           success:
             false,
           error:
-            "mode yalnızca preview, commit veya reconcile olabilir.",
+            "mode yalnızca preview veya commit olabilir.",
         },
         400
       );
@@ -7122,30 +4515,6 @@ export async function POST(
     const mode =
       modeRaw as
         SendMode;
-
-    // Reconcile modunda cihaz/fiyat bilgisi gerekmez.
-    // Önce DB bağlantısını aç ve pending İdefix kayıtlarını kontrol et.
-    if (
-      mode ===
-      "reconcile"
-    ) {
-      client =
-        await getIdefixDbPool()
-          .connect();
-
-      const result =
-        await reconcilePendingIdefix(
-          client
-        );
-
-      return noStoreJson({
-        channel:
-          "IDEFIX",
-        mode:
-          "reconcile",
-        ...result,
-      });
-    }
 
     if (
       !Array.isArray(
@@ -7223,13 +4592,6 @@ export async function POST(
       );
     }
 
-    // Tek tık İdefix:
-    // Kullanıcıdan katalog barkodu alınmaz.
-    // Mevcut İdefix ürünü sistem otomatik eşleştirir.
-    const catalogBarcode:
-      string | null =
-      null;
-
     client =
       await getIdefixDbPool()
         .connect();
@@ -7239,11 +4601,6 @@ export async function POST(
         client,
         deviceIds
       );
-
-    await cleanupLegacyFalseIdefixMemberships(
-      client,
-      deviceIds
-    );
 
     const deviceErrors =
       await validateDevices(
@@ -7288,8 +4645,7 @@ export async function POST(
           products,
           group,
           salePrice,
-          listPrice,
-          catalogBarcode
+          listPrice
         )
       );
     }
@@ -7329,12 +4685,12 @@ export async function POST(
               row.action ===
               "EXISTING_PRODUCT"
           ).length,
-        fastListingGroups:
-          0,
         createGroups:
-          0,
-        oneClickExistingOnly:
-          true,
+          prepared.filter(
+            (row) =>
+              row.action ===
+              "CREATE_PRODUCT"
+          ).length,
         preview,
         safety: {
           databaseWrite:
@@ -7376,7 +4732,7 @@ export async function POST(
         SELECT
           pg_advisory_lock(
             hashtext(
-              'cnet_center_idefix_send'
+              'cnet_idefix_direct_create'
             )
           )
       `
@@ -7441,7 +4797,7 @@ export async function POST(
         channel:
           "IDEFIX",
         message:
-          `${deviceIds.length} cihaz için İdefix işlemi tamamlandı.`,
+          `${deviceIds.length} cihaz için İdefix direkt create işlemi tamamlandı.`,
         sentImeis:
           results.reduce(
             (
@@ -7471,7 +4827,7 @@ export async function POST(
               SELECT
                 pg_advisory_unlock(
                   hashtext(
-                    'cnet_center_idefix_send'
+                    'cnet_idefix_direct_create'
                   )
                 )
             `
@@ -7482,9 +4838,9 @@ export async function POST(
           false;
       }
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error(
-      "CENTER IDEFIX SEND ERROR:",
+      "IDEFIX DIRECT CREATE ERROR:",
       error
     );
 
@@ -7497,7 +4853,7 @@ export async function POST(
         error:
           error instanceof Error
             ? error.message
-            : "İdefix gerçek gönderimi başarısız.",
+            : "İdefix direkt cihaz ekleme başarısız.",
       },
       500
     );
