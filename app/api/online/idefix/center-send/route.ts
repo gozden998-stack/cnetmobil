@@ -230,11 +230,17 @@ function automaticIdefixBarcode(
     IdefixProduct | null |
     undefined
 ) {
+  // KRİTİK:
+  // İdefix /pim/pool listesindeki TOP-LEVEL product.barcode,
+  // /pim/catalog/{vendorId}/inventory/list ile eşleşen gerçek satıcı barkodudur.
+  // matchedProduct.barcode katalog eşleşme bilgisidir ve bazı ürünlerde
+  // TYB... gibi farklı bir kod dönebilir. Inventory-upload / live verification
+  // için önce MUTLAKA top-level barcode kullanılır.
   const candidates = [
     product
-      ?.matchedProduct
       ?.barcode,
     product
+      ?.matchedProduct
       ?.barcode,
   ]
     .map(
@@ -243,8 +249,6 @@ function automaticIdefixBarcode(
     )
     .filter(Boolean);
 
-  // matchedProduct.barcode İdefix katalog tarafındaki canonical barkoddur.
-  // Aynıysa zaten tek değer kalır.
   return (
     Array.from(
       new Set(
@@ -3969,7 +3973,7 @@ async function waitLiveInventory(
 
   for (
     let attempt = 0;
-    attempt < 12;
+    attempt < 30;
     attempt += 1
   ) {
     if (
@@ -3979,7 +3983,7 @@ async function waitLiveInventory(
         (resolve) =>
           setTimeout(
             resolve,
-            800
+            1500
           )
       );
     }
@@ -6357,7 +6361,7 @@ async function processPrepared(
           .success
       ) {
         throw new Error(
-          `${prepared.title}: inventory-result COMPLETED döndü fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Barkod: ${prepared.barcode}. Batch: ${upload.batchRequestId}. Canlı inventory: ${idefixFailureDetail(
+          `${prepared.title}: inventory-result COMPLETED döndü fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel sistemde GÖNDERİLDİ yazılmadı. Gönderilen barkod: ${prepared.barcode}. Pool barkod: ${text(prepared.exactProduct?.barcode) || "-"}. Matched barkod: ${text(prepared.exactProduct?.matchedProduct?.barcode) || "-"}. Batch: ${upload.batchRequestId}. Canlı inventory: ${idefixFailureDetail(
             liveVerification
               .item
           )}`
