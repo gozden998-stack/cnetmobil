@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type IdefixProduct = {
   barcode?: string | null;
@@ -11,10 +11,6 @@ type IdefixProduct = {
   price?: number | null;
   comparePrice?: number | null;
   state?: string | null;
-  status?: string | null;
-  saleOpen?: boolean;
-  saleStatus?: string | null;
-  liveInventoryFound?: boolean;
   brandId?: number | null;
   categoryId?: number | null;
   imageUrl?: string | null;
@@ -25,17 +21,35 @@ type ProductResponse = {
   connected?: boolean;
   vendorId?: string;
   totalCount?: number;
-  openCount?: number;
-  closedCount?: number;
-  pendingCount?: number;
-  declinedCount?: number;
-  inventoryItemCount?: number;
-  poolCount?: number;
-  readyForSalePoolCount?: number;
-  physicalStock?: number;
   products?: IdefixProduct[];
   checkedAt?: string;
   error?: string;
+};
+
+
+type DirectCreateForm = {
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  salePrice: string;
+  listPrice: string;
+};
+
+type DirectPreview = {
+  title?: string;
+  barcode?: string;
+  vendorStockCode?: string;
+  productMainId?: string;
+  brandId?: string | number | null;
+  categoryId?: string | number | null;
+  imageReady?: boolean;
+  imageUrl?: string | null;
+  attributeCount?: number;
+  blockers?: string[];
 };
 
 type TabKey = "orders" | "open" | "closed";
@@ -61,22 +75,8 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function normalizeState(value: unknown) {
-  return text(value)
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-}
-
 function isOpenProduct(product: IdefixProduct) {
-  if (typeof product.saleOpen === "boolean") {
-    return product.saleOpen;
-  }
-
-  return (
-    normalizeState(product.state ?? product.status) ===
-      "ready_for_sale" &&
-    Number(product.inventoryQuantity || 0) > 0
-  );
+  return Number(product.inventoryQuantity || 0) > 0;
 }
 
 export default function Idefix() {
@@ -86,12 +86,160 @@ export default function Idefix() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TabKey>("open");
   const [sort, setSort] = useState("newest");
+  const [addOpen, setAddOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
+  const [directPreview, setDirectPreview] = useState<DirectPreview | null>(null);
+  const [form, setForm] = useState<DirectCreateForm>({
+    imei: "",
+    brand: "Apple",
+    model: "",
+    memory: "128 GB",
+    color: "",
+    grade: "A",
+    warranty: "12 Ay",
+    salePrice: "",
+    listPrice: "",
+  });
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
+  const updateForm = (key: keyof DirectCreateForm, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const resetDirectCreate = () => {
+    setSendError("");
+    setSendMessage("");
+    setDirectPreview(null);
+    setForm({
+      imei: "",
+      brand: "Apple",
+      model: "",
+      memory: "128 GB",
+      color: "",
+      grade: "A",
+      warranty: "12 Ay",
+      salePrice: "",
+      listPrice: "",
+    });
+  };
+
+  const submitDirectCreate = async () => {
+    setSending(true);
+    setSendError("");
+    setSendMessage("");
+    setDirectPreview(null);
+
+    try {
+      const salePrice = Number(String(form.salePrice).replace(",", "."));
+      const listPrice = Number(String(form.listPrice).replace(",", "."));
+
+      if (!/^\d{15}$/.test(form.imei.trim())) {
+        throw new Error("IMEI tam 15 hane olmalıdır.");
+      }
+
+      if (!form.brand.trim() || !form.model.trim() || !form.memory.trim() || !form.color.trim()) {
+        throw new Error("Marka, model, hafıza ve renk zorunludur.");
+      }
+
+      if (!Number.isFinite(salePrice) || salePrice <= 0) {
+        throw new Error("Geçerli satış fiyatı gir.");
+      }
+
+      if (!Number.isFinite(listPrice) || listPrice < salePrice) {
+        throw new Error("Liste fiyatı satış fiyatından düşük olamaz.");
+      }
+
+      const centerResponse = await fetch("/api/online/center/devices", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imei: form.imei.trim(),
+          brand: form.brand.trim(),
+          model: form.model.trim(),
+          memory: form.memory.trim(),
+          color: form.color.trim(),
+          grade: form.grade,
+          warranty: form.warranty,
+        }),
+      });
+
+      const centerPayload = await centerResponse.json().catch(() => ({}));
+      let deviceId = Number(centerPayload?.device?.id || 0);
+
+      if (!centerResponse.ok || !centerPayload?.success) {
+        const duplicateId = Number(centerPayload?.duplicate?.id || 0);
+        const duplicateStatus = text(centerPayload?.duplicate?.status).toUpperCase();
+
+        if (centerResponse.status === 409 && duplicateId > 0 && duplicateStatus === "AVAILABLE") {
+          deviceId = duplicateId;
+        } else {
+          throw new Error(centerPayload?.error || "Cihaz merkezi stoğa bağlanamadı.");
+        }
+      }
+
+      if (!deviceId) {
+        throw new Error("Cihaz kayıt ID'si alınamadı.");
+      }
+
+      const commonBody = { deviceIds: [deviceId], salePrice, listPrice };
+
+      const previewResponse = await fetch("/api/online/idefix/direct-create", {
+        method: "POST",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "preview", ...commonBody }),
+      });
+
+      const previewPayload = await previewResponse.json().catch(() => ({}));
+      const previewRow: DirectPreview | null = Array.isArray(previewPayload?.preview)
+        ? previewPayload.preview[0] || null
+        : null;
+      setDirectPreview(previewRow);
+
+      if (!previewResponse.ok || !previewPayload?.success) {
+        throw new Error(previewPayload?.error || "İdefix ön kontrol başarısız.");
+      }
+
+      if (!previewPayload?.canCommit) {
+        const blockers = Array.isArray(previewRow?.blockers) ? previewRow!.blockers! : [];
+        throw new Error(blockers.join(" | ") || "İdefix create için eksik bilgi var.");
+      }
+
+      const commitResponse = await fetch("/api/online/idefix/direct-create", {
+        method: "POST",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "commit", ...commonBody }),
+      });
+
+      const commitPayload = await commitResponse.json().catch(() => ({}));
+
+      if (!commitResponse.ok || !commitPayload?.success) {
+        throw new Error(commitPayload?.error || "İdefix create başarısız.");
+      }
+
+      const result = Array.isArray(commitPayload?.results) ? commitPayload.results[0] : null;
+
+      if (result?.saleOpen === true) {
+        setSendMessage(`SATIŞTA ✅ ${result?.message || "İdefix ürünü satışa açıldı."}`);
+        await load();
+      } else {
+        setSendMessage(`İDEFİX İŞLİYOR ⏳ ${result?.message || "Ürün create edildi; katalog/yayın işlemi devam ediyor."}`);
+      }
+    } catch (e: any) {
+      setSendError(e?.message || "İdefix cihaz ekleme başarısız.");
+    } finally {
+      setSending(false);
     }
+  };
 
+  const load = async () => {
+    setLoading(true);
     setError("");
 
     try {
@@ -111,25 +259,13 @@ export default function Idefix() {
     } catch (e: any) {
       setError(e?.message || "İdefix verileri alınamadı.");
     } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    void load(false);
-
-    // İdefix ekranı açıkken 60 saniyede bir sessiz canlı yenileme.
-    // Böylece paneldeki satış açık/kapalı durumu İdefix ile aynı kalır.
-    const intervalId = window.setInterval(() => {
-      void load(true);
-    }, 60_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [load]);
+    load();
+  }, []);
 
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data!.products! : []),
@@ -146,24 +282,14 @@ export default function Idefix() {
     [products]
   );
 
-  const physicalStock = useMemo(() => {
-    if (
-      typeof data?.physicalStock === "number" &&
-      Number.isFinite(data.physicalStock)
-    ) {
-      return Math.max(0, data.physicalStock);
-    }
-
-    return openProducts.reduce(
-      (sum, item) =>
-        sum +
-        Math.max(
-          0,
-          Number(item.inventoryQuantity || 0)
-        ),
-      0
-    );
-  }, [data?.physicalStock, openProducts]);
+  const physicalStock = useMemo(
+    () =>
+      products.reduce(
+        (sum, item) => sum + Math.max(0, Number(item.inventoryQuantity || 0)),
+        0
+      ),
+    [products]
+  );
 
   const averagePrice = useMemo(() => {
     const priced = openProducts
@@ -249,7 +375,18 @@ export default function Idefix() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => void load(false)}
+                onClick={() => {
+                  resetDirectCreate();
+                  setAddOpen(true);
+                }}
+                className="h-10 rounded-xl bg-violet-700 px-5 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800"
+              >
+                + Cihaz Ekle
+              </button>
+
+              <button
+                type="button"
+                onClick={load}
                 disabled={loading}
                 className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
@@ -278,14 +415,14 @@ export default function Idefix() {
             {
               label: "SATIŞTAKİ İLAN",
               value: openProducts.length,
-              sub: "Canlı inventory stoklu ilan",
+              sub: "Stoklu İdefix ilanı",
               icon: "◎",
               box: "bg-cyan-50 text-cyan-700",
             },
             {
               label: "FİZİKSEL STOK",
               value: physicalStock,
-              sub: "Inventory API toplam stok",
+              sub: "Satıştaki toplam cihaz",
               icon: "◉",
               box: "bg-emerald-50 text-emerald-700",
             },
@@ -332,21 +469,6 @@ export default function Idefix() {
             <span>Kanal: İdefix</span>
             <span>Entegratör: CNETMOBİL</span>
             <span>Ürün/Stok: Canlı API</span>
-            <span>
-              İdefix Ürünlerim: <b className="text-slate-900">{Number(data?.totalCount || 0)}</b>
-            </span>
-            <span>
-              Havuz: <b className="text-slate-900">{Number(data?.poolCount || 0)}</b>
-            </span>
-            <span>
-              Inventory API: <b className="text-slate-900">{Number(data?.inventoryItemCount || 0)}</b>
-            </span>
-            <span>
-              Bekleyen: <b className="text-slate-900">{Number(data?.pendingCount || 0)}</b>
-            </span>
-            <span>
-              Red/Eksik: <b className="text-slate-900">{Number(data?.declinedCount || 0)}</b>
-            </span>
           </div>
 
           <div>
@@ -509,22 +631,11 @@ export default function Idefix() {
                           className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${
                             open
                               ? "bg-emerald-100 text-emerald-700"
-                              : normalizeState(product.state ?? product.status).includes("declined") ||
-                                normalizeState(product.state ?? product.status) === "missing_info"
-                              ? "bg-rose-100 text-rose-700"
-                              : "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-500"
                           }`}
                         >
-                          {product.saleStatus || (open ? "Yayında" : "Kapalı")}
+                          {open ? "Yayında" : "Kapalı"}
                         </span>
-                        <div className="mt-1 text-[7px] font-semibold uppercase text-slate-400">
-                          {normalizeState(product.state ?? product.status) || "-"}
-                        </div>
-                        <div className="mt-0.5 text-[7px] font-semibold text-slate-400">
-                          {product.liveInventoryFound
-                            ? "Inventory API kaydı var"
-                            : "Inventory API kaydı yok · stok 0 kabul edildi"}
-                        </div>
                       </td>
 
                       <td className="px-5 py-4">
@@ -577,6 +688,110 @@ export default function Idefix() {
           </div>
         )}
       </section>
+
+      {addOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 font-black text-violet-700">id</div>
+                <div>
+                  <h2 className="text-base font-black text-slate-950">İdefix'e Direkt Cihaz Ekle</h2>
+                  <p className="mt-0.5 text-[9px] font-semibold text-slate-500">CNET kodu, kategori, özellikler ve görsel arka planda otomatik hazırlanır.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setAddOpen(false)} disabled={sending} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-40">×</button>
+            </div>
+
+            <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1.35fr_.65fr]">
+              <div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="sm:col-span-2">
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">IMEI</span>
+                    <input value={form.imei} onChange={(e) => updateForm("imei", e.target.value.replace(/\D/g, "").slice(0, 15))} inputMode="numeric" placeholder="15 haneli IMEI" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-bold outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Marka</span>
+                    <input value={form.brand} onChange={(e) => updateForm("brand", e.target.value)} placeholder="Apple" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-bold outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Model</span>
+                    <input value={form.model} onChange={(e) => updateForm("model", e.target.value)} placeholder="iPhone 12" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-bold outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Hafıza</span>
+                    <input value={form.memory} onChange={(e) => updateForm("memory", e.target.value)} placeholder="128 GB" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-bold outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Renk</span>
+                    <input value={form.color} onChange={(e) => updateForm("color", e.target.value)} placeholder="Beyaz" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-bold outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Kalite</span>
+                    <select value={form.grade} onChange={(e) => updateForm("grade", e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-bold outline-none focus:border-violet-400">
+                      <option value="A">A Kalite</option><option value="B">B Kalite</option><option value="C">C Kalite</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Garanti</span>
+                    <select value={form.warranty} onChange={(e) => updateForm("warranty", e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-bold outline-none focus:border-violet-400">
+                      <option value="12 Ay">12 Ay</option><option value="6 Ay">6 Ay</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Satış Fiyatı</span>
+                    <input value={form.salePrice} onChange={(e) => updateForm("salePrice", e.target.value)} inputMode="decimal" placeholder="22499" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-black outline-none focus:border-violet-400" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-[8px] font-black uppercase text-slate-500">Liste Fiyatı</span>
+                    <input value={form.listPrice} onChange={(e) => updateForm("listPrice", e.target.value)} inputMode="decimal" placeholder="23499" className="h-11 w-full rounded-xl border border-slate-200 px-3 text-[11px] font-black outline-none focus:border-violet-400" />
+                  </label>
+                </div>
+
+                {sendError && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-bold leading-5 text-rose-700">{sendError}</div>}
+                {sendMessage && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[10px] font-bold leading-5 text-emerald-700">{sendMessage}</div>}
+
+                <button type="button" onClick={submitDirectCreate} disabled={sending} className="mt-5 h-12 w-full rounded-2xl bg-violet-700 px-5 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  {sending ? "İdefix hazırlanıyor / gönderiliyor..." : "İdefix'e Gönder"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-[9px] font-black uppercase tracking-wide text-slate-500">Otomatik Motor</div>
+                <div className="mt-3 space-y-2 text-[9px] font-semibold leading-5 text-slate-600">
+                  <div className="rounded-xl bg-white px-3 py-2">✓ CNET barkod / SKU / productMainId otomatik</div>
+                  <div className="rounded-xl bg-white px-3 py-2">✓ İdefix brand + kategori referansı otomatik</div>
+                  <div className="rounded-xl bg-white px-3 py-2">✓ Renk / zorunlu attribute otomatik</div>
+                  <div className="rounded-xl bg-white px-3 py-2">✓ Aynı renk görsel N11 / İkas / İdefix'ten otomatik</div>
+                  <div className="rounded-xl bg-white px-3 py-2">✓ Güvenli matchedProduct ise otomatik approve</div>
+                  <div className="rounded-xl bg-white px-3 py-2">✓ Canlı envanter görünmeden SATIŞTA yazmaz</div>
+                </div>
+
+                {directPreview && (
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-violet-100 bg-white">
+                    {directPreview.imageUrl ? (
+                      <div className="flex h-40 items-center justify-center bg-white p-3"><img src={directPreview.imageUrl} alt={directPreview.title || "İdefix ürün görseli"} className="max-h-full max-w-full object-contain" /></div>
+                    ) : (
+                      <div className="flex h-24 items-center justify-center text-3xl">📱</div>
+                    )}
+                    <div className="border-t border-slate-100 p-3">
+                      <div className="text-[9px] font-black text-slate-900">{directPreview.title || "Ürün önizleme"}</div>
+                      <div className="mt-2 space-y-1 text-[8px] font-semibold text-slate-500">
+                        <div>Görsel: {directPreview.imageReady ? "Hazır ✓" : "Bulunamadı"}</div>
+                        <div>Attribute: {Number(directPreview.attributeCount || 0)}</div>
+                        <div>Brand ID: {text(directPreview.brandId) || "-"}</div>
+                        <div>Kategori ID: {text(directPreview.categoryId) || "-"}</div>
+                        <div className="break-all">CNET Barkod: {directPreview.barcode || "-"}</div>
+                        <div className="break-all">CNET SKU: {directPreview.vendorStockCode || "-"}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
