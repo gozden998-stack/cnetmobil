@@ -613,11 +613,36 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// ======================================================
+// VODAFONE MAĞAZA IP'LERİ
+// Yarın 4 IP geldiğinde aşağıdaki diziye sadece gerçek IP'leri ekle.
+// Dizi boşken mevcut Vodafone erişimi bozulmaz.
+// Diziye IP girildiği anda Vodafone personel erişimi SADECE bu IP'lerden olur.
+// ======================================================
+const VODAFONE_IPLER = [
+  // "1.2.3.4",   // Vodafone Mağaza 1
+  // "1.2.3.5",   // Vodafone Mağaza 2
+  // "1.2.3.6",   // Vodafone Mağaza 3
+  // "1.2.3.7",   // Vodafone Mağaza 4
+];
+
 // Bayi/partner erişimi için mevcut teknik şube anahtarını değiştirmiyoruz.
 // Böylece mevcut kullanıcılar, fiyat mantığı ve ekran yetkileri bozulmaz.
 // Kullanıcıya görünen isim aşağıda CNETMOBIL PARTNER olarak değiştirilir.
 const PARTNER_BRANCH_KEY = "ZUMAY KANALI";
 const PARTNER_DISPLAY_NAME = "CNETMOBIL PARTNER";
+
+function personelIpYetkili(branch: string, currentIp: string) {
+  if (MASTER_IPLER.includes(currentIp)) return true;
+
+  if (branch === PARTNER_BRANCH_KEY) return true;
+
+  if (branch === 'VODAFONE KANALI') {
+    return VODAFONE_IPLER.length === 0 || VODAFONE_IPLER.includes(currentIp);
+  }
+
+  return IP_HARITASI[currentIp] === branch;
+}
 
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
@@ -873,7 +898,7 @@ export default function CnetmobilCmrFinalUltimate() {
         if (session.role === 'personel') {
           const branch = String(session.branch || '');
 
-          if (branch === 'VODAFONE KANALI' || branch === PARTNER_BRANCH_KEY) {
+          if (branch === PARTNER_BRANCH_KEY) {
             setSelectedBranch(branch);
             setIsMasterAccess(false);
             setIsAdmin(false);
@@ -887,7 +912,7 @@ export default function CnetmobilCmrFinalUltimate() {
           const ipData = await ipRes.json();
           const currentIp = ipData.ip;
 
-          if (MASTER_IPLER.includes(currentIp) || IP_HARITASI[currentIp] === branch) {
+          if (personelIpYetkili(branch, currentIp)) {
             setSelectedBranch(branch);
             setIsMasterAccess(false);
             setIsAdmin(false);
@@ -980,10 +1005,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      if (
-        matchedBranch === 'VODAFONE KANALI' ||
-        matchedBranch === PARTNER_BRANCH_KEY
-      ) {
+      if (matchedBranch === PARTNER_BRANCH_KEY) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsAdmin(false);
@@ -998,10 +1020,7 @@ export default function CnetmobilCmrFinalUltimate() {
       const ipData = await ipRes.json();
       const currentIp = ipData.ip;
 
-      if (
-        MASTER_IPLER.includes(currentIp) ||
-        IP_HARITASI[currentIp] === matchedBranch
-      ) {
+      if (personelIpYetkili(matchedBranch, currentIp)) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsAdmin(false);
@@ -1010,9 +1029,13 @@ export default function CnetmobilCmrFinalUltimate() {
         setEntryPass('');
       } else {
         await fetch('/api/auth', { method: 'DELETE' });
-        alert(
-          `GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`
-        );
+
+        const guvenlikMesaji =
+          matchedBranch === 'VODAFONE KANALI'
+            ? `GÜVENLİK UYARISI: Vodafone Kanalı kullanıcısı yalnızca yetkili Vodafone mağaza Wi-Fi ağlarından giriş yapabilir. (IP: ${currentIp})`
+            : `GÜVENLİK UYARISI: Bu mağazanın Wi-Fi ağına bağlanın! (IP: ${currentIp})`;
+
+        alert(guvenlikMesaji);
       }
     } catch (error) {
       console.error('Login hatası:', error);
@@ -3425,24 +3448,6 @@ export default function CnetmobilCmrFinalUltimate() {
                         </button>
                       </div>
 
-                      <div className="mt-5 flex flex-col gap-3 rounded-[18px] border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
-                            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 3v5c0 4.4-2.8 8.1-7 10-4.2-1.9-7-5.6-7-10V6l7-3z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-black text-slate-900">
-                              CNETMOBIL Partner erişimi
-                            </div>
-                            <div className="text-xs font-medium text-slate-500">
-                              Partner hesabınız e-posta ve şifreyle çalışır; mağaza IP kısıtları aynen korunur.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                     </section>
                  </div>
               ) : (
