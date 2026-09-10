@@ -613,6 +613,12 @@ const MASTER_IPLER = [
   "148.0.18.162"
 ];
 
+// Bayi/partner erişimi için mevcut teknik şube anahtarını değiştirmiyoruz.
+// Böylece mevcut kullanıcılar, fiyat mantığı ve ekran yetkileri bozulmaz.
+// Kullanıcıya görünen isim aşağıda CNETMOBIL PARTNER olarak değiştirilir.
+const PARTNER_BRANCH_KEY = "ZUMAY KANALI";
+const PARTNER_DISPLAY_NAME = "CNETMOBIL PARTNER";
+
 export default function CnetmobilCmrFinalUltimate() {
   const [authLoading, setAuthLoading] = useState(true); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -786,7 +792,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" },
     { name: "VODAFONE KANALI", phone: "905425420000" },
-    { name: "ZUMAY KANALI", phone: "905000000000" }
+    { name: PARTNER_BRANCH_KEY, phone: "905000000000" }
   ];
 
   const brandAssets: any = {
@@ -800,7 +806,10 @@ export default function CnetmobilCmrFinalUltimate() {
     "Macbook": { logo: "https://www.freeiconspng.com/thumbs/laptop-icon/apple-laptop-icon-14.png" }
   };
 
-  const isZumay = selectedBranch === 'ZUMAY KANALI';
+  // isZumay adı child component uyumluluğu için korunuyor.
+  // İşlevsel olarak artık CNETMOBIL PARTNER kanalını temsil ediyor.
+  const isZumay = selectedBranch === PARTNER_BRANCH_KEY;
+  const visibleBranchName = isZumay ? PARTNER_DISPLAY_NAME : selectedBranch;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -864,7 +873,7 @@ export default function CnetmobilCmrFinalUltimate() {
         if (session.role === 'personel') {
           const branch = String(session.branch || '');
 
-          if (branch === 'VODAFONE KANALI' || branch === 'ZUMAY KANALI') {
+          if (branch === 'VODAFONE KANALI' || branch === PARTNER_BRANCH_KEY) {
             setSelectedBranch(branch);
             setIsMasterAccess(false);
             setIsAdmin(false);
@@ -973,7 +982,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
       if (
         matchedBranch === 'VODAFONE KANALI' ||
-        matchedBranch === 'ZUMAY KANALI'
+        matchedBranch === PARTNER_BRANCH_KEY
       ) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
@@ -1479,7 +1488,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
       let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
-      if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === 'ZUMAY KANALI') {
+      if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === PARTNER_BRANCH_KEY) {
           finalCash = Math.round(finalCash * 0.92);
       }
 
@@ -1595,7 +1604,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ? `💰 *NAKİT ALIM:* ${finalCashPrice.toLocaleString()} TL` 
           : `🔄 *TAKAS ALIM:* ${finalTradePrice.toLocaleString()} TL`;
           
-      const message = `📱 *${isZumay ? 'ZUMAY' : 'CMR'} CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A${priceText}`;
+      const message = `📱 *${isZumay ? 'CNETMOBIL PARTNER' : 'CMR'} CİHAZ ALIM FORMU*%0A👤 *Müşteri:* ${customer.name}%0A🆔 *IMEI:* ${customer.imei}%0A📦 *Cihaz:* ${selectedModelName} (${selectedCapacity?.cap})${colorLabel}%0A${priceText}`;
       
       window.open(`https://wa.me/${branch?.phone}?text=${message}`, '_blank');
     }
@@ -1878,14 +1887,16 @@ export default function CnetmobilCmrFinalUltimate() {
       );
     }).length;
 
-  const branchInitials = String(selectedBranch || 'CMR')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0))
-    .join('')
-    .toLocaleUpperCase('tr-TR')
-    .slice(0, 2);
+  const branchInitials = isZumay
+    ? 'CP'
+    : String(selectedBranch || 'CMR')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0))
+        .join('')
+        .toLocaleUpperCase('tr-TR')
+        .slice(0, 2);
 
   const navIcon = (id: string) => {
     const common = "h-4 w-4";
@@ -2456,7 +2467,7 @@ export default function CnetmobilCmrFinalUltimate() {
       <header
         className={`sticky top-0 z-[100] w-full print:hidden ${
           isZumay
-            ? 'bg-gradient-to-r from-[#241719] via-[#301c20] to-[#241719]'
+            ? 'bg-gradient-to-r from-[#0f2748] via-[#174a7e] to-[#0f2748]'
             : 'bg-gradient-to-r from-[#10233f] via-[#15345d] to-[#10233f]'
         } shadow-[0_10px_30px_rgba(15,23,42,0.22)]`}
       >
@@ -2473,14 +2484,19 @@ export default function CnetmobilCmrFinalUltimate() {
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10 transition group-hover:bg-white/15">
                 <span className="text-sm font-black text-white">
-                  {isZumay ? 'Z' : 'CM'}
+                  {isZumay ? 'CP' : 'CM'}
                 </span>
               </div>
 
               <div className="hidden sm:block">
                 <div className="text-[22px] font-black leading-none tracking-tight text-white">
                   {isZumay ? (
-                    'ZUMAY'
+                    <>
+                      Cnet<span className="text-blue-300">mobil</span>
+                      <span className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
+                        Partner
+                      </span>
+                    </>
                   ) : (
                     <>
                       Cnet
@@ -2561,13 +2577,13 @@ export default function CnetmobilCmrFinalUltimate() {
                     >
                       {branches.map((b) => (
                         <option key={b.name} value={b.name} className="text-slate-900">
-                          {b.name}
+                          {b.name === PARTNER_BRANCH_KEY ? PARTNER_DISPLAY_NAME : b.name}
                         </option>
                       ))}
                     </select>
                   ) : (
                     <div className="truncate text-[10px] font-black text-white">
-                      {selectedBranch}
+                      {visibleBranchName}
                     </div>
                   )}
 
@@ -3315,15 +3331,15 @@ export default function CnetmobilCmrFinalUltimate() {
           {appMode === 'ana_sayfa' && step < 99 ? (
               isZumay ? (
                  <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in zoom-in duration-500 px-4">
-                    <div className="w-24 h-24 bg-red-600 rounded-3xl flex items-center justify-center shadow-xl shadow-red-500/20 text-white text-5xl font-black italic">Z</div>
+                    <div className="w-24 h-24 bg-blue-600 rounded-3xl flex items-center justify-center shadow-xl shadow-blue-500/20 text-white text-3xl font-black italic">CP</div>
                     <h2 className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-800 uppercase text-center">
-                       ZUMAY <span className="text-red-600">BAYİ PORTALI</span>
+                       CNETMOBIL <span className="text-blue-600">PARTNER</span>
                     </h2>
                     <p className="text-slate-500 font-bold tracking-widest uppercase text-xs text-center max-w-md">
                        Cihaz alım ve dış kanal satın alma işlemlerinizi üst menüden yönetebilirsiniz.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full sm:w-auto">
-                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-red-600 hover:bg-red-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-red-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-red-500">
+                       <button onClick={() => {setAppMode('alim'); setStep(1);}} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all active:scale-95 text-xs sm:text-sm border border-blue-500">
                           CİHAZ ALIMI YAP
                        </button>
                        <button onClick={() => {setAppMode('dis_kanal'); setStep(1);}} className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-8 py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200/50 transition-all active:scale-95 text-xs sm:text-sm">
@@ -3816,7 +3832,7 @@ export default function CnetmobilCmrFinalUltimate() {
       </div>
 
       <footer className="mt-auto w-full border-t border-slate-200 py-6 text-center print:hidden bg-transparent">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'ZUMAY BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
+         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'CNETMOBIL PARTNER • BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
 
       {/* TOAST BİLDİRİMLERİ */}
@@ -4129,14 +4145,14 @@ export default function CnetmobilCmrFinalUltimate() {
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px'}}>
               <div>
                 <h1 style={{fontSize:'36px', fontWeight:'900', fontStyle:'italic', margin:0, letterSpacing:'-2px'}}>
-                  {isZumay ? <span style={{color:'#dc2626'}}>ZUMAY</span> : <>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></>}
+                  {isZumay ? <><span style={{color:'#111827'}}>CNETMOBIL</span> <span style={{color:'#2563eb'}}>PARTNER</span></> : <>CNETMOBIL <span style={{color:'#2563eb'}}>CMR</span></>}
                 </h1>
                 <p style={{fontSize:'10px', fontWeight:'bold', textTransform:'uppercase', margin:0, color:'#666', letterSpacing:'1px'}}>
-                  {isZumay ? 'Zumay Cihaz Alım Formu' : 'Kurumsal Cihaz Alim Merkezi'}
+                  {isZumay ? 'CnetMobil Partner Cihaz Alım Formu' : 'Kurumsal Cihaz Alim Merkezi'}
                 </p>
               </div>
               <div style={{textAlign:'right', fontSize:'10px', fontWeight:'bold'}}>
-                <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{selectedBranch}</p>
+                <p style={{fontSize:'16px', fontWeight:'900', textTransform:'uppercase', margin:0}}>{visibleBranchName}</p>
                 <p style={{color:'#666'}}>{new Date().toLocaleDateString('tr-TR')} - {new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})}</p>
               </div>
             </div>
@@ -4195,7 +4211,7 @@ export default function CnetmobilCmrFinalUltimate() {
             
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'100px', textAlign:'center'}}>
               <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>Müşteri İmza</div>
-              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>{isZumay ? 'ZUMAY YETKİLİ' : 'CNETMOBIL YETKİLİ'}</div>
+              <div style={{borderTop:'2px solid black', paddingTop:'10px', fontWeight:'900', fontSize:'12px', textTransform:'uppercase', fontStyle:'italic'}}>{isZumay ? 'CNETMOBIL PARTNER YETKİLİ' : 'CNETMOBIL YETKİLİ'}</div>
             </div>
         </div>
       )}
