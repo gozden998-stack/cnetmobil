@@ -12,12 +12,21 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// ======================================================
+// ID
+// ======================================================
+
 function getId(params: any) {
   const id = Number(params?.id);
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
     throw Object.assign(
-      new Error("İhale numarası geçersiz."),
+      new Error(
+        "İhale numarası geçersiz."
+      ),
       {
         status: 400,
       }
@@ -26,6 +35,10 @@ function getId(params: any) {
 
   return id;
 }
+
+// ======================================================
+// GET
+// ======================================================
 
 export async function GET(
   request: Request,
@@ -37,9 +50,13 @@ export async function GET(
 ) {
   try {
     const session =
-      await getAuctionSession(request);
+      await getAuctionSession(
+        request
+      );
 
-    ensureAuctionAccess(session);
+    ensureAuctionAccess(
+      session
+    );
 
     await closeExpiredAuctions();
 
@@ -54,6 +71,10 @@ export async function GET(
     const pool =
       getAuctionPool();
 
+    // ==================================================
+    // İHALE
+    // ==================================================
+
     const auctionResult =
       await pool.query(
         `
@@ -63,25 +84,35 @@ export async function GET(
             COALESCE(
               (
                 SELECT MAX(b.amount)
+
                 FROM public.auction_bids b
-                WHERE b.auction_id = a.id
+
+                WHERE
+                  b.auction_id = a.id
               ),
+
               a.starting_price
             ) AS current_price,
 
             (
               SELECT COUNT(*)::int
+
               FROM public.auction_bids b
-              WHERE b.auction_id = a.id
+
+              WHERE
+                b.auction_id = a.id
             ) AS bid_count
 
           FROM public.auctions a
 
-          WHERE a.id = $1
+          WHERE
+            a.id = $1
 
           LIMIT 1
         `,
-        [auctionId]
+        [
+          auctionId,
+        ]
       );
 
     const auction =
@@ -98,13 +129,30 @@ export async function GET(
       );
     }
 
+    // ==================================================
+    // ERİŞİM
+    // ==================================================
+
     if (
-      !session.isAdmin &&
-      (
+      !session.isSuperAdmin
+    ) {
+      if (
         !auctionScopeAllowed(
           auction.channel_scope,
           session.channel
-        ) ||
+        )
+      ) {
+        throw Object.assign(
+          new Error(
+            "Bu ihaleye erişim yetkiniz yok."
+          ),
+          {
+            status: 403,
+          }
+        );
+      }
+
+      if (
         ![
           "LIVE",
           "PAUSED",
@@ -112,83 +160,194 @@ export async function GET(
         ].includes(
           auction.status
         )
-      )
-    ) {
-      throw Object.assign(
-        new Error(
-          "Bu ihaleye erişim yetkiniz yok."
-        ),
-        {
-          status: 403,
-        }
-      );
+      ) {
+        throw Object.assign(
+          new Error(
+            "Bu ihale şu anda görüntülenemez."
+          ),
+          {
+            status: 403,
+          }
+        );
+      }
     }
 
-    const bidsResult =
-      session.isAdmin
-        ? await pool.query(
-            `
-              SELECT
-                id,
-                auction_id,
-                anonymous_code,
-                amount,
-                bidder_user_id,
-                bidder_name,
-                bidder_branch,
-                created_at
+    // ==================================================
+    // TEKLİFLER
+    // ==================================================
+    // SUPER ADMIN:
+    // isim + mağaza + gerçek kullanıcı bilgisi
+    //
+    // NORMAL YÖNETİCİ / PERSONEL:
+    // SADECE Teklif #01 + fiyat
+    // ==================================================
 
-              FROM public.auction_bids
+    let bids: any[] = [];
 
-              WHERE auction_id = $1
+    if (
+      session.isSuperAdmin
+    ) {
+      const bidsResult =
+        await pool.query(
+          `
+            SELECT
+              id,
+              auction_id,
+              anonymous_code,
+              amount,
 
-              ORDER BY
-                amount DESC,
-                created_at ASC
+              bidder_user_id,
+              bidder_name,
+              bidder_branch,
 
-              LIMIT 300
-            `,
-            [auctionId]
-          )
-        : await pool.query(
-            `
-              SELECT
-                id,
-                auction_id,
-                anonymous_code,
-                amount,
-                created_at,
+              created_at
 
-                (
-                  bidder_user_id = $2
-                ) AS is_mine
+            FROM public.auction_bids
 
-              FROM public.auction_bids
+            WHERE
+              auction_id = $1
 
-              WHERE auction_id = $1
+            ORDER BY
+              amount DESC,
+              created_at ASC
 
-              ORDER BY
-                amount DESC,
-                created_at ASC
+            LIMIT 500
+          `,
+          [
+            auctionId,
+          ]
+        );
 
-              LIMIT 300
-            `,
-            [
-              auctionId,
-              session.userKey,
-            ]
-          );
+      bids =
+        bidsResult.rows;
+    } else {
+      const bidsResult =
+        await pool.query(
+          `
+            SELECT
+              id,
+              auction_id,
+              anonymous_code,
+              amount,
+              created_at,
+
+              (
+                bidder_user_id = $2
+              ) AS is_mine
+
+            FROM public.auction_bids
+
+            WHERE
+              auction_id = $1
+
+            ORDER BY
+              amount DESC,
+              created_at ASC
+
+            LIMIT 500
+          `,
+          [
+            auctionId,
+            session.userKey,
+          ]
+        );
+
+      bids =
+        bidsResult.rows;
+    }
+
+    // ==================================================
+    // AUCTION RESPONSE
+    // ==================================================
+    // Normal kullanıcıya winner_user_id,
+    // winner_branch,
+    // created_by_user_id gibi kimlik alanlarını
+    // göndermiyoruz.
+    // ==================================================
+
+    const publicAuction =
+      session.isSuperAdmin
+        ? auction
+        : {
+            id:
+              auction.id,
+
+            title:
+              auction.title,
+
+            item_name:
+              auction.item_name,
+
+            item_description:
+              auction.item_description,
+
+            item_image_url:
+              auction.item_image_url,
+
+            channel_scope:
+              auction.channel_scope,
+
+            starting_price:
+              auction.starting_price,
+
+            min_increment:
+              auction.min_increment,
+
+            duration_minutes:
+              auction.duration_minutes,
+
+            status:
+              auction.status,
+
+            starts_at:
+              auction.starts_at,
+
+            ends_at:
+              auction.ends_at,
+
+            paused_at:
+              auction.paused_at,
+
+            winning_amount:
+              auction.winning_amount,
+
+            winner_bid_id:
+              auction.winner_bid_id,
+
+            current_price:
+              auction.current_price,
+
+            bid_count:
+              auction.bid_count,
+
+            created_at:
+              auction.created_at,
+
+            updated_at:
+              auction.updated_at,
+          };
 
     return Response.json(
       {
         ok: true,
-        auction,
-        bids:
-          bidsResult.rows,
+
+        auction:
+          publicAuction,
+
+        bids,
 
         session: {
           isAdmin:
-            session.isAdmin,
+            session.isSuperAdmin,
+
+          isSuperAdmin:
+            session.isSuperAdmin,
+
+          isManager:
+            session.isManager,
+
+          roleCode:
+            session.roleCode,
 
           branch:
             session.branch,
@@ -205,9 +364,25 @@ export async function GET(
       }
     );
   } catch (error) {
-    return apiError(error);
+    return apiError(
+      error
+    );
   }
 }
+
+// ======================================================
+// PATCH
+// ======================================================
+// START
+// PAUSE
+// RESUME
+// EXTEND
+// END
+// CANCEL
+// SELECT_WINNER
+//
+// SADECE SUPER ADMIN
+// ======================================================
 
 export async function PATCH(
   request: Request,
@@ -219,9 +394,13 @@ export async function PATCH(
 ) {
   try {
     const session =
-      await getAuctionSession(request);
+      await getAuctionSession(
+        request
+      );
 
-    ensureAdmin(session);
+    ensureAdmin(
+      session
+    );
 
     const params =
       await Promise.resolve(
@@ -234,11 +413,14 @@ export async function PATCH(
     const body =
       await request
         .json()
-        .catch(() => ({}));
+        .catch(
+          () => ({})
+        );
 
     const action =
       String(
-        body?.action || ""
+        body?.action ||
+          ""
       )
         .trim()
         .toUpperCase();
@@ -258,11 +440,16 @@ export async function PATCH(
         await client.query(
           `
             SELECT *
+
             FROM public.auctions
+
             WHERE id = $1
+
             FOR UPDATE
           `,
-          [auctionId]
+          [
+            auctionId,
+          ]
         );
 
       const auction =
@@ -279,18 +466,27 @@ export async function PATCH(
         );
       }
 
-      let eventType = "";
-      let newValue: any = {};
+      let eventType =
+        "";
 
-      let updateSql = "";
-      let updateParams: any[] =
-        [auctionId];
+      let newValue: any =
+        {};
 
-      // =========================
-      // BAŞLAT
-      // =========================
+      let updateSql =
+        "";
+
+      let updateParams:
+        any[] = [
+        auctionId,
+      ];
+
+      // ==================================================
+      // START
+      // ==================================================
+
       if (
-        action === "START"
+        action ===
+        "START"
       ) {
         if (
           auction.status !==
@@ -346,11 +542,13 @@ export async function PATCH(
         );
       }
 
-      // =========================
-      // DURAKLAT
-      // =========================
+      // ==================================================
+      // PAUSE
+      // ==================================================
+
       else if (
-        action === "PAUSE"
+        action ===
+        "PAUSE"
       ) {
         if (
           auction.status !==
@@ -378,9 +576,7 @@ export async function PATCH(
 
           SET
             status = 'PAUSED',
-
             paused_at = NOW(),
-
             updated_at = NOW()
 
           WHERE id = $1
@@ -389,11 +585,13 @@ export async function PATCH(
         `;
       }
 
-      // =========================
-      // DEVAM ET
-      // =========================
+      // ==================================================
+      // RESUME
+      // ==================================================
+
       else if (
-        action === "RESUME"
+        action ===
+        "RESUME"
       ) {
         if (
           auction.status !==
@@ -455,11 +653,13 @@ export async function PATCH(
         `;
       }
 
-      // =========================
-      // SÜRE UZAT
-      // =========================
+      // ==================================================
+      // EXTEND
+      // ==================================================
+
       else if (
-        action === "EXTEND"
+        action ===
+        "EXTEND"
       ) {
         if (
           ![
@@ -491,11 +691,11 @@ export async function PATCH(
             minutes
           ) ||
           minutes < 1 ||
-          minutes > 180
+          minutes > 4320
         ) {
           throw Object.assign(
             new Error(
-              "Uzatma süresi 1-180 dakika arasında olmalıdır."
+              "Uzatma süresi 1 dakika ile 72 saat arasında olmalıdır."
             ),
             {
               status: 400,
@@ -536,11 +736,13 @@ export async function PATCH(
         );
       }
 
-      // =========================
-      // İHALEYİ BİTİR
-      // =========================
+      // ==================================================
+      // END
+      // ==================================================
+
       else if (
-        action === "END"
+        action ===
+        "END"
       ) {
         if (
           ![
@@ -564,7 +766,8 @@ export async function PATCH(
           "ENDED";
 
         newValue = {
-          ended_manually: true,
+          ended_manually:
+            true,
         };
 
         updateSql = `
@@ -581,6 +784,7 @@ export async function PATCH(
                   ends_at,
                   NOW()
                 ),
+
                 NOW()
               ),
 
@@ -592,11 +796,13 @@ export async function PATCH(
         `;
       }
 
-      // =========================
-      // İPTAL
-      // =========================
+      // ==================================================
+      // CANCEL
+      // ==================================================
+
       else if (
-        action === "CANCEL"
+        action ===
+        "CANCEL"
       ) {
         if (
           auction.status ===
@@ -612,11 +818,26 @@ export async function PATCH(
           );
         }
 
+        if (
+          auction.status ===
+          "ENDED"
+        ) {
+          throw Object.assign(
+            new Error(
+              "Bitmiş ihale iptal edilemez."
+            ),
+            {
+              status: 409,
+            }
+          );
+        }
+
         eventType =
           "CANCELLED";
 
         newValue = {
-          cancelled: true,
+          cancelled:
+            true,
         };
 
         updateSql = `
@@ -624,9 +845,7 @@ export async function PATCH(
 
           SET
             status = 'CANCELLED',
-
             paused_at = NULL,
-
             updated_at = NOW()
 
           WHERE id = $1
@@ -635,9 +854,10 @@ export async function PATCH(
         `;
       }
 
-      // =========================
-      // KAZANAN SEÇ
-      // =========================
+      // ==================================================
+      // SELECT WINNER
+      // ==================================================
+
       else if (
         action ===
         "SELECT_WINNER"
@@ -681,6 +901,7 @@ export async function PATCH(
           await client.query(
             `
               SELECT *
+
               FROM public.auction_bids
 
               WHERE
@@ -719,9 +940,6 @@ export async function PATCH(
           anonymous_code:
             bid.anonymous_code,
 
-          bidder_branch:
-            bid.bidder_branch,
-
           amount:
             bid.amount,
         };
@@ -753,9 +971,10 @@ export async function PATCH(
         );
       }
 
-      // =========================
-      // GEÇERSİZ İŞLEM
-      // =========================
+      // ==================================================
+      // INVALID ACTION
+      // ==================================================
+
       else {
         throw Object.assign(
           new Error(
@@ -775,6 +994,10 @@ export async function PATCH(
 
       const updatedAuction =
         updated.rows[0];
+
+      // ==================================================
+      // EVENT LOG
+      // ==================================================
 
       await client.query(
         `
@@ -800,9 +1023,13 @@ export async function PATCH(
         `,
         [
           auctionId,
+
           eventType,
+
           session.userKey,
+
           session.userName,
+
           session.branch,
 
           JSON.stringify({
@@ -829,6 +1056,7 @@ export async function PATCH(
       return Response.json(
         {
           ok: true,
+
           auction:
             updatedAuction,
         },
@@ -849,6 +1077,161 @@ export async function PATCH(
       client.release();
     }
   } catch (error) {
-    return apiError(error);
+    return apiError(
+      error
+    );
+  }
+}
+
+// ======================================================
+// DELETE
+// ======================================================
+// SADECE SUPER ADMIN
+//
+// Sadece:
+// ENDED
+// CANCELLED
+//
+// LIVE ihale yanlışlıkla silinemez.
+// ======================================================
+
+export async function DELETE(
+  request: Request,
+  context: {
+    params:
+      | Promise<{ id: string }>
+      | { id: string };
+  }
+) {
+  try {
+    const session =
+      await getAuctionSession(
+        request
+      );
+
+    ensureAdmin(
+      session
+    );
+
+    const params =
+      await Promise.resolve(
+        context.params
+      );
+
+    const auctionId =
+      getId(params);
+
+    const pool =
+      getAuctionPool();
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      const result =
+        await client.query(
+          `
+            SELECT
+              id,
+              title,
+              status
+
+            FROM public.auctions
+
+            WHERE id = $1
+
+            FOR UPDATE
+          `,
+          [
+            auctionId,
+          ]
+        );
+
+      const auction =
+        result.rows[0];
+
+      if (!auction) {
+        throw Object.assign(
+          new Error(
+            "İhale bulunamadı."
+          ),
+          {
+            status: 404,
+          }
+        );
+      }
+
+      if (
+        ![
+          "ENDED",
+          "CANCELLED",
+        ].includes(
+          auction.status
+        )
+      ) {
+        throw Object.assign(
+          new Error(
+            "Sadece bitmiş veya iptal edilmiş ihale silinebilir."
+          ),
+          {
+            status: 409,
+          }
+        );
+      }
+
+      await client.query(
+        `
+          DELETE FROM public.auctions
+
+          WHERE id = $1
+        `,
+        [
+          auctionId,
+        ]
+      );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return Response.json(
+        {
+          ok: true,
+
+          message:
+            "İhale kalıcı olarak silindi.",
+
+          deletedAuction: {
+            id:
+              auction.id,
+
+            title:
+              auction.title,
+          },
+        },
+        {
+          headers: {
+            "Cache-Control":
+              "no-store",
+          },
+        }
+      );
+    } catch (error) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    return apiError(
+      error
+    );
   }
 }
