@@ -292,8 +292,8 @@ function formatDate(value: string | null | undefined) {
 }
 
 function getStatusBadge(
-  _productStatus: string | null,
-  _saleStatus: string | null,
+  productStatus: string | null,
+  saleStatus: string | null,
   quantity: number,
   syncStatus: string | null
 ) {
@@ -323,7 +323,21 @@ function getStatusBadge(
     };
   }
 
-  if (quantity > 0) {
+  const normalizedProductStatus =
+    String(productStatus || "")
+      .trim()
+      .toUpperCase();
+
+  const normalizedSaleStatus =
+    String(saleStatus || "")
+      .trim()
+      .toUpperCase();
+
+  if (
+    normalizedProductStatus === "ACTIVE" &&
+    normalizedSaleStatus === "ON_SALE" &&
+    quantity > 0
+  ) {
     return {
       label: "Yayında",
       className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
@@ -1546,26 +1560,61 @@ export default function Online() {
     };
   }, [pendingN11Listings, loadData]);
 
+  const isTrueN11OnSale = useCallback(
+    (item: OnlineListing) => {
+      const productStatus =
+        String(
+          item.product_status || ""
+        )
+          .trim()
+          .toUpperCase();
+
+      const saleStatus =
+        String(
+          item.sale_status || ""
+        )
+          .trim()
+          .toUpperCase();
+
+      const syncStatus =
+        String(
+          item.sync_status || ""
+        )
+          .trim()
+          .toUpperCase();
+
+      return (
+        Boolean(item.external_product_id) &&
+        syncStatus === "SYNCED" &&
+        productStatus === "ACTIVE" &&
+        saleStatus === "ON_SALE" &&
+        Number(item.quantity || 0) > 0
+      );
+    },
+    []
+  );
+
   const openListings = useMemo(
     () =>
       listings.filter(
-        (item) =>
-          Boolean(item.external_product_id) &&
-          item.sync_status === "SYNCED" &&
-          Number(item.quantity || 0) > 0
+        isTrueN11OnSale
       ),
-    [listings]
+    [
+      listings,
+      isTrueN11OnSale,
+    ]
   );
 
   const closedListings = useMemo(
     () =>
       listings.filter(
         (item) =>
-          !item.external_product_id ||
-          item.sync_status !== "SYNCED" ||
-          Number(item.quantity || 0) <= 0
+          !isTrueN11OnSale(item)
       ),
-    [listings]
+    [
+      listings,
+      isTrueN11OnSale,
+    ]
   );
 
   const openDeviceCount = useMemo(
