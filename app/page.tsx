@@ -2617,7 +2617,35 @@ export default function CnetmobilCmrFinalUltimate() {
               </div>
             </button>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {!isZumay && step < 99 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsInstallmentModalOpen(true)}
+                    aria-label="Taksit Hesapla"
+                    title="Taksit Hesapla"
+                    className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-950/10 transition active:scale-95 md:hidden"
+                  >
+                    <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsKaskoModalOpen(true)}
+                    aria-label="Kasko Hesapla"
+                    title="Kasko Hesapla"
+                    className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-950/10 transition active:scale-95 md:hidden"
+                  >
+                    <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </button>
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
@@ -3487,6 +3515,54 @@ export default function CnetmobilCmrFinalUltimate() {
             </div>
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4">
+              {!isZumay && step < 99 && (
+                <section className="mb-5">
+                  <div className="mb-2 px-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    Hızlı Araçlar
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setIsInstallmentModalOpen(true);
+                      }}
+                      className="flex min-h-[68px] items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 text-left transition active:scale-[0.98]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[11px] font-black text-amber-800">TAKSİT</span>
+                        <span className="mt-0.5 block text-[9px] font-semibold text-amber-700/70">Hesapla</span>
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setIsKaskoModalOpen(true);
+                      }}
+                      className="flex min-h-[68px] items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-3 text-left transition active:scale-[0.98]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[11px] font-black text-violet-800">KASKO</span>
+                        <span className="mt-0.5 block text-[9px] font-semibold text-violet-700/70">Hesapla</span>
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              )}
+
               {step === 99 ? (
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
