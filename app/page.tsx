@@ -15,6 +15,7 @@ import Online from './components/screens/Online/Online';
 import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
+import Ihale from './components/screens/Ihale/Ihale';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -667,7 +668,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -692,6 +693,7 @@ export default function CnetmobilCmrFinalUltimate() {
       'kampanya_sifir',
       'thh',
       'cihaz_talep',
+      'ihale',
     ];
 
     if (requestedMode && allowedModes.includes(requestedMode)) {
@@ -1877,6 +1879,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ]
         },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
+        { id: 'ihale', label: 'Mağazalar Arası İhale', visible: !isZumay && (isAdmin || isMasterAccess || selectedBranch.startsWith('CMR') || selectedBranch === 'VODAFONE KANALI') },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
       ]
@@ -1983,6 +1986,12 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 005-5l-3 3-3-3 3-3z" />
+          </svg>
+        );
+      case 'ihale':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.5 4.5l5 5m-9-1l5 5m-8.5 2L4 18.5 5.5 20 8.5 17M9 10l5.5-5.5 5 5L14 15l-5-5zm-5 10h10" />
           </svg>
         );
       case 'thh':
@@ -3895,7 +3904,8 @@ export default function CnetmobilCmrFinalUltimate() {
               appMode === 'online' ||
               appMode === 'merkez' ||
               appMode === 'ikas' ||
-              appMode === 'idefix') &&
+              appMode === 'idefix' ||
+              appMode === 'ihale') &&
             step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
               : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
@@ -4370,6 +4380,13 @@ export default function CnetmobilCmrFinalUltimate() {
               refreshDataCache={refreshDataCache}
               sheetFetchedAtRef={sheetFetchedAtRef}
               loadSheetsForCurrentScreen={loadSheetsForCurrentScreen}
+            />
+          ) :
+
+          appMode === 'ihale' && step < 99 ? (
+            <Ihale
+              isAdmin={Boolean(isAdmin || isMasterAccess)}
+              selectedBranch={selectedBranch}
             />
           ) :
 
