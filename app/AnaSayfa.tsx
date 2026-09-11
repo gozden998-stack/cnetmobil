@@ -1,10 +1,114 @@
 import React, { useEffect, useState } from 'react';
 
+type PriceNotificationItem = {
+    id: string;
+    key: string;
+    category: string;
+    name: string;
+    direction: 'up' | 'down';
+    oldPrice: number;
+    newPrice: number;
+    diff: number;
+    changedAt: number;
+    expiresAt: number;
+};
+
+const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v2';
+const PRICE_NOTIFICATION_EVENT = 'cnetmobil:price-notifications';
+const TEN_MINUTES = 10 * 60 * 1000;
+
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
+
+    // --- ANA SAYFA DUYURU / FIYAT BILDIRIM MERKEZI ---
+    const [homeInfoTab, setHomeInfoTab] = useState<'duyurular' | 'bildirimler'>('bildirimler');
+    const [priceNotifications, setPriceNotifications] = useState<PriceNotificationItem[]>([]);
+    const [selectedPriceNotification, setSelectedPriceNotification] = useState<PriceNotificationItem | null>(null);
+    const [notificationNow, setNotificationNow] = useState(Date.now());
+
+    useEffect(() => {
+        const loadStoredNotifications = () => {
+            try {
+                const raw = window.localStorage.getItem(PRICE_NOTIFICATION_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                setPriceNotifications(
+                    Array.isArray(parsed)
+                        ? parsed
+                            .filter((item: any) => item && typeof item.id === 'string')
+                            .sort((a: PriceNotificationItem, b: PriceNotificationItem) => b.changedAt - a.changedAt)
+                            .slice(0, 50)
+                        : []
+                );
+            } catch {
+                setPriceNotifications([]);
+            }
+        };
+
+        const handlePriceNotifications = (event: Event) => {
+            const customEvent = event as CustomEvent<PriceNotificationItem[]>;
+            const detail = Array.isArray(customEvent.detail) ? customEvent.detail : [];
+            setPriceNotifications(
+                [...detail]
+                    .sort((a, b) => b.changedAt - a.changedAt)
+                    .slice(0, 50)
+            );
+            setHomeInfoTab('bildirimler');
+        };
+
+        loadStoredNotifications();
+
+        window.addEventListener(
+            PRICE_NOTIFICATION_EVENT,
+            handlePriceNotifications as EventListener
+        );
+
+        const timer = window.setInterval(() => {
+            setNotificationNow(Date.now());
+        }, 30_000);
+
+        return () => {
+            window.removeEventListener(
+                PRICE_NOTIFICATION_EVENT,
+                handlePriceNotifications as EventListener
+            );
+            window.clearInterval(timer);
+        };
+    }, []);
+
+    const formatPriceTl = (value: number) =>
+        `${Math.round(Number(value) || 0).toLocaleString('tr-TR')} TL`;
+
+    const getPriceTimeLabel = (changedAt: number) => {
+        const diffMs = Math.max(0, notificationNow - Number(changedAt || 0));
+        const diffMin = Math.floor(diffMs / 60_000);
+
+        if (diffMin < 1) return 'Az önce';
+        if (diffMin < 60) return `${diffMin} dk önce`;
+
+        const diffHour = Math.floor(diffMin / 60);
+        if (diffHour < 24) return `${diffHour} sa önce`;
+
+        return new Date(changedAt).toLocaleString('tr-TR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const activeNewPriceCount = priceNotifications.filter(
+        (item) => Number(item.expiresAt || 0) > notificationNow
+    ).length;
+
+    const announcementItems = [
+        config?.Duyuru_Metni,
+        config?.Kampanya_Metni
+    ]
+        .map((item: any) => String(item || '').trim())
+        .filter(Boolean);
 
     const isCmr = selectedBranch.includes('CMR');
     const branchLower = selectedBranch.toLowerCase();
@@ -381,6 +485,288 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     <span>Veri Güncelleme: <strong className="text-slate-700 font-bold ml-1">{lastUpdatedDate || "Bilinmiyor"}</strong></span>
                 </div>
             </div>
+
+            {/* DUYURULAR / BILDIRIMLER - SABIT ANA SAYFA MERKEZI */}
+            <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm mb-8 overflow-hidden">
+                <div className="px-5 md:px-6 pt-5">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-100 pb-4">
+                        <div>
+                            <h2 className="text-base md:text-lg font-black text-slate-900 tracking-tight">
+                                Duyurular ve Bildirimler
+                            </h2>
+                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                Güncel duyurular ve son fiyat değişiklikleri
+                            </p>
+                        </div>
+
+                        <div className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 self-start md:self-auto">
+                            <button
+                                type="button"
+                                onClick={() => setHomeInfoTab('duyurular')}
+                                className={`px-4 py-2 rounded-lg text-[11px] font-black transition-all ${
+                                    homeInfoTab === 'duyurular'
+                                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Duyurular
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setHomeInfoTab('bildirimler')}
+                                className={`relative px-4 py-2 rounded-lg text-[11px] font-black transition-all ${
+                                    homeInfoTab === 'bildirimler'
+                                        ? 'bg-white text-orange-600 shadow-sm ring-1 ring-orange-200'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Bildirimler
+                                {activeNewPriceCount > 0 && (
+                                    <span className="absolute -right-2 -top-2 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center shadow-md">
+                                        {activeNewPriceCount}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-5 md:px-6 py-4">
+                    {homeInfoTab === 'duyurular' ? (
+                        <div className="max-h-[250px] overflow-y-auto pr-1">
+                            {announcementItems.length > 0 ? (
+                                <div className="divide-y divide-slate-100">
+                                    {announcementItems.map((announcement, index) => (
+                                        <div key={`${announcement}-${index}`} className="py-4 first:pt-1 last:pb-1">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19a1 1 0 001.447.894l4-2A1 1 0 0017 17V6.118a1 1 0 00-.553-.894l-4-2A1 1 0 0011 4.118v1.764zM4 8v8a2 2 0 002 2h2V6H6a2 2 0 00-2 2z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="text-[11px] font-black text-slate-800">
+                                                        {index === 0 ? 'Güncel Duyuru' : 'Kampanya / Bilgilendirme'}
+                                                    </div>
+                                                    <p className="text-[12px] leading-5 text-slate-600 mt-1">
+                                                        {announcement}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="min-h-[120px] flex flex-col items-center justify-center text-center">
+                                    <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-2">
+                                        <span className="text-lg">📢</span>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-700">Aktif duyuru bulunmuyor</p>
+                                    <p className="text-[10px] text-slate-400 mt-1">Yeni duyurular burada görünecek.</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="max-h-[310px] overflow-y-auto pr-1">
+                            {priceNotifications.length > 0 ? (
+                                <div className="divide-y divide-slate-100">
+                                    {priceNotifications.slice(0, 12).map((item) => {
+                                        const isFresh = Number(item.expiresAt || 0) > notificationNow;
+                                        const isDown = item.direction === 'down';
+
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={item.id}
+                                                onClick={() => setSelectedPriceNotification(item)}
+                                                className={`w-full text-left py-3.5 first:pt-1 last:pb-1 group transition-all ${
+                                                    isFresh ? 'bg-rose-50/40 -mx-2 px-2 rounded-xl' : ''
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                                                        isDown
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                            : 'bg-rose-50 text-rose-600 border-rose-100'
+                                                    }`}>
+                                                        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L10.828 19a2 2 0 01-2.828 0l-5-5a2 2 0 010-2.828z" />
+                                                        </svg>
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wide text-rose-600">
+                                                                        Fiyat Değişti
+                                                                    </span>
+                                                                    {isFresh && (
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[8px] font-black uppercase tracking-wider">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                                                            Yeni
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="text-[9px] font-bold text-slate-400">
+                                                                        {item.category}
+                                                                    </span>
+                                                                </div>
+
+                                                                <h3 className="text-[12px] md:text-[13px] font-black text-slate-900 mt-1 truncate">
+                                                                    {item.name}
+                                                                </h3>
+
+                                                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                                                    <span className="text-[11px] font-bold text-slate-400 line-through">
+                                                                        {formatPriceTl(item.oldPrice)}
+                                                                    </span>
+                                                                    <span className="text-slate-300">→</span>
+                                                                    <span className="text-[12px] font-black text-slate-900">
+                                                                        {formatPriceTl(item.newPrice)}
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-black ${
+                                                                        isDown ? 'text-emerald-600' : 'text-rose-600'
+                                                                    }`}>
+                                                                        {item.diff > 0 ? '+' : ''}
+                                                                        {formatPriceTl(item.diff)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <span className="text-[9px] font-bold text-slate-400">
+                                                                    {getPriceTimeLabel(item.changedAt)}
+                                                                </span>
+                                                                <svg className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="min-h-[135px] flex flex-col items-center justify-center text-center">
+                                    <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-2 border border-blue-100">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-700">Henüz fiyat değişikliği yok</p>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Sheets'te fiyat değiştiğinde ürün burada otomatik görünecek.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* FIYAT BILDIRIM DETAY MODALI */}
+            {selectedPriceNotification && (
+                <div
+                    className="fixed inset-0 z-[10020] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setSelectedPriceNotification(null)}
+                >
+                    <div
+                        className="w-full max-w-lg bg-white rounded-[2rem] border border-slate-200 shadow-2xl overflow-hidden"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                            <div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                                    Fiyat Değişikliği Detayı
+                                </div>
+                                <h3 className="text-lg font-black text-slate-900 mt-1 leading-tight">
+                                    {selectedPriceNotification.name}
+                                </h3>
+                                <div className="text-[10px] font-bold text-slate-400 mt-1">
+                                    {selectedPriceNotification.category} • {getPriceTimeLabel(selectedPriceNotification.changedAt)}
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedPriceNotification(null)}
+                                className="w-9 h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
+                                    <div className="text-xl font-black text-slate-700 mt-1">
+                                        {formatPriceTl(selectedPriceNotification.oldPrice)}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl bg-blue-50 border border-blue-100 p-4">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
+                                    <div className="text-xl font-black text-blue-700 mt-1">
+                                        {formatPriceTl(selectedPriceNotification.newPrice)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={`mt-3 rounded-2xl p-4 border ${
+                                selectedPriceNotification.direction === 'down'
+                                    ? 'bg-emerald-50 border-emerald-100'
+                                    : 'bg-rose-50 border-rose-100'
+                            }`}>
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                                            Toplam Değişim
+                                        </span>
+                                        <div className={`text-lg font-black mt-1 ${
+                                            selectedPriceNotification.direction === 'down'
+                                                ? 'text-emerald-700'
+                                                : 'text-rose-700'
+                                        }`}>
+                                            {selectedPriceNotification.diff > 0 ? '+' : ''}
+                                            {formatPriceTl(selectedPriceNotification.diff)}
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                                            Yön
+                                        </span>
+                                        <div className={`text-xs font-black mt-1 ${
+                                            selectedPriceNotification.direction === 'down'
+                                                ? 'text-emerald-700'
+                                                : 'text-rose-700'
+                                        }`}>
+                                            {selectedPriceNotification.direction === 'down'
+                                                ? 'Fiyat Düştü'
+                                                : 'Fiyat Yükseldi'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-slate-400">
+                                    Değişiklik zamanı
+                                </span>
+                                <span className="font-black text-slate-700">
+                                    {new Date(selectedPriceNotification.changedAt).toLocaleString('tr-TR')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 1. BÖLÜM: ÜST KPI KARTLARI */}
             <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 mb-8 flex flex-col xl:flex-row gap-6 justify-between">
