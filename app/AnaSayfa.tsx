@@ -42,68 +42,13 @@ const PRICE_TRACKED_SHEETS = [
 
 function parseNotificationPrice(value: any) {
     if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Math.floor(value);
 
-    // PostgreSQL tarafına bazı Sheets fiyatları 124.999 gibi number olarak
-    // gelebiliyor. Bu bizim kullanımımızda 124.999 TL değil, 124.999 TL = 124999'dur.
-    if (typeof value === 'number') {
-        if (!Number.isFinite(value) || value <= 0) return 0;
+    let str = String(value).trim();
+    if (str.includes(',')) str = str.split(',')[0];
 
-        if (!Number.isInteger(value) && value < 1000) {
-            const decimals = String(value).split('.')[1] || '';
-
-            // 38.999 / 124.999 / 1.999 gibi Türkçe binlik gösterimler.
-            if (decimals.length === 3) {
-                return Math.round(value * 1000);
-            }
-        }
-
-        return Math.round(value);
-    }
-
-    let str = String(value)
-        .trim()
-        .replace(/\s+/g, '')
-        .replace(/₺/g, '')
-        .replace(/TL/gi, '');
-
-    if (!str) return 0;
-
-    // Örnekler:
-    // 124.999      -> 124999
-    // 124.999,00   -> 124999
-    // 124,999.00   -> 124999
-    // 124999       -> 124999
-    if (str.includes('.') && str.includes(',')) {
-        const lastDot = str.lastIndexOf('.');
-        const lastComma = str.lastIndexOf(',');
-
-        if (lastComma > lastDot) {
-            // Türkçe: 124.999,00
-            str = str.replace(/\./g, '').replace(',', '.');
-        } else {
-            // İngilizce: 124,999.00
-            str = str.replace(/,/g, '');
-        }
-    } else if (str.includes('.')) {
-        const parts = str.split('.');
-
-        if (parts.length > 1 && parts.slice(1).every((part) => part.length === 3)) {
-            str = parts.join('');
-        }
-    } else if (str.includes(',')) {
-        const parts = str.split(',');
-
-        if (parts.length > 1 && parts.slice(1).every((part) => part.length === 3)) {
-            str = parts.join('');
-        } else {
-            str = parts[0];
-        }
-    }
-
-    const normalized = Number(str.replace(/[^\d.-]/g, ''));
-    return Number.isFinite(normalized) && normalized > 0
-        ? Math.round(normalized)
-        : 0;
+    const digits = str.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) : 0;
 }
 
 function parseNotificationUpdatedAt(value: unknown) {
@@ -191,7 +136,7 @@ function buildNotificationPriceMap(rows: NotificationSheetRow[]) {
             if (name1 && price1 > 0) {
                 map.set(`YNA1_${name1}`, {
                     price: price1,
-                    category: 'YNA',
+                    category: 'Aksesuar',
                     name: name1,
                     updatedAt
                 });
@@ -203,7 +148,7 @@ function buildNotificationPriceMap(rows: NotificationSheetRow[]) {
             if (name2 && price2 > 0) {
                 map.set(`YNA2_${name2}`, {
                     price: price2,
-                    category: 'YNA',
+                    category: 'Aksesuar',
                     name: name2,
                     updatedAt
                 });
@@ -297,37 +242,6 @@ function saveSpokenNotificationIds(ids: Set<string>) {
     } catch {}
 }
 
-function normalizeProductNameForSpeech(name: string) {
-    return String(name || '')
-        .replace(/\bIPHONE\b/gi, 'Ayfon')
-        .replace(/\bPRO MAX\b/gi, 'Pro Maks')
-        .replace(/\bPRO\b/gi, 'Pro')
-        .replace(/\bGB\b/gi, ' gigabayt ')
-        .replace(/\bTB\b/gi, ' terabayt ')
-        .replace(/\bPS\s*5\b/gi, 'PlayStation beş')
-        .replace(/-/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-function getBestTurkishVoice() {
-    const voices = window.speechSynthesis.getVoices();
-
-    const turkish = voices.filter((voice) =>
-        String(voice.lang || '')
-            .toLocaleLowerCase('tr-TR')
-            .startsWith('tr')
-    );
-
-    return (
-        turkish.find((voice) =>
-            /microsoft|google|natural|online/i.test(voice.name)
-        ) ||
-        turkish[0] ||
-        null
-    );
-}
-
 function speakPriceNotificationItems(items: PriceNotificationItem[]) {
     if (
         typeof window === 'undefined' ||
@@ -349,8 +263,8 @@ function speakPriceNotificationItems(items: PriceNotificationItem[]) {
             return false;
         }
 
+        // Aynı ürün aynı anda iki fiyat kolonundan değiştiyse adını iki kere okumaz.
         const batchKey = `${item.direction}:${item.category}:${item.name}`;
-
         if (seenInBatch.has(batchKey)) {
             spokenIds.add(item.id);
             return false;
@@ -365,32 +279,25 @@ function speakPriceNotificationItems(items: PriceNotificationItem[]) {
         return;
     }
 
-    const voice = getBestTurkishVoice();
+    const voices = window.speechSynthesis.getVoices();
+    const turkishVoice =
+        voices.find((voice) => voice.lang?.toLocaleLowerCase('tr-TR').startsWith('tr-tr')) ||
+        voices.find((voice) => voice.lang?.toLocaleLowerCase('tr-TR').startsWith('tr'));
 
     speakable.forEach((item) => {
-        const spokenName = normalizeProductNameForSpeech(item.name);
-        const categoryText =
-            item.category === 'YNA'
-                ? 'Y N A ürünü'
-                : item.category === '2. El'
-                    ? 'İkinci el cihaz'
-                    : 'Cihaz';
-
         const sentence =
             item.direction === 'new'
-                ? `Yeni ${categoryText} eklendi. ${spokenName}.`
-                : `${categoryText}. ${spokenName}. Fiyatı düştü.`;
+                ? `${item.name}. Yeni ürün eklendi.`
+                : `${item.name}. Fiyatı düştü.`;
 
         const utterance = new SpeechSynthesisUtterance(sentence);
         utterance.lang = 'tr-TR';
-
-        // Biraz daha yavaş ve net.
-        utterance.rate = 0.78;
+        utterance.rate = 0.92;
         utterance.pitch = 1;
         utterance.volume = 1;
 
-        if (voice) {
-            utterance.voice = voice;
+        if (turkishVoice) {
+            utterance.voice = turkishVoice;
         }
 
         window.speechSynthesis.speak(utterance);
@@ -1527,40 +1434,36 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                             </span>
                                                                         </div>
 
-                                                                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                                                            <h3 className="min-w-0 truncate text-[12px] font-semibold text-slate-900 sm:text-[13px]">
-                                                                                {item.name}
-                                                                            </h3>
+                                                                        <h3 className="mt-1 truncate text-[12px] font-semibold text-slate-900 sm:text-[13px]">
+                                                                            {item.name}
+                                                                        </h3>
 
-                                                                            <div className="flex shrink-0 items-center gap-2">
-                                                                                {item.direction === 'new' ? (
-                                                                                    <>
-                                                                                        <span className="text-[9px] font-normal text-slate-400">
-                                                                                            Fiyat
-                                                                                        </span>
-                                                                                        <span className="text-[11px] font-medium text-slate-900">
-                                                                                            {formatPriceTl(item.newPrice)}
-                                                                                        </span>
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        <span className="text-[10px] font-normal text-slate-400 line-through">
-                                                                                            {formatPriceTl(item.oldPrice)}
-                                                                                        </span>
-                                                                                        <span className="text-slate-300">→</span>
-                                                                                        <span className={`text-[11px] font-medium ${
-                                                                                            isDown ? 'text-emerald-600' : 'text-rose-600'
-                                                                                        }`}>
-                                                                                            {formatPriceTl(item.newPrice)}
-                                                                                        </span>
-                                                                                        <span className={`text-[9px] font-medium ${
-                                                                                            isDown ? 'text-emerald-600' : 'text-rose-600'
-                                                                                        }`}>
-                                                                                            {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
-                                                                                        </span>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
+                                                                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                                                            {item.direction === 'new' ? (
+                                                                                <>
+                                                                                    <span className="text-[10px] font-normal text-slate-400">
+                                                                                        Fiyat
+                                                                                    </span>
+                                                                                    <span className="text-[11px] font-medium text-slate-900">
+                                                                                        {formatPriceTl(item.newPrice)}
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <span className="text-[10px] font-normal text-slate-400 line-through">
+                                                                                        {formatPriceTl(item.oldPrice)}
+                                                                                    </span>
+                                                                                    <span className="text-slate-300">→</span>
+                                                                                    <span className="text-[11px] font-medium text-slate-900">
+                                                                                        {formatPriceTl(item.newPrice)}
+                                                                                    </span>
+                                                                                    <span className={`text-[9px] font-medium ${
+                                                                                        isDown ? 'text-emerald-600' : 'text-rose-600'
+                                                                                    }`}>
+                                                                                        {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
+                                                                                    </span>
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     </div>
 
