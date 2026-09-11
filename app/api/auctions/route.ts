@@ -12,109 +12,302 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+// ======================================================
+// GET - İHALELERİ LİSTELE
+// ======================================================
+
+export async function GET(
+  request: Request
+) {
   try {
-    const session = await getAuctionSession(request);
-    ensureAuctionAccess(session);
+    const session =
+      await getAuctionSession(
+        request
+      );
+
+    ensureAuctionAccess(
+      session
+    );
 
     await closeExpiredAuctions();
 
-    const pool = getAuctionPool();
+    const pool =
+      getAuctionPool();
 
-    const values: any[] = [];
+    const values: any[] =
+      [];
+
     let whereSql = "";
 
-    if (!session.isAdmin) {
-      values.push(session.channel);
+    // ==================================================
+    // SUPER ADMIN
+    // ==================================================
+    // Bütün ihaleleri görür:
+    // DRAFT
+    // LIVE
+    // PAUSED
+    // ENDED
+    // CANCELLED
+    //
+    // NORMAL YÖNETİCİ / PERSONEL
+    // Sadece kendi kanalındaki açık/geçmiş ihaleleri görür.
+    // ==================================================
+
+    if (
+      !session.isSuperAdmin
+    ) {
+      values.push(
+        session.channel
+      );
 
       whereSql = `
         WHERE
-          a.channel_scope IN ($1, 'BOTH')
-          AND a.status IN ('LIVE', 'PAUSED', 'ENDED')
+          a.channel_scope IN (
+            $1,
+            'BOTH'
+          )
+
+          AND a.status IN (
+            'LIVE',
+            'PAUSED',
+            'ENDED'
+          )
       `;
     }
 
-    const result = await pool.query(
-      `
-        SELECT
-          a.*,
+    const result =
+      await pool.query(
+        `
+          SELECT
+            a.*,
 
-          COALESCE(
+            COALESCE(
+              (
+                SELECT
+                  MAX(b.amount)
+
+                FROM
+                  public.auction_bids b
+
+                WHERE
+                  b.auction_id = a.id
+              ),
+
+              a.starting_price
+            ) AS current_price,
+
             (
-              SELECT MAX(b.amount)
-              FROM public.auction_bids b
-              WHERE b.auction_id = a.id
-            ),
-            a.starting_price
-          ) AS current_price,
+              SELECT
+                COUNT(*)::int
 
-          (
-            SELECT COUNT(*)::int
-            FROM public.auction_bids b
-            WHERE b.auction_id = a.id
-          ) AS bid_count
+              FROM
+                public.auction_bids b
 
-        FROM public.auctions a
+              WHERE
+                b.auction_id = a.id
+            ) AS bid_count
 
-        ${whereSql}
+          FROM
+            public.auctions a
 
-        ORDER BY
-          CASE a.status
-            WHEN 'LIVE' THEN 1
-            WHEN 'PAUSED' THEN 2
-            WHEN 'DRAFT' THEN 3
-            WHEN 'ENDED' THEN 4
-            ELSE 5
-          END,
-          a.created_at DESC
+          ${whereSql}
 
-        LIMIT 100
-      `,
-      values
-    );
+          ORDER BY
+
+            CASE a.status
+
+              WHEN 'LIVE'
+                THEN 1
+
+              WHEN 'PAUSED'
+                THEN 2
+
+              WHEN 'DRAFT'
+                THEN 3
+
+              WHEN 'ENDED'
+                THEN 4
+
+              WHEN 'CANCELLED'
+                THEN 5
+
+              ELSE 6
+
+            END,
+
+            a.created_at DESC
+
+          LIMIT 200
+        `,
+        values
+      );
+
+    // ==================================================
+    // NORMAL KULLANICIYA GEREKSİZ KİMLİK ALANLARI YOK
+    // ==================================================
+
+    const auctions =
+      session.isSuperAdmin
+        ? result.rows
+        : result.rows.map(
+            (auction) => ({
+              id:
+                auction.id,
+
+              title:
+                auction.title,
+
+              item_name:
+                auction.item_name,
+
+              item_description:
+                auction.item_description,
+
+              item_image_url:
+                auction.item_image_url,
+
+              channel_scope:
+                auction.channel_scope,
+
+              starting_price:
+                auction.starting_price,
+
+              min_increment:
+                auction.min_increment,
+
+              duration_minutes:
+                auction.duration_minutes,
+
+              status:
+                auction.status,
+
+              starts_at:
+                auction.starts_at,
+
+              ends_at:
+                auction.ends_at,
+
+              paused_at:
+                auction.paused_at,
+
+              current_price:
+                auction.current_price,
+
+              bid_count:
+                auction.bid_count,
+
+              winner_bid_id:
+                auction.winner_bid_id,
+
+              winning_amount:
+                auction.winning_amount,
+
+              created_at:
+                auction.created_at,
+
+              updated_at:
+                auction.updated_at,
+            })
+          );
 
     return Response.json(
       {
         ok: true,
 
         session: {
-          isAdmin: session.isAdmin,
-          branch: session.branch,
-          channel: session.channel,
+          isAdmin:
+            session.isSuperAdmin,
+
+          isSuperAdmin:
+            session.isSuperAdmin,
+
+          isManager:
+            session.isManager,
+
+          roleCode:
+            session.roleCode,
+
+          branch:
+            session.branch,
+
+          channel:
+            session.channel,
         },
 
-        auctions: result.rows,
+        auctions,
       },
       {
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control":
+            "no-store",
         },
       }
     );
   } catch (error) {
-    return apiError(error);
+    return apiError(
+      error
+    );
   }
 }
 
-export async function POST(request: Request) {
+// ======================================================
+// POST - YENİ İHALE
+// ======================================================
+//
+// SADECE SUPER ADMIN
+//
+// durationMinutes:
+// minimum 1 dakika
+// maximum 4320 dakika = 72 saat
+// ======================================================
+
+export async function POST(
+  request: Request
+) {
   try {
-    const session = await getAuctionSession(request);
+    const session =
+      await getAuctionSession(
+        request
+      );
 
-    ensureAdmin(session);
+    ensureAdmin(
+      session
+    );
 
-    const body = await request.json().catch(() => ({}));
+    const body =
+      await request
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    // ==================================================
+    // FORM
+    // ==================================================
 
     const title =
-      cleanAuctionText(body?.title, 180);
+      cleanAuctionText(
+        body?.title,
+        180
+      );
 
     const itemName =
-      cleanAuctionText(body?.itemName, 180);
+      cleanAuctionText(
+        body?.itemName,
+        180
+      );
 
     const itemDescription =
-      cleanAuctionText(body?.itemDescription, 1000);
+      cleanAuctionText(
+        body?.itemDescription,
+        2000
+      );
 
     const itemImageUrl =
-      cleanAuctionText(body?.itemImageUrl, 1000);
+      cleanAuctionText(
+        body?.itemImageUrl,
+        1000
+      );
 
     const channelScope =
       cleanAuctionText(
@@ -123,17 +316,30 @@ export async function POST(request: Request) {
       ).toUpperCase();
 
     const startingPrice =
-      numberValue(body?.startingPrice);
+      numberValue(
+        body?.startingPrice
+      );
 
     const minIncrement =
-      numberValue(body?.minIncrement);
+      numberValue(
+        body?.minIncrement
+      );
 
     const durationMinutes =
       Math.floor(
-        numberValue(body?.durationMinutes)
+        numberValue(
+          body?.durationMinutes
+        )
       );
 
-    if (!title || !itemName) {
+    // ==================================================
+    // VALIDATION
+    // ==================================================
+
+    if (
+      !title ||
+      !itemName
+    ) {
       throw Object.assign(
         new Error(
           "İhale başlığı ve ürün adı zorunludur."
@@ -149,7 +355,9 @@ export async function POST(request: Request) {
         "CMR",
         "VODAFONE",
         "BOTH",
-      ].includes(channelScope)
+      ].includes(
+        channelScope
+      )
     ) {
       throw Object.assign(
         new Error(
@@ -162,7 +370,9 @@ export async function POST(request: Request) {
     }
 
     if (
-      !Number.isFinite(startingPrice) ||
+      !Number.isFinite(
+        startingPrice
+      ) ||
       startingPrice < 0
     ) {
       throw Object.assign(
@@ -176,7 +386,9 @@ export async function POST(request: Request) {
     }
 
     if (
-      !Number.isFinite(minIncrement) ||
+      !Number.isFinite(
+        minIncrement
+      ) ||
       minIncrement <= 0
     ) {
       throw Object.assign(
@@ -189,14 +401,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // 72 SAAT
     if (
-      !Number.isFinite(durationMinutes) ||
+      !Number.isFinite(
+        durationMinutes
+      ) ||
       durationMinutes < 1 ||
-      durationMinutes > 1440
+      durationMinutes > 4320
     ) {
       throw Object.assign(
         new Error(
-          "İhale süresi 1 ile 1440 dakika arasında olmalıdır."
+          "İhale süresi 1 dakika ile 72 saat arasında olmalıdır."
         ),
         {
           status: 400,
@@ -204,11 +419,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const pool = getAuctionPool();
-    const client = await pool.connect();
+    // ==================================================
+    // DATABASE
+    // ==================================================
+
+    const pool =
+      getAuctionPool();
+
+    const client =
+      await pool.connect();
 
     try {
-      await client.query("BEGIN");
+      await client.query(
+        "BEGIN"
+      );
 
       const created =
         await client.query(
@@ -218,11 +442,15 @@ export async function POST(request: Request) {
               item_name,
               item_description,
               item_image_url,
+
               channel_scope,
+
               starting_price,
               min_increment,
               duration_minutes,
+
               status,
+
               created_by_user_id,
               created_by_name
             )
@@ -245,14 +473,25 @@ export async function POST(request: Request) {
           `,
           [
             title,
+
             itemName,
-            itemDescription || null,
-            itemImageUrl || null,
+
+            itemDescription ||
+              null,
+
+            itemImageUrl ||
+              null,
+
             channelScope,
+
             startingPrice,
+
             minIncrement,
+
             durationMinutes,
+
             session.userKey,
+
             session.userName,
           ]
         );
@@ -260,25 +499,33 @@ export async function POST(request: Request) {
       const auction =
         created.rows[0];
 
+      // ==================================================
+      // EVENT
+      // ==================================================
+
       await client.query(
         `
           INSERT INTO public.auction_events (
             auction_id,
             event_type,
+
             actor_user_id,
             actor_name,
             actor_branch,
+
             new_value
           )
 
           VALUES (
             $1,
             'CREATED',
+
             $2,
             $3,
             $4,
 
             jsonb_build_object(
+
               'title',
               $5::text,
 
@@ -296,32 +543,46 @@ export async function POST(request: Request) {
 
               'duration_minutes',
               $10::int
+
             )
           )
         `,
         [
           auction.id,
+
           session.userKey,
+
           session.userName,
+
           session.branch,
+
           title,
+
           itemName,
+
           channelScope,
+
           startingPrice,
+
           minIncrement,
+
           durationMinutes,
         ]
       );
 
-      await client.query("COMMIT");
+      await client.query(
+        "COMMIT"
+      );
 
       return Response.json(
         {
           ok: true,
+
           auction,
         },
         {
           status: 201,
+
           headers: {
             "Cache-Control":
               "no-store",
@@ -338,6 +599,8 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (error) {
-    return apiError(error);
+    return apiError(
+      error
+    );
   }
 }
