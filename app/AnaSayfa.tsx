@@ -441,18 +441,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             current.forEach((point, key) => {
                 const oldPrice = previous.get(key);
                 const changedAt = Number(point.updatedAt || now);
-                const changedDate = new Date(changedAt);
-                const changedHour = changedDate.getHours();
-
-                // Sadece 09:00 - 20:00 arasındaki hareketler bildirim oluşturur.
-                if (changedHour < 9 || changedHour >= 20) return;
-
-                const expiresAt = getWorkdayExpiry(changedAt);
+                const expiresAt = getDayEndExpiry(changedAt);
 
                 if (expiresAt <= now) return;
 
-                // Sayfa kapalıyken oluşmuş bir değişiklik açılışta yakalanıyorsa
-                // yalnızca aynı iş gününün halen aktif olan hareketleri alınır.
+                // Saat kısıtı kaldırıldı. Aynı gün içindeki hareketler geçerlidir.
                 if (onlyRecent && expiresAt <= now) return;
 
                 // Önceki listede olmayan kayıt = yeni ürün.
@@ -576,30 +569,16 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
 
     // Fiyat bildirimleri yalnızca mağaza çalışma saatlerinde tutulur: 09:00 - 20:00.
-    const isPriceNotificationWorkHour = (changedAt: number) => {
-        const date = new Date(changedAt);
-        const hour = date.getHours();
-        return hour >= 9 && hour < 20;
-    };
-
-    const getWorkdayExpiry = (changedAt: number) => {
+    const getDayEndExpiry = (changedAt: number) => {
         const expiry = new Date(changedAt);
-        expiry.setHours(20, 0, 0, 0);
+        expiry.setHours(23, 59, 59, 999);
         return expiry.getTime();
     };
 
-    // Gün içindeki bildirimler oluştuğu andan 20:00'ye kadar ana sayfada kalır.
+    // Saat kısıtı yok. Gün içinde oluşan bildirimler gün sonuna kadar görünür.
     // En yeni fiyat / ürün hareketi her zaman en üst sıradadır.
     const visiblePriceNotifications = priceNotifications
-        .filter((item) => {
-            const changedAt = Number(item.changedAt || 0);
-            const expiresAt = Number(item.expiresAt || 0);
-
-            return (
-                isPriceNotificationWorkHour(changedAt) &&
-                expiresAt > notificationNow
-            );
-        })
+        .filter((item) => Number(item.expiresAt || 0) > notificationNow)
         .sort((a, b) => b.changedAt - a.changedAt);
 
     const activeNewPriceCount = visiblePriceNotifications.filter(
@@ -1328,7 +1307,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             Duyurular & Bildirimler
                                         </h2>
                                         <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
-                                            09:00–20:00 fiyat ve yeni ürün hareketleri • Gün sonuna kadar görünür
+                                            Fiyat ve yeni ürün hareketleri • Gün sonuna kadar görünür
                                         </p>
                                     </div>
                                 </div>
