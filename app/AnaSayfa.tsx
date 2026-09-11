@@ -30,6 +30,7 @@ type NotificationPricePoint = {
 
 const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v3';
 const PRICE_SNAPSHOT_STORAGE_KEY = 'cnetmobil_price_snapshot_v3';
+const PRICE_SPOKEN_STORAGE_KEY = 'cnetmobil_price_spoken_ids_v1';
 const PRICE_POLL_MS = 3000;
 const MAX_PRICE_NOTIFICATIONS = 50;
 
@@ -220,6 +221,92 @@ function writeNotificationSnapshot(map: Map<string, NotificationPricePoint>) {
     } catch {}
 }
 
+
+function readSpokenNotificationIds() {
+    try {
+        const raw = window.localStorage.getItem(PRICE_SPOKEN_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return new Set<string>(Array.isArray(parsed) ? parsed : []);
+    } catch {
+        return new Set<string>();
+    }
+}
+
+function saveSpokenNotificationIds(ids: Set<string>) {
+    try {
+        const compact = Array.from(ids).slice(-150);
+        window.localStorage.setItem(
+            PRICE_SPOKEN_STORAGE_KEY,
+            JSON.stringify(compact)
+        );
+    } catch {}
+}
+
+function speakPriceNotificationItems(items: PriceNotificationItem[]) {
+    if (
+        typeof window === 'undefined' ||
+        !('speechSynthesis' in window) ||
+        document.visibilityState === 'hidden'
+    ) {
+        return;
+    }
+
+    const spokenIds = readSpokenNotificationIds();
+    const seenInBatch = new Set<string>();
+
+    const speakable = items.filter((item) => {
+        if (item.direction !== 'new' && item.direction !== 'down') {
+            return false;
+        }
+
+        if (spokenIds.has(item.id)) {
+            return false;
+        }
+
+        // Aynı ürün aynı anda iki fiyat kolonundan değiştiyse adını iki kere okumaz.
+        const batchKey = `${item.direction}:${item.category}:${item.name}`;
+        if (seenInBatch.has(batchKey)) {
+            spokenIds.add(item.id);
+            return false;
+        }
+
+        seenInBatch.add(batchKey);
+        return true;
+    });
+
+    if (speakable.length === 0) {
+        saveSpokenNotificationIds(spokenIds);
+        return;
+    }
+
+    const voices = window.speechSynthesis.getVoices();
+    const turkishVoice =
+        voices.find((voice) => voice.lang?.toLocaleLowerCase('tr-TR').startsWith('tr-tr')) ||
+        voices.find((voice) => voice.lang?.toLocaleLowerCase('tr-TR').startsWith('tr'));
+
+    speakable.forEach((item) => {
+        const sentence =
+            item.direction === 'new'
+                ? `${item.name}. Yeni ürün eklendi.`
+                : `${item.name}. Fiyatı düştü.`;
+
+        const utterance = new SpeechSynthesisUtterance(sentence);
+        utterance.lang = 'tr-TR';
+        utterance.rate = 0.92;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        if (turkishVoice) {
+            utterance.voice = turkishVoice;
+        }
+
+        window.speechSynthesis.speak(utterance);
+        spokenIds.add(item.id);
+    });
+
+    saveSpokenNotificationIds(spokenIds);
+}
+
 async function fetchPriceNotificationRows(): Promise<NotificationSheetRow[]> {
     const params = new URLSearchParams();
 
@@ -314,7 +401,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             setPriceNotifications(clean);
         };
 
-        const publishDetected = (detected: PriceNotificationItem[]) => {
+        const publishDetected = (
+            detected: PriceNotificationItem[],
+            speakLive = false
+        ) => {
             if (detected.length === 0) return;
 
             let existing: PriceNotificationItem[] = [];
@@ -332,6 +422,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
             saveNotifications(merged);
             setHomeInfoTab('bildirimler');
+
+            // Sadece canlı yakalanan YENİ ÜRÜN ve FİYAT DÜŞÜŞÜ sesli okunur.
+            // Sayfa açılışında geçmiş bildirimler tekrar konuşturulmaz.
+            if (speakLive) {
+                speakPriceNotificationItems(detected);
+            }
         };
 
         const detectChanges = (
@@ -419,7 +515,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                     if (storedSnapshot && storedSnapshot.size > 0) {
                         publishDetected(
-                            detectChanges(storedSnapshot, current, true)
+                            detectChanges(storedSnapshot, current, true),
+                            false
                         );
                     }
 
@@ -435,7 +532,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 if (previous && previous.size > 0) {
                     publishDetected(
-                        detectChanges(previous, current, false)
+                        detectChanges(previous, current, false),
+                        true
                     );
                 }
 
