@@ -1,9 +1,20 @@
 import { Pool, PoolClient } from "pg";
+import crypto from "crypto";
 
 declare global {
   // eslint-disable-next-line no-var
   var cnetAuctionPool: Pool | undefined;
 }
+
+const COOKIE_NAME = "cnet_auth";
+
+type SessionPayload = {
+  userId: number | null;
+  role: "admin" | "personel";
+  branch: string;
+  exp: number;
+  legacy?: boolean;
+};
 
 export type AuctionSession = {
   success: true;
@@ -30,26 +41,80 @@ export function getAuctionPool() {
     process.env.POSTGRES_CONNECTION_STRING;
 
   if (!connectionString) {
-    throw new Error(
-      "PostgreSQL bağlantı değişkeni bulunamadı."
-    );
+    throw new Error("DATABASE_URL bulunamadı.");
   }
 
   global.cnetAuctionPool = new Pool({
     connectionString,
-
-    ssl:
-      process.env.NODE_ENV === "production"
-        ? {
-            rejectUnauthorized: false,
-          }
-        : undefined,
-
     max: 8,
     idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
 
   return global.cnetAuctionPool;
+}
+
+// ======================================================
+// SESSION
+// ======================================================
+
+function getSessionSecret() {
+  const secret = process.env.SESSION_SECRET;
+
+  if (!secret) {
+    throw new Error("SESSION_SECRET bulunamadı.");
+  }
+
+  return secret;
+}
+
+function verifySession(token: string): SessionPayload | null {
+  try {
+    const [encoded, signature] = token.split(".");
+
+    if (!encoded || !signature) {
+      return null;
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", getSessionSecret())
+      .update(encoded)
+      .digest("base64url");
+
+    const signatureBuffer = Buffer.from(signature, "utf8");
+    const expectedBuffer = Buffer.from(expectedSignature, "utf8");
+
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return null;
+    }
+
+    if (
+      !crypto.timingSafeEqual(
+        signatureBuffer,
+        expectedBuffer
+      )
+    ) {
+      return null;
+    }
+
+    const payload = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8")
+    ) as SessionPayload;
+
+    if (
+      !payload ||
+      !payload.exp ||
+      payload.exp < Math.floor(Date.now() / 1000) ||
+      !["admin", "personel"].includes(payload.role) ||
+      typeof payload.branch !== "string"
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 // ======================================================
@@ -69,27 +134,19 @@ export function cleanAuctionText(
   value: unknown,
   max = 180
 ) {
-  return normalizeText(
-    value,
-    max
-  );
+  return normalizeText(value, max);
 }
 
 // ======================================================
 // SAYI
 // ======================================================
 
-export function numberValue(
-  value: unknown
-) {
-  if (
-    typeof value === "number"
-  ) {
+export function numberValue(value: unknown) {
+  if (typeof value === "number") {
     return value;
   }
 
-  const raw =
-    String(value ?? "").trim();
+  const raw = String(value ?? "").trim();
 
   if (!raw) {
     return NaN;
@@ -97,7 +154,6 @@ export function numberValue(
 
   let normalized = raw;
 
-  // 1.250,50 -> 1250.50
   if (
     raw.includes(".") &&
     raw.includes(",")
@@ -105,21 +161,14 @@ export function numberValue(
     normalized = raw
       .replace(/\./g, "")
       .replace(",", ".");
+  } else if (raw.includes(",")) {
+    normalized = raw.replace(",", ".");
   }
 
-  // 1250,50 -> 1250.50
-  else if (
-    raw.includes(",")
-  ) {
-    normalized =
-      raw.replace(",", ".");
-  }
+  const result = Number(normalized);
 
-  const n =
-    Number(normalized);
-
-  return Number.isFinite(n)
-    ? n
+  return Number.isFinite(result)
+    ? result
     : NaN;
 }
 
@@ -129,19 +178,13 @@ export function numberValue(
 
 function getChannel(
   branch: string
-):
-  | "CMR"
-  | "VODAFONE"
-  | null {
+): "CMR" | "VODAFONE" | null {
   const upper =
-    branch.toLocaleUpperCase(
-      "tr-TR"
-    );
+    branch
+      .trim()
+      .toLocaleUpperCase("tr-TR");
 
-  if (
-    upper ===
-    "VODAFONE KANALI"
-  ) {
+  if (upper === "VODAFONE KANALI") {
     return "VODAFONE";
   }
 
@@ -156,52 +199,45 @@ function getChannel(
 }
 
 // ======================================================
-// OTURUM
+// OTURUMU DOĞRUDAN COOKIE'DEN OKU
 // ======================================================
 
 export async function getAuctionSession(
   request: Request
 ): Promise<AuctionSession> {
-  const authUrl =
-    new URL(
-      "/api/auth",
-      request.url
-    );
+  const cookieHeader =
+    request.headers.get("cookie") || "";
 
-  const cookie =
-    request.headers.get(
-      "cookie"
-    ) || "";
+  const cookies = cookieHeader
+    .split(";")
+    .map((item) => item.trim());
 
-  const authResponse =
-    await fetch(
-      authUrl,
+  const authCookie = cookies.find((item) =>
+    item.startsWith(`${COOKIE_NAME}=`)
+  );
+
+  if (!authCookie) {
+    throw Object.assign(
+      new Error("Oturum bulunamadı. Tekrar giriş yapın."),
       {
-        method: "GET",
-
-        cache:
-          "no-store",
-
-        headers: {
-          cookie,
-          accept:
-            "application/json",
-        },
+        status: 401,
       }
     );
+  }
+
+  const token = decodeURIComponent(
+    authCookie.substring(
+      COOKIE_NAME.length + 1
+    )
+  );
 
   const session =
-    await authResponse
-      .json()
-      .catch(() => ({}));
+    verifySession(token);
 
-  if (
-    !authResponse.ok ||
-    !session?.success
-  ) {
+  if (!session) {
     throw Object.assign(
       new Error(
-        "Oturum doğrulanamadı."
+        "Oturum doğrulanamadı. Tekrar giriş yapın."
       ),
       {
         status: 401,
@@ -209,11 +245,94 @@ export async function getAuctionSession(
     );
   }
 
-  const role =
-    normalizeText(
-      session.role,
-      40
-    );
+  // ==========================================
+  // POSTGRESQL KULLANICISI
+  // ==========================================
+
+  if (session.userId) {
+    const pool =
+      getAuctionPool();
+
+    const result =
+      await pool.query(
+        `
+          SELECT
+            id,
+            username,
+            email,
+            branch,
+            role,
+            active
+
+          FROM public.users
+
+          WHERE id = $1
+
+          LIMIT 1
+        `,
+        [session.userId]
+      );
+
+    const user =
+      result.rows[0];
+
+    if (!user || !user.active) {
+      throw Object.assign(
+        new Error(
+          "Kullanıcı hesabı aktif değil."
+        ),
+        {
+          status: 401,
+        }
+      );
+    }
+
+    const branch =
+      normalizeText(
+        user.branch,
+        120
+      );
+
+    const role =
+      normalizeText(
+        user.role,
+        40
+      );
+
+    const userName =
+      normalizeText(
+        user.username ||
+          user.email ||
+          branch,
+        160
+      );
+
+    return {
+      success: true,
+
+      role:
+        role === "admin"
+          ? "yonetici"
+          : "personel",
+
+      branch,
+
+      userKey:
+        String(user.id),
+
+      userName,
+
+      isAdmin:
+        role === "admin",
+
+      channel:
+        getChannel(branch),
+    };
+  }
+
+  // ==========================================
+  // LEGACY ENV OTURUMU
+  // ==========================================
 
   const branch =
     normalizeText(
@@ -221,50 +340,29 @@ export async function getAuctionSession(
       120
     );
 
-  const rawUserKey =
-    session.userId ??
-    session.user_id ??
-    session.id ??
-    session.email ??
-    session.user?.id ??
-    session.user?.email ??
-    "";
-
-  const rawUserName =
-    session.name ??
-    session.fullName ??
-    session.userName ??
-    session.email ??
-    session.user?.name ??
-    session.user?.email ??
-    branch;
-
   const isAdmin =
-    role === "yonetici";
-
-  const userKey =
-    normalizeText(
-      rawUserKey,
-      120
-    ) ||
-    `BRANCH:${branch.toLocaleUpperCase(
-      "tr-TR"
-    )}`;
-
-  const userName =
-    normalizeText(
-      rawUserName,
-      160
-    ) ||
-    branch;
+    session.role === "admin";
 
   return {
     success: true,
-    role,
+
+    role:
+      isAdmin
+        ? "yonetici"
+        : "personel",
+
     branch,
-    userKey,
-    userName,
+
+    userKey:
+      `LEGACY:${session.role}:${branch.toLocaleUpperCase(
+        "tr-TR"
+      )}`,
+
+    userName:
+      branch,
+
     isAdmin,
+
     channel:
       getChannel(branch),
   };
@@ -309,15 +407,12 @@ export function ensureAdmin(
 }
 
 // ======================================================
-// İHALE KAPSAMI
+// KAPSAM
 // ======================================================
 
 export function auctionScopeAllowed(
   scope: string,
-  channel:
-    | "CMR"
-    | "VODAFONE"
-    | null
+  channel: "CMR" | "VODAFONE" | null
 ) {
   if (!channel) {
     return false;
@@ -386,11 +481,9 @@ export async function getOrCreateParticipant(
   const existing =
     await client.query(
       `
-        SELECT
-          anonymous_code
+        SELECT anonymous_code
 
-        FROM
-          public.auction_participants
+        FROM public.auction_participants
 
         WHERE
           auction_id = $1
@@ -405,8 +498,7 @@ export async function getOrCreateParticipant(
     );
 
   if (
-    existing.rows[0]
-      ?.anonymous_code
+    existing.rows[0]?.anonymous_code
   ) {
     return String(
       existing.rows[0]
@@ -418,22 +510,18 @@ export async function getOrCreateParticipant(
     await client.query(
       `
         SELECT
-          COUNT(*)::int
-          AS count
+          COUNT(*)::int AS count
 
-        FROM
-          public.auction_participants
+        FROM public.auction_participants
 
-        WHERE
-          auction_id = $1
+        WHERE auction_id = $1
       `,
       [auctionId]
     );
 
   const nextNumber =
     Number(
-      countResult.rows[0]
-        ?.count || 0
+      countResult.rows[0]?.count || 0
     ) + 1;
 
   const anonymousCode =
@@ -443,9 +531,7 @@ export async function getOrCreateParticipant(
 
   await client.query(
     `
-      INSERT INTO
-        public.auction_participants
-      (
+      INSERT INTO public.auction_participants (
         auction_id,
         bidder_user_id,
         bidder_name,
@@ -474,16 +560,13 @@ export async function getOrCreateParticipant(
 }
 
 // ======================================================
-// API ERROR
+// ERROR
 // ======================================================
 
-export function apiError(
-  error: any
-) {
+export function apiError(error: any) {
   const status =
     Number(
-      error?.status ||
-        500
+      error?.status || 500
     );
 
   console.error(
@@ -515,12 +598,10 @@ export function apiError(
         status >= 500
           ? {
               code:
-                error?.code ||
-                null,
+                error?.code || null,
 
               detail:
-                error?.detail ||
-                null,
+                error?.detail || null,
             }
           : undefined,
     },
