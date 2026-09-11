@@ -42,10 +42,22 @@ type DetailResponse = {
   auction: Auction;
   bids: Bid[];
   session?: {
-    isAdmin: boolean;
+    isAdmin?: boolean;
+    isSuperAdmin?: boolean;
+    isManager?: boolean;
+    roleCode?: string;
     branch: string;
     channel: string | null;
   };
+};
+
+type AuctionSessionInfo = {
+  isAdmin?: boolean;
+  isSuperAdmin?: boolean;
+  isManager?: boolean;
+  roleCode?: string;
+  branch: string;
+  channel: string | null;
 };
 
 type Props = {
@@ -112,7 +124,17 @@ function scopeLabel(scope: Auction["channel_scope"]) {
   return "CMR + Vodafone";
 }
 
-export default function Ihale({ isAdmin, selectedBranch }: Props) {
+function durationLabel(minutes?: number) {
+  const total = Number(minutes || 0);
+  if (!total) return "-";
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours && rest) return `${hours} saat ${rest} dk`;
+  if (hours) return `${hours} saat`;
+  return `${rest} dk`;
+}
+
+export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<DetailResponse | null>(null);
@@ -125,8 +147,13 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
 
   const [now, setNow] = useState(Date.now());
   const [bidAmount, setBidAmount] = useState("");
+  const [bidderName, setBidderName] = useState("");
+  const [listSession, setListSession] = useState<AuctionSessionInfo | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [durationPreset, setDurationPreset] = useState("720");
+  const [customHours, setCustomHours] = useState("");
+  const [customMinutes, setCustomMinutes] = useState("");
   const [createForm, setCreateForm] = useState({
     title: "",
     itemName: "",
@@ -135,7 +162,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
     channelScope: "BOTH",
     startingPrice: "",
     minIncrement: "50",
-    durationMinutes: "10",
+    durationMinutes: "720",
   });
 
   const selectedIdRef = useRef<number | null>(null);
@@ -160,6 +187,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
       }
 
       setDetail(data);
+      if (data?.session) setListSession(data.session);
       setAccessError("");
     } catch (error: any) {
       if (!silent) {
@@ -197,6 +225,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
 
       const rows = Array.isArray(data.auctions) ? data.auctions : [];
       setAuctions(rows);
+      if (data?.session) setListSession(data.session);
       setAccessError("");
 
       const currentSelected = selectedIdRef.current;
@@ -242,6 +271,8 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
 
   const selectedAuction = detail?.auction || null;
   const bids = detail?.bids || [];
+  const activeSession = detail?.session || listSession;
+  const isSuperAdmin = Boolean(activeSession?.isSuperAdmin);
 
   const currentPrice = Number(
     selectedAuction?.current_price ||
@@ -300,8 +331,11 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
         channelScope: "BOTH",
         startingPrice: "",
         minIncrement: "50",
-        durationMinutes: "10",
+        durationMinutes: "720",
       });
+      setDurationPreset("720");
+      setCustomHours("");
+      setCustomMinutes("");
 
       setSelectedId(Number(data.auction.id));
       selectedIdRef.current = Number(data.auction.id);
@@ -355,6 +389,11 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
   const placeBid = async () => {
     if (!selectedAuction) return;
 
+    if (bidderName.trim().length < 3) {
+      setMessage("Teklif vermek için Ad Soyad girin.");
+      return;
+    }
+
     setBusy(true);
     setMessage("");
 
@@ -366,6 +405,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: Number(bidAmount),
+            bidderName: bidderName.trim(),
           }),
         }
       );
@@ -383,6 +423,44 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
       await loadAuctions(true);
     } catch (error: any) {
       setMessage(error?.message || "Teklif verilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteAuction = async () => {
+    if (!selectedAuction || !isSuperAdmin) return;
+
+    if (
+      !window.confirm(
+        "Bu ihale ve tüm teklif geçmişi kalıcı olarak silinecek. Emin misiniz?"
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/auctions/${selectedAuction.id}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error || "İhale silinemedi.");
+      }
+
+      setSelectedId(null);
+      selectedIdRef.current = null;
+      setDetail(null);
+      setMessage("İhale kalıcı olarak silindi.");
+      await loadAuctions(true);
+    } catch (error: any) {
+      setMessage(error?.message || "İhale silinemedi.");
     } finally {
       setBusy(false);
     }
@@ -424,7 +502,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                   Mağazalar Arası İhale
                 </h1>
                 <p className="mt-1 text-[10px] font-semibold text-blue-100/60 sm:text-xs">
-                  CMR ve Vodafone • Katılımcılar anonim • Yönetim kontrollü
+                  CMR ve Vodafone • Teklif verenler anonim • Super Admin kontrollü
                 </p>
               </div>
             </div>
@@ -434,7 +512,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                 {selectedBranch}
               </div>
 
-              {isAdmin && (
+              {isSuperAdmin && (
                 <button
                   type="button"
                   onClick={() => setCreateOpen(true)}
@@ -492,9 +570,9 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                     Aktif ihale yok
                   </p>
                   <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                    {isAdmin
+                    {isSuperAdmin
                       ? "Yeni ihale oluşturarak başlayın."
-                      : "Yönetici ihale açtığında burada görünecek."}
+                      : "Super Admin ihale açtığında burada görünecek."}
                   </p>
                 </div>
               ) : (
@@ -617,7 +695,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                           </p>
                         )}
 
-                        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
                           <Metric
                             label="Başlangıç"
                             value={tl(selectedAuction.starting_price)}
@@ -629,6 +707,10 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                           <Metric
                             label="Teklif"
                             value={String(selectedAuction.bid_count || 0)}
+                          />
+                          <Metric
+                            label="Süre"
+                            value={durationLabel(selectedAuction.duration_minutes)}
                           />
                           <Metric
                             label="Bitiş"
@@ -687,7 +769,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                           Kazanan
                         </div>
                         <div className="mt-1 text-sm font-black text-emerald-800">
-                          {isAdmin
+                          {isSuperAdmin
                             ? selectedAuction.winner_branch || "Seçildi"
                             : "Kazanan teklif seçildi"}
                         </div>
@@ -699,70 +781,77 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                   </div>
                 </div>
 
-                {!isAdmin && (
-                  <div className="rounded-[24px] border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
-                    <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
-                          Teklif Ver
-                        </div>
-                        <h3 className="mt-1 text-xl font-black text-slate-900">
-                          Minimum {tl(minimumBid)}
-                        </h3>
-                        <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                          Diğer katılımcılar mağaza adınızı göremez.
-                        </p>
+                <div className="rounded-[24px] border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
+                        Teklif Ver
                       </div>
-
-                      <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
-                        <div className="relative min-w-[220px]">
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={bidAmount}
-                            onChange={(e) => setBidAmount(e.target.value)}
-                            disabled={
-                              selectedAuction.status !== "LIVE" || busy
-                            }
-                            className="h-12 w-full rounded-xl border-2 border-blue-200 bg-blue-50/40 px-4 pr-12 text-lg font-black text-slate-900 outline-none transition focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-                          />
-                          <span className="absolute inset-y-0 right-4 flex items-center text-xs font-black text-slate-400">
-                            TL
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={placeBid}
-                          disabled={
-                            busy ||
-                            selectedAuction.status !== "LIVE" ||
-                            Number(bidAmount) < minimumBid
-                          }
-                          className="h-12 rounded-xl bg-blue-600 px-6 text-xs font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-                        >
-                          {busy ? "İŞLENİYOR..." : "TEKLİFİ VER"}
-                        </button>
-                      </div>
+                      <h3 className="mt-1 text-xl font-black text-slate-900">
+                        Minimum {tl(minimumBid)}
+                      </h3>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        Ad Soyad yalnızca Super Admin kayıtlarında görünür. Diğer katılımcılar anonim kod görür.
+                      </p>
                     </div>
 
-                    {selectedAuction.status !== "LIVE" && (
-                      <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-500">
-                        Bu ihale şu anda teklif almıyor.
-                      </div>
-                    )}
-                  </div>
-                )}
+                    <div className="grid w-full gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(170px,1fr)_auto] xl:w-auto">
+                      <input
+                        type="text"
+                        value={bidderName}
+                        onChange={(e) => setBidderName(e.target.value)}
+                        disabled={selectedAuction.status !== "LIVE" || busy}
+                        placeholder="Ad Soyad"
+                        maxLength={160}
+                        className="h-12 min-w-[190px] rounded-xl border-2 border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+                      />
 
-                {isAdmin && (
+                      <div className="relative min-w-[180px]">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          disabled={selectedAuction.status !== "LIVE" || busy}
+                          className="h-12 w-full rounded-xl border-2 border-blue-200 bg-blue-50/40 px-4 pr-12 text-lg font-black text-slate-900 outline-none transition focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                        <span className="absolute inset-y-0 right-4 flex items-center text-xs font-black text-slate-400">
+                          TL
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={placeBid}
+                        disabled={
+                          busy ||
+                          selectedAuction.status !== "LIVE" ||
+                          bidderName.trim().length < 3 ||
+                          Number(bidAmount) < minimumBid
+                        }
+                        className="h-12 rounded-xl bg-blue-600 px-6 text-xs font-black text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                      >
+                        {busy ? "İŞLENİYOR..." : "TEKLİFİ VER"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedAuction.status !== "LIVE" && (
+                    <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[10px] font-bold text-slate-500">
+                      Bu ihale şu anda teklif almıyor.
+                    </div>
+                  )}
+                </div>
+
+                {isSuperAdmin && (
                   <div className="rounded-[24px] border border-violet-200 bg-violet-50/40 p-5 sm:p-6">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                       <div>
                         <div className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-600">
-                          Yönetici Kontrolü
+                          Super Admin Kontrolü
                         </div>
                         <p className="mt-1 text-xs font-semibold text-slate-500">
-                          Başlat, duraklat, uzat veya ihaleyi bitir.
+                          Başlat, duraklat, uzat, bitir veya tamamlanan ihaleyi sil.
                         </p>
                       </div>
 
@@ -801,20 +890,22 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                         ) && (
                           <>
                             <AdminButton
-                              onClick={() =>
-                                adminAction("EXTEND", { minutes: 5 })
-                              }
+                              onClick={() => adminAction("EXTEND", { minutes: 30 })}
                               disabled={busy}
                             >
-                              +5 DK
+                              +30 DK
                             </AdminButton>
                             <AdminButton
-                              onClick={() =>
-                                adminAction("EXTEND", { minutes: 10 })
-                              }
+                              onClick={() => adminAction("EXTEND", { minutes: 60 })}
                               disabled={busy}
                             >
-                              +10 DK
+                              +1 SAAT
+                            </AdminButton>
+                            <AdminButton
+                              onClick={() => adminAction("EXTEND", { minutes: 720 })}
+                              disabled={busy}
+                            >
+                              +12 SAAT
                             </AdminButton>
                             <AdminButton
                               onClick={() => adminAction("END")}
@@ -835,6 +926,18 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                             danger
                           >
                             İPTAL
+                          </AdminButton>
+                        )}
+
+                        {["ENDED", "CANCELLED"].includes(
+                          selectedAuction.status
+                        ) && (
+                          <AdminButton
+                            onClick={deleteAuction}
+                            disabled={busy}
+                            danger
+                          >
+                            İHALEYİ SİL
                           </AdminButton>
                         )}
                       </div>
@@ -908,7 +1011,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                                     )}
                                   </div>
 
-                                  {isAdmin && (
+                                  {isSuperAdmin && (
                                     <div className="mt-0.5 truncate text-[9px] font-semibold text-violet-600">
                                       {bid.bidder_branch || "-"}
                                       {bid.bidder_name &&
@@ -936,7 +1039,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                                   )}
                                 </div>
 
-                                {isAdmin &&
+                                {isSuperAdmin &&
                                   selectedAuction.status === "ENDED" &&
                                   !selectedAuction.winner_bid_id && (
                                     <button
@@ -971,10 +1074,10 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                           selectedAuction.min_increment
                         )}.`,
                         "Katılımcılar birbirinin mağaza veya personel adını göremez.",
-                        "Yönetici gerçek mağaza ve teklif geçmişini görebilir.",
+                        "Gerçek Ad Soyad ve mağaza bilgilerini yalnızca Super Admin görebilir.",
                         "Duraklatılan ihalede süre de durdurulur.",
-                        "Yönetici ihaleyi uzatabilir veya manuel bitirebilir.",
-                        "Kazanan teklif ihale bittikten sonra yönetici tarafından onaylanır.",
+                        "İhale yönetimi ve silme işlemleri yalnızca Super Admin tarafından yapılır.",
+                        "Kazanan teklif ihale bittikten sonra Super Admin tarafından onaylanır.",
                       ].map((rule, index) => (
                         <div
                           key={rule}
@@ -1013,7 +1116,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
         </div>
       </section>
 
-      {createOpen && isAdmin && (
+      {createOpen && isSuperAdmin && (
         <div className="fixed inset-0 z-[120000] flex items-stretch justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
           <form
             onSubmit={createAuction}
@@ -1022,7 +1125,7 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
-                  YÖNETİCİ
+                  SUPER ADMIN
                 </div>
                 <h2 className="mt-1 text-2xl font-black text-slate-900">
                   Yeni İhale Oluştur
@@ -1110,27 +1213,83 @@ export default function Ihale({ isAdmin, selectedBranch }: Props) {
                 </select>
               </label>
 
-              <label className="block">
+              <div className="block sm:col-span-2">
                 <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
-                  Süre
+                  İhale Süresi
                 </span>
-                <select
-                  value={createForm.durationMinutes}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      durationMinutes: e.target.value,
-                    }))
-                  }
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
-                >
-                  <option value="5">5 dakika</option>
-                  <option value="10">10 dakika</option>
-                  <option value="15">15 dakika</option>
-                  <option value="30">30 dakika</option>
-                  <option value="60">60 dakika</option>
-                </select>
-              </label>
+
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {[
+                    ["720", "12 Saat"],
+                    ["1440", "24 Saat"],
+                    ["2160", "36 Saat"],
+                    ["2880", "48 Saat"],
+                    ["4320", "72 Saat"],
+                    ["CUSTOM", "Özel"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setDurationPreset(value);
+                        if (value !== "CUSTOM") {
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            durationMinutes: value,
+                          }));
+                        }
+                      }}
+                      className={`h-11 rounded-xl border text-[10px] font-black transition ${
+                        durationPreset === value
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {durationPreset === "CUSTOM" && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <CreateField
+                      label="Saat"
+                      type="number"
+                      value={customHours}
+                      onChange={(value) => {
+                        setCustomHours(value);
+                        const hours = Math.max(0, Number(value || 0));
+                        const minutes = Math.max(0, Number(customMinutes || 0));
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          durationMinutes: String(Math.floor(hours * 60 + minutes)),
+                        }));
+                      }}
+                      placeholder="Örn: 6"
+                    />
+
+                    <CreateField
+                      label="Ek Dakika"
+                      type="number"
+                      value={customMinutes}
+                      onChange={(value) => {
+                        setCustomMinutes(value);
+                        const hours = Math.max(0, Number(customHours || 0));
+                        const minutes = Math.max(0, Number(value || 0));
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          durationMinutes: String(Math.floor(hours * 60 + minutes)),
+                        }));
+                      }}
+                      placeholder="Örn: 30"
+                    />
+
+                    <div className="sm:col-span-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[10px] font-bold text-blue-700">
+                      Toplam süre: {durationLabel(Number(createForm.durationMinutes))} • En fazla 72 saat
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="sm:col-span-2">
                 <CreateField
