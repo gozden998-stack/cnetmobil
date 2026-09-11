@@ -1,10 +1,475 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+
+type PriceNotificationItem = {
+    id: string;
+    key: string;
+    category: string;
+    name: string;
+    direction: 'up' | 'down';
+    oldPrice: number;
+    newPrice: number;
+    diff: number;
+    changedAt: number;
+    expiresAt: number;
+};
+
+type NotificationSheetRow = {
+    sheet_name: string;
+    row_number: number;
+    data: any[];
+    updated_at?: string;
+};
+
+type NotificationPricePoint = {
+    price: number;
+    category: string;
+    name: string;
+    updatedAt: number;
+};
+
+const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v3';
+const PRICE_SNAPSHOT_STORAGE_KEY = 'cnetmobil_price_snapshot_v3';
+const TEN_MINUTES = 10 * 60 * 1000;
+const PRICE_POLL_MS = 3000;
+const MAX_PRICE_NOTIFICATIONS = 50;
+
+const PRICE_TRACKED_SHEETS = [
+    'CEP + TABLET+IOT SAAT LIST',
+    'YNA LİST',
+    '2.EL FİYAT LİSTESİ'
+] as const;
+
+function parseNotificationPrice(value: any) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Math.floor(value);
+
+    let str = String(value).trim();
+    if (str.includes(',')) str = str.split(',')[0];
+
+    const digits = str.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) : 0;
+}
+
+function parseNotificationUpdatedAt(value: unknown) {
+    const ms = Date.parse(String(value || ''));
+    return Number.isFinite(ms) ? ms : Date.now();
+}
+
+function buildNotificationPriceMap(rows: NotificationSheetRow[]) {
+    const map = new Map<string, NotificationPricePoint>();
+
+    rows.forEach((row) => {
+        const cells = Array.isArray(row.data) ? row.data : [];
+        const updatedAt = parseNotificationUpdatedAt(row.updated_at);
+
+        if (row.sheet_name === 'CEP + TABLET+IOT SAAT LIST') {
+            const appleName = String(cells[0] || '').trim();
+
+            if (appleName) {
+                const p1 = parseNotificationPrice(cells[1]);
+                const p2 = parseNotificationPrice(cells[2]);
+
+                if (p1 > 0) {
+                    map.set(`APPLE_${appleName}_v1`, {
+                        price: p1,
+                        category: 'Apple',
+                        name: appleName,
+                        updatedAt
+                    });
+                }
+
+                if (p2 > 0) {
+                    map.set(`APPLE_${appleName}_v2`, {
+                        price: p2,
+                        category: 'Apple',
+                        name: appleName,
+                        updatedAt
+                    });
+                }
+            }
+
+            const androidName = String(cells[5] || '').trim();
+
+            if (androidName) {
+                const p1 = parseNotificationPrice(cells[6]);
+                const p2 = parseNotificationPrice(cells[7]);
+
+                if (p1 > 0) {
+                    map.set(`ANDROID_${androidName}_v1`, {
+                        price: p1,
+                        category: 'Android',
+                        name: androidName,
+                        updatedAt
+                    });
+                }
+
+                if (p2 > 0) {
+                    map.set(`ANDROID_${androidName}_v2`, {
+                        price: p2,
+                        category: 'Android',
+                        name: androidName,
+                        updatedAt
+                    });
+                }
+            }
+
+            const campaignName = String(cells[10] || '').trim();
+            const campaignPrice = parseNotificationPrice(cells[11]);
+
+            if (campaignName && campaignPrice > 0) {
+                map.set(`KAMPANYA_${campaignName}`, {
+                    price: campaignPrice,
+                    category: 'Kampanya',
+                    name: campaignName,
+                    updatedAt
+                });
+            }
+
+            return;
+        }
+
+        if (row.sheet_name === 'YNA LİST') {
+            const name1 = String(cells[0] || '').trim();
+            const price1 = parseNotificationPrice(cells[1]);
+
+            if (name1 && price1 > 0) {
+                map.set(`YNA1_${name1}`, {
+                    price: price1,
+                    category: 'Aksesuar',
+                    name: name1,
+                    updatedAt
+                });
+            }
+
+            const name2 = String(cells[3] || '').trim();
+            const price2 = parseNotificationPrice(cells[4]);
+
+            if (name2 && price2 > 0) {
+                map.set(`YNA2_${name2}`, {
+                    price: price2,
+                    category: 'Aksesuar',
+                    name: name2,
+                    updatedAt
+                });
+            }
+
+            return;
+        }
+
+        if (row.sheet_name === '2.EL FİYAT LİSTESİ') {
+            const name = `${cells[0] || ''} ${cells[1] || ''}`.trim();
+            const price = parseNotificationPrice(cells[2]);
+
+            if (name && price > 0) {
+                map.set(`IKINCI_${name}`, {
+                    price,
+                    category: '2. El',
+                    name,
+                    updatedAt
+                });
+            }
+        }
+    });
+
+    return map;
+}
+
+function notificationPriceOnlyMap(map: Map<string, NotificationPricePoint>) {
+    const result = new Map<string, number>();
+
+    map.forEach((point, key) => {
+        result.set(key, point.price);
+    });
+
+    return result;
+}
+
+function readNotificationSnapshot() {
+    try {
+        const raw = window.localStorage.getItem(PRICE_SNAPSHOT_STORAGE_KEY);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+
+        const map = new Map<string, number>();
+
+        Object.entries(parsed).forEach(([key, value]) => {
+            const price = Number(value);
+            if (key && Number.isFinite(price) && price > 0) {
+                map.set(key, price);
+            }
+        });
+
+        return map.size > 0 ? map : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeNotificationSnapshot(map: Map<string, NotificationPricePoint>) {
+    try {
+        const plain = Object.fromEntries(
+            Array.from(map.entries()).map(([key, point]) => [key, point.price])
+        );
+
+        window.localStorage.setItem(
+            PRICE_SNAPSHOT_STORAGE_KEY,
+            JSON.stringify(plain)
+        );
+    } catch {}
+}
+
+async function fetchPriceNotificationRows(): Promise<NotificationSheetRow[]> {
+    const params = new URLSearchParams();
+
+    PRICE_TRACKED_SHEETS.forEach((sheetName) => {
+        params.append('sheet', sheetName);
+    });
+
+    const response = await fetch(`/api/sheet-rows?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(
+            result?.error || `PostgreSQL API hatası (${response.status})`
+        );
+    }
+
+    return Array.isArray(result?.rows)
+        ? result.rows as NotificationSheetRow[]
+        : [];
+}
 
 export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
+
+
+    // --- SABİT DUYURULAR / FİYAT BİLDİRİMLERİ ---
+    const [homeInfoTab, setHomeInfoTab] = useState<'duyurular' | 'bildirimler'>('bildirimler');
+    const [priceNotifications, setPriceNotifications] = useState<PriceNotificationItem[]>([]);
+    const [selectedPriceNotification, setSelectedPriceNotification] = useState<PriceNotificationItem | null>(null);
+    const [notificationNow, setNotificationNow] = useState(Date.now());
+
+    const previousNotificationPricesRef = useRef<Map<string, number> | null>(null);
+    const notificationEngineReadyRef = useRef(false);
+
+    const notificationBranchLower = String(selectedBranch || '').toLocaleLowerCase('tr-TR');
+    const bildirimlerAktifMi =
+        !notificationBranchLower.includes('zumay') &&
+        !notificationBranchLower.includes('partner');
+
+    useEffect(() => {
+        if (!bildirimlerAktifMi) return;
+
+        let cancelled = false;
+        let busy = false;
+
+        const loadStoredNotifications = () => {
+            try {
+                const raw = window.localStorage.getItem(PRICE_NOTIFICATION_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+
+                setPriceNotifications(
+                    Array.isArray(parsed)
+                        ? parsed
+                            .filter(
+                                (item: any) =>
+                                    item &&
+                                    typeof item.id === 'string' &&
+                                    typeof item.changedAt === 'number'
+                            )
+                            .sort(
+                                (a: PriceNotificationItem, b: PriceNotificationItem) =>
+                                    b.changedAt - a.changedAt
+                            )
+                            .slice(0, MAX_PRICE_NOTIFICATIONS)
+                        : []
+                );
+            } catch {
+                setPriceNotifications([]);
+            }
+        };
+
+        const saveNotifications = (items: PriceNotificationItem[]) => {
+            const clean = [...items]
+                .sort((a, b) => b.changedAt - a.changedAt)
+                .slice(0, MAX_PRICE_NOTIFICATIONS);
+
+            try {
+                window.localStorage.setItem(
+                    PRICE_NOTIFICATION_STORAGE_KEY,
+                    JSON.stringify(clean)
+                );
+            } catch {}
+
+            setPriceNotifications(clean);
+        };
+
+        const publishDetected = (detected: PriceNotificationItem[]) => {
+            if (detected.length === 0) return;
+
+            let existing: PriceNotificationItem[] = [];
+
+            try {
+                const raw = window.localStorage.getItem(PRICE_NOTIFICATION_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                existing = Array.isArray(parsed) ? parsed : [];
+            } catch {}
+
+            const merged = [...detected, ...existing].filter(
+                (item, index, array) =>
+                    array.findIndex((other) => other.id === item.id) === index
+            );
+
+            saveNotifications(merged);
+            setHomeInfoTab('bildirimler');
+        };
+
+        const detectChanges = (
+            previous: Map<string, number>,
+            current: Map<string, NotificationPricePoint>,
+            onlyRecent: boolean
+        ) => {
+            const now = Date.now();
+            const detected: PriceNotificationItem[] = [];
+
+            current.forEach((point, key) => {
+                const oldPrice = previous.get(key);
+
+                if (oldPrice === undefined || oldPrice === point.price) return;
+
+                const changedAt = Number(point.updatedAt || now);
+
+                if (onlyRecent && now - changedAt > TEN_MINUTES) return;
+
+                const diff = point.price - oldPrice;
+
+                detected.push({
+                    id: `${key}-${oldPrice}-${point.price}-${changedAt}`,
+                    key,
+                    category: point.category,
+                    name: point.name,
+                    direction: diff > 0 ? 'up' : 'down',
+                    oldPrice,
+                    newPrice: point.price,
+                    diff,
+                    changedAt,
+                    expiresAt: changedAt + TEN_MINUTES
+                });
+            });
+
+            return detected;
+        };
+
+        const checkPrices = async () => {
+            if (
+                cancelled ||
+                busy ||
+                document.visibilityState === 'hidden'
+            ) {
+                return;
+            }
+
+            busy = true;
+
+            try {
+                const rows = await fetchPriceNotificationRows();
+                if (cancelled) return;
+
+                const current = buildNotificationPriceMap(rows);
+
+                if (!notificationEngineReadyRef.current) {
+                    const storedSnapshot = readNotificationSnapshot();
+
+                    if (storedSnapshot && storedSnapshot.size > 0) {
+                        publishDetected(
+                            detectChanges(storedSnapshot, current, true)
+                        );
+                    }
+
+                    previousNotificationPricesRef.current =
+                        notificationPriceOnlyMap(current);
+
+                    writeNotificationSnapshot(current);
+                    notificationEngineReadyRef.current = true;
+                    return;
+                }
+
+                const previous = previousNotificationPricesRef.current;
+
+                if (previous && previous.size > 0) {
+                    publishDetected(
+                        detectChanges(previous, current, false)
+                    );
+                }
+
+                previousNotificationPricesRef.current =
+                    notificationPriceOnlyMap(current);
+
+                writeNotificationSnapshot(current);
+            } catch (error) {
+                console.error('Ana sayfa fiyat bildirim kontrol hatası:', error);
+            } finally {
+                busy = false;
+            }
+        };
+
+        loadStoredNotifications();
+        void checkPrices();
+
+        const priceTimer = window.setInterval(checkPrices, PRICE_POLL_MS);
+        const clockTimer = window.setInterval(() => {
+            setNotificationNow(Date.now());
+        }, 30_000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(priceTimer);
+            window.clearInterval(clockTimer);
+        };
+    }, [bildirimlerAktifMi]);
+
+    const formatPriceTl = (value: number) =>
+        `${Math.round(Number(value) || 0).toLocaleString('tr-TR')} TL`;
+
+    const getPriceTimeLabel = (changedAt: number) => {
+        const diffMs = Math.max(0, notificationNow - Number(changedAt || 0));
+        const diffMin = Math.floor(diffMs / 60_000);
+
+        if (diffMin < 1) return 'Az önce';
+        if (diffMin < 60) return `${diffMin} dk önce`;
+
+        const diffHour = Math.floor(diffMin / 60);
+        if (diffHour < 24) return `${diffHour} sa önce`;
+
+        return new Date(changedAt).toLocaleString('tr-TR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const activeNewPriceCount = priceNotifications.filter(
+        (item) => Number(item.expiresAt || 0) > notificationNow
+    ).length;
+
+    const announcementItems = [
+        config?.Duyuru_Metni,
+        config?.Kampanya_Metni
+    ]
+        .map((item: any) => String(item || '').trim())
+        .filter(Boolean);
 
     // --- HAVA DURUMU (Open-Meteo / API key gerektirmez) ---
     const [weather, setWeather] = useState<{
@@ -703,6 +1168,293 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         </div>
                     </div>
                 </section>
+
+
+                {/* DUYURULAR / BİLDİRİMLER - ANA SAYFADA SABİT */}
+                {bildirimlerAktifMi && (
+                    <section className="mb-4 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
+                        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                                        <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-[15px] font-black tracking-tight text-[#102A56]">
+                                            Duyurular & Bildirimler
+                                        </h2>
+                                        <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                                            Fiyat değişiklikleri ve güncel bilgilendirmeler
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="inline-flex w-fit items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setHomeInfoTab('duyurular')}
+                                    className={`rounded-lg px-4 py-2 text-[10px] font-black transition-all ${
+                                        homeInfoTab === 'duyurular'
+                                            ? 'bg-white text-[#102A56] shadow-sm ring-1 ring-slate-200'
+                                            : 'text-slate-400 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Duyurular
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setHomeInfoTab('bildirimler')}
+                                    className={`relative rounded-lg px-4 py-2 text-[10px] font-black transition-all ${
+                                        homeInfoTab === 'bildirimler'
+                                            ? 'bg-white text-orange-600 shadow-sm ring-1 ring-orange-200'
+                                            : 'text-slate-400 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Bildirimler
+                                    {activeNewPriceCount > 0 && (
+                                        <span className="absolute -right-2 -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-black text-white shadow-md">
+                                            {activeNewPriceCount}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="px-5 py-4">
+                            {homeInfoTab === 'duyurular' ? (
+                                <div className="max-h-[220px] overflow-y-auto pr-1">
+                                    {announcementItems.length > 0 ? (
+                                        <div className="divide-y divide-slate-100">
+                                            {announcementItems.map((announcement, index) => (
+                                                <div key={`${announcement}-${index}`} className="py-3.5 first:pt-0 last:pb-0">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600">
+                                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19a1 1 0 001.447.894l4-2A1 1 0 0017 17V6.118a1 1 0 00-.553-.894l-4-2A1 1 0 0011 4.118v1.764zM4 8v8a2 2 0 002 2h2V6H6a2 2 0 00-2 2z" />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="text-[10px] font-black text-slate-800">
+                                                                {index === 0 ? 'Güncel Duyuru' : 'Kampanya / Bilgilendirme'}
+                                                            </div>
+                                                            <p className="mt-1 text-[11px] leading-5 text-slate-600">
+                                                                {announcement}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex min-h-[105px] flex-col items-center justify-center text-center">
+                                            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+                                                📢
+                                            </div>
+                                            <p className="text-[11px] font-black text-slate-700">Aktif duyuru bulunmuyor</p>
+                                            <p className="mt-1 text-[9px] text-slate-400">Yeni duyurular burada görünecek.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="max-h-[300px] overflow-y-auto pr-1">
+                                    {priceNotifications.length > 0 ? (
+                                        <div className="divide-y divide-slate-100">
+                                            {priceNotifications.slice(0, 12).map((item) => {
+                                                const isFresh = Number(item.expiresAt || 0) > notificationNow;
+                                                const isDown = item.direction === 'down';
+
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={item.id}
+                                                        onClick={() => setSelectedPriceNotification(item)}
+                                                        className={`group w-full rounded-xl py-3 text-left transition-all ${
+                                                            isFresh
+                                                                ? 'bg-rose-50/55 px-3 ring-1 ring-rose-100'
+                                                                : 'px-1 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start gap-3">
+                                                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+                                                                isDown
+                                                                    ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                                                                    : 'border-rose-100 bg-rose-50 text-rose-600'
+                                                            }`}>
+                                                                <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L10.828 19a2 2 0 01-2.828 0l-5-5a2 2 0 010-2.828z" />
+                                                                </svg>
+                                                            </div>
+
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <span className="text-[9px] font-black uppercase tracking-wide text-rose-600">
+                                                                                Fiyat Değişti
+                                                                            </span>
+                                                                            {isFresh && (
+                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-white">
+                                                                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                                                                                    Yeni
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="text-[8px] font-bold text-slate-400">
+                                                                                {item.category}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <h3 className="mt-1 truncate text-[12px] font-black text-slate-900 sm:text-[13px]">
+                                                                            {item.name}
+                                                                        </h3>
+
+                                                                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                                                            <span className="text-[10px] font-bold text-slate-400 line-through">
+                                                                                {formatPriceTl(item.oldPrice)}
+                                                                            </span>
+                                                                            <span className="text-slate-300">→</span>
+                                                                            <span className="text-[11px] font-black text-slate-900">
+                                                                                {formatPriceTl(item.newPrice)}
+                                                                            </span>
+                                                                            <span className={`text-[9px] font-black ${
+                                                                                isDown ? 'text-emerald-600' : 'text-rose-600'
+                                                                            }`}>
+                                                                                {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex shrink-0 items-center gap-2">
+                                                                        <span className="text-[8px] font-bold text-slate-400">
+                                                                            {getPriceTimeLabel(item.changedAt)}
+                                                                        </span>
+                                                                        <svg className="h-4 w-4 text-slate-300 transition-colors group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="flex min-h-[120px] flex-col items-center justify-center text-center">
+                                            <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-500">
+                                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                                </svg>
+                                            </div>
+                                            <p className="text-[11px] font-black text-slate-700">Henüz fiyat değişikliği yok</p>
+                                            <p className="mt-1 text-[9px] text-slate-400">
+                                                Sheets'te fiyat değiştiğinde otomatik burada görünecek.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                )}
+
+                {/* FİYAT BİLDİRİM DETAYI */}
+                {bildirimlerAktifMi && selectedPriceNotification && (
+                    <div
+                        className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+                        onClick={() => setSelectedPriceNotification(null)}
+                    >
+                        <div
+                            className="w-full max-w-lg overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                                <div>
+                                    <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">
+                                        Fiyat Değişikliği Detayı
+                                    </div>
+                                    <h3 className="mt-1 text-lg font-black leading-tight text-[#102A56]">
+                                        {selectedPriceNotification.name}
+                                    </h3>
+                                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                        {selectedPriceNotification.category} · {getPriceTimeLabel(selectedPriceNotification.changedAt)}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedPriceNotification(null)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-500 transition-colors hover:bg-slate-100"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="p-6">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
+                                        <div className="mt-1 text-xl font-black text-slate-700">
+                                            {formatPriceTl(selectedPriceNotification.oldPrice)}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
+                                        <div className="mt-1 text-xl font-black text-blue-700">
+                                            {formatPriceTl(selectedPriceNotification.newPrice)}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`mt-3 rounded-2xl border p-4 ${
+                                    selectedPriceNotification.direction === 'down'
+                                        ? 'border-emerald-100 bg-emerald-50'
+                                        : 'border-rose-100 bg-rose-50'
+                                }`}>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Değişim</span>
+                                            <div className={`mt-1 text-lg font-black ${
+                                                selectedPriceNotification.direction === 'down'
+                                                    ? 'text-emerald-700'
+                                                    : 'text-rose-700'
+                                            }`}>
+                                                {selectedPriceNotification.diff > 0 ? '+' : ''}
+                                                {formatPriceTl(selectedPriceNotification.diff)}
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right">
+                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Durum</span>
+                                            <div className={`mt-1 text-[11px] font-black ${
+                                                selectedPriceNotification.direction === 'down'
+                                                    ? 'text-emerald-700'
+                                                    : 'text-rose-700'
+                                            }`}>
+                                                {selectedPriceNotification.direction === 'down'
+                                                    ? 'Fiyat Düştü'
+                                                    : 'Fiyat Yükseldi'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-[9px]">
+                                    <span className="font-bold text-slate-400">Değişiklik zamanı</span>
+                                    <span className="font-black text-slate-700">
+                                        {new Date(selectedPriceNotification.changedAt).toLocaleString('tr-TR')}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* KPI KARTLARI - SADECE CMR */}
                 {isCmr && (
