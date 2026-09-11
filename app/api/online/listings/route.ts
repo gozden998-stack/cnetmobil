@@ -2791,14 +2791,26 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const reconciliation =
-        await reconcilePendingN11Listing(
-          existing
+      const existingRaw =
+        safeObject(
+          existing.raw_data
         );
+
+      const reconciliation =
+        existing.external_product_id &&
+        existingRaw.poolStockIncreasePending === true
+          ? await reconcilePendingPoolStockListing(
+              existing
+            )
+          : await reconcilePendingN11Listing(
+              existing
+            );
 
       if (
         reconciliation.state ===
-        'ERROR'
+          'ERROR' ||
+        reconciliation.state ===
+          'POOL_ERROR'
       ) {
         return json(
           {
@@ -3118,6 +3130,584 @@ async function findExistingSameVariantListing(
   );
 }
 
+async function reconcilePendingPoolStockListing(
+  listing: any
+) {
+  const pool = getPool();
+
+  const listingId =
+    Number(listing?.id);
+
+  const stockCode = String(
+    listing?.external_stock_code ||
+      ''
+  ).trim();
+
+  if (
+    !listingId ||
+    !stockCode ||
+    !listing?.external_product_id
+  ) {
+    return {
+      state: 'ERROR' as const,
+      created: false,
+      pending: false,
+      error:
+        'Bekleyen N11 stok kaydında listing / stockCode / productId eksik.',
+      listing,
+    };
+  }
+
+  const freshResult =
+    await pool.query(
+      `
+        SELECT *
+        FROM public.online_listings
+        WHERE id = $1
+          AND channel = 'N11'
+        LIMIT 1
+      `,
+      [listingId]
+    );
+
+  const fresh =
+    freshResult.rows[0] ||
+    listing;
+
+  const raw =
+    safeObject(
+      fresh.raw_data
+    );
+
+  if (
+    raw.poolStockIncreasePending !==
+    true
+  ) {
+    return {
+      state: 'POOL_NOT_PENDING' as const,
+      created: true,
+      pending: false,
+      error: null,
+      listing: fresh,
+    };
+  }
+
+  const taskId = String(
+    raw.poolStockTaskId ||
+      fresh.last_task_id ||
+      ''
+  ).trim();
+
+  const targetQuantity =
+    nonNegativeInt(
+      raw.poolTargetQuantity,
+      nonNegativeInt(
+        fresh.quantity,
+        0
+      )
+    );
+
+  const pendingImeis =
+    uniqueStringArray(
+      raw.pendingPoolImeis
+    );
+
+  const pendingPooledImeis =
+    uniqueStringArray(
+      raw.poolPendingPooledImeis
+    );
+
+  const pendingAvailableImeis =
+    uniqueStringArray(
+      raw.poolPendingAvailableImeis
+    );
+
+  const pendingSoldImeis =
+    uniqueStringArray(
+      raw.poolPendingSoldImeis
+    );
+
+  const pendingLegacy =
+    nonNegativeInt(
+      raw.poolPendingLegacyUnmappedQuantity,
+      nonNegativeInt(
+        raw.legacyUnmappedQuantity,
+        0
+      )
+    );
+
+  const liveProduct =
+    await queryN11ProductByStockCode(
+      stockCode
+    );
+
+  const liveQuantity =
+    liveProduct
+      ? nonNegativeInt(
+          liveProduct.quantity,
+          0
+        )
+      : 0;
+
+  if (
+    liveProduct &&
+    liveQuantity >=
+      targetQuantity
+  ) {
+    const finalPooledImeis =
+      pendingPooledImeis.length > 0
+        ? pendingPooledImeis
+        : Array.from(
+            new Set([
+              ...uniqueStringArray(
+                raw.pooledImeis
+              ),
+              ...pendingImeis,
+            ])
+          );
+
+    const finalAvailableImeis =
+      pendingAvailableImeis.length > 0
+        ? pendingAvailableImeis
+        : Array.from(
+            new Set([
+              ...uniqueStringArray(
+                raw.availableImeis
+              ),
+              ...pendingImeis,
+            ])
+          );
+
+    const finalSoldImeis =
+      pendingSoldImeis.length > 0
+        ? pendingSoldImeis
+        : uniqueStringArray(
+            raw.soldImeis
+          );
+
+    const reconciledLegacy =
+      Math.max(
+        pendingLegacy,
+        liveQuantity -
+          finalAvailableImeis.length,
+        0
+      );
+
+    const poolPatch = {
+      poolEnabled: true,
+      poolMasterStockCode:
+        stockCode,
+      pooledImeis:
+        finalPooledImeis,
+      availableImeis:
+        finalAvailableImeis,
+      soldImeis:
+        finalSoldImeis,
+      legacyUnmappedQuantity:
+        reconciledLegacy,
+      poolTargetQuantity:
+        liveQuantity,
+      poolStockIncreasePending:
+        false,
+      poolStockPendingUntil:
+        null,
+      poolStockTaskId:
+        taskId || null,
+      pendingPoolImeis: [],
+      poolPendingPooledImeis: [],
+      poolPendingAvailableImeis: [],
+      poolPendingSoldImeis: [],
+      poolPendingLegacyUnmappedQuantity:
+        null,
+      poolLastVerifiedAt:
+        new Date().toISOString(),
+      poolLastVerifiedQuantity:
+        liveQuantity,
+    };
+
+    const updateResult =
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            quantity = $2,
+            product_status =
+              COALESCE($3, product_status),
+            sale_status =
+              COALESCE($4, sale_status),
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $5::jsonb,
+            last_task_status =
+              'SUCCESS',
+            last_error = NULL,
+            sync_status = 'SYNCED',
+            last_synced_at = now(),
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+          RETURNING *
+        `,
+        [
+          listingId,
+          liveQuantity,
+          liveProduct?.status
+            ? String(
+                liveProduct.status
+              )
+            : null,
+          liveProduct?.saleStatus
+            ? String(
+                liveProduct.saleStatus
+              )
+            : null,
+          JSON.stringify(
+            poolPatch
+          ),
+        ]
+      );
+
+    if (taskId) {
+      await pool.query(
+        `
+          UPDATE public.online_tasks
+          SET
+            task_status = 'SUCCESS',
+            checked_at = now(),
+            completed_at =
+              COALESCE(
+                completed_at,
+                now()
+              ),
+            error_message = NULL
+          WHERE channel = 'N11'
+            AND task_id = $1
+        `,
+        [taskId]
+      );
+    }
+
+    return {
+      state:
+        'POOL_SYNCED' as const,
+      created: true,
+      pending: false,
+      error: null,
+      taskStatus: 'SUCCESS',
+      targetQuantity,
+      liveQuantity,
+      listing:
+        updateResult.rows[0],
+    };
+  }
+
+  if (!taskId) {
+    const errorMessage =
+      'N11 stok artırma beklemede ancak taskId bulunamadı.';
+
+    const clearPatch = {
+      poolStockIncreasePending:
+        false,
+      poolStockPendingUntil:
+        null,
+      pendingPoolImeis: [],
+      poolPendingPooledImeis: [],
+      poolPendingAvailableImeis: [],
+      poolPendingSoldImeis: [],
+      poolPendingLegacyUnmappedQuantity:
+        null,
+    };
+
+    const updateResult =
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $2::jsonb,
+            last_error = $3,
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+          RETURNING *
+        `,
+        [
+          listingId,
+          JSON.stringify(
+            clearPatch
+          ),
+          errorMessage,
+        ]
+      );
+
+    return {
+      state:
+        'POOL_ERROR' as const,
+      created: false,
+      pending: false,
+      error:
+        errorMessage,
+      listing:
+        updateResult.rows[0],
+    };
+  }
+
+  const task =
+    await getN11TaskOnce(
+      taskId
+    );
+
+  if (
+    task.overallStatus ===
+    'REJECT'
+  ) {
+    const errorMessage =
+      'N11 stok artırma task reddedildi.';
+
+    const clearPatch = {
+      poolStockIncreasePending:
+        false,
+      poolStockPendingUntil:
+        null,
+      pendingPoolImeis: [],
+      poolPendingPooledImeis: [],
+      poolPendingAvailableImeis: [],
+      poolPendingSoldImeis: [],
+      poolPendingLegacyUnmappedQuantity:
+        null,
+      poolLastRejectedTaskId:
+        taskId,
+      poolLastRejectedAt:
+        new Date().toISOString(),
+    };
+
+    const updateResult =
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || $2::jsonb,
+            last_task_status =
+              'REJECT',
+            last_error = $3,
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+          RETURNING *
+        `,
+        [
+          listingId,
+          JSON.stringify(
+            clearPatch
+          ),
+          errorMessage,
+        ]
+      );
+
+    await pool.query(
+      `
+        UPDATE public.online_tasks
+        SET
+          task_status = 'REJECT',
+          response_payload = $2::jsonb,
+          error_message = $3,
+          checked_at = now(),
+          completed_at = now()
+        WHERE channel = 'N11'
+          AND task_id = $1
+      `,
+      [
+        taskId,
+        JSON.stringify(
+          task.payload
+        ),
+        errorMessage,
+      ]
+    );
+
+    return {
+      state:
+        'POOL_ERROR' as const,
+      created: false,
+      pending: false,
+      error:
+        errorMessage,
+      taskStatus:
+        'REJECT',
+      listing:
+        updateResult.rows[0],
+    };
+  }
+
+  if (
+    task.overallStatus ===
+    'PROCESSED'
+  ) {
+    const matched =
+      task.content.find(
+        (item: any) =>
+          String(
+            item?.itemCode || ''
+          ).trim() ===
+          stockCode
+      ) ||
+      (task.content.length === 1
+        ? task.content[0]
+        : null);
+
+    const skuStatus = String(
+      matched?.status || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const reasons =
+      taskReasonList(
+        matched
+      );
+
+    if (
+      skuStatus &&
+      skuStatus !== 'SUCCESS'
+    ) {
+      const errorMessage =
+        reasons.join(' | ') ||
+        `N11 stok artırma sonucu: ${skuStatus}`;
+
+      const clearPatch = {
+        poolStockIncreasePending:
+          false,
+        poolStockPendingUntil:
+          null,
+        pendingPoolImeis: [],
+        poolPendingPooledImeis: [],
+        poolPendingAvailableImeis: [],
+        poolPendingSoldImeis: [],
+        poolPendingLegacyUnmappedQuantity:
+          null,
+        poolLastRejectedTaskId:
+          taskId,
+        poolLastRejectedAt:
+          new Date().toISOString(),
+      };
+
+      const updateResult =
+        await pool.query(
+          `
+            UPDATE public.online_listings
+            SET
+              raw_data =
+                COALESCE(
+                  raw_data,
+                  '{}'::jsonb
+                )
+                || $2::jsonb,
+              last_task_status = $3,
+              last_error = $4,
+              updated_at = now()
+            WHERE id = $1
+              AND channel = 'N11'
+            RETURNING *
+          `,
+          [
+            listingId,
+            JSON.stringify(
+              clearPatch
+            ),
+            skuStatus,
+            errorMessage,
+          ]
+        );
+
+      await pool.query(
+        `
+          UPDATE public.online_tasks
+          SET
+            task_status = $2,
+            response_payload = $3::jsonb,
+            reasons = $4::jsonb,
+            error_message = $5,
+            checked_at = now(),
+            completed_at = now()
+          WHERE channel = 'N11'
+            AND task_id = $1
+        `,
+        [
+          taskId,
+          skuStatus,
+          JSON.stringify(
+            task.payload
+          ),
+          JSON.stringify(
+            reasons
+          ),
+          errorMessage,
+        ]
+      );
+
+      return {
+        state:
+          'POOL_ERROR' as const,
+        created: false,
+        pending: false,
+        error:
+          errorMessage,
+        taskStatus:
+          skuStatus,
+        reasons,
+        listing:
+          updateResult.rows[0],
+      };
+    }
+  }
+
+  const pendingResult =
+    await pool.query(
+      `
+        UPDATE public.online_listings
+        SET
+          last_task_status = $2,
+          last_error = NULL,
+          updated_at = now()
+        WHERE id = $1
+          AND channel = 'N11'
+        RETURNING *
+      `,
+      [
+        listingId,
+        task.overallStatus ||
+          'IN_QUEUE',
+      ]
+    );
+
+  return {
+    state:
+      'POOL_PENDING' as const,
+    created: false,
+    pending: true,
+    error: null,
+    taskStatus:
+      task.overallStatus ||
+      'IN_QUEUE',
+    targetQuantity,
+    liveQuantity,
+    listing:
+      pendingResult.rows[0],
+  };
+}
+
 async function addImeiToExistingN11Listing(
   params: {
     pool: Pool;
@@ -3152,7 +3742,6 @@ async function addImeiToExistingN11Listing(
     );
   }
 
-  // Aynı IMEI başka N11 listing/pool içinde var mı?
   const imeiCheck =
     await pool.query(
       `
@@ -3185,6 +3774,25 @@ async function addImeiToExistingN11Listing(
               ) AS pool_imei(value)
               WHERE pool_imei.value = $1
             )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pendingPoolImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pendingPoolImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pending_pool_imei(value)
+              WHERE pending_pool_imei.value = $1
+            )
           )
         ORDER BY
           CASE WHEN id = $2 THEN 0 ELSE 1 END,
@@ -3202,8 +3810,6 @@ async function addImeiToExistingN11Listing(
     Number(imeiExisting.id) !==
       listingId
   ) {
-    // Önceki başarısız local kayıt bu IMEI'yi tutuyor olabilir.
-    // Retry satırı ise aşağıda arşivlenecek; gerçek N11 ürünü ise blokla.
     const retryId =
       Number(
         params.retryListingId || 0
@@ -3248,7 +3854,73 @@ async function addImeiToExistingN11Listing(
   }
 
   const raw =
-    safeObject(fresh.raw_data);
+    safeObject(
+      fresh.raw_data
+    );
+
+  const pendingImeis =
+    uniqueStringArray(
+      raw.pendingPoolImeis
+    );
+
+  if (
+    raw.poolStockIncreasePending === true &&
+    pendingImeis.includes(
+      imei
+    )
+  ) {
+    const reconciliation =
+      await reconcilePendingPoolStockListing(
+        fresh
+      );
+
+    if (
+      reconciliation.state ===
+      'POOL_ERROR'
+    ) {
+      return {
+        success: false as const,
+        status: 422,
+        error:
+          reconciliation.error ||
+          'N11 stok artırma işlemi başarısız.',
+        listing:
+          reconciliation.listing,
+      };
+    }
+
+    return {
+      success: true as const,
+      alreadyLinked: true,
+      pending:
+        reconciliation.pending,
+      taskId:
+        String(
+          fresh.last_task_id ||
+            raw.poolStockTaskId ||
+            ''
+        ) || null,
+      taskStatus:
+        'taskStatus' in
+        reconciliation
+          ? reconciliation.taskStatus
+          : null,
+      targetQuantity:
+        nonNegativeInt(
+          raw.poolTargetQuantity,
+          nonNegativeInt(
+            fresh.quantity,
+            0
+          )
+        ),
+      listing:
+        reconciliation.listing,
+      message:
+        reconciliation.pending
+          ? `IMEI ${imei} için N11 stok artırma işlemi hâlâ bekleniyor. İkinci kez stok artırma isteği gönderilmedi.`
+          : `IMEI ${imei} için bekleyen N11 stok işlemi doğrulandı.`,
+    };
+  }
 
   let pooledImeis =
     uniqueStringArray(
@@ -3265,11 +3937,21 @@ async function addImeiToExistingN11Listing(
       raw.soldImeis
     );
 
-  const currentQuantity =
-    nonNegativeInt(
-      fresh.quantity,
-      0
+  const liveBefore =
+    await queryN11ProductByStockCode(
+      stockCode
     );
+
+  const currentQuantity =
+    liveBefore
+      ? nonNegativeInt(
+          liveBefore.quantity,
+          0
+        )
+      : nonNegativeInt(
+          fresh.quantity,
+          0
+        );
 
   let legacyUnmappedQuantity =
     nonNegativeInt(
@@ -3280,9 +3962,6 @@ async function addImeiToExistingN11Listing(
   const poolWasEnabled =
     raw.poolEnabled === true;
 
-  // İlk defa pool'a çevrilen mevcut N11 ürünü:
-  // - stockCode IMEI ise o IMEI'yi fiziksel cihaz olarak biliyoruz.
-  // - stockCode IMEI değilse mevcut stok "legacy / IMEI'si bilinmeyen" stoktur.
   if (!poolWasEnabled) {
     if (
       isImeiStockCode(
@@ -3338,7 +4017,6 @@ async function addImeiToExistingN11Listing(
         );
     }
   } else {
-    // N11 canlı quantity pool bilgisinden büyükse farkı legacy stok say.
     const knownCurrent =
       availableImeis.length +
       legacyUnmappedQuantity;
@@ -3354,37 +4032,83 @@ async function addImeiToExistingN11Listing(
   }
 
   if (
-    pooledImeis.includes(imei) ||
-    soldImeis.includes(imei)
+    soldImeis.includes(
+      imei
+    )
+  ) {
+    return {
+      success: false as const,
+      status: 409,
+      error:
+        `IMEI ${imei} bu N11 ürününde daha önce satılmış / stok dışı olarak işaretlenmiş. Otomatik olarak yeniden satışa açılamaz.`,
+      listing: fresh,
+    };
+  }
+
+  const alreadyAvailable =
+    availableImeis.includes(
+      imei
+    );
+
+  const alreadyPooled =
+    pooledImeis.includes(
+      imei
+    );
+
+  let nextPooledImeis =
+    pooledImeis;
+
+  let nextAvailableImeis =
+    availableImeis;
+
+  if (
+    !alreadyPooled
+  ) {
+    nextPooledImeis =
+      Array.from(
+        new Set([
+          ...pooledImeis,
+          imei,
+        ])
+      );
+  }
+
+  if (
+    !alreadyAvailable
+  ) {
+    nextAvailableImeis =
+      Array.from(
+        new Set([
+          ...availableImeis,
+          imei,
+        ])
+      );
+  }
+
+  const targetQuantity =
+    legacyUnmappedQuantity +
+    nextAvailableImeis.length;
+
+  if (
+    alreadyPooled &&
+    alreadyAvailable &&
+    liveBefore &&
+    currentQuantity >=
+      targetQuantity
   ) {
     return {
       success: true as const,
       alreadyLinked: true,
-      listing: fresh,
+      pending: false,
+      taskId: null,
+      taskStatus: 'SUCCESS',
       targetQuantity:
         currentQuantity,
+      listing: fresh,
       message:
-        `IMEI ${imei} zaten bu N11 ürününün stok havuzuna bağlı.`,
+        `IMEI ${imei} zaten bu N11 stok havuzunda ve canlı N11 stok doğrulandı.`,
     };
   }
-
-  pooledImeis = Array.from(
-    new Set([
-      ...pooledImeis,
-      imei,
-    ])
-  );
-
-  availableImeis = Array.from(
-    new Set([
-      ...availableImeis,
-      imei,
-    ])
-  );
-
-  const targetQuantity =
-    legacyUnmappedQuantity +
-    availableImeis.length;
 
   const n11 =
     await sendN11PriceStockUpdate({
@@ -3438,131 +4162,265 @@ async function addImeiToExistingN11Listing(
     reasons: n11.reasons,
   });
 
-  const poolPatch = {
-    poolEnabled: true,
+  const pendingPatch = {
+    poolEnabled:
+      poolWasEnabled,
     poolMasterStockCode:
       stockCode,
-    pooledImeis,
-    availableImeis,
-    soldImeis,
-    legacyUnmappedQuantity,
-    poolTargetQuantity:
-      targetQuantity,
     poolStockIncreasePending:
       true,
     poolStockPendingUntil:
       new Date(
-        Date.now() + 120_000
+        Date.now() + 5 * 60_000
       ).toISOString(),
     poolStockTaskId:
       n11.taskId,
-    // Yeni fiziksel cihaz eklendiği için önceki sipariş üst sınırı kalkar.
-    orderStockLock: false,
-    orderExpectedMaxQuantity:
+    poolTargetQuantity:
       targetQuantity,
-    poolLastAddedImei:
+    pendingPoolImeis:
+      Array.from(
+        new Set([
+          ...pendingImeis,
+          imei,
+        ])
+      ),
+    poolPendingPooledImeis:
+      nextPooledImeis,
+    poolPendingAvailableImeis:
+      nextAvailableImeis,
+    poolPendingSoldImeis:
+      soldImeis,
+    poolPendingLegacyUnmappedQuantity:
+      legacyUnmappedQuantity,
+    poolLastRequestedImei:
       imei,
-    poolLastAddedBy:
+    poolLastRequestedBy:
       requestedBy,
-    poolLastAddedAt:
+    poolLastRequestedAt:
       new Date().toISOString(),
     poolPriceMode:
       'EXISTING_N11_PRICE_PRESERVED',
   };
 
-  const updateResult =
-    await pool.query(
-      `
-        UPDATE public.online_listings
-        SET
-          quantity = $2,
-          raw_data =
-            COALESCE(
-              raw_data,
-              '{}'::jsonb
-            )
-            || $3::jsonb,
-          last_task_id = $4,
-          last_task_status = $5,
-          last_error = NULL,
-          sync_status = 'SYNCED',
-          updated_at = now()
-        WHERE id = $1
-          AND channel = 'N11'
-        RETURNING *
-      `,
-      [
-        listingId,
-        targetQuantity,
-        JSON.stringify(poolPatch),
-        n11.taskId,
-        n11.taskStatus,
-      ]
+  await pool.query(
+    `
+      UPDATE public.online_listings
+      SET
+        quantity = $2,
+        raw_data =
+          COALESCE(
+            raw_data,
+            '{}'::jsonb
+          )
+          || $3::jsonb,
+        last_task_id = $4,
+        last_task_status =
+          'IN_QUEUE',
+        last_error = NULL,
+        updated_at = now()
+      WHERE id = $1
+        AND channel = 'N11'
+    `,
+    [
+      listingId,
+      currentQuantity,
+      JSON.stringify(
+        pendingPatch
+      ),
+      n11.taskId,
+    ]
+  );
+
+  const taskResult =
+    await waitForCreateTask(
+      n11.taskId,
+      stockCode
     );
 
   if (
-    params.retryListingId &&
-    Number(
-      params.retryListingId
-    ) !== listingId
+    taskResult.completed &&
+    !taskResult.success
   ) {
+    const rejected =
+      await reconcilePendingPoolStockListing(
+        {
+          ...fresh,
+          last_task_id:
+            n11.taskId,
+          raw_data: {
+            ...raw,
+            ...pendingPatch,
+          },
+        }
+      );
+
+    return {
+      success: false as const,
+      status: 422,
+      error:
+        rejected.error ||
+        taskResult.reasons.join(
+          ' | '
+        ) ||
+        'N11 stok artırma işlemi başarısız.',
+      listing:
+        rejected.listing,
+    };
+  }
+
+  for (
+    let attempt = 1;
+    attempt <= 6;
+    attempt += 1
+  ) {
+    const liveProduct =
+      await queryN11ProductByStockCode(
+        stockCode
+      );
+
+    const liveQuantity =
+      liveProduct
+        ? nonNegativeInt(
+            liveProduct.quantity,
+            0
+          )
+        : 0;
+
+    if (
+      liveProduct &&
+      liveQuantity >=
+        targetQuantity
+    ) {
+      const verified =
+        await reconcilePendingPoolStockListing(
+          {
+            ...fresh,
+            last_task_id:
+              n11.taskId,
+            raw_data: {
+              ...raw,
+              ...pendingPatch,
+            },
+          }
+        );
+
+      if (
+        verified.state ===
+        'POOL_SYNCED'
+      ) {
+        if (
+          params.retryListingId &&
+          Number(
+            params.retryListingId
+          ) !== listingId
+        ) {
+          await pool.query(
+            `
+              UPDATE public.online_listings
+              SET
+                external_stock_code =
+                  CONCAT(
+                    'MERGED-',
+                    id::text,
+                    '-',
+                    $2::text
+                  ),
+                quantity = 0,
+                sync_status =
+                  'MERGED_TO_POOL',
+                last_task_id = NULL,
+                last_task_status = NULL,
+                last_error = NULL,
+                raw_data =
+                  COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )
+                  || jsonb_build_object(
+                    'mergedToPool',
+                    true,
+                    'mergedToListingId',
+                    $3::bigint,
+                    'mergedImei',
+                    $2::text,
+                    'mergedAt',
+                    now()::text
+                  ),
+                updated_at = now()
+              WHERE id = $1
+                AND external_product_id IS NULL
+            `,
+            [
+              Number(
+                params.retryListingId
+              ),
+              imei,
+              listingId,
+            ]
+          );
+        }
+
+        return {
+          success: true as const,
+          alreadyLinked:
+            alreadyPooled,
+          pending: false,
+          taskId:
+            n11.taskId,
+          taskStatus:
+            'SUCCESS',
+          targetQuantity:
+            liveQuantity,
+          listing:
+            verified.listing,
+          message:
+            alreadyPooled
+              ? `IMEI ${imei} için eksik N11 stok düzeltildi ve canlı stok ${liveQuantity} olarak doğrulandı.`
+              : `Aynı varyant N11'de zaten vardı. IMEI ${imei} N11 stok havuzuna bağlandı ve canlı stok ${liveQuantity} olarak doğrulandı.`,
+        };
+      }
+    }
+
+    if (attempt < 6) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            800
+          )
+      );
+    }
+  }
+
+  const pendingResult =
     await pool.query(
       `
-        UPDATE public.online_listings
-        SET
-          external_stock_code =
-            CONCAT(
-              'MERGED-',
-              id::text,
-              '-',
-              $2::text
-            ),
-          quantity = 0,
-          sync_status =
-            'MERGED_TO_POOL',
-          last_task_id = NULL,
-          last_task_status = NULL,
-          last_error = NULL,
-          raw_data =
-            COALESCE(
-              raw_data,
-              '{}'::jsonb
-            )
-            || jsonb_build_object(
-              'mergedToPool',
-              true,
-              'mergedToListingId',
-              $3::bigint,
-              'mergedImei',
-              $2::text,
-              'mergedAt',
-              now()::text
-            ),
-          updated_at = now()
+        SELECT *
+        FROM public.online_listings
         WHERE id = $1
-          AND external_product_id IS NULL
+          AND channel = 'N11'
+        LIMIT 1
       `,
-      [
-        Number(
-          params.retryListingId
-        ),
-        imei,
-        listingId,
-      ]
+      [listingId]
     );
-  }
 
   return {
     success: true as const,
-    alreadyLinked: false,
-    taskId: n11.taskId,
+    alreadyLinked:
+      alreadyPooled,
+    pending: true,
+    taskId:
+      n11.taskId,
     taskStatus:
-      n11.taskStatus,
+      taskResult.completed
+        ? taskResult.status
+        : 'IN_QUEUE',
     targetQuantity,
     listing:
-      updateResult.rows[0],
+      pendingResult.rows[0] ||
+      fresh,
     message:
-      `Aynı varyant N11'de zaten vardı. Yeni ilan açılmadı; IMEI ${imei} mevcut ürüne bağlandı ve N11 stok ${targetQuantity} olarak gönderildi. Mevcut N11 fiyatı korundu.`,
+      `IMEI ${imei} N11'e gönderildi ancak canlı stok henüz ${targetQuantity} olarak doğrulanmadı. Satır N11 BEKLİYOR durumunda tutuluyor; ikinci kez stok artırma isteği gönderilmeyecek.`,
   };
 }
 
@@ -3690,7 +4548,8 @@ export async function POST(request: NextRequest) {
           sync_status,
           last_task_id,
           last_task_status,
-          last_error
+          last_error,
+          raw_data
         FROM public.online_listings
         WHERE channel = 'N11'
           AND (
@@ -3714,6 +4573,25 @@ export async function POST(request: NextRequest) {
               ) AS pool_imei(value)
               WHERE pool_imei.value = $1
             )
+            OR EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(
+                CASE
+                  WHEN jsonb_typeof(
+                    COALESCE(
+                      raw_data,
+                      '{}'::jsonb
+                    )->'pendingPoolImeis'
+                  ) = 'array'
+                  THEN COALESCE(
+                    raw_data,
+                    '{}'::jsonb
+                  )->'pendingPoolImeis'
+                  ELSE '[]'::jsonb
+                END
+              ) AS pending_pool_imei(value)
+              WHERE pending_pool_imei.value = $1
+            )
           )
         LIMIT 1
       `,
@@ -3725,11 +4603,91 @@ export async function POST(request: NextRequest) {
         duplicate.rows[0];
 
       if (existing.external_product_id) {
+        const existingRaw =
+          safeObject(
+            existing.raw_data
+          );
+
+        const knownPoolImeis =
+          Array.from(
+            new Set([
+              ...uniqueStringArray(
+                existingRaw.pooledImeis
+              ),
+              ...uniqueStringArray(
+                existingRaw.availableImeis
+              ),
+              ...uniqueStringArray(
+                existingRaw.pendingPoolImeis
+              ),
+            ])
+          );
+
+        if (
+          knownPoolImeis.includes(
+            imei
+          )
+        ) {
+          const pooled =
+            await addImeiToExistingN11Listing({
+              pool,
+              listing:
+                existing,
+              imei,
+              requestedBy:
+                auth.user.username,
+            });
+
+          if (!pooled.success) {
+            return json(
+              {
+                success: false,
+                n11Requested: true,
+                pooled: true,
+                error:
+                  pooled.error,
+              },
+              pooled.status
+            );
+          }
+
+          return json(
+            {
+              success: true,
+              n11Requested: true,
+              created:
+                !Boolean(
+                  pooled.pending
+                ),
+              pending:
+                Boolean(
+                  pooled.pending
+                ),
+              pooled: true,
+              alreadyLinked:
+                pooled.alreadyLinked,
+              taskId:
+                pooled.taskId,
+              taskStatus:
+                pooled.taskStatus,
+              targetQuantity:
+                pooled.targetQuantity,
+              message:
+                pooled.message,
+              listing:
+                pooled.listing,
+            },
+            pooled.pending
+              ? 202
+              : 200
+          );
+        }
+
         return json(
           {
             success: false,
             error:
-              'Bu IMEI için N11 ürünü zaten mevcut.',
+              'Bu IMEI için N11 ürünü zaten mevcut. Doğrudan N11 ürünü otomatik olarak yeniden satışa açılamaz.',
             existingListing:
               existing,
           },
@@ -3915,29 +4873,40 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return json({
-        success: true,
-        n11Requested: true,
-        created: true,
-        pending: false,
-        pooled: true,
-        alreadyLinked:
-          pooled.alreadyLinked,
-        taskId:
-          'taskId' in pooled
-            ? pooled.taskId
-            : null,
-        taskStatus:
-          'taskStatus' in pooled
-            ? pooled.taskStatus
-            : null,
-        targetQuantity:
-          pooled.targetQuantity,
-        message:
-          pooled.message,
-        listing:
-          pooled.listing,
-      });
+      return json(
+        {
+          success: true,
+          n11Requested: true,
+          created:
+            !Boolean(
+              pooled.pending
+            ),
+          pending:
+            Boolean(
+              pooled.pending
+            ),
+          pooled: true,
+          alreadyLinked:
+            pooled.alreadyLinked,
+          taskId:
+            'taskId' in pooled
+              ? pooled.taskId
+              : null,
+          taskStatus:
+            'taskStatus' in pooled
+              ? pooled.taskStatus
+              : null,
+          targetQuantity:
+            pooled.targetQuantity,
+          message:
+            pooled.message,
+          listing:
+            pooled.listing,
+        },
+        pooled.pending
+          ? 202
+          : 200
+      );
     }
 
     // YENİLENMİŞ ÜRÜNLER İÇİN GERÇEK N11 LEAF CATEGORY
@@ -5712,4 +6681,3 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
-
