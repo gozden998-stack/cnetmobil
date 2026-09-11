@@ -3790,7 +3790,7 @@ export default function CnetmobilCmrFinalUltimate() {
           MOBİL ALT MENÜ
           Parmakla tek elle erişim için sabit 4/5 ana aksiyon
           ========================================================= */}
-      {step < 99 && (
+      {step < 99 && !isInstallmentModalOpen && !isKaskoModalOpen && (
         <nav
           className="cnet-mobile-bottom-safe fixed inset-x-0 bottom-0 z-[9990] border-t border-slate-200 bg-white/95 px-2 pt-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden print:hidden"
         >
@@ -4510,45 +4510,69 @@ export default function CnetmobilCmrFinalUltimate() {
 
       {/* TAKSİT MODALI */}
       {isInstallmentModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/80 p-0 backdrop-blur-md print:hidden sm:items-center sm:p-4">
-          <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col rounded-t-[26px] border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-300 sm:max-h-[90vh] sm:rounded-[40px] sm:p-8">
-            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="bg-emerald-50 text-emerald-600 w-12 h-12 rounded-2xl flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+        <div className="fixed inset-0 z-[120] flex items-stretch justify-center bg-white p-0 print:hidden sm:items-center sm:bg-slate-900/80 sm:p-4 sm:backdrop-blur-md">
+          <div className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden bg-white p-0 shadow-2xl animate-in fade-in duration-200 sm:h-auto sm:max-h-[90vh] sm:rounded-[40px] sm:border sm:border-slate-100 sm:p-8 sm:zoom-in">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-3 sm:mb-8 sm:bg-transparent sm:px-0 sm:pb-6 sm:pt-0">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 sm:h-12 sm:w-12 sm:rounded-2xl">
+                  <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Taksit Hesaplama</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-black italic uppercase tracking-tighter text-slate-900 sm:text-2xl">Taksit Hesaplama</h2>
+                  <p className="mt-0.5 text-[10px] font-semibold text-slate-400 sm:hidden">Tutarı gir, sonucu anında gör</p>
                 </div>
               </div>
-              <button onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} className="bg-slate-100 p-3 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={() => { setIsInstallmentModalOpen(false); setInstallmentAmount(''); }} className="btn-click flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 sm:h-auto sm:w-auto sm:rounded-2xl sm:p-3">
+                <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
-            <div className="mb-6 shrink-0 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Müşteri Adı Soyadı</label>
-                  <input type="text" placeholder="Ad Soyad" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300 uppercase" />
+            <div className="shrink-0 border-b border-slate-100 bg-white px-3 py-3 sm:mb-6 sm:border-0 sm:px-0 sm:py-0">
+              <details className="mb-3 rounded-xl border border-slate-200 bg-slate-50 md:hidden">
+                <summary className="cursor-pointer list-none px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Müşteri Bilgileri <span className="ml-1 font-semibold normal-case tracking-normal text-slate-400">(opsiyonel)</span>
+                </summary>
+                <div className="grid grid-cols-1 gap-2 border-t border-slate-200 p-2.5">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-emerald-500">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Ad Soyad</label>
+                    <input type="text" placeholder="Müşteri adı" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="mt-1 w-full bg-transparent text-base font-bold uppercase text-slate-800 outline-none placeholder-slate-300" />
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-emerald-500">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Telefon</label>
+                    <input type="tel" inputMode="tel" placeholder="Telefon numarası" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="mt-1 w-full bg-transparent text-base font-bold text-slate-800 outline-none placeholder-slate-300" />
+                  </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 focus-within:border-emerald-500 focus-within:bg-white transition-all">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Telefon Numarası</label>
-                  <input type="text" placeholder="Telefon" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="w-full mt-2 bg-transparent text-sm font-black outline-none text-slate-800 placeholder-slate-300" />
+              </details>
+
+              <div className="hidden grid-cols-1 gap-4 md:grid md:grid-cols-2">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 transition-all focus-within:border-emerald-500 focus-within:bg-white">
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Müşteri Adı Soyadı</label>
+                  <input type="text" placeholder="Ad Soyad" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="mt-2 w-full bg-transparent text-sm font-black uppercase text-slate-800 outline-none placeholder-slate-300" />
+                </div>
+                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 transition-all focus-within:border-emerald-500 focus-within:bg-white">
+                  <label className="ml-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Telefon Numarası</label>
+                  <input type="text" placeholder="Telefon" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="mt-2 w-full bg-transparent text-sm font-black text-slate-800 outline-none placeholder-slate-300" />
                 </div>
               </div>
 
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                  <span className="text-slate-400 font-black text-xl">₺</span>
+              <div className="relative md:mt-4">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 sm:pl-6">
+                  <span className="text-xl font-black text-slate-400">₺</span>
                 </div>
-                <input type="number" placeholder="İşlem Tutarını Giriniz..." value={installmentAmount} onChange={(e) => setInstallmentAmount(e.target.value)} className="w-full py-6 pl-12 pr-6 bg-slate-50 rounded-3xl text-2xl font-black border border-slate-200 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 transition-all text-slate-800" />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="İşlem tutarı"
+                  value={installmentAmount}
+                  onChange={(e) => setInstallmentAmount(e.target.value)}
+                  className="w-full rounded-2xl border-2 border-emerald-200 bg-white py-4 pl-11 pr-4 text-2xl font-black text-slate-900 outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 sm:rounded-3xl sm:border-slate-200 sm:bg-slate-50 sm:py-6 sm:pl-12 sm:pr-6"
+                />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-4 pt-3 sm:px-0 sm:pr-2 sm:pt-0">
               {installmentAmount && Number(installmentAmount) > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:gap-4">
                   {[
                     { month: 2, rate: 7.83 }, { month: 3, rate: 10.05 }, { month: 4, rate: 12.36 }, { month: 5, rate: 14.76 },
                     { month: 6, rate: 17.55 }, { month: 7, rate: 20.19 }, { month: 8, rate: 22.96 }, { month: 9, rate: 25.85 },
@@ -4559,24 +4583,27 @@ export default function CnetmobilCmrFinalUltimate() {
                     const monthly = total / inst.month;
                     
                     return (
-                      <div key={inst.month} className="flex justify-between items-center bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-lg transition-all group cursor-default">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-slate-900 group-hover:bg-emerald-600 transition-colors text-white w-14 h-14 flex flex-col items-center justify-center rounded-[20px] shadow-md shrink-0">
-                            <span className="font-black text-xl leading-none">{inst.month}</span>
-                            <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-80">Taksit</span>
+                      <div key={inst.month} className="group flex min-h-[66px] items-center justify-between rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm transition-all hover:border-emerald-400 hover:shadow-lg sm:min-h-0 sm:rounded-[28px] sm:p-5">
+                        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                          <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-900 text-white shadow-md transition-colors group-hover:bg-emerald-600 sm:h-14 sm:w-14 sm:rounded-[20px]">
+                            <span className="text-base font-black leading-none sm:text-xl">{inst.month}</span>
+                            <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider opacity-80 sm:text-[9px] sm:tracking-widest">Taksit</span>
                           </div>
-                          <div>
-                            <div className="text-xl font-black italic text-slate-900 tracking-tighter">
+                          <div className="min-w-0">
+                            <div className="truncate text-base font-black italic tracking-tighter text-slate-900 sm:text-xl">
                               {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
+                            </div>
+                            <div className="mt-0.5 text-[9px] font-bold text-slate-400 sm:hidden">
+                              Toplam {total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 border-l border-slate-100 pl-4">
-                          <div className="text-right hidden sm:block">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Toplam</div>
+                        <div className="flex shrink-0 items-center gap-4 border-l border-slate-100 pl-2.5 sm:pl-4">
+                          <div className="hidden text-right sm:block">
+                            <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Toplam</div>
                             <div className="text-base font-black text-slate-700">{total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL</div>
                           </div>
-                          <button onClick={() => handleSendInstallmentToWhatsApp(inst.month, total)} className="bg-[#25D366] hover:bg-[#128C7E] text-white w-12 h-12 rounded-[18px] flex items-center justify-center transition-all shadow-md shadow-green-200 btn-click shrink-0" title="WhatsApp'a Gönder">
+                          <button onClick={() => handleSendInstallmentToWhatsApp(inst.month, total)} className="btn-click flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white shadow-md shadow-green-200 transition-all hover:bg-[#128C7E] sm:h-12 sm:w-12 sm:rounded-[18px]" title="WhatsApp'a Gönder">
                             <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
                           </button>
                         </div>
@@ -4597,35 +4624,43 @@ export default function CnetmobilCmrFinalUltimate() {
 
       {/* KASKO MODALI */}
       {isKaskoModalOpen && !isZumay && (
-        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/80 p-0 backdrop-blur-md print:hidden sm:items-center sm:p-4">
-          <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col rounded-t-[26px] border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-300 sm:max-h-[90vh] sm:rounded-[40px] sm:p-8">
-            <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6 shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="bg-purple-50 text-purple-600 w-12 h-12 rounded-2xl flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+        <div className="fixed inset-0 z-[120] flex items-stretch justify-center bg-white p-0 print:hidden sm:items-center sm:bg-slate-900/80 sm:p-4 sm:backdrop-blur-md">
+          <div className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden bg-white p-0 shadow-2xl animate-in fade-in duration-200 sm:h-auto sm:max-h-[90vh] sm:rounded-[40px] sm:border sm:border-slate-100 sm:p-8 sm:zoom-in">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-3 sm:mb-8 sm:bg-transparent sm:px-0 sm:pb-6 sm:pt-0">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 sm:h-12 sm:w-12 sm:rounded-2xl">
+                  <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-black italic text-slate-900 uppercase tracking-tighter">Kasko Hesaplama</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-black italic uppercase tracking-tighter text-slate-900 sm:text-2xl">Kasko Hesaplama</h2>
+                  <p className="mt-0.5 text-[10px] font-semibold text-slate-400 sm:hidden">Cihaz tutarını gir, aktif paketi gör</p>
                 </div>
               </div>
-              <button onClick={() => { setIsKaskoModalOpen(false); setKaskoAmount(''); }} className="bg-slate-100 p-3 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all btn-click">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={() => { setIsKaskoModalOpen(false); setKaskoAmount(''); }} className="btn-click flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 sm:h-auto sm:w-auto sm:rounded-2xl sm:p-3">
+                <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
-            <div className="mb-6 shrink-0 space-y-4">
+            <div className="shrink-0 border-b border-slate-100 bg-white px-3 py-3 sm:mb-6 sm:border-0 sm:px-0 sm:py-0">
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                  <span className="text-slate-400 font-black text-xl">₺</span>
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 sm:pl-6">
+                  <span className="text-xl font-black text-slate-400">₺</span>
                 </div>
-                <input type="number" placeholder="Cihaz Tutarını Giriniz..." value={kaskoAmount} onChange={(e) => setKaskoAmount(e.target.value)} className="w-full py-6 pl-12 pr-6 bg-slate-50 rounded-3xl text-2xl font-black border border-slate-200 outline-none focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-50 transition-all text-slate-800" />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Cihaz tutarı"
+                  value={kaskoAmount}
+                  onChange={(e) => setKaskoAmount(e.target.value)}
+                  className="w-full rounded-2xl border-2 border-purple-200 bg-white py-4 pl-11 pr-4 text-2xl font-black text-slate-900 outline-none transition-all focus:border-purple-500 focus:ring-4 focus:ring-purple-50 sm:rounded-3xl sm:border-slate-200 sm:bg-slate-50 sm:py-6 sm:pl-12 sm:pr-6"
+                />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-3 pb-4 pt-3 sm:px-0 sm:pr-2 sm:pt-0">
               {kaskoAmount && Number(kaskoAmount) > 0 ? (
                 <div className="flex flex-col gap-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
                     {(() => {
                       const val = Number(kaskoAmount);
                       
@@ -4670,14 +4705,14 @@ export default function CnetmobilCmrFinalUltimate() {
 
                       return (
                         <>
-                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isSilver ? 'bg-white border-slate-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                          <div className={`${isSilver ? 'block' : 'hidden md:block'} rounded-2xl border-2 p-4 transition-all duration-300 md:rounded-[28px] md:p-6 ${isSilver ? 'bg-white border-slate-300 shadow-xl md:scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-slate-600 uppercase tracking-widest">Silver Paket</div>
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isSilver ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-400'}`}>S</div>
                             </div>
                             {isSilver ? (
                               <div className="animate-in fade-in duration-300">
-                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                <div className="mb-2 text-2xl font-black italic tracking-tighter text-slate-900 md:mb-3 md:text-3xl">
                                   {silverPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 inline-block px-2.5 py-1.5 rounded-lg border border-slate-200">
@@ -4691,14 +4726,14 @@ export default function CnetmobilCmrFinalUltimate() {
                             )}
                           </div>
 
-                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isGold ? 'bg-amber-50/50 border-amber-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                          <div className={`${isGold ? 'block' : 'hidden md:block'} rounded-2xl border-2 p-4 transition-all duration-300 md:rounded-[28px] md:p-6 ${isGold ? 'bg-amber-50/50 border-amber-300 shadow-xl md:scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-amber-600 uppercase tracking-widest">Gold Paket</div>
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isGold ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-400'}`}>G</div>
                             </div>
                             {isGold ? (
                               <div className="animate-in fade-in duration-300">
-                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                <div className="mb-2 text-2xl font-black italic tracking-tighter text-slate-900 md:mb-3 md:text-3xl">
                                   {goldPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest bg-amber-100 inline-block px-2.5 py-1.5 rounded-lg border border-amber-200">
@@ -4712,14 +4747,14 @@ export default function CnetmobilCmrFinalUltimate() {
                             )}
                           </div>
 
-                          <div className={`p-6 rounded-[28px] border-2 transition-all duration-300 ${isPlatin ? 'bg-indigo-50/50 border-indigo-300 shadow-xl scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
+                          <div className={`${isPlatin ? 'block' : 'hidden md:block'} rounded-2xl border-2 p-4 transition-all duration-300 md:rounded-[28px] md:p-6 ${isPlatin ? 'bg-indigo-50/50 border-indigo-300 shadow-xl md:scale-[1.02]' : 'bg-slate-50 border-slate-100 opacity-40 grayscale-[50%]'}`}>
                             <div className="flex justify-between items-center mb-4">
                               <div className="text-sm font-black text-indigo-600 uppercase tracking-widest">Platin Paket</div>
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isPlatin ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-400'}`}>P</div>
                             </div>
                             {isPlatin ? (
                               <div className="animate-in fade-in duration-300">
-                                <div className="text-3xl font-black italic text-slate-900 tracking-tighter mb-3">
+                                <div className="mb-2 text-2xl font-black italic tracking-tighter text-slate-900 md:mb-3 md:text-3xl">
                                   {platinPrice.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} TL
                                 </div>
                                 <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest bg-indigo-100 inline-block px-2.5 py-1.5 rounded-lg border border-indigo-200">
