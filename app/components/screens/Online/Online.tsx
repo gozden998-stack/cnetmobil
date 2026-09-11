@@ -239,7 +239,7 @@ type BulkPreviewResponse = {
 type BulkUploadResult = {
   rowNumber: number;
   imei: string;
-  status: "success" | "error";
+  status: "success" | "pending" | "error";
   message: string;
   pooled: boolean;
   n11ProductId: string | null;
@@ -890,13 +890,23 @@ export default function Online() {
           );
         }
 
+        const isPending =
+          payload?.pending === true;
+
         results[index] = {
           rowNumber: row.rowNumber,
           imei: row.imei,
-          status: "success",
+          status:
+            isPending
+              ? "pending"
+              : "success",
           message:
             payload?.message ||
-            "N11'e gönderildi.",
+            (
+              isPending
+                ? "N11 stok doğrulaması bekleniyor."
+                : "N11'e gönderildi."
+            ),
           pooled: Boolean(payload?.pooled),
           n11ProductId:
             payload?.listing?.external_product_id
@@ -1426,14 +1436,32 @@ export default function Online() {
           item.sync_status || ""
         ).toUpperCase();
 
+        const raw =
+          item.raw_data &&
+          typeof item.raw_data === "object" &&
+          !Array.isArray(item.raw_data)
+            ? item.raw_data
+            : {};
+
+        const poolStockPending =
+          raw?.poolStockIncreasePending === true;
+
         return (
-          !item.external_product_id &&
-          [
-            "CREATING",
-            "IN_QUEUE",
-            "SYNCED_PENDING_QUERY",
-          ].includes(syncStatus) &&
-          Boolean(item.external_stock_code)
+          Boolean(item.external_stock_code) &&
+          (
+            (
+              !item.external_product_id &&
+              [
+                "CREATING",
+                "IN_QUEUE",
+                "SYNCED_PENDING_QUERY",
+              ].includes(syncStatus)
+            ) ||
+            (
+              Boolean(item.external_product_id) &&
+              poolStockPending
+            )
+          )
         );
       }),
     [listings]
@@ -1625,14 +1653,29 @@ export default function Online() {
       : ordersData?.groups?.Delivered;
 
   const filteredListings = useMemo(() => {
+    const q =
+      search
+        .trim()
+        .toLocaleLowerCase("tr-TR");
+
+    const isImeiQuery =
+      /^[0-9]{15}$/.test(
+        search
+          .replace(/\s+/g, "")
+          .trim()
+      );
+
+    // IMEI taratıldığında yalnız aktif sekmeye bakma.
+    // N11-only havuzdaki cihaz açık/kapalı fark etmeksizin bulunur.
     const source =
-      activeSection === "open"
+      isImeiQuery
+        ? listings
+        : activeSection === "open"
         ? openListings
         : activeSection === "closed"
         ? closedListings
         : [];
 
-    const q = search.trim().toLocaleLowerCase("tr-TR");
     const wantedBrand = filterBrand.trim().toLocaleLowerCase("tr-TR");
     const wantedMemory = filterMemory.trim().toLocaleLowerCase("tr-TR");
 
@@ -1650,6 +1693,28 @@ export default function Online() {
 
       if (!q) return true;
 
+      const raw =
+        item.raw_data &&
+        typeof item.raw_data === "object" &&
+        !Array.isArray(item.raw_data)
+          ? item.raw_data
+          : {};
+
+      const poolImeis = [
+        ...(Array.isArray(raw?.pooledImeis)
+          ? raw.pooledImeis
+          : []),
+        ...(Array.isArray(raw?.availableImeis)
+          ? raw.availableImeis
+          : []),
+        ...(Array.isArray(raw?.soldImeis)
+          ? raw.soldImeis
+          : []),
+        ...(Array.isArray(raw?.pendingPoolImeis)
+          ? raw.pendingPoolImeis
+          : []),
+      ];
+
       const haystack = [
         item.title,
         item.external_stock_code,
@@ -1665,6 +1730,7 @@ export default function Online() {
         item.device_model,
         item.device_memory,
         item.device_color,
+        ...poolImeis,
       ]
         .filter(Boolean)
         .join(" ")
@@ -1677,6 +1743,7 @@ export default function Online() {
     closedListings,
     filterBrand,
     filterMemory,
+    listings,
     openListings,
     search,
   ]);
@@ -3107,6 +3174,8 @@ export default function Online() {
                         <div className="text-[11px] font-black text-slate-600">
                           Başarılı: {bulkUploadResults.filter((item) => item.status === "success").length}
                           {" · "}
+                          Bekliyor: {bulkUploadResults.filter((item) => item.status === "pending").length}
+                          {" · "}
                           Hatalı: {bulkUploadResults.filter((item) => item.status === "error").length}
                         </div>
                       </div>
@@ -3122,7 +3191,7 @@ export default function Online() {
 
                       {!bulkUploading && bulkCompleted === bulkPreview.validCount ? (
                         <div className="mt-3 text-[12px] font-black text-emerald-700">
-                          Toplu gönderim tamamlandı. N11 ID bekleyen ürünler arka planda otomatik doğrulanacaktır.
+                          Toplu gönderim tamamlandı. N11 BEKLİYOR görünen satırlar canlı stok doğrulanana kadar stok eklenmiş sayılmayacak ve arka planda otomatik kontrol edilecektir.
                         </div>
                       ) : null}
                     </div>
@@ -3212,13 +3281,25 @@ export default function Online() {
                               <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
                                 {item.pooled ? "STOK EKLENDİ" : "GÖNDERİLDİ"}
                               </span>
+                            ) : item.status === "pending" ? (
+                              <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
+                                N11 BEKLİYOR
+                              </span>
                             ) : (
                               <span className="inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-black text-red-700 ring-1 ring-red-100">
                                 HATA
                               </span>
                             )}
                           </div>
-                          <div className={item.status === "success" ? "text-slate-700" : "text-red-600"}>
+                          <div
+                            className={
+                              item.status === "success"
+                                ? "text-slate-700"
+                                : item.status === "pending"
+                                ? "text-amber-700"
+                                : "text-red-600"
+                            }
+                          >
                             {item.message}
                             {item.n11ProductId ? ` · N11 ID: ${item.n11ProductId}` : ""}
                           </div>
