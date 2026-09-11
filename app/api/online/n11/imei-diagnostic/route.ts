@@ -251,8 +251,7 @@ function listingContainsImei(
   imei: string
 ) {
   if (
-    text(row?.external_stock_code) === imei ||
-    text(row?.device_imei) === imei
+    text(row?.external_stock_code) === imei
   ) {
     return true;
   }
@@ -452,7 +451,6 @@ export async function GET(
       pool.query(
         `
           SELECT
-            id,
             stock_device_id,
             imei,
             channel,
@@ -461,9 +459,6 @@ export async function GET(
             channel_sale_price,
             channel_list_price,
             source_channel,
-            source_listing_id,
-            metadata,
-            listed_at,
             updated_at
           FROM public.online_channel_devices
           WHERE channel = 'N11'
@@ -481,7 +476,6 @@ export async function GET(
             channel,
             external_product_id,
             external_stock_code,
-            device_imei,
             title,
             brand,
             model,
@@ -531,10 +525,59 @@ export async function GET(
       new Map<string, any[]>();
 
     for (const imei of TARGET_IMEIS) {
+      const stockDevice =
+        stockByImei.get(imei) || null;
+
+      const stockDeviceId =
+        stockDevice
+          ? Number(stockDevice.id)
+          : null;
+
+      const membershipListingIds =
+        new Set(
+          (channelByImei.get(imei) || [])
+            .map((row: any) =>
+              Number(row.online_listing_id)
+            )
+            .filter(
+              (value: number) =>
+                Number.isFinite(value) &&
+                value > 0
+            )
+        );
+
       const related =
         listingsResult.rows.filter(
-          (row: any) =>
-            listingContainsImei(row, imei)
+          (row: any) => {
+            if (
+              listingContainsImei(
+                row,
+                imei
+              )
+            ) {
+              return true;
+            }
+
+            if (
+              stockDeviceId &&
+              Number(
+                row.stock_device_id
+              ) ===
+                stockDeviceId
+            ) {
+              return true;
+            }
+
+            if (
+              membershipListingIds.has(
+                Number(row.id)
+              )
+            ) {
+              return true;
+            }
+
+            return false;
+          }
         );
 
       relatedListingsByImei.set(
@@ -672,8 +715,6 @@ export async function GET(
                   row.external_product_id,
                 externalStockCode:
                   row.external_stock_code,
-                deviceImei:
-                  row.device_imei,
                 title: row.title,
                 localQuantity:
                   qty(row.quantity),
@@ -924,7 +965,6 @@ export async function GET(
           n11ChannelMemberships:
             channelRows.map(
               (row: any) => ({
-                id: row.id,
                 stockDeviceId:
                   row.stock_device_id,
                 onlineListingId:
@@ -937,10 +977,6 @@ export async function GET(
                   row.channel_list_price,
                 sourceChannel:
                   row.source_channel,
-                sourceListingId:
-                  row.source_listing_id,
-                listedAt:
-                  row.listed_at,
                 updatedAt:
                   row.updated_at,
               })
