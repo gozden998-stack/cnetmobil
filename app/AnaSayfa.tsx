@@ -6,7 +6,7 @@ type PriceNotificationItem = {
     key: string;
     category: string;
     name: string;
-    direction: 'up' | 'down';
+    direction: 'up' | 'down' | 'new';
     oldPrice: number;
     newPrice: number;
     diff: number;
@@ -30,7 +30,6 @@ type NotificationPricePoint = {
 
 const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v3';
 const PRICE_SNAPSHOT_STORAGE_KEY = 'cnetmobil_price_snapshot_v3';
-const TEN_MINUTES = 10 * 60 * 1000;
 const PRICE_POLL_MS = 3000;
 const MAX_PRICE_NOTIFICATIONS = 50;
 
@@ -345,12 +344,39 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
             current.forEach((point, key) => {
                 const oldPrice = previous.get(key);
-
-                if (oldPrice === undefined || oldPrice === point.price) return;
-
                 const changedAt = Number(point.updatedAt || now);
+                const changedDate = new Date(changedAt);
+                const changedHour = changedDate.getHours();
 
-                if (onlyRecent && now - changedAt > TEN_MINUTES) return;
+                // Sadece 09:00 - 20:00 arasındaki hareketler bildirim oluşturur.
+                if (changedHour < 9 || changedHour >= 20) return;
+
+                const expiresAt = getWorkdayExpiry(changedAt);
+
+                if (expiresAt <= now) return;
+
+                // Sayfa kapalıyken oluşmuş bir değişiklik açılışta yakalanıyorsa
+                // yalnızca aynı iş gününün halen aktif olan hareketleri alınır.
+                if (onlyRecent && expiresAt <= now) return;
+
+                // Önceki listede olmayan kayıt = yeni ürün.
+                if (oldPrice === undefined) {
+                    detected.push({
+                        id: `NEW_${key}-${point.price}-${changedAt}`,
+                        key,
+                        category: point.category,
+                        name: point.name,
+                        direction: 'new',
+                        oldPrice: 0,
+                        newPrice: point.price,
+                        diff: point.price,
+                        changedAt,
+                        expiresAt
+                    });
+                    return;
+                }
+
+                if (oldPrice === point.price) return;
 
                 const diff = point.price - oldPrice;
 
@@ -364,7 +390,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     newPrice: point.price,
                     diff,
                     changedAt,
-                    expiresAt: changedAt + TEN_MINUTES
+                    expiresAt
                 });
             });
 
@@ -442,25 +468,43 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const formatPriceTl = (value: number) =>
         `${Math.round(Number(value) || 0).toLocaleString('tr-TR')} TL`;
 
-    const getPriceTimeLabel = (changedAt: number) => {
-        const diffMs = Math.max(0, notificationNow - Number(changedAt || 0));
-        const diffMin = Math.floor(diffMs / 60_000);
-
-        if (diffMin < 1) return 'Az önce';
-        if (diffMin < 60) return `${diffMin} dk önce`;
-
-        const diffHour = Math.floor(diffMin / 60);
-        if (diffHour < 24) return `${diffHour} sa önce`;
-
-        return new Date(changedAt).toLocaleString('tr-TR', {
+    const getPriceDateTimeLabel = (changedAt: number) =>
+        new Date(changedAt).toLocaleString('tr-TR', {
             day: '2-digit',
             month: '2-digit',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
         });
+
+    // Fiyat bildirimleri yalnızca mağaza çalışma saatlerinde tutulur: 09:00 - 20:00.
+    const isPriceNotificationWorkHour = (changedAt: number) => {
+        const date = new Date(changedAt);
+        const hour = date.getHours();
+        return hour >= 9 && hour < 20;
     };
 
-    const activeNewPriceCount = priceNotifications.filter(
+    const getWorkdayExpiry = (changedAt: number) => {
+        const expiry = new Date(changedAt);
+        expiry.setHours(20, 0, 0, 0);
+        return expiry.getTime();
+    };
+
+    // Gün içindeki bildirimler oluştuğu andan 20:00'ye kadar ana sayfada kalır.
+    // En yeni fiyat / ürün hareketi her zaman en üst sıradadır.
+    const visiblePriceNotifications = priceNotifications
+        .filter((item) => {
+            const changedAt = Number(item.changedAt || 0);
+            const expiresAt = Number(item.expiresAt || 0);
+
+            return (
+                isPriceNotificationWorkHour(changedAt) &&
+                expiresAt > notificationNow
+            );
+        })
+        .sort((a, b) => b.changedAt - a.changedAt);
+
+    const activeNewPriceCount = visiblePriceNotifications.filter(
         (item) => Number(item.expiresAt || 0) > notificationNow
     ).length;
 
@@ -1186,7 +1230,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             Duyurular & Bildirimler
                                         </h2>
                                         <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
-                                            Fiyat değişiklikleri ve güncel bilgilendirmeler
+                                            09:00–20:00 fiyat ve yeni ürün hareketleri • Gün sonuna kadar görünür
                                         </p>
                                     </div>
                                 </div>
@@ -1261,9 +1305,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </div>
                             ) : (
                                 <div className="max-h-[300px] overflow-y-auto pr-1">
-                                    {priceNotifications.length > 0 ? (
+                                    {visiblePriceNotifications.length > 0 ? (
                                         <div className="divide-y divide-slate-100">
-                                            {priceNotifications.slice(0, 12).map((item) => {
+                                            {visiblePriceNotifications.slice(0, 12).map((item) => {
                                                 const isFresh = Number(item.expiresAt || 0) > notificationNow;
                                                 const isDown = item.direction === 'down';
 
@@ -1272,17 +1316,19 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                         type="button"
                                                         key={item.id}
                                                         onClick={() => setSelectedPriceNotification(item)}
-                                                        className={`group w-full rounded-xl py-3 text-left transition-all ${
+                                                        className={`group w-full rounded-xl py-2.5 text-left transition-all ${
                                                             isFresh
                                                                 ? 'bg-rose-50/55 px-3 ring-1 ring-rose-100'
                                                                 : 'px-1 hover:bg-slate-50'
                                                         }`}
                                                     >
                                                         <div className="flex items-start gap-3">
-                                                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-                                                                isDown
-                                                                    ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
-                                                                    : 'border-rose-100 bg-rose-50 text-rose-600'
+                                                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                                                                item.direction === 'new'
+                                                                    ? 'border-blue-100 bg-blue-50 text-blue-600'
+                                                                    : isDown
+                                                                        ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                                                                        : 'border-rose-100 bg-rose-50 text-rose-600'
                                                             }`}>
                                                                 <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L10.828 19a2 2 0 01-2.828 0l-5-5a2 2 0 010-2.828z" />
@@ -1293,8 +1339,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="min-w-0">
                                                                         <div className="flex flex-wrap items-center gap-2">
-                                                                            <span className="text-[9px] font-black uppercase tracking-wide text-rose-600">
-                                                                                Fiyat Değişti
+                                                                            <span className={`text-[9px] font-semibold uppercase tracking-wide ${
+                                                                                item.direction === 'new'
+                                                                                    ? 'text-blue-600'
+                                                                                    : 'text-rose-600'
+                                                                            }`}>
+                                                                                {item.direction === 'new' ? 'Yeni Ürün Eklendi' : 'Fiyat Değişti'}
                                                                             </span>
                                                                             {isFresh && (
                                                                                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-white">
@@ -1302,34 +1352,47 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                                     Yeni
                                                                                 </span>
                                                                             )}
-                                                                            <span className="text-[8px] font-bold text-slate-400">
+                                                                            <span className="text-[8px] font-medium text-slate-400">
                                                                                 {item.category}
                                                                             </span>
                                                                         </div>
 
-                                                                        <h3 className="mt-1 truncate text-[12px] font-black text-slate-900 sm:text-[13px]">
+                                                                        <h3 className="mt-1 truncate text-[12px] font-semibold text-slate-900 sm:text-[13px]">
                                                                             {item.name}
                                                                         </h3>
 
                                                                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                                                                            <span className="text-[10px] font-bold text-slate-400 line-through">
-                                                                                {formatPriceTl(item.oldPrice)}
-                                                                            </span>
-                                                                            <span className="text-slate-300">→</span>
-                                                                            <span className="text-[11px] font-black text-slate-900">
-                                                                                {formatPriceTl(item.newPrice)}
-                                                                            </span>
-                                                                            <span className={`text-[9px] font-black ${
-                                                                                isDown ? 'text-emerald-600' : 'text-rose-600'
-                                                                            }`}>
-                                                                                {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
-                                                                            </span>
+                                                                            {item.direction === 'new' ? (
+                                                                                <>
+                                                                                    <span className="text-[10px] font-normal text-slate-400">
+                                                                                        Fiyat
+                                                                                    </span>
+                                                                                    <span className="text-[11px] font-medium text-slate-900">
+                                                                                        {formatPriceTl(item.newPrice)}
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <span className="text-[10px] font-normal text-slate-400 line-through">
+                                                                                        {formatPriceTl(item.oldPrice)}
+                                                                                    </span>
+                                                                                    <span className="text-slate-300">→</span>
+                                                                                    <span className="text-[11px] font-medium text-slate-900">
+                                                                                        {formatPriceTl(item.newPrice)}
+                                                                                    </span>
+                                                                                    <span className={`text-[9px] font-medium ${
+                                                                                        isDown ? 'text-emerald-600' : 'text-rose-600'
+                                                                                    }`}>
+                                                                                        {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
+                                                                                    </span>
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     </div>
 
                                                                     <div className="flex shrink-0 items-center gap-2">
-                                                                        <span className="text-[8px] font-bold text-slate-400">
-                                                                            {getPriceTimeLabel(item.changedAt)}
+                                                                        <span className="whitespace-nowrap text-[8px] font-medium text-slate-400">
+                                                                            {getPriceDateTimeLabel(item.changedAt)}
                                                                         </span>
                                                                         <svg className="h-4 w-4 text-slate-300 transition-colors group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
@@ -1373,14 +1436,20 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         >
                             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
                                 <div>
-                                    <div className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">
-                                        Fiyat Değişikliği Detayı
+                                    <div className={`text-[9px] font-black uppercase tracking-[0.16em] ${
+                                        selectedPriceNotification.direction === 'new'
+                                            ? 'text-blue-500'
+                                            : 'text-rose-500'
+                                    }`}>
+                                        {selectedPriceNotification.direction === 'new'
+                                            ? 'Yeni Ürün Detayı'
+                                            : 'Fiyat Değişikliği Detayı'}
                                     </div>
                                     <h3 className="mt-1 text-lg font-black leading-tight text-[#102A56]">
                                         {selectedPriceNotification.name}
                                     </h3>
                                     <div className="mt-1 text-[9px] font-bold text-slate-400">
-                                        {selectedPriceNotification.category} · {getPriceTimeLabel(selectedPriceNotification.changedAt)}
+                                        {selectedPriceNotification.category} · {getPriceDateTimeLabel(selectedPriceNotification.changedAt)}
                                     </div>
                                 </div>
 
@@ -1396,54 +1465,70 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
 
                             <div className="p-6">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
-                                        <div className="mt-1 text-xl font-black text-slate-700">
-                                            {formatPriceTl(selectedPriceNotification.oldPrice)}
-                                        </div>
-                                    </div>
-
+                                {selectedPriceNotification.direction === 'new' ? (
                                     <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">
+                                            Ürün Fiyatı
+                                        </span>
                                         <div className="mt-1 text-xl font-black text-blue-700">
                                             {formatPriceTl(selectedPriceNotification.newPrice)}
                                         </div>
+                                        <div className="mt-2 text-[10px] font-semibold text-blue-600">
+                                            Yeni ürün listeye eklendi.
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
+                                                <div className="mt-1 text-xl font-black text-slate-700">
+                                                    {formatPriceTl(selectedPriceNotification.oldPrice)}
+                                                </div>
+                                            </div>
 
-                                <div className={`mt-3 rounded-2xl border p-4 ${
-                                    selectedPriceNotification.direction === 'down'
-                                        ? 'border-emerald-100 bg-emerald-50'
-                                        : 'border-rose-100 bg-rose-50'
-                                }`}>
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div>
-                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Değişim</span>
-                                            <div className={`mt-1 text-lg font-black ${
-                                                selectedPriceNotification.direction === 'down'
-                                                    ? 'text-emerald-700'
-                                                    : 'text-rose-700'
-                                            }`}>
-                                                {selectedPriceNotification.diff > 0 ? '+' : ''}
-                                                {formatPriceTl(selectedPriceNotification.diff)}
+                                            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                                <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
+                                                <div className="mt-1 text-xl font-black text-blue-700">
+                                                    {formatPriceTl(selectedPriceNotification.newPrice)}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="text-right">
-                                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Durum</span>
-                                            <div className={`mt-1 text-[11px] font-black ${
-                                                selectedPriceNotification.direction === 'down'
-                                                    ? 'text-emerald-700'
-                                                    : 'text-rose-700'
-                                            }`}>
-                                                {selectedPriceNotification.direction === 'down'
-                                                    ? 'Fiyat Düştü'
-                                                    : 'Fiyat Yükseldi'}
+                                        <div className={`mt-3 rounded-2xl border p-4 ${
+                                            selectedPriceNotification.direction === 'down'
+                                                ? 'border-emerald-100 bg-emerald-50'
+                                                : 'border-rose-100 bg-rose-50'
+                                        }`}>
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Değişim</span>
+                                                    <div className={`mt-1 text-lg font-black ${
+                                                        selectedPriceNotification.direction === 'down'
+                                                            ? 'text-emerald-700'
+                                                            : 'text-rose-700'
+                                                    }`}>
+                                                        {selectedPriceNotification.diff > 0 ? '+' : ''}
+                                                        {formatPriceTl(selectedPriceNotification.diff)}
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Durum</span>
+                                                    <div className={`mt-1 text-[11px] font-black ${
+                                                        selectedPriceNotification.direction === 'down'
+                                                            ? 'text-emerald-700'
+                                                            : 'text-rose-700'
+                                                    }`}>
+                                                        {selectedPriceNotification.direction === 'down'
+                                                            ? 'Fiyat Düştü'
+                                                            : 'Fiyat Yükseldi'}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    </>
+                                )}
 
                                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-[9px]">
                                     <span className="font-bold text-slate-400">Değişiklik zamanı</span>
