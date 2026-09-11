@@ -18,12 +18,26 @@ type SessionPayload = {
 
 export type AuctionSession = {
   success: true;
+
   role: string;
+  roleCode: string;
+
   branch: string;
+
   userKey: string;
   userName: string;
+
+  // İHALEDE "ADMIN" ARTIK SADECE SUPER ADMIN
   isAdmin: boolean;
-  channel: "CMR" | "VODAFONE" | null;
+  isSuperAdmin: boolean;
+
+  // Normal yönetici bilgisi
+  isManager: boolean;
+
+  channel:
+    | "CMR"
+    | "VODAFONE"
+    | null;
 };
 
 // ======================================================
@@ -41,50 +55,91 @@ export function getAuctionPool() {
     process.env.POSTGRES_CONNECTION_STRING;
 
   if (!connectionString) {
-    throw new Error("DATABASE_URL bulunamadı.");
+    throw new Error(
+      "DATABASE_URL bulunamadı."
+    );
   }
 
-  global.cnetAuctionPool = new Pool({
-    connectionString,
-    max: 8,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  });
+  global.cnetAuctionPool =
+    new Pool({
+      connectionString,
+
+      max: 8,
+
+      idleTimeoutMillis:
+        30000,
+
+      connectionTimeoutMillis:
+        10000,
+    });
 
   return global.cnetAuctionPool;
 }
 
 // ======================================================
-// SESSION
+// SESSION SECRET
 // ======================================================
 
 function getSessionSecret() {
-  const secret = process.env.SESSION_SECRET;
+  const secret =
+    process.env.SESSION_SECRET;
 
   if (!secret) {
-    throw new Error("SESSION_SECRET bulunamadı.");
+    throw new Error(
+      "SESSION_SECRET bulunamadı."
+    );
   }
 
   return secret;
 }
 
-function verifySession(token: string): SessionPayload | null {
-  try {
-    const [encoded, signature] = token.split(".");
+// ======================================================
+// SESSION VERIFY
+// ======================================================
 
-    if (!encoded || !signature) {
+function verifySession(
+  token: string
+): SessionPayload | null {
+  try {
+    const [
+      encoded,
+      signature,
+    ] = token.split(".");
+
+    if (
+      !encoded ||
+      !signature
+    ) {
       return null;
     }
 
-    const expectedSignature = crypto
-      .createHmac("sha256", getSessionSecret())
-      .update(encoded)
-      .digest("base64url");
+    const expectedSignature =
+      crypto
+        .createHmac(
+          "sha256",
+          getSessionSecret()
+        )
+        .update(encoded)
+        .digest(
+          "base64url"
+        );
 
-    const signatureBuffer = Buffer.from(signature, "utf8");
-    const expectedBuffer = Buffer.from(expectedSignature, "utf8");
+    const signatureBuffer =
+      Buffer.from(
+        signature,
+        "utf8"
+      );
 
-    if (signatureBuffer.length !== expectedBuffer.length) {
+    const expectedBuffer =
+      Buffer.from(
+        expectedSignature,
+        "utf8"
+      );
+
+    if (
+      signatureBuffer.length !==
+      expectedBuffer.length
+    ) {
       return null;
     }
 
@@ -97,16 +152,29 @@ function verifySession(token: string): SessionPayload | null {
       return null;
     }
 
-    const payload = JSON.parse(
-      Buffer.from(encoded, "base64url").toString("utf8")
-    ) as SessionPayload;
+    const payload =
+      JSON.parse(
+        Buffer.from(
+          encoded,
+          "base64url"
+        ).toString("utf8")
+      ) as SessionPayload;
 
     if (
       !payload ||
       !payload.exp ||
-      payload.exp < Math.floor(Date.now() / 1000) ||
-      !["admin", "personel"].includes(payload.role) ||
-      typeof payload.branch !== "string"
+      payload.exp <
+        Math.floor(
+          Date.now() / 1000
+        ) ||
+      ![
+        "admin",
+        "personel",
+      ].includes(
+        payload.role
+      ) ||
+      typeof payload.branch !==
+        "string"
     ) {
       return null;
     }
@@ -118,79 +186,123 @@ function verifySession(token: string): SessionPayload | null {
 }
 
 // ======================================================
-// METİN
+// TEXT
 // ======================================================
 
 function normalizeText(
   value: unknown,
   max = 180
 ) {
-  return String(value ?? "")
+  return String(
+    value ?? ""
+  )
     .trim()
-    .slice(0, max);
+    .slice(
+      0,
+      max
+    );
 }
 
 export function cleanAuctionText(
   value: unknown,
   max = 180
 ) {
-  return normalizeText(value, max);
+  return normalizeText(
+    value,
+    max
+  );
 }
 
 // ======================================================
-// SAYI
+// NUMBER
 // ======================================================
 
-export function numberValue(value: unknown) {
-  if (typeof value === "number") {
+export function numberValue(
+  value: unknown
+) {
+  if (
+    typeof value === "number"
+  ) {
     return value;
   }
 
-  const raw = String(value ?? "").trim();
+  const raw =
+    String(
+      value ?? ""
+    ).trim();
 
   if (!raw) {
     return NaN;
   }
 
-  let normalized = raw;
+  let normalized =
+    raw;
 
   if (
     raw.includes(".") &&
     raw.includes(",")
   ) {
-    normalized = raw
-      .replace(/\./g, "")
-      .replace(",", ".");
-  } else if (raw.includes(",")) {
-    normalized = raw.replace(",", ".");
+    normalized =
+      raw
+        .replace(
+          /\./g,
+          ""
+        )
+        .replace(
+          ",",
+          "."
+        );
+  } else if (
+    raw.includes(",")
+  ) {
+    normalized =
+      raw.replace(
+        ",",
+        "."
+      );
   }
 
-  const result = Number(normalized);
+  const result =
+    Number(
+      normalized
+    );
 
-  return Number.isFinite(result)
+  return Number.isFinite(
+    result
+  )
     ? result
     : NaN;
 }
 
 // ======================================================
-// KANAL
+// CHANNEL
 // ======================================================
 
 function getChannel(
   branch: string
-): "CMR" | "VODAFONE" | null {
+):
+  | "CMR"
+  | "VODAFONE"
+  | null {
   const upper =
     branch
       .trim()
-      .toLocaleUpperCase("tr-TR");
+      .toLocaleUpperCase(
+        "tr-TR"
+      );
 
-  if (upper === "VODAFONE KANALI") {
+  if (
+    upper ===
+    "VODAFONE KANALI"
+  ) {
     return "VODAFONE";
   }
 
   if (
     upper === "CMR" ||
-    upper.startsWith("CMR ")
+    upper.startsWith(
+      "CMR "
+    )
   ) {
     return "CMR";
   }
@@ -199,40 +311,74 @@ function getChannel(
 }
 
 // ======================================================
-// OTURUMU DOĞRUDAN COOKIE'DEN OKU
+// COOKIE
+// ======================================================
+
+function getCookieValue(
+  request: Request,
+  cookieName: string
+) {
+  const cookieHeader =
+    request.headers.get(
+      "cookie"
+    ) || "";
+
+  const cookies =
+    cookieHeader
+      .split(";")
+      .map(
+        (item) =>
+          item.trim()
+      );
+
+  const target =
+    cookies.find(
+      (item) =>
+        item.startsWith(
+          `${cookieName}=`
+        )
+    );
+
+  if (!target) {
+    return null;
+  }
+
+  return decodeURIComponent(
+    target.substring(
+      cookieName.length +
+        1
+    )
+  );
+}
+
+// ======================================================
+// AUCTION SESSION
 // ======================================================
 
 export async function getAuctionSession(
   request: Request
 ): Promise<AuctionSession> {
-  const cookieHeader =
-    request.headers.get("cookie") || "";
+  const token =
+    getCookieValue(
+      request,
+      COOKIE_NAME
+    );
 
-  const cookies = cookieHeader
-    .split(";")
-    .map((item) => item.trim());
-
-  const authCookie = cookies.find((item) =>
-    item.startsWith(`${COOKIE_NAME}=`)
-  );
-
-  if (!authCookie) {
+  if (!token) {
     throw Object.assign(
-      new Error("Oturum bulunamadı. Tekrar giriş yapın."),
+      new Error(
+        "Oturum bulunamadı. Tekrar giriş yapın."
+      ),
       {
         status: 401,
       }
     );
   }
 
-  const token = decodeURIComponent(
-    authCookie.substring(
-      COOKIE_NAME.length + 1
-    )
-  );
-
   const session =
-    verifySession(token);
+    verifySession(
+      token
+    );
 
   if (!session) {
     throw Object.assign(
@@ -245,15 +391,15 @@ export async function getAuctionSession(
     );
   }
 
-  // ==========================================
-  // POSTGRESQL KULLANICISI
-  // ==========================================
+  // ====================================================
+  // POSTGRESQL USER
+  // ====================================================
 
   if (session.userId) {
     const pool =
       getAuctionPool();
 
-    const result =
+    const userResult =
       await pool.query(
         `
           SELECT
@@ -270,13 +416,18 @@ export async function getAuctionSession(
 
           LIMIT 1
         `,
-        [session.userId]
+        [
+          session.userId,
+        ]
       );
 
     const user =
-      result.rows[0];
+      userResult.rows[0];
 
-    if (!user || !user.active) {
+    if (
+      !user ||
+      !user.active
+    ) {
       throw Object.assign(
         new Error(
           "Kullanıcı hesabı aktif değil."
@@ -287,16 +438,77 @@ export async function getAuctionSession(
       );
     }
 
+    // ================================================
+    // GERÇEK ROLLER
+    // ================================================
+
+    const roleResult =
+      await pool.query(
+        `
+          SELECT
+            r.code
+
+          FROM public.user_roles ur
+
+          JOIN public.roles r
+            ON r.id = ur.role_id
+
+          WHERE
+            ur.user_id = $1
+            AND r.active = TRUE
+
+          ORDER BY
+            CASE r.code
+              WHEN 'super_admin' THEN 1
+              WHEN 'yonetici' THEN 2
+              WHEN 'personel' THEN 3
+              ELSE 99
+            END
+        `,
+        [
+          session.userId,
+        ]
+      );
+
+    const roleCodes:
+      string[] =
+      roleResult.rows.map(
+        (row) =>
+          String(
+            row.code
+          )
+      );
+
+    const isSuperAdmin =
+      roleCodes.includes(
+        "super_admin"
+      );
+
+    const isManager =
+      isSuperAdmin ||
+      roleCodes.includes(
+        "yonetici"
+      ) ||
+      user.role ===
+        "admin";
+
+    let roleCode =
+      "personel";
+
+    if (isSuperAdmin) {
+      roleCode =
+        "super_admin";
+    } else if (
+      isManager
+    ) {
+      roleCode =
+        "yonetici";
+    }
+
     const branch =
       normalizeText(
         user.branch,
         120
-      );
-
-    const role =
-      normalizeText(
-        user.role,
-        40
       );
 
     const userName =
@@ -311,28 +523,43 @@ export async function getAuctionSession(
       success: true,
 
       role:
-        role === "admin"
+        isManager
           ? "yonetici"
           : "personel",
+
+      roleCode,
 
       branch,
 
       userKey:
-        String(user.id),
+        String(
+          user.id
+        ),
 
       userName,
 
+      // DİKKAT:
+      // İhale admini sadece Super Admin.
       isAdmin:
-        role === "admin",
+        isSuperAdmin,
+
+      isSuperAdmin,
+
+      isManager,
 
       channel:
-        getChannel(branch),
+        getChannel(
+          branch
+        ),
     };
   }
 
-  // ==========================================
-  // LEGACY ENV OTURUMU
-  // ==========================================
+  // ====================================================
+  // LEGACY ENV SESSION
+  // ====================================================
+  // Legacy admin hesabına Super Admin yetkisi VERİLMİYOR.
+  // Böylece sadece DB'deki super_admin gerçek yetkiye sahip.
+  // ====================================================
 
   const branch =
     normalizeText(
@@ -340,14 +567,20 @@ export async function getAuctionSession(
       120
     );
 
-  const isAdmin =
-    session.role === "admin";
+  const legacyManager =
+    session.role ===
+    "admin";
 
   return {
     success: true,
 
     role:
-      isAdmin
+      legacyManager
+        ? "yonetici"
+        : "personel",
+
+    roleCode:
+      legacyManager
         ? "yonetici"
         : "personel",
 
@@ -361,24 +594,37 @@ export async function getAuctionSession(
     userName:
       branch,
 
-    isAdmin,
+    isAdmin: false,
+
+    isSuperAdmin:
+      false,
+
+    isManager:
+      legacyManager,
 
     channel:
-      getChannel(branch),
+      getChannel(
+        branch
+      ),
   };
 }
 
 // ======================================================
-// YETKİ
+// AUCTION ACCESS
 // ======================================================
 
 export function ensureAuctionAccess(
   session: AuctionSession
 ) {
-  if (session.isAdmin) {
+  // Super Admin her ihaleye erişebilir.
+  if (
+    session.isSuperAdmin
+  ) {
     return;
   }
 
+  // Normal yönetici / personel
+  // CMR veya Vodafone kanalında olmalı.
   if (!session.channel) {
     throw Object.assign(
       new Error(
@@ -391,13 +637,19 @@ export function ensureAuctionAccess(
   }
 }
 
+// ======================================================
+// SUPER ADMIN ONLY
+// ======================================================
+
 export function ensureAdmin(
   session: AuctionSession
 ) {
-  if (!session.isAdmin) {
+  if (
+    !session.isSuperAdmin
+  ) {
     throw Object.assign(
       new Error(
-        "Bu işlem sadece yönetici tarafından yapılabilir."
+        "Bu işlem sadece Super Admin tarafından yapılabilir."
       ),
       {
         status: 403,
@@ -406,13 +658,25 @@ export function ensureAdmin(
   }
 }
 
+// İleride kod daha anlaşılır olsun diye ayrıca isimli fonksiyon.
+export function ensureSuperAdmin(
+  session: AuctionSession
+) {
+  ensureAdmin(
+    session
+  );
+}
+
 // ======================================================
-// KAPSAM
+// SCOPE
 // ======================================================
 
 export function auctionScopeAllowed(
   scope: string,
-  channel: "CMR" | "VODAFONE" | null
+  channel:
+    | "CMR"
+    | "VODAFONE"
+    | null
 ) {
   if (!channel) {
     return false;
@@ -425,7 +689,7 @@ export function auctionScopeAllowed(
 }
 
 // ======================================================
-// SÜRESİ DOLAN İHALELER
+// CLOSE EXPIRED AUCTIONS
 // ======================================================
 
 export async function closeExpiredAuctions() {
@@ -470,7 +734,7 @@ export async function closeExpiredAuctions() {
 }
 
 // ======================================================
-// ANONİM KATILIMCI
+// ANONYMOUS PARTICIPANT
 // ======================================================
 
 export async function getOrCreateParticipant(
@@ -481,9 +745,11 @@ export async function getOrCreateParticipant(
   const existing =
     await client.query(
       `
-        SELECT anonymous_code
+        SELECT
+          anonymous_code
 
-        FROM public.auction_participants
+        FROM
+          public.auction_participants
 
         WHERE
           auction_id = $1
@@ -498,7 +764,8 @@ export async function getOrCreateParticipant(
     );
 
   if (
-    existing.rows[0]?.anonymous_code
+    existing.rows[0]
+      ?.anonymous_code
   ) {
     return String(
       existing.rows[0]
@@ -510,28 +777,39 @@ export async function getOrCreateParticipant(
     await client.query(
       `
         SELECT
-          COUNT(*)::int AS count
+          COUNT(*)::int
+          AS count
 
-        FROM public.auction_participants
+        FROM
+          public.auction_participants
 
-        WHERE auction_id = $1
+        WHERE
+          auction_id = $1
       `,
-      [auctionId]
+      [
+        auctionId,
+      ]
     );
 
   const nextNumber =
     Number(
-      countResult.rows[0]?.count || 0
+      countResult.rows[0]
+        ?.count || 0
     ) + 1;
 
   const anonymousCode =
     `Teklif #${String(
       nextNumber
-    ).padStart(2, "0")}`;
+    ).padStart(
+      2,
+      "0"
+    )}`;
 
   await client.query(
     `
-      INSERT INTO public.auction_participants (
+      INSERT INTO
+        public.auction_participants
+      (
         auction_id,
         bidder_user_id,
         bidder_name,
@@ -563,10 +841,13 @@ export async function getOrCreateParticipant(
 // ERROR
 // ======================================================
 
-export function apiError(error: any) {
+export function apiError(
+  error: any
+) {
   const status =
     Number(
-      error?.status || 500
+      error?.status ||
+        500
     );
 
   console.error(
@@ -598,10 +879,12 @@ export function apiError(error: any) {
         status >= 500
           ? {
               code:
-                error?.code || null,
+                error?.code ||
+                null,
 
               detail:
-                error?.detail || null,
+                error?.detail ||
+                null,
             }
           : undefined,
     },
