@@ -297,61 +297,6 @@ function saveSpokenNotificationIds(ids: Set<string>) {
     } catch {}
 }
 
-function turkishNumberToWords(value: number) {
-    const number = Math.max(0, Math.round(Number(value || 0)));
-
-    if (number === 0) return 'sıfır';
-
-    const ones = [
-        '', 'bir', 'iki', 'üç', 'dört',
-        'beş', 'altı', 'yedi', 'sekiz', 'dokuz'
-    ];
-
-    const tens = [
-        '', 'on', 'yirmi', 'otuz', 'kırk',
-        'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'
-    ];
-
-    const underThousand = (n: number) => {
-        const parts: string[] = [];
-        const hundreds = Math.floor(n / 100);
-        const remainder = n % 100;
-        const ten = Math.floor(remainder / 10);
-        const one = remainder % 10;
-
-        if (hundreds > 0) {
-            if (hundreds > 1) parts.push(ones[hundreds]);
-            parts.push('yüz');
-        }
-
-        if (ten > 0) parts.push(tens[ten]);
-        if (one > 0) parts.push(ones[one]);
-
-        return parts.join(' ');
-    };
-
-    const parts: string[] = [];
-    const millions = Math.floor(number / 1_000_000);
-    const thousands = Math.floor((number % 1_000_000) / 1000);
-    const rest = number % 1000;
-
-    if (millions > 0) {
-        parts.push(
-            millions === 1 ? 'bir milyon' : `${underThousand(millions)} milyon`
-        );
-    }
-
-    if (thousands > 0) {
-        parts.push(
-            thousands === 1 ? 'bin' : `${underThousand(thousands)} bin`
-        );
-    }
-
-    if (rest > 0) parts.push(underThousand(rest));
-
-    return parts.join(' ').trim();
-}
-
 function normalizeProductNameForSpeech(name: string) {
     return String(name || '')
         .replace(/\bIPHONE\b/gi, 'Ayfon')
@@ -424,8 +369,6 @@ function speakPriceNotificationItems(items: PriceNotificationItem[]) {
 
     speakable.forEach((item) => {
         const spokenName = normalizeProductNameForSpeech(item.name);
-        const spokenPrice = turkishNumberToWords(item.newPrice);
-
         const categoryText =
             item.category === 'YNA'
                 ? 'Y N A ürünü'
@@ -435,8 +378,8 @@ function speakPriceNotificationItems(items: PriceNotificationItem[]) {
 
         const sentence =
             item.direction === 'new'
-                ? `Yeni ${categoryText} eklendi. ${spokenName}. Fiyatı, ${spokenPrice} Türk lirası.`
-                : `${categoryText}. ${spokenName}. Fiyatı düştü. Yeni fiyatı, ${spokenPrice} Türk lirası.`;
+                ? `Yeni ${categoryText} eklendi. ${spokenName}.`
+                : `${categoryText}. ${spokenName}. Fiyatı düştü.`;
 
         const utterance = new SpeechSynthesisUtterance(sentence);
         utterance.lang = 'tr-TR';
