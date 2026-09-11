@@ -791,6 +791,10 @@ async function importProducts(
     .map((product) => stringOrNull(product.stockCode, 250))
     .filter((value): value is string => Boolean(value));
 
+  const productIds = products
+    .map((product) => stringOrNull(product.n11ProductId, 250))
+    .filter((value): value is string => Boolean(value));
+
   let existingStockCodes = new Set<string>();
 
   if (stockCodes.length > 0) {
@@ -812,6 +816,7 @@ async function importProducts(
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
+  let notFoundClosed = 0;
 
   try {
     await client.query('BEGIN');
@@ -961,11 +966,17 @@ async function importProducts(
                 EXCLUDED.quantity,
                 CASE
                   WHEN COALESCE(
-                    ol.raw_data->>'poolStockTargetQuantity',
+                    COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    ),
                     ''
                   ) ~ '^[0-9]+$'
                   THEN (
-                    ol.raw_data->>'poolStockTargetQuantity'
+                    COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    )
                   )::integer
                   ELSE EXCLUDED.quantity
                 END
@@ -1081,12 +1092,18 @@ async function importProducts(
                   CASE
                     WHEN (
                       COALESCE(
-                        ol.raw_data->>'poolStockTargetQuantity',
+                        COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    ),
                         ''
                       ) ~ '^[0-9]+$'
                       AND EXCLUDED.quantity >=
                         (
-                          ol.raw_data->>'poolStockTargetQuantity'
+                          COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    )
                         )::integer
                     )
                     OR (
@@ -1105,11 +1122,17 @@ async function importProducts(
                   'poolStockTargetQuantity',
                   CASE
                     WHEN COALESCE(
-                      ol.raw_data->>'poolStockTargetQuantity',
+                      COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
+                      ol.raw_data->>'poolStockTargetQuantity'
+                    ),
                       ''
                     ) ~ '^[0-9]+$'
                     THEN (
+                      COALESCE(
+                      ol.raw_data->>'poolTargetQuantity',
                       ol.raw_data->>'poolStockTargetQuantity'
+                    )
                     )::integer
                     ELSE EXCLUDED.quantity
                   END,
@@ -1172,6 +1195,67 @@ async function importProducts(
       }
     }
 
+    // ------------------------------------------------------------
+    // N11 CANLI GERÇEKLİK TEMİZLİĞİ
+    //
+    // Sadece PostgreSQL'de "satışta" kalmış fakat bu import turunda
+    // N11 product-query içinde NE stockCode NE de productId ile bulunan
+    // eski kayıtları kapatır.
+    //
+    // N11'e hiçbir yazma isteği atılmaz, kayıt silinmez.
+    // ProductId eşleşmesi de kontrol edildiği için stockCode değişmiş
+    // gerçek bir ürünü yanlışlıkla ghost saymayız.
+    // ------------------------------------------------------------
+    const notFoundResult =
+      await client.query(
+        `
+          UPDATE public.online_listings
+          SET
+            quantity = 0,
+            sale_status = 'Out_Of_Stock',
+            sync_status = 'N11_NOT_FOUND',
+            last_error =
+              'N11 canlı product-query sonucunda ürün bulunamadı.',
+            raw_data =
+              COALESCE(
+                raw_data,
+                '{}'::jsonb
+              )
+              || jsonb_build_object(
+                'n11NotFound',
+                true,
+                'n11NotFoundAt',
+                now()::text,
+                'n11NotFoundReason',
+                'NOT_IN_LIVE_PRODUCT_QUERY_BY_STOCKCODE_OR_PRODUCTID'
+              ),
+            updated_at = now()
+          WHERE channel = 'N11'
+            AND external_product_id IS NOT NULL
+            AND sync_status = 'SYNCED'
+            AND quantity > 0
+            AND NOT (
+              external_stock_code =
+              ANY($1::text[])
+            )
+            AND NOT (
+              external_product_id =
+              ANY($2::text[])
+            )
+            AND COALESCE(
+              raw_data->>'poolStockIncreasePending',
+              'false'
+            ) <> 'true'
+        `,
+        [
+          stockCodes,
+          productIds,
+        ]
+      );
+
+    notFoundClosed =
+      notFoundResult.rowCount || 0;
+
     await setChannelSyncState(client, 'SUCCESS', null, true);
 
     await client.query('COMMIT');
@@ -1180,6 +1264,7 @@ async function importProducts(
       inserted,
       updated,
       skipped,
+      notFoundClosed,
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -1335,6 +1420,7 @@ export async function POST(request: NextRequest) {
       inserted: importResult.inserted,
       updated: importResult.updated,
       skipped: importResult.skipped,
+      notFoundClosed: importResult.notFoundClosed,
       durationMs: Date.now() - startedAt,
       importedBy: auth.user.username,
       automatic: auth.mode === 'AUTO_SYNC',
