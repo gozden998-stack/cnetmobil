@@ -2166,19 +2166,15 @@ export default function CnetmobilCmrFinalUltimate() {
                 alt="CNETMOBİL"
                 className="h-[48px] w-auto object-contain brightness-0 invert"
               />
-              <div className="mt-3 text-[15px] tracking-[0.02em] text-white/75">Partner Yönetim Sistemi</div>
+              <div className="mt-3 text-[15px] tracking-[0.02em] text-white/75">Bayi Paneli</div>
             </div>
 
             <div className="relative z-10 max-w-[340px] pb-3">
               <div className="mb-6 h-px w-16 bg-blue-400/80" />
               <h2 className="text-[34px] font-semibold leading-[1.5] tracking-[-0.02em]">
-                Daha Güçlü<br />
-                Daha Kârlı<br />
-                Birlikte Büyüyoruz
+                Türkiye&apos;nin Yenilenmiş<br />
+                Cep Telefonu Markası
               </h2>
-              <p className="mt-5 text-sm leading-6 text-white/55">
-                CNETMOBİL operasyonlarını güvenli ve merkezi bir panelden yönetin.
-              </p>
             </div>
           </aside>
 
@@ -2191,7 +2187,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   alt="CNETMOBİL"
                   className="h-[40px] w-auto object-contain"
                 />
-                <div className="mt-2 text-xs font-medium tracking-wide text-slate-500">Partner Yönetim Sistemi</div>
+                <div className="mt-2 text-xs font-medium tracking-wide text-slate-500">Bayi Paneli</div>
               </div>
 
               {authView === 'login' ? (
@@ -2308,7 +2304,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   </div>
 
                   <div className="mt-7 text-center text-[11px] font-medium tracking-wide text-slate-400">
-                    CNETMOBİL Partner Yönetim Sistemi
+                    CNETMOBİL Bayi Paneli
                   </div>
                 </>
               ) : authView === 'forgot' ? (
@@ -2384,7 +2380,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   </button>
 
                   <div className="mt-12 text-center text-[11px] font-medium tracking-wide text-slate-400">
-                    CNETMOBİL Partner Yönetim Sistemi
+                    CNETMOBİL Bayi Paneli
                   </div>
                 </>
               ) : (
@@ -2496,7 +2492,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   )}
 
                   <div className="mt-10 text-center text-[11px] font-medium tracking-wide text-slate-400">
-                    CNETMOBİL Partner Yönetim Sistemi
+                    CNETMOBİL Bayi Paneli
                   </div>
                 </>
               )}
