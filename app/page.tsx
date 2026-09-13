@@ -2174,7 +2174,14 @@ export default function CnetmobilCmrFinalUltimate() {
               <h2 className="text-[34px] font-semibold leading-[1.5] tracking-[-0.02em]">
                 Türkiye&apos;nin Yenilenmiş<br />
                 Cep Telefonu Markası
-              </h2>
+                </h2>
+
+               <div className="mt-5 text-[22px] font-black tracking-[0.08em] text-white">
+               CNETMOBİL
+               </div>
+                
+                
+              
             </div>
           </aside>
 
