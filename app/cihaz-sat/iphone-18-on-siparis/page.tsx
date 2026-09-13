@@ -267,6 +267,59 @@ export default function Iphone18PreorderPage() {
               <button type="button" onClick={() => openModal()} className="group flex h-[56px] items-center gap-5 rounded-full bg-white px-8 text-[13px] font-black text-[#07101c] transition hover:-translate-y-1">Ön Sipariş Ver <span className="text-xl">→</span></button>
               <a href="#modeller" className="flex h-[56px] items-center rounded-full border border-white/20 bg-white/[0.035] px-8 text-[13px] font-black transition hover:bg-white/[0.08]">Modelleri İncele</a>
             </div>
+
+            {/* TAKAS KAMPANYASI */}
+            <div className="relative mt-8 max-w-[610px]">
+              <div className="relative overflow-hidden rounded-[24px] border border-blue-400/20 bg-gradient-to-r from-blue-500/[0.11] via-violet-500/[0.07] to-white/[0.02] px-5 py-5 backdrop-blur-xl shadow-[0_18px_55px_rgba(0,0,0,.20)]">
+                <div className="pointer-events-none absolute -left-12 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-[65px]" />
+                <div className="pointer-events-none absolute -bottom-20 right-20 h-40 w-48 rounded-full bg-violet-500/15 blur-[70px]" />
+
+                <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                        TAKAS AVANTAJI
+                      </span>
+
+                      <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        CNETMOBİL
+                      </span>
+                    </div>
+
+                    <h3 className="text-[18px] font-black leading-snug tracking-[-0.4px] text-white sm:text-[19px]">
+                      Eski Cihazını Değerlendir,
+                      <span className="ml-1 bg-gradient-to-r from-[#67bbff] to-[#a37dff] bg-clip-text text-transparent">
+                        iPhone 18&apos;e Geç!
+                      </span>
+                    </h3>
+
+                    <p className="mt-1.5 max-w-[405px] text-[10px] font-medium leading-5 text-slate-400">
+                      Eski telefonunun değerini öğren, yeni iPhone 18 için avantajını kullan.
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    <svg
+                      className="hidden h-8 w-11 text-blue-400 sm:block"
+                      viewBox="0 0 48 32"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 16H41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M32 7L41 16L32 25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+
+                    <a
+                      href="/cihaz-sat"
+                      className="group flex h-[48px] items-center gap-3 rounded-[14px] bg-white px-5 text-[11px] font-black text-[#07101c] shadow-[0_12px_35px_rgba(255,255,255,.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_42px_rgba(96,165,250,.18)]"
+                    >
+                      Cihazını Sat
+                      <span className="text-lg transition-transform group-hover:translate-x-1">→</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="relative hidden h-[570px] items-center justify-center lg:flex">
