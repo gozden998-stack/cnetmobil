@@ -140,7 +140,7 @@ function getRowToneClass(row: ProductRow) {
     case "samsung":
       return "bg-sky-50/95";
     case "tablet":
-      return "bg-slate-100/90";
+      return "bg-slate-200/90";
     case "general-mobile":
       return "bg-yellow-50/90";
     case "infinix":
@@ -507,10 +507,8 @@ export default function CepTablet({
           rowGroup = "samsung";
           sectionHeader = true;
         } else if (
-          value === "TABLETLER & BİLGİSAYAR - LEBTAB" ||
-          value === "TABLETLER & BILGISAYAR - LEBTAB" ||
-          value === "TABLETLER & BİLGİSAYAR" ||
-          value === "TABLETLER & BILGISAYAR"
+          value.startsWith("TABLETLER & BİLGİSAYAR") ||
+          value.startsWith("TABLETLER & BILGISAYAR")
         ) {
           leftGroup = "tablet";
           rowGroup = "tablet";
