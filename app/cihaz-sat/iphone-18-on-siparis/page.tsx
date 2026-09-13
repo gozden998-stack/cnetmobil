@@ -1,7 +1,6 @@
 "use client";
 
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 
 type Model = "iPhone 18 Pro" | "iPhone 18 Pro Max" | "iPhone Duo";
 type Storage = "256 GB" | "512 GB" | "1 TB" | "2 TB";
@@ -403,7 +402,15 @@ export default function Iphone18PreorderPage() {
                       </div>
 
                       <div className="flex flex-col items-center justify-center border-t border-white/[0.07] bg-white/[0.025] p-6 md:border-l md:border-t-0">
-                        <div className="rounded-[20px] bg-white p-4"><QRCodeSVG value={qrValue} size={170} level="M" /></div>
+                        <div className="rounded-[20px] bg-white p-4">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=170x170&margin=0&data=${encodeURIComponent(qrValue)}`}
+                            alt="Ödeme QR Kodu"
+                            width={170}
+                            height={170}
+                            className="h-[170px] w-[170px]"
+                          />
+                        </div>
                         <div className="mt-4 text-center text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Ödeme Bilgileri QR</div>
                         <p className="mt-2 text-center text-[8px] leading-4 text-slate-600">QR kod; alıcı, IBAN, tutar ve açıklama bilgilerini içerir.</p>
                       </div>
