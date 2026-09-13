@@ -21,7 +21,6 @@ type Storage =
 type ColorOption = {
   name: string;
   swatch: string;
-  highlight: string;
 };
 
 const MODELS: Model[] = [
@@ -37,7 +36,7 @@ const STORAGES: Storage[] = [
   "2 TB",
 ];
 
-const PRICE_MAP: Record<
+const PRICES: Record<
   Model,
   Record<Storage, number>
 > = {
@@ -70,59 +69,49 @@ const COLORS: Record<
   "iPhone 18 Pro": [
     {
       name: "Siyah",
-      swatch: "#17191d",
-      highlight: "#454a52",
+      swatch: "#191b20",
     },
     {
       name: "Buzul Rengi",
-      swatch: "#8eb9f4",
-      highlight: "#dbeafe",
+      swatch: "#8db9f2",
     },
     {
       name: "Burgonya",
-      swatch: "#682a52",
-      highlight: "#b56a91",
+      swatch: "#6d2c51",
     },
     {
       name: "Gümüş Rengi",
-      swatch: "#cacdd2",
-      highlight: "#ffffff",
+      swatch: "#d5d7dc",
     },
   ],
 
   "iPhone 18 Pro Max": [
     {
       name: "Siyah",
-      swatch: "#17191d",
-      highlight: "#454a52",
+      swatch: "#191b20",
     },
     {
       name: "Buzul Rengi",
-      swatch: "#8eb9f4",
-      highlight: "#dbeafe",
+      swatch: "#8db9f2",
     },
     {
       name: "Burgonya",
-      swatch: "#682a52",
-      highlight: "#b56a91",
+      swatch: "#6d2c51",
     },
     {
       name: "Gümüş Rengi",
-      swatch: "#cacdd2",
-      highlight: "#ffffff",
+      swatch: "#d5d7dc",
     },
   ],
 
   "iPhone Duo": [
     {
       name: "Gece Rengi",
-      swatch: "#111820",
-      highlight: "#566372",
+      swatch: "#121821",
     },
     {
       name: "Yıldız Rengi",
-      swatch: "#dcd4c5",
-      highlight: "#fff8e7",
+      swatch: "#e2dacb",
     },
   ],
 };
@@ -136,7 +125,6 @@ const STORES = [
 
 const DEPOSIT = 5000;
 
-// 16 Ekim 2026 15:00 Türkiye saati
 const DUO_PREORDER_START =
   Date.UTC(
     2026,
@@ -158,158 +146,14 @@ function money(value: number) {
   ).format(value);
 }
 
-function CheckIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m5 12 4 4L19 6"
-      />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3 5 6v5c0 5 3.2 8 7 10 3.8-2 7-5 7-10V6l-7-3Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m9 12 2 2 4-4"
-      />
-    </svg>
-  );
-}
-
-function TruckIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path d="M3 6h11v10H3z" />
-      <path d="M14 10h4l3 3v3h-7z" />
-      <circle cx="7" cy="18" r="2" />
-      <circle cx="18" cy="18" r="2" />
-    </svg>
-  );
-}
-
-function StoreIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path d="M4 10v10h16V10" />
-      <path d="M3 10 5 4h14l2 6" />
-      <path d="M8 20v-6h8v6" />
-    </svg>
-  );
-}
-
-function CameraModule() {
-  return (
-    <div className="absolute left-[10%] top-[6%] h-[27%] w-[62%] rounded-[22%] border border-white/10 bg-black/25 shadow-xl backdrop-blur-sm">
-      <div className="absolute left-[9%] top-[10%] h-[34%] w-[34%] rounded-full border-[5px] border-black/70 bg-[radial-gradient(circle_at_40%_35%,#7792ad,#15202f_42%,#020407_68%)] shadow-[inset_0_0_5px_rgba(255,255,255,.25)]" />
-
-      <div className="absolute right-[9%] top-[10%] h-[34%] w-[34%] rounded-full border-[5px] border-black/70 bg-[radial-gradient(circle_at_40%_35%,#7792ad,#15202f_42%,#020407_68%)]" />
-
-      <div className="absolute bottom-[8%] left-[32%] h-[34%] w-[34%] rounded-full border-[5px] border-black/70 bg-[radial-gradient(circle_at_40%_35%,#7792ad,#15202f_42%,#020407_68%)]" />
-
-      <div className="absolute bottom-[14%] right-[8%] h-[10%] w-[10%] rounded-full bg-white/70 shadow-[0_0_12px_rgba(255,255,255,.8)]" />
-    </div>
-  );
-}
-
-function PhoneMockup({
-  color,
-  highlight,
-  className = "",
+function Icon({
+  children,
 }: {
-  color: string;
-  highlight: string;
-  className?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`relative h-[410px] w-[198px] rounded-[44px] border border-white/20 shadow-[0_35px_90px_rgba(0,0,0,.75)] ${className}`}
-      style={{
-        background: `
-          linear-gradient(
-            145deg,
-            ${highlight} 0%,
-            ${color} 20%,
-            ${color} 72%,
-            #06080d 135%
-          )
-        `,
-      }}
-    >
-      <div className="absolute inset-[5px] rounded-[39px] border border-black/20" />
-
-      <CameraModule />
-
-      <div className="absolute left-1/2 top-[58%] -translate-x-1/2 text-[45px] font-black text-black/20">
-        ●
-      </div>
-
-      <div className="absolute -left-[3px] top-[115px] h-[52px] w-[4px] rounded-l bg-white/20" />
-
-      <div className="absolute -right-[3px] top-[140px] h-[66px] w-[4px] rounded-r bg-white/20" />
-    </div>
-  );
-}
-
-function DuoMockup({
-  color,
-}: {
-  color: string;
-}) {
-  return (
-    <div className="relative h-[410px] w-[340px]">
-
-      <div
-        className="absolute left-[22px] top-[15px] h-[380px] w-[164px] -rotate-[5deg] rounded-[35px] border border-white/20 shadow-[0_30px_70px_rgba(0,0,0,.6)]"
-        style={{
-          background: `linear-gradient(145deg,#ffffff55,${color} 30%,#111827 130%)`,
-        }}
-      >
-        <div className="absolute inset-[8px] rounded-[28px] bg-[radial-gradient(circle_at_50%_20%,#3155a7,#091122_70%)]" />
-      </div>
-
-      <div
-        className="absolute right-[28px] top-[15px] h-[380px] w-[164px] rotate-[5deg] rounded-[35px] border border-white/20 shadow-[0_30px_70px_rgba(0,0,0,.6)]"
-        style={{
-          background: `linear-gradient(145deg,#ffffff55,${color} 30%,#111827 130%)`,
-        }}
-      >
-        <CameraModule />
-      </div>
+    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+      {children}
     </div>
   );
 }
@@ -361,17 +205,11 @@ export default function Iphone18PreorderPage() {
     );
   }, []);
 
-  const currentPrice =
-    PRICE_MAP[model][storage];
-
-  const availableColors =
+  const colors =
     COLORS[model];
 
-  const selectedColor =
-    availableColors.find(
-      (x) => x.name === color
-    ) ||
-    availableColors[0];
+  const price =
+    PRICES[model][storage];
 
   const isDuo =
     model === "iPhone Duo";
@@ -380,7 +218,7 @@ export default function Iphone18PreorderPage() {
     isDuo &&
     !duoPreorderOpen;
 
-  const modelLabel =
+  const modelText =
     useMemo(() => {
       if (
         model ===
@@ -399,13 +237,13 @@ export default function Iphone18PreorderPage() {
       return "Profesyoneller için.";
     }, [model]);
 
-  function chooseModel(
-    next: Model
+  function selectModel(
+    value: Model
   ) {
-    setModel(next);
+    setModel(value);
 
     setColor(
-      COLORS[next][0].name
+      COLORS[value][0].name
     );
 
     setError("");
@@ -413,9 +251,9 @@ export default function Iphone18PreorderPage() {
   }
 
   async function submit(
-    e: FormEvent
+    event: FormEvent
   ) {
-    e.preventDefault();
+    event.preventDefault();
 
     setError("");
     setSuccess("");
@@ -424,6 +262,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Teslim mağazasını seçin."
       );
+
       return;
     }
 
@@ -433,6 +272,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Ad soyad bilginizi girin."
       );
+
       return;
     }
 
@@ -445,6 +285,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Geçerli telefon numarası girin."
       );
+
       return;
     }
 
@@ -495,11 +336,11 @@ export default function Iphone18PreorderPage() {
 
       setSuccess(
         data?.message ||
-          "Talebiniz başarıyla alındı."
+          "Talebiniz alındı."
       );
-    } catch (err: any) {
+    } catch (e: any) {
       setError(
-        err?.message ||
+        e?.message ||
           "Bir hata oluştu."
       );
     } finally {
@@ -508,100 +349,103 @@ export default function Iphone18PreorderPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#050914] text-white">
+    <main className="min-h-screen bg-[#030711] text-white">
 
-      {/* NAVBAR */}
-      <nav className="relative z-50 border-b border-white/10 bg-[#050914]/95 backdrop-blur-xl">
+      {/* ================= HEADER ================= */}
 
-        <div className="mx-auto flex h-[76px] max-w-[1450px] items-center justify-between px-5 lg:px-8">
+      <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#030711]/95 backdrop-blur-xl">
+
+        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 lg:px-8">
 
           <a
             href="/cihaz-sat"
-            className="text-[25px] font-black tracking-[-1.4px]"
+            className="text-[25px] font-black tracking-[-1.5px]"
           >
             CNET
-            <span className="font-medium text-blue-400">
+            <span className="font-medium text-[#50a5ff]">
               MOBİL
             </span>
           </a>
 
-          <div className="hidden items-center gap-8 text-[12px] font-bold text-slate-300 lg:flex">
+          <nav className="hidden items-center gap-9 text-[12px] font-bold text-slate-300 lg:flex">
 
             <a
               href="/cihaz-sat"
-              className="transition hover:text-white"
+              className="hover:text-white"
             >
               Cihaz Sat
             </a>
 
             <a
               href="#modeller"
-              className="transition hover:text-white"
+              className="hover:text-white"
             >
               Modeller
             </a>
 
             <a
               href="#on-siparis"
-              className="transition hover:text-white"
+              className="hover:text-white"
             >
               Ön Sipariş
             </a>
 
             <a
               href="#avantajlar"
-              className="transition hover:text-white"
+              className="hover:text-white"
             >
               Avantajlar
             </a>
-          </div>
+
+          </nav>
 
           <a
             href="#on-siparis"
-            className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-[11px] font-black text-blue-200 transition hover:bg-blue-500 hover:text-white"
+            className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-5 py-3 text-[11px] font-black text-blue-100 transition hover:bg-blue-600"
           >
             Ön Sipariş Ver
           </a>
         </div>
-      </nav>
+      </header>
 
-      {/* HERO */}
-      <section className="relative min-h-[760px] overflow-hidden">
+      {/* ================= HERO ================= */}
 
-        {/* BACKGROUND */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_35%,rgba(42,117,255,.38),transparent_26%),radial-gradient(circle_at_20%_90%,rgba(91,52,197,.24),transparent_35%),linear-gradient(125deg,#030711,#091224_45%,#03060e)]" />
+      <section className="relative overflow-hidden">
 
-        <div className="absolute -right-[120px] -top-[220px] h-[900px] w-[900px] rounded-full border-[3px] border-blue-300/25 shadow-[0_0_85px_rgba(71,142,255,.45)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_30%,rgba(25,105,255,.34),transparent_29%),radial-gradient(circle_at_22%_80%,rgba(102,69,255,.17),transparent_32%),linear-gradient(120deg,#030711_0%,#081328_52%,#030711_100%)]" />
 
-        <div className="absolute right-[8%] top-[25%] h-[240px] w-[600px] bg-blue-500/20 blur-[120px]" />
+        {/* PLANET */}
+        <div className="pointer-events-none absolute right-[-380px] top-[-580px] h-[1150px] w-[1150px] rounded-full border border-blue-300/25 shadow-[0_0_85px_rgba(70,130,255,.32)]" />
 
-        <div className="absolute bottom-0 left-0 right-0 h-[230px] bg-gradient-to-t from-[#050914] to-transparent" />
+        <div className="pointer-events-none absolute right-[8%] top-[20%] h-[350px] w-[650px] bg-blue-500/15 blur-[130px]" />
 
-        <div className="relative mx-auto grid max-w-[1450px] gap-8 px-5 pb-20 pt-16 lg:grid-cols-[0.88fr_1.12fr] lg:px-8">
+        <div className="relative mx-auto grid min-h-[650px] max-w-[1440px] items-center gap-10 px-5 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
 
-          {/* HERO LEFT */}
-          <div className="relative z-10">
+          {/* LEFT */}
 
-            <div className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">
+          <div className="relative z-10 max-w-[680px]">
+
+            <div className="text-[11px] font-black uppercase tracking-[0.42em] text-blue-200/70">
               DAHA FAZLASI SENİN ELİNDE
             </div>
 
-            <h1 className="mt-6 max-w-[700px] text-[50px] font-black leading-[0.98] tracking-[-3px] sm:text-[70px] xl:text-[82px]">
+            <h1 className="mt-6 text-[53px] font-black leading-[0.95] tracking-[-3px] sm:text-[70px] xl:text-[80px]">
 
               Yeni Seri
 
-              <span className="block bg-gradient-to-r from-[#74b8ff] via-[#88a5ff] to-[#bb85ff] bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-[#6bbcff] via-[#8ca4ff] to-[#b782ff] bg-clip-text text-transparent">
                 Ön Siparişe Açıldı
               </span>
             </h1>
 
-            <div className="mt-7 text-[28px] font-semibold tracking-[-1px] text-white">
+            <h2 className="mt-7 text-[27px] font-black tracking-[-0.8px]">
               iPhone 18 Pro & Pro Max
-            </div>
+            </h2>
 
-            <p className="mt-3 max-w-xl text-[15px] font-medium leading-7 text-slate-400">
-              Yeni renkler, güçlü performans
-              ve CNETMOBİL ön sipariş avantajları.
+            <p className="mt-3 max-w-[560px] text-[15px] font-medium leading-7 text-slate-400">
+              Yeni renkler, güçlü
+              performans ve CNETMOBİL
+              ön sipariş avantajları.
               İlk sahiplerinden biri ol.
             </p>
 
@@ -609,45 +453,53 @@ export default function Iphone18PreorderPage() {
 
               <a
                 href="#on-siparis"
-                className="inline-flex h-14 items-center gap-5 rounded-full bg-white px-8 text-[13px] font-black text-slate-950 shadow-[0_10px_35px_rgba(255,255,255,.15)] transition hover:-translate-y-1"
+                className="flex h-14 items-center gap-5 rounded-full bg-white px-8 text-[13px] font-black text-slate-950 transition hover:-translate-y-1"
               >
                 Ön Sipariş Ver
-                <span className="text-lg">
+
+                <span className="text-xl">
                   →
                 </span>
               </a>
 
               <a
                 href="#renkler"
-                className="inline-flex h-14 items-center gap-4 rounded-full border border-white/20 bg-white/5 px-8 text-[13px] font-black text-white backdrop-blur-xl transition hover:bg-white/10"
+                className="flex h-14 items-center gap-4 rounded-full border border-white/20 bg-white/[0.04] px-8 text-[13px] font-black backdrop-blur-xl transition hover:bg-white/10"
               >
                 Renkleri İncele
 
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-[10px]">
                   ▶
                 </span>
               </a>
             </div>
 
-            {/* TRUST */}
+            {/* BENEFITS */}
+
             <div
               id="avantajlar"
-              className="mt-10 flex flex-wrap gap-x-7 gap-y-5 text-[11px] font-semibold text-slate-300"
+              className="mt-10 flex flex-wrap gap-6"
             >
 
-              <div className="flex items-center gap-3">
-                <ShieldIcon />
+              <div className="flex items-center gap-3 text-[11px] font-bold text-slate-300">
+
+                <Icon>
+                  🎁
+                </Icon>
+
                 <span>
-                  CNETMOBİL
+                  Sınırlı Ön Sipariş
                   <br />
-                  Güvencesi
+                  Avantajları
                 </span>
               </div>
 
-              <div className="h-9 w-px bg-white/10" />
+              <div className="flex items-center gap-3 text-[11px] font-bold text-slate-300">
 
-              <div className="flex items-center gap-3">
-                <TruckIcon />
+                <Icon>
+                  🚚
+                </Icon>
+
                 <span>
                   Hızlı
                   <br />
@@ -655,552 +507,578 @@ export default function Iphone18PreorderPage() {
                 </span>
               </div>
 
-              <div className="h-9 w-px bg-white/10" />
+              <div className="flex items-center gap-3 text-[11px] font-bold text-slate-300">
 
-              <div className="flex items-center gap-3">
-                <StoreIcon />
+                <Icon>
+                  🛡
+                </Icon>
+
+                <span>
+                  CNETMOBİL
+                  <br />
+                  Güvencesi
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-[11px] font-bold text-slate-300">
+
+                <Icon>
+                  🏪
+                </Icon>
+
                 <span>
                   Mağazadan
                   <br />
                   Teslim
                 </span>
               </div>
-
             </div>
           </div>
 
-          {/* PHONE VISUALS */}
+          {/* RIGHT REAL IMAGE */}
+
           <div
             id="modeller"
-            className="relative hidden min-h-[560px] items-end justify-center lg:flex"
+            className="relative hidden min-h-[530px] items-center justify-center lg:flex"
           >
 
-            <div className="absolute bottom-[55px] h-[80px] w-[760px] rounded-[50%] bg-blue-500/20 blur-[45px]" />
+            <div className="absolute bottom-[45px] h-[70px] w-[80%] rounded-[50%] bg-blue-400/15 blur-[38px]" />
 
-            <div className="relative flex items-end">
-
-              <PhoneMockup
-                color="#17191d"
-                highlight="#777d89"
-                className="z-10 translate-x-[80px] scale-[0.92] rotate-[-2deg]"
-              />
-
-              <PhoneMockup
-                color="#8eb9f4"
-                highlight="#dbeafe"
-                className="z-30 -translate-y-5 scale-[1.03]"
-              />
-
-              <PhoneMockup
-                color="#682a52"
-                highlight="#b56a91"
-                className="z-20 -translate-x-[70px] scale-[0.96]"
-              />
-
-              <PhoneMockup
-                color="#cacdd2"
-                highlight="#ffffff"
-                className="z-10 -translate-x-[145px] translate-y-3 scale-[0.88] rotate-[2deg]"
-              />
-
-            </div>
+            <img
+              src="/iphone18-hero.png"
+              alt="iPhone 18 Pro ve Pro Max"
+              className="relative z-10 max-h-[580px] w-full max-w-[780px] object-contain drop-shadow-[0_40px_50px_rgba(0,0,0,.55)]"
+            />
           </div>
         </div>
+
+        <div className="absolute bottom-0 left-0 right-0 h-[110px] bg-gradient-to-t from-[#030711] to-transparent" />
       </section>
 
-      {/* PREORDER GLASS PANEL */}
+      {/* ================= ORDER ================= */}
+
       <section
         id="on-siparis"
-        className="relative z-20 -mt-[140px] pb-10"
+        className="relative z-10 pb-12 pt-3"
       >
+
         <form
           onSubmit={submit}
-          className="mx-auto max-w-[1450px] px-5 lg:px-8"
+          className="mx-auto max-w-[1380px] px-5"
         >
 
-          <div className="grid overflow-hidden rounded-[32px] border border-white/10 bg-[#0a1020]/90 shadow-[0_40px_120px_rgba(0,0,0,.55)] backdrop-blur-2xl lg:grid-cols-[1fr_390px]">
+          <div className="overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#081020]/95 shadow-[0_30px_100px_rgba(0,0,0,.5)] backdrop-blur-2xl">
 
-            {/* FORM LEFT */}
-            <div className="p-6 sm:p-8">
+            <div className="grid lg:grid-cols-[1fr_385px]">
 
-              <div className="flex flex-wrap items-center justify-between gap-4">
+              {/* LEFT FORM */}
 
-                <div className="flex items-center gap-3">
+              <div className="p-6 sm:p-8">
 
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
-                    ◉
-                  </div>
+                <div className="flex items-center justify-between">
 
-                  <div>
-                    <div className="text-[17px] font-black">
-                      ÖN SİPARİŞ
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-violet-300">
+                      ◉
                     </div>
 
-                    <div className="text-[10px] font-semibold text-slate-500">
-                      Modelini özelleştir
+                    <div>
+
+                      <h3 className="text-[18px] font-black">
+                        ÖN SİPARİŞ
+                      </h3>
+
+                      <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                        Modelini özelleştir
+                      </p>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+
+                    <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_12px_rgba(139,92,246,.8)]" />
+
+                    Sınırlı Kontenjan
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                {/* MODEL */}
 
-                  <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,.8)]" />
-
-                  Sınırlı Kontenjan
-                </div>
-              </div>
-
-              {/* MODEL */}
-              <div className="mt-7">
-
-                <label className="mb-2 block text-[11px] font-bold text-slate-400">
-                  Model
-                </label>
-
-                <div className="grid gap-2 sm:grid-cols-3">
-
-                  {MODELS.map(
-                    (item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() =>
-                          chooseModel(
-                            item
-                          )
-                        }
-                        className={`relative min-h-[62px] rounded-xl border px-4 text-left text-[12px] font-black transition ${
-                          model === item
-                            ? "border-blue-400 bg-blue-500/15 text-white"
-                            : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]"
-                        }`}
-                      >
-
-                        {item}
-
-                        {item ===
-                          "iPhone Duo" &&
-                          !duoPreorderOpen && (
-                            <span className="mt-1 block text-[8px] font-black text-amber-400">
-                              ÖN TALEP
-                            </span>
-                          )}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              {/* STORAGE */}
-              <div className="mt-6">
-
-                <label className="mb-2 block text-[11px] font-bold text-slate-400">
-                  Kapasite
-                </label>
-
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-
-                  {STORAGES.map(
-                    (item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() =>
-                          setStorage(
-                            item
-                          )
-                        }
-                        className={`rounded-xl border px-3 py-3 text-left transition ${
-                          storage === item
-                            ? "border-blue-400 bg-blue-500/15"
-                            : "border-white/10 bg-white/[0.03]"
-                        }`}
-                      >
-
-                        <div className="text-[12px] font-black">
-                          {item}
-                        </div>
-
-                        <div className="mt-1 text-[9px] font-semibold text-slate-500">
-                          {money(
-                            PRICE_MAP[
-                              model
-                            ][
-                              item
-                            ]
-                          )}
-                        </div>
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              {/* COLOR + STORE */}
-              <div
-                id="renkler"
-                className="mt-6 grid gap-5 sm:grid-cols-2"
-              >
-
-                <div>
+                <div className="mt-8">
 
                   <label className="mb-3 block text-[11px] font-bold text-slate-400">
-                    Renk
+                    Model
                   </label>
 
-                  <div className="flex flex-wrap gap-3">
+                  <div className="grid gap-3 md:grid-cols-3">
 
-                    {availableColors.map(
+                    {MODELS.map(
                       (item) => (
                         <button
-                          key={
-                            item.name
-                          }
+                          key={item}
                           type="button"
-                          title={
-                            item.name
-                          }
                           onClick={() =>
-                            setColor(
-                              item.name
+                            selectModel(
+                              item
                             )
                           }
-                          className={`group relative flex h-11 w-11 items-center justify-center rounded-full border transition ${
-                            color ===
-                            item.name
-                              ? "border-blue-400 bg-blue-500/15"
-                              : "border-white/10 bg-white/[0.02]"
+                          className={`relative rounded-[16px] border p-4 text-left transition ${
+                            model === item
+                              ? "border-blue-400 bg-blue-500/15 shadow-[0_0_25px_rgba(59,130,246,.08)]"
+                              : "border-white/[0.09] bg-white/[0.025] hover:border-white/20"
                           }`}
                         >
 
-                          <span
-                            className="h-7 w-7 rounded-full border border-white/20 shadow-lg"
-                            style={{
-                              background:
-                                item.swatch,
-                            }}
-                          />
+                          <div className="text-[12px] font-black">
+                            {item}
+                          </div>
 
-                          {color ===
-                            item.name && (
-                            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[8px]">
-                              ✓
-                            </span>
-                          )}
+                          <div className="mt-1 text-[9px] font-semibold text-slate-500">
+
+                            {item ===
+                            "iPhone 18 Pro"
+                              ? "Profesyoneller için."
+                              : item ===
+                                "iPhone 18 Pro Max"
+                              ? "Daha büyük. Daha güçlü."
+                              : "Yeni bir dönemin başlangıcı."}
+                          </div>
+
+                          {item ===
+                            "iPhone Duo" &&
+                            !duoPreorderOpen && (
+
+                              <span className="mt-2 inline-flex rounded-full bg-amber-400/15 px-2 py-1 text-[8px] font-black text-amber-300">
+                                ÖN TALEP
+                              </span>
+                            )}
                         </button>
                       )
                     )}
                   </div>
+                </div>
 
-                  <div className="mt-3 text-[10px] font-bold text-slate-300">
-                    {color}
+                {/* STORAGE */}
+
+                <div className="mt-7">
+
+                  <label className="mb-3 block text-[11px] font-bold text-slate-400">
+                    Kapasite
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+
+                    {STORAGES.map(
+                      (item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() =>
+                            setStorage(
+                              item
+                            )
+                          }
+                          className={`rounded-[15px] border px-4 py-4 text-left transition ${
+                            storage === item
+                              ? "border-blue-400 bg-blue-500/15"
+                              : "border-white/[0.09] bg-white/[0.025]"
+                          }`}
+                        >
+
+                          <div className="text-[12px] font-black">
+                            {item}
+                          </div>
+
+                          <div className="mt-1 text-[9px] font-semibold text-slate-500">
+                            {money(
+                              PRICES[
+                                model
+                              ][
+                                item
+                              ]
+                            )}
+                          </div>
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
 
-                <div>
+                {/* COLOR / STORE */}
 
-                  <label className="mb-3 block text-[11px] font-bold text-slate-400">
-                    Teslimat Tercihi
-                  </label>
+                <div
+                  id="renkler"
+                  className="mt-7 grid gap-6 sm:grid-cols-2"
+                >
 
-                  <select
-                    value={store}
+                  <div>
+
+                    <label className="mb-3 block text-[11px] font-bold text-slate-400">
+                      Renk
+                    </label>
+
+                    <div className="flex flex-wrap gap-4">
+
+                      {colors.map(
+                        (item) => {
+
+                          const active =
+                            color ===
+                            item.name;
+
+                          return (
+                            <button
+                              key={
+                                item.name
+                              }
+                              type="button"
+                              title={
+                                item.name
+                              }
+                              onClick={() =>
+                                setColor(
+                                  item.name
+                                )
+                              }
+                              className="text-center"
+                            >
+
+                              <span
+                                className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition ${
+                                  active
+                                    ? "border-blue-400 ring-4 ring-blue-500/10"
+                                    : "border-white/10"
+                                }`}
+                              >
+
+                                <span
+                                  className="h-7 w-7 rounded-full border border-white/20 shadow"
+                                  style={{
+                                    backgroundColor:
+                                      item.swatch,
+                                  }}
+                                />
+
+                                {active && (
+
+                                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[8px]">
+                                    ✓
+                                  </span>
+                                )}
+                              </span>
+
+                              <span className="mt-2 block max-w-[70px] text-[8px] font-bold text-slate-400">
+                                {item.name}
+                              </span>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+
+                    <label className="mb-3 block text-[11px] font-bold text-slate-400">
+                      Teslimat Tercihi
+                    </label>
+
+                    <select
+                      value={store}
+                      onChange={(e) =>
+                        setStore(
+                          e.target
+                            .value
+                        )
+                      }
+                      className="h-12 w-full rounded-xl border border-white/10 bg-[#10182a] px-4 text-[11px] font-bold text-white outline-none focus:border-blue-400"
+                    >
+
+                      <option value="">
+                        Mağaza Seçiniz
+                      </option>
+
+                      {STORES.map(
+                        (item) => (
+                          <option
+                            key={
+                              item
+                            }
+                            value={
+                              item
+                            }
+                          >
+                            {item}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                {/* CUSTOMER */}
+
+                <div className="mt-7 grid gap-3 sm:grid-cols-3">
+
+                  <input
+                    value={name}
                     onChange={(e) =>
-                      setStore(
+                      setName(
                         e.target
                           .value
                       )
                     }
-                    className="h-12 w-full rounded-xl border border-white/10 bg-[#111827] px-4 text-[11px] font-bold text-white outline-none transition focus:border-blue-400"
-                  >
-                    <option value="">
-                      Mağaza Seçiniz
-                    </option>
+                    placeholder="Ad Soyad"
+                    className="h-12 rounded-xl border border-white/[0.09] bg-white/[0.03] px-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-blue-400"
+                  />
 
-                    {STORES.map(
-                      (item) => (
-                        <option
-                          key={
-                            item
-                          }
-                          value={
-                            item
-                          }
-                        >
-                          {
-                            item
-                          }
-                        </option>
+                  <input
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(
+                        e.target
+                          .value
                       )
-                    )}
-                  </select>
+                    }
+                    placeholder="Telefon Numaranız"
+                    className="h-12 rounded-xl border border-white/[0.09] bg-white/[0.03] px-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-blue-400"
+                  />
+
+                  <input
+                    value={note}
+                    onChange={(e) =>
+                      setNote(
+                        e.target
+                          .value
+                      )
+                    }
+                    placeholder="Notunuz (opsiyonel)"
+                    className="h-12 rounded-xl border border-white/[0.09] bg-white/[0.03] px-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-blue-400"
+                  />
                 </div>
-              </div>
 
-              {/* CUSTOMER */}
-              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                {error && (
 
-                <input
-                  value={name}
-                  onChange={(e) =>
-                    setName(
-                      e.target
-                        .value
-                    )
-                  }
-                  placeholder="Ad Soyad"
-                  className="h-12 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-blue-400"
-                />
-
-                <input
-                  value={phone}
-                  onChange={(e) =>
-                    setPhone(
-                      e.target
-                        .value
-                    )
-                  }
-                  placeholder="Telefon Numaranız"
-                  className="h-12 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-blue-400"
-                />
-
-                <input
-                  value={note}
-                  onChange={(e) =>
-                    setNote(
-                      e.target
-                        .value
-                    )
-                  }
-                  placeholder="Notunuz (opsiyonel)"
-                  className="h-12 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-blue-400 sm:col-span-2"
-                />
-              </div>
-
-              {error && (
-                <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-[11px] font-bold text-rose-300">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-bold text-emerald-300">
-                  ✓ {success}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-6 flex h-14 w-full items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-[#6bb9ff] via-[#7f98ff] to-[#a879ff] text-[13px] font-black text-[#07101f] shadow-[0_12px_35px_rgba(92,129,255,.25)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-50"
-              >
-
-                {loading
-                  ? "Gönderiliyor..."
-                  : isPreRequest
-                  ? "Ön Talebi Tamamla"
-                  : "Ön Siparişi Tamamla"}
-
-                {!loading && (
-                  <span className="text-xl">
-                    →
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* SUMMARY */}
-            <aside className="border-t border-white/10 bg-black/20 p-6 lg:border-l lg:border-t-0 lg:p-8">
-
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">
-                SEÇİMİNİZ
-              </div>
-
-              <div className="mt-5 flex items-center gap-5">
-
-                {isDuo ? (
-                  <div className="origin-left scale-[0.38]">
-                    <DuoMockup
-                      color={
-                        selectedColor.swatch
-                      }
-                    />
+                  <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-[11px] font-bold text-rose-300">
+                    {error}
                   </div>
-                ) : (
-                  <div className="h-[105px] w-[54px] overflow-hidden">
-                    <div className="origin-top-left scale-[0.255]">
-                      <PhoneMockup
-                        color={
-                          selectedColor.swatch
-                        }
-                        highlight={
-                          selectedColor.highlight
-                        }
-                      />
+                )}
+
+                {success && (
+
+                  <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-bold text-emerald-300">
+                    ✓ {success}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="mt-6 flex h-14 w-full items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-[#66baff] via-[#8198ff] to-[#af78ff] text-[13px] font-black text-[#05101f] shadow-[0_15px_40px_rgba(88,130,255,.22)] transition hover:-translate-y-0.5 disabled:opacity-50"
+                >
+
+                  {loading
+                    ? "Gönderiliyor..."
+                    : isPreRequest
+                    ? "Ön Talebi Tamamla"
+                    : "Ön Siparişi Tamamla"}
+
+                  {!loading && (
+                    <span className="text-xl">
+                      →
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* RIGHT SUMMARY */}
+
+              <aside className="border-t border-white/[0.08] bg-black/15 p-7 lg:border-l lg:border-t-0">
+
+                <div className="text-[9px] font-black uppercase tracking-[0.25em] text-blue-300">
+                  SEÇİMİNİZ
+                </div>
+
+                <div className="mt-6">
+
+                  <h3 className="text-[21px] font-black">
+                    {model}
+                  </h3>
+
+                  <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                    {modelText}
+                  </p>
+
+                  <div className="mt-4 flex items-center gap-3">
+
+                    <span
+                      className="h-8 w-8 rounded-full border border-white/20"
+                      style={{
+                        background:
+                          COLORS[
+                            model
+                          ].find(
+                            (x) =>
+                              x.name ===
+                              color
+                          )?.swatch,
+                      }}
+                    />
+
+                    <span className="text-[11px] font-bold text-slate-300">
+                      {storage}
+                      {" · "}
+                      {color}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-7 border-t border-white/[0.08] pt-6">
+
+                  <div className="text-[9px] font-bold uppercase text-slate-500">
+                    Apple Başlangıç Fiyatı
+                  </div>
+
+                  <div className="mt-1 text-[34px] font-black tracking-[-1px]">
+                    {money(
+                      price
+                    )}
+                  </div>
+                </div>
+
+                {!isPreRequest && (
+
+                  <div className="mt-5">
+
+                    <div className="text-[9px] font-bold uppercase text-slate-500">
+                      Ön Sipariş Kaporası
+                    </div>
+
+                    <div className="mt-1 text-[25px] font-black">
+                      {money(
+                        DEPOSIT
+                      )}
                     </div>
                   </div>
                 )}
 
-                <div className="-ml-1">
+                <div className="mt-6 rounded-2xl border border-blue-400/20 bg-blue-500/[0.08] p-4">
 
-                  <div className="text-[19px] font-black">
-                    {model}
-                  </div>
+                  <div className="flex gap-3">
 
-                  <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                    {modelLabel}
-                  </div>
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[11px] font-black">
+                      i
+                    </div>
 
-                  <div className="mt-3 text-[11px] font-bold text-slate-300">
-                    {storage}
-                    {" · "}
-                    {color}
+                    <p className="text-[10px] font-semibold leading-5 text-blue-100/75">
+
+                      {isPreRequest
+                        ? "iPhone Duo için şu an ön talep alınmaktadır. Ön sipariş açıldığında sizinle iletişime geçilecektir."
+                        : "Talebiniz Telegram üzerinden CNETMOBİL ekibine iletilir. Ödeme bu sayfa üzerinden alınmaz."}
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-7 border-t border-white/10 pt-6">
+                <div className="mt-7 grid grid-cols-2 gap-3">
 
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                  Apple Başlangıç Fiyatı
-                </div>
+                  {[
+                    [
+                      "🛡",
+                      "CNETMOBİL",
+                      "Güvencesi",
+                    ],
 
-                <div className="mt-1 text-[32px] font-black tracking-[-1px]">
-                  {money(
-                    currentPrice
+                    [
+                      "🚚",
+                      "Hızlı",
+                      "Bilgilendirme",
+                    ],
+
+                    [
+                      "🏪",
+                      "Mağazadan",
+                      "Teslim",
+                    ],
+
+                    [
+                      "🎁",
+                      "Sınırlı",
+                      "Kontenjan",
+                    ],
+                  ].map(
+                    (
+                      item,
+                      index
+                    ) => (
+
+                      <div
+                        key={
+                          index
+                        }
+                        className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
+                      >
+
+                        <div className="text-lg">
+                          {
+                            item[0]
+                          }
+                        </div>
+
+                        <div className="mt-2 text-[9px] font-black">
+                          {
+                            item[1]
+                          }
+                        </div>
+
+                        <div className="mt-0.5 text-[8px] font-semibold text-slate-500">
+                          {
+                            item[2]
+                          }
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
-              </div>
-
-              {!isPreRequest && (
-                <div className="mt-5">
-
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                    Ön Sipariş Kaporası
-                  </div>
-
-                  <div className="mt-1 text-[24px] font-black">
-                    {money(
-                      DEPOSIT
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-
-                <div className="flex items-start gap-3">
-
-                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
-                    i
-                  </div>
-
-                  <p className="text-[10px] font-medium leading-5 text-slate-400">
-
-                    {isPreRequest
-                      ? "iPhone Duo için şu an ön talep alınmaktadır. Ön sipariş açıldığında sizinle iletişime geçilecektir."
-                      : "Talebiniz Telegram üzerinden CNETMOBİL ekibine iletilir. Ödeme bu sayfa üzerinden alınmaz."}
-                  </p>
-                </div>
-              </div>
-            </aside>
+              </aside>
+            </div>
           </div>
         </form>
       </section>
 
-      {/* FEATURE CARDS */}
-      <section className="mx-auto max-w-[1450px] px-5 pb-12 lg:px-8">
+      {/* ================= DUO INFO ================= */}
 
-        <div className="grid gap-3 md:grid-cols-4">
+      <section className="mx-auto max-w-[1380px] px-5 pb-12">
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-            <div className="text-blue-400">
-              <CheckIcon />
-            </div>
-
-            <div className="mt-3 text-[13px] font-black">
-              iPhone 18 Pro
-            </div>
-
-            <div className="mt-1 text-[10px] font-medium text-slate-500">
-              Ön sipariş aktif.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-            <div className="text-blue-400">
-              <CheckIcon />
-            </div>
-
-            <div className="mt-3 text-[13px] font-black">
-              iPhone 18 Pro Max
-            </div>
-
-            <div className="mt-1 text-[10px] font-medium text-slate-500">
-              Ön sipariş aktif.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-            <div className="text-blue-400">
-              <ShieldIcon />
-            </div>
-
-            <div className="mt-3 text-[13px] font-black">
-              CNETMOBİL Güvencesi
-            </div>
-
-            <div className="mt-1 text-[10px] font-medium text-slate-500">
-              Talebiniz ekip tarafından teyit edilir.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
-            <div className="text-blue-400">
-              <StoreIcon />
-            </div>
-
-            <div className="mt-3 text-[13px] font-black">
-              Mağazadan Teslim
-            </div>
-
-            <div className="mt-1 text-[10px] font-medium text-slate-500">
-              İstediğiniz mağazayı seçin.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-blue-400/20 bg-blue-500/10 px-5 py-4">
+        <div className="flex items-center justify-between gap-5 rounded-2xl border border-blue-400/15 bg-blue-500/[0.07] px-5 py-4">
 
           <div className="flex items-center gap-3">
 
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm font-black">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-[12px] font-black">
               i
             </div>
 
-            <div className="text-[11px] font-semibold text-blue-100">
-              iPhone Duo için ön siparişler
-              {" "}
-              <strong>
+            <p className="text-[11px] font-semibold text-blue-100/75">
+
+              iPhone Duo ön siparişleri
+
+              <strong className="mx-1 text-white">
                 16 Ekim 2026 saat 15:00
               </strong>
-              'te başlayacak.
-            </div>
+
+              itibarıyla başlayacaktır.
+            </p>
           </div>
 
-          <span className="hidden text-lg text-blue-300 sm:block">
+          <span className="hidden text-xl text-blue-300 sm:block">
             →
           </span>
         </div>
       </section>
 
-      <footer className="border-t border-white/10 bg-[#03060d]">
+      <footer className="border-t border-white/[0.07] bg-[#02050b]">
 
-        <div className="mx-auto flex max-w-[1450px] flex-col gap-3 px-5 py-8 text-[10px] font-medium text-slate-600 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+        <div className="mx-auto flex max-w-[1380px] items-center justify-between px-5 py-8 text-[10px] font-medium text-slate-600">
 
           <div>
             © 2026 CNETMOBİL
