@@ -123,21 +123,7 @@ const STORES = [
   "Kapaklı",
 ];
 
-const DEPOSIT = 5000;
-
-const DUO_START =
-  Date.UTC(
-    2026,
-    9,
-    16,
-    12,
-    0,
-    0
-  );
-
-function money(
-  value: number
-) {
+function money(value: number) {
   return new Intl.NumberFormat(
     "tr-TR",
     {
@@ -149,6 +135,9 @@ function money(
 }
 
 export default function Iphone18PreorderPage() {
+  const [modalOpen, setModalOpen] =
+    useState(false);
+
   const [model, setModel] =
     useState<Model>(
       "iPhone 18 Pro"
@@ -183,18 +172,6 @@ export default function Iphone18PreorderPage() {
   const [success, setSuccess] =
     useState("");
 
-  const [
-    duoOpen,
-    setDuoOpen,
-  ] = useState(false);
-
-  useEffect(() => {
-    setDuoOpen(
-      Date.now() >=
-        DUO_START
-    );
-  }, []);
-
   const colors =
     COLORS[model];
 
@@ -203,9 +180,6 @@ export default function Iphone18PreorderPage() {
 
   const isDuo =
     model === "iPhone Duo";
-
-  const isPreRequest =
-    isDuo && !duoOpen;
 
   const selectedColor =
     colors.find(
@@ -232,6 +206,46 @@ export default function Iphone18PreorderPage() {
       return "Profesyoneller için.";
     }, [model]);
 
+  useEffect(() => {
+    if (modalOpen) {
+      document.body.style.overflow =
+        "hidden";
+    } else {
+      document.body.style.overflow =
+        "";
+    }
+
+    return () => {
+      document.body.style.overflow =
+        "";
+    };
+  }, [modalOpen]);
+
+  function openModal(
+    selectedModel?: Model
+  ) {
+    if (selectedModel) {
+      setModel(selectedModel);
+
+      setColor(
+        COLORS[
+          selectedModel
+        ][0].name
+      );
+    }
+
+    setError("");
+    setSuccess("");
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    if (loading) return;
+
+    setModalOpen(false);
+    setError("");
+  }
+
   function selectModel(
     value: Model
   ) {
@@ -257,6 +271,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Teslim mağazasını seçin."
       );
+
       return;
     }
 
@@ -266,6 +281,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Ad soyad bilginizi girin."
       );
+
       return;
     }
 
@@ -278,6 +294,7 @@ export default function Iphone18PreorderPage() {
       setError(
         "Geçerli telefon numarası girin."
       );
+
       return;
     }
 
@@ -327,8 +344,9 @@ export default function Iphone18PreorderPage() {
       }
 
       setSuccess(
-        data.message ||
-          "Talebiniz alındı."
+        isDuo
+          ? "Talebiniz başarıyla alındı."
+          : "Ön sipariş talebiniz başarıyla alındı."
       );
     } catch (err: any) {
       setError(
@@ -346,6 +364,7 @@ export default function Iphone18PreorderPage() {
       {/* NAVBAR */}
 
       <header className="relative z-50 border-b border-white/[0.08] bg-[#02060d]/95 backdrop-blur-xl">
+
         <div className="mx-auto flex h-[70px] max-w-[1500px] items-center justify-between px-5 lg:px-8">
 
           <a
@@ -353,6 +372,7 @@ export default function Iphone18PreorderPage() {
             className="text-[26px] font-black tracking-[-1.6px]"
           >
             CNET
+
             <span className="font-medium text-[#4ea7ff]">
               MOBİL
             </span>
@@ -374,35 +394,32 @@ export default function Iphone18PreorderPage() {
               Modeller
             </a>
 
-            <a
-              href="#siparis"
+            <button
+              type="button"
+              onClick={() =>
+                openModal()
+              }
               className="transition hover:text-white"
             >
               Ön Sipariş
-            </a>
-
-            <a
-              href="#avantajlar"
-              className="transition hover:text-white"
-            >
-              Avantajlar
-            </a>
+            </button>
           </nav>
 
-          <a
-            href="#siparis"
+          <button
+            type="button"
+            onClick={() =>
+              openModal()
+            }
             className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-5 py-3 text-[11px] font-black text-blue-100 transition hover:bg-blue-500/20"
           >
             Ön Sipariş Ver
-          </a>
+          </button>
         </div>
       </header>
 
       {/* HERO */}
 
-      <section className="relative min-h-[800px] overflow-hidden">
-
-        {/* ARKA PLAN */}
+      <section className="relative min-h-[760px] overflow-hidden">
 
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_25%,rgba(36,116,255,.38),transparent_31%),radial-gradient(circle_at_22%_85%,rgba(78,47,180,.20),transparent_30%),linear-gradient(115deg,#02060d_0%,#08152b_55%,#02060d_100%)]" />
 
@@ -412,10 +429,10 @@ export default function Iphone18PreorderPage() {
 
         <div className="absolute right-[8%] top-[16%] h-[380px] w-[720px] bg-blue-500/15 blur-[130px]" />
 
-        {/* DAĞ EFEKTİ */}
+        {/* DAĞLAR */}
 
         <div
-          className="absolute bottom-0 left-0 h-[230px] w-[48%] bg-[#07101c]/90"
+          className="absolute bottom-0 left-0 h-[240px] w-[48%] bg-[#07101c]/90"
           style={{
             clipPath:
               "polygon(0 72%, 13% 55%, 24% 69%, 36% 36%, 48% 65%, 61% 43%, 75% 70%, 88% 48%, 100% 72%, 100% 100%, 0 100%)",
@@ -423,26 +440,26 @@ export default function Iphone18PreorderPage() {
         />
 
         <div
-          className="absolute bottom-0 right-0 h-[245px] w-[45%] bg-[#06101d]/90"
+          className="absolute bottom-0 right-0 h-[250px] w-[45%] bg-[#06101d]/90"
           style={{
             clipPath:
               "polygon(0 71%, 15% 45%, 29% 66%, 43% 35%, 58% 65%, 72% 48%, 88% 70%, 100% 58%, 100% 100%, 0 100%)",
           }}
         />
 
-        <div className="absolute bottom-0 left-0 right-0 h-[180px] bg-gradient-to-t from-[#02060d] via-[#02060d]/80 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-[190px] bg-gradient-to-t from-[#02060d] via-[#02060d]/75 to-transparent" />
 
-        <div className="relative mx-auto grid max-w-[1500px] gap-8 px-5 pt-14 lg:grid-cols-[0.92fr_1.08fr] lg:px-8">
+        <div className="relative mx-auto grid max-w-[1500px] items-center gap-8 px-5 py-16 lg:grid-cols-[0.92fr_1.08fr] lg:px-8">
 
-          {/* HERO TEXT */}
+          {/* SOL */}
 
-          <div className="relative z-20 pt-4">
+          <div className="relative z-20">
 
             <div className="text-[11px] font-black uppercase tracking-[0.42em] text-blue-200/75">
               DAHA FAZLASI SENİN ELİNDE
             </div>
 
-            <h1 className="mt-5 max-w-[650px] text-[55px] font-black leading-[0.95] tracking-[-3px] sm:text-[70px] xl:text-[78px]">
+            <h1 className="mt-5 max-w-[670px] text-[55px] font-black leading-[0.95] tracking-[-3px] sm:text-[70px] xl:text-[80px]">
 
               Yeni Seri
 
@@ -451,292 +468,355 @@ export default function Iphone18PreorderPage() {
               </span>
             </h1>
 
-            <h2 className="mt-6 text-[27px] font-black tracking-[-0.8px]">
+            <h2 className="mt-7 text-[27px] font-black tracking-[-0.8px]">
               iPhone 18 Pro & Pro Max
             </h2>
 
-            <p className="mt-3 max-w-[560px] text-[15px] font-medium leading-7 text-slate-400">
+            <p className="mt-3 max-w-[570px] text-[15px] font-medium leading-7 text-slate-400">
               Yeni renkler, güçlü
-              performans, sınırlı
-              ön sipariş avantajları.
+              performans ve
+              CNETMOBİL ön sipariş
+              deneyimi.
             </p>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
 
-              <a
-                href="#siparis"
-                className="flex h-[54px] items-center gap-5 rounded-full bg-white px-8 text-[13px] font-black text-[#07101c] shadow-xl transition hover:-translate-y-1"
+              <button
+                type="button"
+                onClick={() =>
+                  openModal()
+                }
+                className="flex h-[56px] items-center gap-5 rounded-full bg-white px-8 text-[13px] font-black text-[#07101c] shadow-xl transition hover:-translate-y-1"
               >
                 Ön Sipariş Ver
 
                 <span className="text-xl">
                   →
                 </span>
-              </a>
+              </button>
 
               <a
-                href="#renkler"
-                className="flex h-[54px] items-center gap-4 rounded-full border border-white/20 bg-white/[0.04] px-8 text-[13px] font-black transition hover:bg-white/10"
+                href="#modeller"
+                className="flex h-[56px] items-center gap-4 rounded-full border border-white/20 bg-white/[0.04] px-8 text-[13px] font-black transition hover:bg-white/10"
               >
-                Renkleri İncele
-
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500 text-[10px]">
-                  ▶
-                </span>
+                Modelleri İncele
               </a>
-            </div>
-
-            {/* AVANTAJ */}
-
-            <div
-              id="avantajlar"
-              className="mt-9 grid max-w-[620px] grid-cols-2 gap-4 md:grid-cols-4"
-            >
-
-              {[
-                [
-                  "🎁",
-                  "Sınırlı Ön Sipariş",
-                  "Avantajları",
-                ],
-
-                [
-                  "🚚",
-                  "Hızlı",
-                  "Bilgilendirme",
-                ],
-
-                [
-                  "🛡",
-                  "CNETMOBİL",
-                  "Güvencesi",
-                ],
-
-                [
-                  "🏪",
-                  "Mağazadan",
-                  "Teslim",
-                ],
-              ].map(
-                (
-                  item,
-                  index
-                ) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-400/20 bg-blue-500/10 text-base">
-                      {item[0]}
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-black text-slate-200">
-                        {item[1]}
-                      </div>
-
-                      <div className="text-[9px] font-medium text-slate-500">
-                        {item[2]}
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
             </div>
           </div>
 
-          {/* HERO PHONE */}
+          {/* TELEFON GÖRSELİ */}
 
-          <div
-            id="modeller"
-            className="relative hidden h-[570px] items-center justify-center lg:flex"
-          >
+          <div className="relative hidden h-[570px] items-center justify-center lg:flex">
 
-            <div className="absolute bottom-[60px] h-[80px] w-[85%] rounded-full bg-blue-400/20 blur-[40px]" />
+            <div className="absolute bottom-[70px] h-[70px] w-[80%] rounded-full bg-blue-400/20 blur-[40px]" />
 
             <img
               src="/iphone18-hero.webp"
               alt="iPhone 18 Pro"
-              className="relative z-10 max-h-[520px] w-full max-w-[760px] object-contain drop-shadow-[0_45px_65px_rgba(0,0,0,.75)]"
+              className="relative z-10 max-h-[530px] w-full max-w-[780px] object-contain drop-shadow-[0_45px_65px_rgba(0,0,0,.75)]"
             />
           </div>
         </div>
       </section>
 
-      {/* ÖN SİPARİŞ PANEL */}
+      {/* MODELLER */}
 
       <section
-        id="siparis"
-        className="relative z-30 -mt-[210px] pb-16"
+        id="modeller"
+        className="relative z-20 mx-auto max-w-[1450px] px-5 pb-20 pt-5"
       >
 
-        <form
-          onSubmit={submit}
-          className="mx-auto max-w-[1450px] px-5"
+        <div className="mb-8">
+
+          <div className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400">
+            iPHONE 18 SERİSİ
+          </div>
+
+          <h2 className="mt-2 text-[32px] font-black tracking-[-1px]">
+            Modelini Seç
+          </h2>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+
+          {MODELS.map(
+            (item) => {
+
+              const itemColors =
+                COLORS[item];
+
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() =>
+                    openModal(
+                      item
+                    )
+                  }
+                  className="group relative overflow-hidden rounded-[28px] border border-white/[0.10] bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-6 text-left transition-all hover:-translate-y-1 hover:border-blue-400/40 hover:shadow-[0_20px_60px_rgba(0,0,0,.35)]"
+                >
+
+                  <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl transition group-hover:bg-blue-500/20" />
+
+                  <div className="relative">
+
+                    <div className="text-[11px] font-bold text-slate-500">
+                      Başlangıç
+                    </div>
+
+                    <div className="mt-1 text-[18px] font-black">
+                      {money(
+                        PRICES[
+                          item
+                        ][
+                          "256 GB"
+                        ]
+                      )}
+                    </div>
+
+                    <h3 className="mt-8 text-[25px] font-black">
+                      {item}
+                    </h3>
+
+                    <p className="mt-2 text-[11px] font-semibold text-slate-500">
+
+                      {item ===
+                      "iPhone 18 Pro"
+                        ? "Profesyoneller için."
+                        : item ===
+                          "iPhone 18 Pro Max"
+                        ? "Daha büyük. Daha güçlü."
+                        : "Yeni bir dönemin başlangıcı."}
+                    </p>
+
+                    <div className="mt-6 flex items-center gap-2">
+
+                      {itemColors.map(
+                        (
+                          itemColor
+                        ) => (
+
+                          <span
+                            key={
+                              itemColor.name
+                            }
+                            className="h-6 w-6 rounded-full border border-white/20"
+                            style={{
+                              backgroundColor:
+                                itemColor.value,
+                            }}
+                          />
+                        )
+                      )}
+                    </div>
+
+                    <div className="mt-8 flex items-center justify-between">
+
+                      <span className="text-[11px] font-black text-blue-300">
+                        {item ===
+                        "iPhone Duo"
+                          ? "Talep Ver"
+                          : "Ön Sipariş Ver"}
+                      </span>
+
+                      <span className="text-xl text-blue-400 transition-transform group-hover:translate-x-1">
+                        →
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            }
+          )}
+        </div>
+      </section>
+
+      {/* MODAL */}
+
+      {modalOpen && (
+
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 backdrop-blur-md md:p-6"
+          onMouseDown={(
+            event
+          ) => {
+
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeModal();
+            }
+          }}
         >
 
-          <div className="grid overflow-hidden rounded-[30px] border border-white/[0.12] bg-[#07101e]/95 shadow-[0_35px_120px_rgba(0,0,0,.65)] backdrop-blur-2xl lg:grid-cols-[1fr_440px]">
+          <form
+            onSubmit={submit}
+            className="relative max-h-[94vh] w-full max-w-[1180px] overflow-y-auto rounded-[30px] border border-white/[0.12] bg-[#07101e] shadow-[0_40px_150px_rgba(0,0,0,.8)]"
+          >
 
-            {/* SOL */}
+            {/* MODAL HEADER */}
 
-            <div className="p-6 md:p-8">
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.08] bg-[#07101e]/95 px-6 py-5 backdrop-blur-xl md:px-8">
 
-              <div className="flex items-center justify-between">
+              <div>
 
-                <div className="flex items-center gap-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400">
 
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
-                    ◉
-                  </div>
+                  {isDuo
+                    ? "iPHONE DUO"
+                    : "iPHONE 18"}
 
-                  <div>
-                    <div className="text-[18px] font-black">
-                      ÖN SİPARİŞ
-                    </div>
-
-                    <div className="mt-1 text-[10px] font-semibold text-slate-500">
-                      Modelini özelleştir
-                    </div>
-                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                <h2 className="mt-1 text-[22px] font-black">
 
-                  <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_12px_rgba(139,92,246,.8)]" />
+                  {isDuo
+                    ? "Talebini Oluştur"
+                    : "Ön Siparişini Oluştur"}
 
-                  Sınırlı Kontenjan
-                </div>
+                </h2>
               </div>
 
-              {/* MODEL */}
-
-              <div className="mt-7">
-
-                <label className="mb-3 block text-[11px] font-bold text-slate-400">
-                  Model
-                </label>
-
-                <div className="grid gap-3 md:grid-cols-3">
-
-                  {MODELS.map(
-                    (item) => {
-
-                      const active =
-                        model === item;
-
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() =>
-                            selectModel(
-                              item
-                            )
-                          }
-                          className={`relative min-h-[76px] rounded-[15px] border p-4 text-left transition ${
-                            active
-                              ? "border-[#229dff] bg-[#0b3762]/50 shadow-[0_0_25px_rgba(34,157,255,.10)]"
-                              : "border-white/[0.10] bg-white/[0.025] hover:border-white/20"
-                          }`}
-                        >
-
-                          <div className="text-[12px] font-black">
-                            {item}
-                          </div>
-
-                          <div className="mt-1 text-[9px] font-semibold text-slate-500">
-
-                            {item ===
-                            "iPhone 18 Pro"
-                              ? "Profesyoneller için."
-                              : item ===
-                                "iPhone 18 Pro Max"
-                              ? "Daha büyük. Daha güçlü."
-                              : "Yeni bir dönemin başlangıcı."}
-                          </div>
-
-                          {item ===
-                            "iPhone Duo" &&
-                            !duoOpen && (
-
-                              <span className="mt-2 inline-flex rounded-md bg-amber-500/20 px-2 py-1 text-[8px] font-black text-amber-300">
-                                ÖN TALEP
-                              </span>
-                            )}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-
-              {/* KAPASİTE */}
-
-              <div className="mt-6">
-
-                <label className="mb-3 block text-[11px] font-bold text-slate-400">
-                  Kapasite
-                </label>
-
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-
-                  {STORAGES.map(
-                    (item) => {
-
-                      const active =
-                        storage ===
-                        item;
-
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() =>
-                            setStorage(
-                              item
-                            )
-                          }
-                          className={`rounded-[14px] border px-4 py-3 text-left transition ${
-                            active
-                              ? "border-[#229dff] bg-[#0b3762]/50"
-                              : "border-white/[0.10] bg-white/[0.025]"
-                          }`}
-                        >
-
-                          <div className="text-[12px] font-black">
-                            {item}
-                          </div>
-
-                          <div className="mt-1 text-[9px] font-semibold text-slate-500">
-                            {money(
-                              PRICES[
-                                model
-                              ][
-                                item
-                              ]
-                            )}
-                          </div>
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-
-              {/* RENK + TESLİMAT */}
-
-              <div
-                id="renkler"
-                className="mt-6 grid gap-6 md:grid-cols-2"
+              <button
+                type="button"
+                onClick={
+                  closeModal
+                }
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-lg text-slate-400 transition hover:bg-white/10 hover:text-white"
               >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid lg:grid-cols-[1fr_380px]">
+
+              {/* SOL */}
+
+              <div className="p-6 md:p-8">
+
+                {/* MODEL */}
 
                 <div>
 
-                  <label className="mb-3 block text-[11px] font-bold text-slate-400">
+                  <label className="mb-3 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    Model
+                  </label>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+
+                    {MODELS.map(
+                      (item) => {
+
+                        const active =
+                          model ===
+                          item;
+
+                        return (
+                          <button
+                            key={
+                              item
+                            }
+                            type="button"
+                            onClick={() =>
+                              selectModel(
+                                item
+                              )
+                            }
+                            className={`rounded-[16px] border p-4 text-left transition ${
+                              active
+                                ? "border-[#2ca7ff] bg-blue-500/10"
+                                : "border-white/[0.10] bg-white/[0.025] hover:border-white/20"
+                            }`}
+                          >
+
+                            <div className="text-[12px] font-black">
+                              {item}
+                            </div>
+
+                            <div className="mt-1 text-[9px] font-medium text-slate-500">
+
+                              {item ===
+                              "iPhone 18 Pro"
+                                ? "Profesyoneller için."
+                                : item ===
+                                  "iPhone 18 Pro Max"
+                                ? "Daha büyük. Daha güçlü."
+                                : "Yeni bir dönem."}
+
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+
+                {/* STORAGE */}
+
+                <div className="mt-7">
+
+                  <label className="mb-3 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    Depolama
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+
+                    {STORAGES.map(
+                      (item) => {
+
+                        const active =
+                          storage ===
+                          item;
+
+                        return (
+                          <button
+                            key={
+                              item
+                            }
+                            type="button"
+                            onClick={() =>
+                              setStorage(
+                                item
+                              )
+                            }
+                            className={`rounded-[15px] border p-4 text-left transition ${
+                              active
+                                ? "border-[#2ca7ff] bg-blue-500/10"
+                                : "border-white/[0.10] bg-white/[0.025]"
+                            }`}
+                          >
+
+                            <div className="text-[13px] font-black">
+                              {item}
+                            </div>
+
+                            <div className="mt-2 text-[10px] font-semibold text-slate-500">
+                              {money(
+                                PRICES[
+                                  model
+                                ][
+                                  item
+                                ]
+                              )}
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+
+                {/* COLOR */}
+
+                <div className="mt-7">
+
+                  <label className="mb-4 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                     Renk
                   </label>
 
-                  <div className="flex flex-wrap gap-5">
+                  <div className="flex flex-wrap gap-4">
 
                     {colors.map(
                       (item) => {
@@ -756,34 +836,22 @@ export default function Iphone18PreorderPage() {
                                 item.name
                               )
                             }
-                            className="text-center"
+                            className={`flex min-w-[105px] items-center gap-3 rounded-xl border px-3 py-3 transition ${
+                              active
+                                ? "border-[#2ca7ff] bg-blue-500/10"
+                                : "border-white/[0.10] bg-white/[0.025]"
+                            }`}
                           >
 
                             <span
-                              className={`relative mx-auto flex h-11 w-11 items-center justify-center rounded-full border ${
-                                active
-                                  ? "border-[#29a7ff] ring-4 ring-blue-500/10"
-                                  : "border-white/10"
-                              }`}
-                            >
+                              className="h-7 w-7 shrink-0 rounded-full border border-white/20"
+                              style={{
+                                backgroundColor:
+                                  item.value,
+                              }}
+                            />
 
-                              <span
-                                className="block h-7 w-7 rounded-full border border-white/20 shadow-lg"
-                                style={{
-                                  background:
-                                    item.value,
-                                }}
-                              />
-
-                              {active && (
-
-                                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#229dff] text-[8px]">
-                                  ✓
-                                </span>
-                              )}
-                            </span>
-
-                            <span className="mt-2 block text-[8px] font-bold text-slate-400">
+                            <span className="text-left text-[9px] font-black">
                               {item.name}
                             </span>
                           </button>
@@ -793,21 +861,26 @@ export default function Iphone18PreorderPage() {
                   </div>
                 </div>
 
-                <div>
+                {/* STORE */}
 
-                  <label className="mb-3 block text-[11px] font-bold text-slate-400">
-                    Teslimat Tercihi
+                <div className="mt-7">
+
+                  <label className="mb-3 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    Teslim Mağazası
                   </label>
 
                   <select
                     value={store}
-                    onChange={(e) =>
+                    onChange={(
+                      event
+                    ) =>
                       setStore(
-                        e.target
+                        event
+                          .target
                           .value
                       )
                     }
-                    className="h-[52px] w-full rounded-xl border border-white/10 bg-[#0d1727] px-4 text-[11px] font-bold text-white outline-none transition focus:border-[#229dff]"
+                    className="h-[54px] w-full rounded-xl border border-white/[0.10] bg-[#0d1727] px-4 text-[11px] font-bold text-white outline-none focus:border-[#2ca7ff]"
                   >
 
                     <option value="">
@@ -816,9 +889,14 @@ export default function Iphone18PreorderPage() {
 
                     {STORES.map(
                       (item) => (
+
                         <option
-                          key={item}
-                          value={item}
+                          key={
+                            item
+                          }
+                          value={
+                            item
+                          }
                         >
                           {item}
                         </option>
@@ -826,250 +904,200 @@ export default function Iphone18PreorderPage() {
                     )}
                   </select>
                 </div>
-              </div>
 
-              {/* MÜŞTERİ */}
+                {/* CUSTOMER */}
 
-              <div className="mt-6 grid gap-3 md:grid-cols-3">
+                <div className="mt-7 grid gap-3 md:grid-cols-2">
 
-                <input
-                  value={name}
-                  onChange={(e) =>
-                    setName(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ad Soyad"
-                  className="h-[50px] rounded-xl border border-white/[0.10] bg-white/[0.025] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#229dff]"
-                />
+                  <div>
 
-                <input
-                  value={phone}
-                  onChange={(e) =>
-                    setPhone(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Telefon Numaranız"
-                  className="h-[50px] rounded-xl border border-white/[0.10] bg-white/[0.025] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#229dff]"
-                />
+                    <label className="mb-2 block text-[10px] font-bold text-slate-500">
+                      Ad Soyad
+                    </label>
 
-                <input
-                  value={note}
-                  onChange={(e) =>
-                    setNote(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Notunuz (opsiyonel)"
-                  className="h-[50px] rounded-xl border border-white/[0.10] bg-white/[0.025] px-4 text-[11px] font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#229dff]"
-                />
-              </div>
+                    <input
+                      value={
+                        name
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setName(
+                          event
+                            .target
+                            .value
+                        )
+                      }
+                      placeholder="Adınız Soyadınız"
+                      className="h-[52px] w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-[#2ca7ff]"
+                    />
+                  </div>
 
-              {error && (
+                  <div>
 
-                <div className="mt-4 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-[11px] font-bold text-rose-300">
-                  {error}
+                    <label className="mb-2 block text-[10px] font-bold text-slate-500">
+                      Telefon
+                    </label>
+
+                    <input
+                      type="tel"
+                      value={
+                        phone
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setPhone(
+                          event
+                            .target
+                            .value
+                        )
+                      }
+                      placeholder="05xx xxx xx xx"
+                      className="h-[52px] w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-[#2ca7ff]"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+
+                    <label className="mb-2 block text-[10px] font-bold text-slate-500">
+                      Not
+                    </label>
+
+                    <textarea
+                      value={
+                        note
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setNote(
+                          event
+                            .target
+                            .value
+                        )
+                      }
+                      rows={
+                        3
+                      }
+                      placeholder="Varsa eklemek istediğiniz not..."
+                      className="w-full resize-none rounded-xl border border-white/[0.10] bg-white/[0.03] p-4 text-[11px] font-semibold outline-none placeholder:text-slate-600 focus:border-[#2ca7ff]"
+                    />
+                  </div>
                 </div>
-              )}
 
-              {success && (
+                {error && (
 
-                <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-bold text-emerald-300">
-                  ✓ {success}
-                </div>
-              )}
-
-              <button
-                disabled={loading}
-                type="submit"
-                className="mt-5 flex h-[54px] w-full items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-[#5fc2ff] via-[#7f9cff] to-[#a966ff] text-[13px] font-black text-[#06101d] shadow-[0_15px_40px_rgba(73,132,255,.20)] transition hover:-translate-y-0.5 disabled:opacity-50"
-              >
-
-                {loading
-                  ? "Gönderiliyor..."
-                  : isPreRequest
-                  ? "Ön Talebi Tamamla"
-                  : "Ön Siparişi Tamamla"}
-
-                {!loading && (
-                  <span className="text-xl">
-                    →
-                  </span>
+                  <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-[11px] font-bold text-rose-300">
+                    {error}
+                  </div>
                 )}
-              </button>
-            </div>
 
-            {/* SAĞ ÖZET */}
+                {success && (
 
-            <aside className="border-t border-white/[0.08] bg-[#040b15]/65 p-7 lg:border-l lg:border-t-0">
+                  <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-bold text-emerald-300">
+                    ✓ {success}
+                  </div>
+                )}
+              </div>
 
-              <div className="flex items-center justify-between">
+              {/* RIGHT SUMMARY */}
 
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#61b9ff]">
+              <aside className="border-t border-white/[0.08] bg-[#040b15]/70 p-6 lg:border-l lg:border-t-0 md:p-8">
+
+                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-400">
                   SEÇİMİNİZ
                 </div>
 
-                <button
-                  type="button"
-                  className="text-[10px] font-bold text-[#36a9ff]"
-                >
-                  Değiştir
-                </button>
-              </div>
+                <div className="mt-7">
 
-              <div className="mt-6 flex items-center gap-4">
+                  <div className="flex items-center gap-4">
 
-                <div
-                  className="h-[82px] w-[58px] rounded-[14px] border border-white/10 shadow-lg"
-                  style={{
-                    background:
-                      `linear-gradient(145deg, ${selectedColor.value}, #06080c)`,
-                  }}
-                />
-
-                <div>
-
-                  <div className="text-[20px] font-black">
-                    {model}
-                  </div>
-
-                  <div className="mt-1 text-[11px] font-semibold text-slate-400">
-                    {storage}
-                    {" · "}
-                    {color}
-                  </div>
-
-                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
-                    {description}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-7 border-t border-white/[0.08] pt-6">
-
-                <div className="text-[10px] font-semibold text-slate-400">
-                  Apple Başlangıç Fiyatı
-                </div>
-
-                <div className="mt-1 text-[35px] font-black tracking-[-1px]">
-                  {money(
-                    price
-                  )}
-                </div>
-              </div>
-
-              {!isPreRequest && (
-
-                <div className="mt-4">
-
-                  <div className="text-[10px] font-semibold text-slate-400">
-                    Ön Sipariş Kaporası
-                  </div>
-
-                  <div className="mt-1 text-[26px] font-black">
-                    {money(
-                      DEPOSIT
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 rounded-xl border border-[#238eff]/60 bg-[#0b3155]/25 p-4">
-
-                <div className="flex items-start gap-3">
-
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#279eff] text-[11px] font-black">
-                    i
-                  </span>
-
-                  <p className="text-[10px] font-semibold leading-5 text-slate-300">
-
-                    {isPreRequest
-                      ? "iPhone Duo için şu an ön talep alınmaktadır. Ön sipariş açıldığında sizinle iletişime geçilecektir."
-                      : "Talebiniz Telegram üzerinden CNETMOBİL ekibine iletilir. Ödeme bu sayfa üzerinden alınmaz."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-
-                {[
-                  [
-                    "🛡",
-                    "CNETMOBİL Güvencesi",
-                    "%100 güvenli süreç",
-                  ],
-
-                  [
-                    "🚚",
-                    "Hızlı Bilgilendirme",
-                    "Size özel dönüş",
-                  ],
-
-                  [
-                    "🏪",
-                    "Mağazadan Teslim",
-                    "İstediğiniz mağaza",
-                  ],
-
-                  [
-                    "🎁",
-                    "Sınırlı Kontenjan",
-                    "İlk sahiplerinden olun",
-                  ],
-                ].map(
-                  (
-                    item,
-                    index
-                  ) => (
                     <div
-                      key={index}
-                      className="border-t border-white/[0.08] pt-3"
-                    >
+                      className="h-[76px] w-[54px] rounded-[15px] border border-white/10 shadow-lg"
+                      style={{
+                        background:
+                          `linear-gradient(145deg, ${selectedColor.value}, #04070c)`,
+                      }}
+                    />
 
-                      <div className="text-lg">
-                        {item[0]}
+                    <div>
+
+                      <h3 className="text-[20px] font-black">
+                        {model}
+                      </h3>
+
+                      <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                        {description}
                       </div>
 
-                      <div className="mt-1 text-[9px] font-black">
-                        {item[1]}
-                      </div>
-
-                      <div className="mt-1 text-[8px] font-medium text-slate-500">
-                        {item[2]}
+                      <div className="mt-2 text-[10px] font-bold text-slate-300">
+                        {storage}
+                        {" · "}
+                        {color}
                       </div>
                     </div>
-                  )
-                )}
-              </div>
-            </aside>
-          </div>
-        </form>
-      </section>
+                  </div>
 
-      {/* DUO INFO */}
+                  <div className="mt-8 border-t border-white/[0.08] pt-6">
 
-      <section className="mx-auto max-w-[1450px] px-5 pb-12">
+                    <div className="text-[10px] font-semibold text-slate-500">
+                      Fiyat
+                    </div>
 
-        <div className="flex items-center gap-3 rounded-xl border border-blue-400/15 bg-blue-500/[0.06] px-5 py-4">
+                    <div className="mt-1 text-[34px] font-black tracking-[-1px]">
+                      {money(
+                        price
+                      )}
+                    </div>
+                  </div>
 
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[11px] font-black">
-            i
-          </span>
+                  <div className="mt-5">
 
-          <div className="text-[11px] font-semibold text-blue-100/75">
+                    <div className="text-[10px] font-semibold text-slate-500">
+                      Teslim Mağazası
+                    </div>
 
-            iPhone Duo için ön siparişler
+                    <div className="mt-1 text-[12px] font-black">
+                      {store ||
+                        "Henüz seçilmedi"}
+                    </div>
+                  </div>
 
-            <strong className="mx-1 text-white">
-              16 Ekim 2026 saat 15:00
-            </strong>
+                  <button
+                    type="submit"
+                    disabled={
+                      loading
+                    }
+                    className="mt-8 flex h-[56px] w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[#5fc2ff] via-[#7f9cff] to-[#a966ff] text-[13px] font-black text-[#06101d] shadow-[0_15px_40px_rgba(73,132,255,.20)] transition hover:-translate-y-0.5 disabled:opacity-50"
+                  >
 
-            itibarıyla başlayacaktır.
-          </div>
+                    {loading
+                      ? "Gönderiliyor..."
+                      : isDuo
+                      ? "Talep Ver"
+                      : "Ön Sipariş Ver"}
+
+                    {!loading && (
+                      <span className="text-xl">
+                        →
+                      </span>
+                    )}
+                  </button>
+
+                  <div className="mt-4 text-center text-[9px] font-semibold text-slate-600">
+
+                    {isDuo
+                      ? "iPhone Duo talebinizi oluşturun."
+                      : "Ön sipariş talebinizi oluşturun."}
+
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </form>
         </div>
-      </section>
+      )}
     </main>
   );
 }
