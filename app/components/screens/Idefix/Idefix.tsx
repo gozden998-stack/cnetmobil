@@ -163,6 +163,13 @@ export default function Idefix() {
   const [orderSearch, setOrderSearch] = useState("");
   const [orderActionId, setOrderActionId] = useState<number | null>(null);
 
+  // IDEFIX FIYAT GUNCELLEME
+  const [priceProduct, setPriceProduct] = useState<IdefixProduct | null>(null);
+  const [newPrice, setNewPrice] = useState("");
+  const [newComparePrice, setNewComparePrice] = useState("");
+  const [priceSaving, setPriceSaving] = useState(false);
+  const [priceError, setPriceError] = useState("");
+
   const loadOrders = async () => {
     setOrdersLoading(true);
     setOrdersError("");
@@ -305,6 +312,88 @@ export default function Idefix() {
       setError(e?.message || "İdefix verileri alınamadı.");
     } finally {
       setLoading(false);
+    }
+  };
+
+
+  const openPriceModal = (product: IdefixProduct) => {
+    setPriceError("");
+    setPriceProduct(product);
+
+    const currentPrice = Number(product.price || 0);
+    const currentComparePrice = Number(product.comparePrice || product.price || 0);
+
+    setNewPrice(currentPrice > 0 ? String(currentPrice) : "");
+    setNewComparePrice(
+      currentComparePrice > 0 ? String(currentComparePrice) : ""
+    );
+  };
+
+  const closePriceModal = () => {
+    if (priceSaving) return;
+
+    setPriceProduct(null);
+    setNewPrice("");
+    setNewComparePrice("");
+    setPriceError("");
+  };
+
+  const savePrice = async () => {
+    if (!priceProduct?.barcode) {
+      setPriceError("İdefix barkodu bulunamadı.");
+      return;
+    }
+
+    if (!newPrice.trim()) {
+      setPriceError("Satış fiyatını girin.");
+      return;
+    }
+
+    if (!newComparePrice.trim()) {
+      setPriceError("Liste fiyatını girin.");
+      return;
+    }
+
+    setPriceSaving(true);
+    setPriceError("");
+
+    try {
+      const response = await fetch("/api/online/idefix/variant-price", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          barcode: priceProduct.barcode,
+          price: newPrice,
+          comparePrice: newComparePrice,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          payload?.error || "İdefix fiyat güncellemesi başarısız."
+        );
+      }
+
+      // Backend canlı İdefix fiyatını doğruladıktan sonra
+      // ürünleri tekrar okuyup gerçek inventory/list fiyatını göster.
+      await load();
+
+      setPriceProduct(null);
+      setNewPrice("");
+      setNewComparePrice("");
+      setPriceError("");
+    } catch (e: any) {
+      setPriceError(
+        e?.message || "İdefix fiyat güncellemesi başarısız."
+      );
+    } finally {
+      setPriceSaving(false);
     }
   };
 
@@ -901,7 +990,9 @@ export default function Idefix() {
                           </button>
                           <button
                             type="button"
-                            className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[8px] font-black text-blue-700"
+                            onClick={() => openPriceModal(product)}
+                            disabled={!product.barcode || priceSaving}
+                            className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[8px] font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             Fiyat
                           </button>
@@ -923,6 +1014,137 @@ export default function Idefix() {
           </div>
         )}
       </section>
+
+      {priceProduct && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closePriceModal();
+            }
+          }}
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-6 py-5">
+              <div className="text-[9px] font-black uppercase tracking-wider text-blue-600">
+                İdefix Fiyat Güncelle
+              </div>
+
+              <div className="mt-1 text-sm font-black text-slate-950">
+                {priceProduct.title || "İdefix Ürünü"}
+              </div>
+
+              <div className="mt-2 text-[9px] font-semibold text-slate-400">
+                Barkod: {priceProduct.barcode || "-"}
+              </div>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-[8px] font-black uppercase text-slate-400">
+                  Mevcut İdefix Fiyatları
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-[8px] font-bold text-slate-400">
+                      Satış Fiyatı
+                    </div>
+                    <div className="mt-1 text-base font-black text-slate-950">
+                      {money(priceProduct.price)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[8px] font-bold text-slate-400">
+                      Liste Fiyatı
+                    </div>
+                    <div className="mt-1 text-base font-black text-slate-950">
+                      {money(priceProduct.comparePrice || priceProduct.price)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase text-slate-500">
+                  Yeni Satış Fiyatı
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={newPrice}
+                    onChange={(event) => setNewPrice(event.target.value)}
+                    disabled={priceSaving}
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 text-sm font-black text-slate-950 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-50"
+                    placeholder="44999"
+                    autoFocus
+                  />
+                  <span className="absolute right-4 top-3.5 text-sm font-black text-slate-400">
+                    ₺
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[9px] font-black uppercase text-slate-500">
+                  Yeni Liste Fiyatı
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={newComparePrice}
+                    onChange={(event) =>
+                      setNewComparePrice(event.target.value)
+                    }
+                    disabled={priceSaving}
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 text-sm font-black text-slate-950 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-50"
+                    placeholder="46999"
+                  />
+                  <span className="absolute right-4 top-3.5 text-sm font-black text-slate-400">
+                    ₺
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[9px] font-bold leading-5 text-amber-700">
+                Bu işlem yalnızca İdefix satış ve liste fiyatını değiştirir.
+                Canlı stok adedi değiştirilmez.
+              </div>
+
+              {priceError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                  {priceError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={closePriceModal}
+                disabled={priceSaving}
+                className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void savePrice()}
+                disabled={priceSaving}
+                className="h-10 rounded-xl bg-blue-600 px-5 text-[9px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {priceSaving ? "İdefix'e Gönderiliyor..." : "İdefix'e Gönder"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
