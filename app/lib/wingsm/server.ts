@@ -596,14 +596,21 @@ export async function wingSMRequest<T = any>(
 // Dokümandaki:
 // GET /api/b2b/stok/list
 //
-// depo = WingSM depo kodu
-// stok = 1 -> sadece stoğu olanlar
-// stok = 0 -> tüm stoklar
+// CNETMOBIL entegrasyonunda sabit kural:
+// - sadece 2. el ürün sınıfı: sinif = 2el
+// - sadece stoğu olan ürünler: stok = 1
+// - depo = ilgili WingSM mağaza/depo kodu
+//
+// NOT:
+// onlyInStock parametresi geriye uyumluluk için tutuluyor.
+// Mevcut route'lar getWingSMStock(depot, true) şeklinde çağırdığı için
+// kaldırmıyoruz; fakat değer ne olursa olsun stok=1 zorunlu gönderilir.
+// Böylece yanlışlıkla stok=0 / tüm stoklar çekilemez.
 // ======================================================
 
 export async function getWingSMStock(
   depot: string,
-  onlyInStock = true
+  _onlyInStock = true
 ) {
   return wingSMRequest(
     "/api/b2b/stok/list",
@@ -615,10 +622,11 @@ export async function getWingSMStock(
         depo:
           depot,
 
+        sinif:
+          "2el",
+
         stok:
-          onlyInStock
-            ? 1
-            : 0,
+          1,
       },
     }
   );
