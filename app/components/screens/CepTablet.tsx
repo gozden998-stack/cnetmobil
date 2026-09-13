@@ -10,6 +10,21 @@ type CepTabletProps = {
 
 type PriceType = "all" | "campaign" | "sale" | "official";
 
+type ProductVisualGroup =
+  | "apple"
+  | "samsung"
+  | "tablet"
+  | "general-mobile"
+  | "infinix"
+  | "tecno"
+  | "oppo"
+  | "realme"
+  | "vivo"
+  | "xiaomi"
+  | "zte"
+  | "kids"
+  | "other";
+
 type ProductRow = {
   side: "apple" | "android";
   name: string;
@@ -19,6 +34,8 @@ type ProductRow = {
   sale: unknown;
   official: unknown;
   highlighted: boolean;
+  visualGroup: ProductVisualGroup;
+  sectionHeader: boolean;
 };
 
 const BRAND_OPTIONS = [
@@ -31,6 +48,10 @@ const BRAND_OPTIONS = [
   "Realme",
   "Tecno",
   "Infinix",
+  "General Mobile",
+  "ZTE",
+  "TCL",
+  "Huawei",
   "Diğer",
 ] as const;
 
@@ -59,7 +80,7 @@ function detectBrand(name: string) {
     value.includes("APPLE") ||
     value.includes("IPHONE") ||
     value.includes("IPAD") ||
-    value.includes("WATCH")
+    value.includes("APPLE WATCH")
   ) return "Apple";
 
   if (value.includes("SAMSUNG")) return "Samsung";
@@ -73,8 +94,84 @@ function detectBrand(name: string) {
   if (value.includes("REALME")) return "Realme";
   if (value.includes("TECNO")) return "Tecno";
   if (value.includes("INFINIX")) return "Infinix";
+  if (value.includes("GENERAL MOBILE")) return "General Mobile";
+  if (value.includes("ZTE")) return "ZTE";
+  if (value.includes("TCL")) return "TCL";
+  if (value.includes("HUAWEI")) return "Huawei";
 
   return "Diğer";
+}
+
+function detectVisualGroup(name: string): ProductVisualGroup {
+  const value = normalizeText(name);
+
+  if (value.includes("INFINIX")) return "infinix";
+  if (value.includes("TECNO")) return "tecno";
+  if (value.includes("OPPO")) return "oppo";
+  if (value.includes("REALME")) return "realme";
+  if (value.includes("VIVO")) return "vivo";
+  if (
+    value.includes("XIAOMI") ||
+    value.includes("REDMI") ||
+    value.includes("POCO")
+  ) return "xiaomi";
+  if (value.includes("GENERAL MOBILE")) return "general-mobile";
+  if (value.includes("ZTE")) return "zte";
+  if (value.includes("SAMSUNG")) return "samsung";
+  if (
+    value.includes("APPLE") ||
+    value.includes("IPHONE") ||
+    value.includes("IPAD")
+  ) return "apple";
+
+  return "other";
+}
+
+function getRowToneClass(row: ProductRow) {
+  if (row.highlighted) {
+    return "bg-amber-100/90";
+  }
+
+  switch (row.visualGroup) {
+    case "apple":
+      return "bg-amber-50/90";
+    case "samsung":
+      return "bg-sky-50/95";
+    case "tablet":
+      return "bg-slate-100/90";
+    case "general-mobile":
+      return "bg-yellow-50/90";
+    case "infinix":
+      return "bg-rose-100/65";
+    case "tecno":
+      return "bg-cyan-50/95";
+    case "oppo":
+      return "bg-orange-50/90";
+    case "realme":
+      return "bg-yellow-100/75";
+    case "vivo":
+      return "bg-blue-50/90";
+    case "xiaomi":
+      return "bg-amber-50/95";
+    case "zte":
+      return "bg-orange-50/85";
+    case "kids":
+      return "bg-sky-100/75";
+    default:
+      return "bg-white";
+  }
+}
+
+function getSectionHeaderClass(group: ProductVisualGroup) {
+  if (group === "tablet" || group === "kids") {
+    return "bg-slate-800 text-white";
+  }
+
+  if (group === "samsung") {
+    return "bg-sky-100 text-sky-950";
+  }
+
+  return "bg-slate-700 text-white";
 }
 
 function detectMemory(name: string) {
@@ -255,58 +352,73 @@ function ProductPanel({
               </div>
             </div>
           ) : (
-            visibleRows.map((row, index) => (
-              <div
-                key={`${row.side}-${row.name}-${index}`}
-                className={[
-                  "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-100 transition last:border-b-0 hover:bg-blue-50/45",
-                  row.highlighted
-                    ? "bg-amber-50/70"
-                    : index % 2 === 0
-                    ? "bg-white"
-                    : "bg-slate-50/35",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-bold text-slate-400">
-                  {index + 1}
-                </div>
-
-                <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
-                  {row.highlighted && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]" />
-                  )}
-                  <span
-                    title={row.name}
+            visibleRows.map((row, index) => {
+              if (row.sectionHeader) {
+                return (
+                  <div
+                    key={`${row.side}-${row.name}-${index}`}
                     className={[
-                      "truncate text-[10px] font-black tracking-[-0.01em]",
-                      row.highlighted ? "text-amber-700" : "text-slate-800",
+                      "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200",
+                      getSectionHeaderClass(row.visualGroup),
                     ].join(" ")}
                   >
-                    {row.name}
-                  </span>
-                </div>
+                    <div className="col-span-6 flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.08em]">
+                      <span className="h-2 w-2 rounded-full bg-current opacity-60" />
+                      {row.name}
+                    </div>
+                  </div>
+                );
+              }
 
-                <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-black text-slate-600">
-                  {row.memory || "-"}
-                </div>
+              return (
+                <div
+                  key={`${row.side}-${row.name}-${index}`}
+                  className={[
+                    "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200/70 transition last:border-b-0 hover:brightness-[0.98]",
+                    getRowToneClass(row),
+                  ].join(" ")}
+                >
+                  <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-bold text-slate-500">
+                    {index + 1}
+                  </div>
 
-                <PriceCell
-                  value={row.campaign}
-                  variant="campaign"
-                  active={priceType === "campaign"}
-                />
-                <PriceCell
-                  value={row.sale}
-                  variant="sale"
-                  active={priceType === "sale"}
-                />
-                <PriceCell
-                  value={row.official}
-                  variant="official"
-                  active={priceType === "official"}
-                />
-              </div>
-            ))
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
+                    {row.highlighted && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.16)]" />
+                    )}
+                    <span
+                      title={row.name}
+                      className={[
+                        "truncate text-[10px] font-black tracking-[-0.01em]",
+                        row.highlighted ? "text-amber-800" : "text-slate-800",
+                      ].join(" ")}
+                    >
+                      {row.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-black text-slate-700">
+                    {row.memory || "-"}
+                  </div>
+
+                  <PriceCell
+                    value={row.campaign}
+                    variant="campaign"
+                    active={priceType === "campaign"}
+                  />
+                  <PriceCell
+                    value={row.sale}
+                    variant="sale"
+                    active={priceType === "sale"}
+                  />
+                  <PriceCell
+                    value={row.official}
+                    variant="official"
+                    active={priceType === "official"}
+                  />
+                </div>
+              );
+            })
           )}
         </div>
       </div>
@@ -370,37 +482,82 @@ export default function CepTablet({
   const products = useMemo<ProductRow[]>(() => {
     const rows = Array.isArray(data) ? data.slice(1) : [];
 
+    // Sol sütun Excel mantığıyla blok blok ilerliyor:
+    // Apple -> Samsung -> Tablet & Bilgisayar.
+    let leftGroup: ProductVisualGroup = "apple";
+
     const apple: ProductRow[] = rows
       .filter((row) => String(row?.[0] ?? "").trim() !== "")
       .map((row) => {
         const name = String(row?.[0] ?? "").trim();
+        const value = normalizeText(name);
+
+        let sectionHeader = false;
+
+        if (value === "SAMSUNG") {
+          leftGroup = "samsung";
+          sectionHeader = true;
+        } else if (
+          value.includes("TABLETLER") ||
+          value.includes("BİLGİSAYAR") ||
+          value.includes("LEBTAB")
+        ) {
+          leftGroup = "tablet";
+          sectionHeader = true;
+        }
+
+        // Başlık satırı olmasa bile Samsung ürününe gelince Samsung bloğuna geç.
+        if (!sectionHeader && leftGroup === "apple" && detectBrand(name) === "Samsung") {
+          leftGroup = "samsung";
+        }
 
         return {
           side: "apple",
           name,
-          brand: "Apple",
-          memory: detectMemory(name),
-          campaign: row?.[1],
-          sale: row?.[2],
-          official: row?.[3],
-          highlighted: isHighlightedProduct(name),
+          brand: sectionHeader ? "Diğer" : detectBrand(name),
+          memory: sectionHeader ? "" : detectMemory(name),
+          campaign: sectionHeader ? "" : row?.[1],
+          sale: sectionHeader ? "" : row?.[2],
+          official: sectionHeader ? "" : row?.[3],
+          highlighted: !sectionHeader && isHighlightedProduct(name),
+          visualGroup: leftGroup,
+          sectionHeader,
         };
       });
+
+    // Sağ sütunda markalar kendi renk bloklarında.
+    // Çocuk saati / Playstation başlığından sonrası tek blok olarak gösterilir.
+    let rightGroup: ProductVisualGroup | null = null;
 
     const android: ProductRow[] = rows
       .filter((row) => String(row?.[5] ?? "").trim() !== "")
       .map((row) => {
         const name = String(row?.[5] ?? "").trim();
+        const value = normalizeText(name);
+
+        const isKidsHeader =
+          value.includes("ÇOCUK SAAT") ||
+          value.includes("PLAYSTATION");
+
+        if (isKidsHeader) {
+          rightGroup = "kids";
+        }
+
+        const sectionHeader = isKidsHeader;
+        const visualGroup =
+          rightGroup === "kids" ? "kids" : detectVisualGroup(name);
 
         return {
           side: "android",
           name,
-          brand: detectBrand(name),
-          memory: detectMemory(name),
-          campaign: row?.[6],
-          sale: row?.[7],
-          official: row?.[8],
-          highlighted: isHighlightedProduct(name),
+          brand: sectionHeader ? "Diğer" : detectBrand(name),
+          memory: sectionHeader ? "" : detectMemory(name),
+          campaign: sectionHeader ? "" : row?.[6],
+          sale: sectionHeader ? "" : row?.[7],
+          official: sectionHeader ? "" : row?.[8],
+          highlighted: !sectionHeader && isHighlightedProduct(name),
+          visualGroup,
+          sectionHeader,
         };
       });
 
@@ -684,8 +841,8 @@ export default function CepTablet({
       {/* İKİLİ LİSTE */}
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ProductPanel
-          title="Apple"
-          subtitle="iPhone, iPad ve Apple ürünleri"
+          title="Apple • Samsung • Tablet"
+          subtitle="Excel düzenindeki sol fiyat listesi"
           rows={appleRows}
           total={appleRows.length}
           type="apple"
@@ -696,7 +853,7 @@ export default function CepTablet({
 
         <ProductPanel
           title="Android / Diğer"
-          subtitle="Samsung, Xiaomi, Oppo, Realme, Tecno ve daha fazlası"
+          subtitle="Markalara göre renk bloklarıyla ayrılmış sağ fiyat listesi"
           rows={androidRows}
           total={androidRows.length}
           type="android"
