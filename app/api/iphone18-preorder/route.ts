@@ -4,379 +4,175 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Model =
-  | "iPhone 18 Pro"
-  | "iPhone 18 Pro Max"
-  | "iPhone Duo";
+type Model = "iPhone 18 Pro" | "iPhone 18 Pro Max" | "iPhone Duo";
+type Storage = "256 GB" | "512 GB" | "1 TB" | "2 TB";
+type PaymentType = "deposit" | "full";
+type Action = "REQUEST_ONLY" | "PAYMENT_REPORTED";
 
-type Storage =
-  | "256 GB"
-  | "512 GB"
-  | "1 TB"
-  | "2 TB";
-
-const PRICE_MAP: Record<
-  Model,
-  Record<Storage, number>
-> = {
-  "iPhone 18 Pro": {
-    "256 GB": 137999,
-    "512 GB": 154999,
-    "1 TB": 188999,
-    "2 TB": 243999,
-  },
-
-  "iPhone 18 Pro Max": {
-    "256 GB": 149999,
-    "512 GB": 166999,
-    "1 TB": 200999,
-    "2 TB": 255999,
-  },
-
-  "iPhone Duo": {
-    "256 GB": 229999,
-    "512 GB": 246999,
-    "1 TB": 280999,
-    "2 TB": 335999,
-  },
+const PRICES: Record<Model, Record<Storage, number>> = {
+  "iPhone 18 Pro": { "256 GB": 137999, "512 GB": 154999, "1 TB": 188999, "2 TB": 243999 },
+  "iPhone 18 Pro Max": { "256 GB": 149999, "512 GB": 166999, "1 TB": 200999, "2 TB": 255999 },
+  "iPhone Duo": { "256 GB": 229999, "512 GB": 246999, "1 TB": 280999, "2 TB": 335999 },
 };
 
-const COLOR_MAP: Record<Model, string[]> = {
-  "iPhone 18 Pro": [
-    "Siyah",
-    "Buzul Rengi",
-    "Burgonya",
-    "Gümüş Rengi",
-  ],
-
-  "iPhone 18 Pro Max": [
-    "Siyah",
-    "Buzul Rengi",
-    "Burgonya",
-    "Gümüş Rengi",
-  ],
-
-  "iPhone Duo": [
-    "Gece Rengi",
-    "Yıldız Rengi",
-  ],
+const COLORS: Record<Model, string[]> = {
+  "iPhone 18 Pro": ["Siyah", "Buzul Rengi", "Burgonya", "Gümüş Rengi"],
+  "iPhone 18 Pro Max": ["Siyah", "Buzul Rengi", "Burgonya", "Gümüş Rengi"],
+  "iPhone Duo": ["Gece Rengi", "Yıldız Rengi"],
 };
 
-const STORES = new Set([
-  "CMR / Çerkezköy",
-  "Cadde / Çerkezköy",
-  "Saray",
-  "Kapaklı",
-]);
-
-// 16 Ekim 2026 15:00 Türkiye
-const DUO_PREORDER_START = Date.UTC(
-  2026,
-  9,
-  16,
-  12,
-  0,
-  0
-);
-
-function clean(
-  value: unknown,
-  max = 300
-) {
-  return String(value ?? "")
-    .trim()
-    .slice(0, max);
-}
+const STORES = ["CMR / Çerkezköy", "Cadde / Çerkezköy", "Saray", "Kapaklı"];
+const COMPANY_NAME = "CENNET ELEKTRONİK İLETİŞİM HİZMETLERİ SANAYİ VE TİCARET LİMİTED ŞİRKETİ";
+const IBAN_DISPLAY = "TR03 0004 6005 6388 8000 2395 59";
 
 function money(value: number) {
-  return new Intl.NumberFormat(
-    "tr-TR",
-    {
-      style: "currency",
-      currency: "TRY",
-      maximumFractionDigits: 0,
-    }
-  ).format(value);
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
-export async function POST(
-  request: NextRequest
-) {
-  try {
-    const token =
-      process.env.TELEGRAM_BOT_TOKEN;
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
-    const chatId =
-      process.env.TELEGRAM_CHAT_ID;
+function cleanText(value: unknown, max = 300) {
+  return String(value ?? "").trim().slice(0, max);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!token || !chatId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Telegram ayarları eksik.",
-        },
-        {
-          status: 500,
-        }
-      );
+      return NextResponse.json({ success: false, error: "Telegram ayarları eksik." }, { status: 500 });
     }
 
-    const body = await request
-      .json()
-      .catch(() => null);
+    const body = await request.json();
+    const action = cleanText(body?.action, 30) as Action;
+    const model = cleanText(body?.model, 50) as Model;
+    const storage = cleanText(body?.storage, 20) as Storage;
+    const color = cleanText(body?.color, 50);
+    const store = cleanText(body?.store, 80);
+    const customerName = cleanText(body?.customerName, 100);
+    const phone = cleanText(body?.phone, 30);
+    const note = cleanText(body?.note, 500);
 
-    if (
-      !body ||
-      typeof body !== "object"
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Geçersiz istek.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (action !== "REQUEST_ONLY" && action !== "PAYMENT_REPORTED") {
+      return NextResponse.json({ success: false, error: "Geçersiz işlem." }, { status: 400 });
     }
 
-    const model = clean(
-      (body as any).model,
-      50
-    ) as Model;
-
-    const storage = clean(
-      (body as any).storage,
-      20
-    ) as Storage;
-
-    const color = clean(
-      (body as any).color,
-      50
-    );
-
-    const store = clean(
-      (body as any).store,
-      80
-    );
-
-    const customerName = clean(
-      (body as any).customerName,
-      160
-    );
-
-    const phone = clean(
-      (body as any).phone,
-      30
-    );
-
-    const note = clean(
-      (body as any).note,
-      500
-    );
-
-    if (!PRICE_MAP[model]) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Model geçersiz.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (!Object.prototype.hasOwnProperty.call(PRICES, model)) {
+      return NextResponse.json({ success: false, error: "Geçersiz model." }, { status: 400 });
     }
 
-    if (
-      !PRICE_MAP[model][storage]
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Kapasite geçersiz.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (!Object.prototype.hasOwnProperty.call(PRICES[model], storage)) {
+      return NextResponse.json({ success: false, error: "Geçersiz kapasite." }, { status: 400 });
     }
 
-    if (
-      !COLOR_MAP[model].includes(
-        color
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Renk geçersiz.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (!COLORS[model].includes(color)) {
+      return NextResponse.json({ success: false, error: "Geçersiz renk." }, { status: 400 });
     }
 
-    if (!STORES.has(store)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Mağaza geçersiz.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (!STORES.includes(store)) {
+      return NextResponse.json({ success: false, error: "Geçersiz mağaza." }, { status: 400 });
     }
 
-    if (
-      customerName.length < 3
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Ad soyad gerekli.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (customerName.length < 3) {
+      return NextResponse.json({ success: false, error: "Ad soyad gerekli." }, { status: 400 });
     }
 
-    const phoneDigits =
-      phone.replace(/\D/g, "");
-
-    if (
-      phoneDigits.length < 10
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Telefon numarası geçersiz.",
-        },
-        {
-          status: 400,
-        }
-      );
+    if (phone.replace(/\D/g, "").length < 10) {
+      return NextResponse.json({ success: false, error: "Geçerli telefon numarası gerekli." }, { status: 400 });
     }
 
-    const price =
-      PRICE_MAP[model][storage];
+    const price = PRICES[model][storage];
+    let message = "";
+    let paymentAmount: number | null = null;
+    let paymentType: PaymentType | null = null;
 
-    const requestType =
-      model === "iPhone Duo" &&
-      Date.now() <
-        DUO_PREORDER_START
-        ? "ÖN TALEP"
-        : "ÖN SİPARİŞ";
+    if (action === "PAYMENT_REPORTED") {
+      if (model === "iPhone Duo") {
+        return NextResponse.json({ success: false, error: "iPhone Duo için ödeme bildirimi alınmıyor." }, { status: 400 });
+      }
 
-    const message = [
-      `🍎 CNETMOBİL - iPHONE 18 ${requestType}`,
-      ``,
+      paymentType = cleanText(body?.paymentType, 20) as PaymentType;
+      if (paymentType !== "deposit" && paymentType !== "full") {
+        return NextResponse.json({ success: false, error: "Geçersiz ödeme türü." }, { status: 400 });
+      }
 
-      `📱 Model: ${model}`,
-      `💾 Kapasite: ${storage}`,
-      `🎨 Renk: ${color}`,
-      `💰 Fiyat: ${money(price)}`,
-      `🏪 Teslim Mağazası: ${store}`,
+      paymentAmount = paymentType === "deposit" ? roundMoney(price * 0.1) : price;
 
-      ``,
+      message = [
+        "💳 CNETMOBİL - iPHONE 18 ÖDEME BİLDİRİMİ",
+        "",
+        `👤 Müşteri: ${customerName}`,
+        `📞 Telefon: ${phone}`,
+        "",
+        `📱 Model: ${model}`,
+        `💾 Kapasite: ${storage}`,
+        `🎨 Renk: ${color}`,
+        `🏪 Teslim Mağazası: ${store}`,
+        "",
+        `💰 Cihaz Fiyatı: ${money(price)}`,
+        `💳 Ödeme Tipi: ${paymentType === "deposit" ? "%10 Kapora" : "Tam Ödeme"}`,
+        `💵 Müşterinin Bildirdiği Ödeme: ${money(paymentAmount)}`,
+        "",
+        `🏦 Hesap Ünvanı: ${COMPANY_NAME}`,
+        `🏦 IBAN: ${IBAN_DISPLAY}`,
+        "",
+        `📝 Not: ${note || "-"}`,
+        "",
+        "⚠️ Müşteri ödeme yaptığını bildirdi.",
+        "BANKA HESABINDAN KONTROL EDİLMESİ GEREKİYOR.",
+      ].join("\n");
+    } else {
+      message = [
+        "📲 CNETMOBİL - iPHONE DUO TALEBİ",
+        "",
+        `👤 Müşteri: ${customerName}`,
+        `📞 Telefon: ${phone}`,
+        "",
+        `📱 Model: ${model}`,
+        `💾 Kapasite: ${storage}`,
+        `🎨 Renk: ${color}`,
+        `💰 Fiyat: ${money(price)}`,
+        `🏪 Teslim Mağazası: ${store}`,
+        "",
+        `📝 Not: ${note || "-"}`,
+        "",
+        "✅ Müşteri talebi oluşturdu.",
+      ].join("\n");
+    }
 
-      `👤 Müşteri: ${customerName}`,
-      `📞 Telefon: ${phone}`,
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: message, disable_web_page_preview: true }),
+      cache: "no-store",
+    });
 
-      note
-        ? `📝 Not: ${note}`
-        : "",
-
-      ``,
-
-      requestType === "ÖN TALEP"
-        ? "ℹ️ iPhone Duo ön talebi oluşturuldu."
-        : "✅ Ön sipariş talebi oluşturuldu.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const telegramResponse =
-      await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-          }),
-        }
-      );
-
-    const telegramData =
-      await telegramResponse
-        .json()
-        .catch(() => null);
-
-    if (
-      !telegramResponse.ok ||
-      !telegramData?.ok
-    ) {
-      console.error(
-        "[IPHONE18 TELEGRAM]",
-        telegramData
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Telegram bildirimi gönderilemedi.",
-        },
-        {
-          status: 502,
-        }
-      );
+    const telegramData = await telegramResponse.json().catch(() => null);
+    if (!telegramResponse.ok || !telegramData?.ok) {
+      console.error("Telegram error:", telegramData);
+      return NextResponse.json({ success: false, error: "Bildirim gönderilemedi." }, { status: 502 });
     }
 
     return NextResponse.json({
       success: true,
-
-      requestType,
-
+      action,
       price,
-
-      message:
-        requestType ===
-        "ÖN TALEP"
-          ? "Ön talebiniz alındı. CNETMOBİL ekibi sizinle iletişime geçecek."
-          : "Ön sipariş talebiniz alındı. CNETMOBİL ekibi sizinle iletişime geçecek.",
-    });
+      paymentType,
+      paymentAmount,
+      message: action === "PAYMENT_REPORTED"
+        ? "Ödeme bildiriminiz alındı. Banka hesabı kontrol edildikten sonra siparişiniz kesinleştirilecektir."
+        : "Talebiniz başarıyla alındı.",
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    console.error(
-      "[IPHONE18 PREORDER]",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        success: false,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "İşlem başarısız.",
-      },
-      {
-        status: 500,
-      }
-    );
+    console.error("iphone18-preorder error:", error);
+    return NextResponse.json({ success: false, error: "Sunucu hatası oluştu." }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 }
