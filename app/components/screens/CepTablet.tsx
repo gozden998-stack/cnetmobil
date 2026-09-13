@@ -23,6 +23,8 @@ type ProductVisualGroup =
   | "xiaomi"
   | "zte"
   | "kids"
+  | "feature-phone"
+  | "bil"
   | "other";
 
 type ProductRow = {
@@ -156,14 +158,18 @@ function getRowToneClass(row: ProductRow) {
     case "zte":
       return "bg-orange-50/85";
     case "kids":
-      return "bg-sky-100/75";
+      return "bg-sky-100/85";
+    case "feature-phone":
+      return "bg-amber-100/90";
+    case "bil":
+      return "bg-amber-200/80";
     default:
       return "bg-white";
   }
 }
 
 function getSectionHeaderClass(group: ProductVisualGroup) {
-  if (group === "tablet" || group === "kids") {
+  if (group === "tablet" || group === "kids" || group === "feature-phone") {
     return "bg-slate-800 text-white";
   }
 
@@ -482,8 +488,9 @@ export default function CepTablet({
   const products = useMemo<ProductRow[]>(() => {
     const rows = Array.isArray(data) ? data.slice(1) : [];
 
-    // Sol sütun Excel mantığıyla blok blok ilerliyor:
-    // Apple -> Samsung -> Tablet & Bilgisayar.
+    // Sol sütun Excel'deki akışı aynen izler:
+    // Apple -> Samsung -> TABLETLER & BİLGİSAYAR -> TUŞLU TELEFONLAR.
+    // "BIL ..." ile başlayan bilgisayar satırları Excel'deki sarı özel bloktur.
     let leftGroup: ProductVisualGroup = "apple";
 
     const apple: ProductRow[] = rows
@@ -493,22 +500,44 @@ export default function CepTablet({
         const value = normalizeText(name);
 
         let sectionHeader = false;
+        let rowGroup: ProductVisualGroup = leftGroup;
 
         if (value === "SAMSUNG") {
           leftGroup = "samsung";
+          rowGroup = "samsung";
           sectionHeader = true;
         } else if (
-          value.includes("TABLETLER") ||
-          value.includes("BİLGİSAYAR") ||
-          value.includes("LEBTAB")
+          value === "TABLETLER & BİLGİSAYAR - LEBTAB" ||
+          value === "TABLETLER & BILGISAYAR - LEBTAB" ||
+          value === "TABLETLER & BİLGİSAYAR" ||
+          value === "TABLETLER & BILGISAYAR"
         ) {
           leftGroup = "tablet";
+          rowGroup = "tablet";
           sectionHeader = true;
-        }
+        } else if (
+          value === "TUŞLU TELEFONLAR" ||
+          value === "TUSLU TELEFONLAR"
+        ) {
+          leftGroup = "feature-phone";
+          rowGroup = "feature-phone";
+          sectionHeader = true;
+        } else {
+          // Sheet'te başlık satırı bulunmazsa Samsung'a geçiş yine bozulmasın.
+          if (leftGroup === "apple" && detectBrand(name) === "Samsung") {
+            leftGroup = "samsung";
+          }
 
-        // Başlık satırı olmasa bile Samsung ürününe gelince Samsung bloğuna geç.
-        if (!sectionHeader && leftGroup === "apple" && detectBrand(name) === "Samsung") {
-          leftGroup = "samsung";
+          rowGroup = leftGroup;
+
+          // Excel'de "BIL ..." satırları ayrı sarı vurguda.
+          // Bu sadece o ürün satırını etkiler; sonraki bölümün rengini değiştirmez.
+          if (
+            leftGroup === "tablet" &&
+            (value.startsWith("BIL ") || value.startsWith("BİL "))
+          ) {
+            rowGroup = "bil";
+          }
         }
 
         return {
@@ -520,13 +549,14 @@ export default function CepTablet({
           sale: sectionHeader ? "" : row?.[2],
           official: sectionHeader ? "" : row?.[3],
           highlighted: !sectionHeader && isHighlightedProduct(name),
-          visualGroup: leftGroup,
+          visualGroup: rowGroup,
           sectionHeader,
         };
       });
 
     // Sağ sütunda markalar kendi renk bloklarında.
-    // Çocuk saati / Playstation başlığından sonrası tek blok olarak gösterilir.
+    // YALNIZCA gerçek "ÇOCUK SAATİ VE PLAYSTATION" başlık satırı koyu başlıktır.
+    // Başlıktan sonraki bütün ürünler Excel'deki gibi açık mavi satırdır.
     let rightGroup: ProductVisualGroup | null = null;
 
     const android: ProductRow[] = rows
@@ -536,15 +566,17 @@ export default function CepTablet({
         const value = normalizeText(name);
 
         const isKidsHeader =
-          value.includes("ÇOCUK SAAT") ||
-          value.includes("PLAYSTATION");
+          value === "ÇOCUK SAATİ VE PLAYSTATION" ||
+          value === "ÇOCUK SAATI VE PLAYSTATION" ||
+          value === "COCUK SAATİ VE PLAYSTATION" ||
+          value === "COCUK SAATI VE PLAYSTATION";
 
         if (isKidsHeader) {
           rightGroup = "kids";
         }
 
         const sectionHeader = isKidsHeader;
-        const visualGroup =
+        const visualGroup: ProductVisualGroup =
           rightGroup === "kids" ? "kids" : detectVisualGroup(name);
 
         return {
