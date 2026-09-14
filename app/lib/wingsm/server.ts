@@ -1,6 +1,13 @@
 // app/lib/wingsm/server.ts
 // CNETMOBIL - WingSM ortak server yardımcıları
-// Kullanıcı adı / şifre / token sadece server tarafında kalır.
+//
+// KURALLAR:
+// - Kullanıcı adı / şifre / token sadece server tarafında kalır.
+// - WingSM HTTP 200 dönse bile payload.success === false ise işlem başarısız sayılır.
+// - Token yaklaşık 15 dakika geçerli.
+// - Biz güvenli tarafta 14 dakika cache tutuyoruz.
+// - Stok sorgusunda sadece 2. el ve stoğu olan ürünler alınır.
+// - Mevcut Cihaz Talep / stok akışı korunur.
 
 export const runtime = "nodejs";
 
@@ -20,10 +27,16 @@ type WingSMAuthResponse = {
 
 type WingSMRequestOptions = {
   method?: "GET" | "POST";
+
   query?: Record<
     string,
-    string | number | boolean | null | undefined
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
   >;
+
   body?: unknown;
 };
 
@@ -42,7 +55,8 @@ declare global {
     | WingSMTokenCache
     | undefined;
 
-  // Aynı anda birden fazla token isteği gitmesini engeller.
+  // Aynı anda birden fazla authenticate isteğinin
+  // gitmesini engeller.
   // eslint-disable-next-line no-var
   var cnetWingSMTokenPromise:
     | Promise<string>
@@ -55,7 +69,9 @@ declare global {
 
 function getBaseUrl() {
   const value =
-    process.env.WINGSM_BASE_URL?.trim();
+    process.env
+      .WINGSM_BASE_URL
+      ?.trim();
 
   if (!value) {
     throw new Error(
@@ -71,7 +87,9 @@ function getBaseUrl() {
 
 function getUsername() {
   const value =
-    process.env.WINGSM_USER?.trim();
+    process.env
+      .WINGSM_USER
+      ?.trim();
 
   if (!value) {
     throw new Error(
@@ -84,7 +102,8 @@ function getUsername() {
 
 function getPassword() {
   const value =
-    process.env.WINGSM_PASSWORD;
+    process.env
+      .WINGSM_PASSWORD;
 
   if (!value) {
     throw new Error(
@@ -106,8 +125,8 @@ function getPassword() {
 // KAPAKLI        KAPAKLICMR
 // CADDE          CADDE
 //
-// Mevcut panelde CMR MERKEZ / CMR SARAY gibi isimler
-// gelirse de otomatik çevrilir.
+// CMR MERKEZ / CMR SARAY / CMR KAPAKLI gibi
+// eski isimler de desteklenmeye devam eder.
 // ======================================================
 
 export const WINGSM_DEPOT_MAP = {
@@ -154,16 +173,20 @@ export function getWingSMDepotForBranch(
 
   // CNET
   if (
-    normalized === "CNET" ||
-    normalized === "CNET DEPO" ||
-    normalized === "CNETMOBIL"
+    normalized ===
+      "CNET" ||
+    normalized ===
+      "CNET DEPO" ||
+    normalized ===
+      "CNETMOBIL"
   ) {
     return "CNET";
   }
 
   // CMR
   if (
-    normalized === "CMR" ||
+    normalized ===
+      "CMR" ||
     normalized ===
       "CMR MERKEZ"
   ) {
@@ -268,8 +291,10 @@ function extractToken(
     payload?.access_token,
 
     payload?.data?.token,
-    payload?.data?.accessToken,
-    payload?.data?.access_token,
+    payload?.data
+      ?.accessToken,
+    payload?.data
+      ?.access_token,
 
     typeof payload?.data ===
     "string"
@@ -294,6 +319,84 @@ function extractToken(
 }
 
 // ======================================================
+// WINGSM PAYLOAD MESAJI
+// ======================================================
+
+function getWingSMMessage(
+  payload: any,
+  fallback: string
+) {
+  if (
+    typeof payload?.message ===
+      "string" &&
+    payload.message.trim()
+  ) {
+    return payload.message.trim();
+  }
+
+  if (
+    typeof payload?.error ===
+      "string" &&
+    payload.error.trim()
+  ) {
+    return payload.error.trim();
+  }
+
+  return fallback;
+}
+
+// ======================================================
+// WINGSM APPLICATION-LEVEL ERROR
+// ======================================================
+//
+// ÖNEMLİ:
+//
+// WingSM bazı hatalarda HTTP 200 dönüyor:
+//
+// {
+//   "success": false,
+//   "message": "No valid source ..."
+// }
+//
+// Sadece response.ok kontrol edilirse bu cevap yanlışlıkla
+// başarılı kabul edilir.
+//
+// Bu fonksiyon HTTP'den bağımsız olarak WingSM payload'ını
+// kontrol eder.
+// ======================================================
+
+function isWingSMFailure(
+  payload: any
+) {
+  return (
+    payload &&
+    typeof payload ===
+      "object" &&
+    payload.success === false
+  );
+}
+
+// ======================================================
+// SOURCE / IP HATASI
+// ======================================================
+
+function isSourceError(
+  payload: any
+) {
+  const message =
+    getWingSMMessage(
+      payload,
+      ""
+    );
+
+  return (
+    /no valid source/i.test(
+      message
+    )
+  );
+}
+
+// ======================================================
 // AUTH TOKEN
 // ======================================================
 
@@ -310,6 +413,7 @@ async function requestNewToken() {
         headers: {
           "Content-Type":
             "application/json",
+
           Accept:
             "application/json",
         },
@@ -348,11 +452,26 @@ async function requestNewToken() {
     );
   }
 
+  // HTTP hata
   if (!response.ok) {
     throw new Error(
-      payload?.message ||
-        payload?.error ||
+      getWingSMMessage(
+        payload,
         `WingSM authenticate başarısız. HTTP ${response.status}`
+      )
+    );
+  }
+
+  // HTTP 200 ama WingSM success:false
+  if (
+    payload?.success ===
+    false
+  ) {
+    throw new Error(
+      getWingSMMessage(
+        payload,
+        "WingSM authenticate başarısız."
+      )
     );
   }
 
@@ -368,7 +487,7 @@ async function requestNewToken() {
   }
 
   // WingSM dokümanında token yaklaşık 15 dakika.
-  // Biz güvenli tarafta kalıp 14 dakika cache tutuyoruz.
+  // Güvenli tarafta 14 dakika cache.
   const expiresAt =
     Date.now() +
     14 * 60 * 1000;
@@ -390,7 +509,8 @@ export async function getWingSMToken(
   forceRefresh = false
 ) {
   const cached =
-    global.cnetWingSMTokenCache;
+    global
+      .cnetWingSMTokenCache;
 
   if (
     !forceRefresh &&
@@ -402,11 +522,15 @@ export async function getWingSMToken(
     return cached.token;
   }
 
+  // Aynı anda birkaç istek geldiyse tek authenticate
+  // isteğini paylaş.
   if (
     !forceRefresh &&
-    global.cnetWingSMTokenPromise
+    global
+      .cnetWingSMTokenPromise
   ) {
-    return global.cnetWingSMTokenPromise;
+    return global
+      .cnetWingSMTokenPromise;
   }
 
   global.cnetWingSMTokenPromise =
@@ -462,7 +586,8 @@ function buildUrl(
     ) {
       if (
         value === null ||
-        value === undefined ||
+        value ===
+          undefined ||
         value === ""
       ) {
         continue;
@@ -479,12 +604,38 @@ function buildUrl(
 }
 
 // ======================================================
+// RESPONSE PARSE
+// ======================================================
+
+async function parseWingSMResponse(
+  response: Response
+) {
+  const raw =
+    await response.text();
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `WingSM API JSON dönmedi. HTTP ${response.status}`
+    );
+  }
+}
+
+// ======================================================
 // ORTAK WINGSM REQUEST
 // ======================================================
 
-export async function wingSMRequest<T = any>(
+export async function wingSMRequest<
+  T = any
+>(
   path: string,
-  options: WingSMRequestOptions = {}
+  options:
+    WingSMRequestOptions = {}
 ): Promise<T> {
   const method =
     options.method ||
@@ -535,15 +686,21 @@ export async function wingSMRequest<T = any>(
       );
     };
 
+  // ====================================================
+  // İLK İSTEK
+  // ====================================================
+
   let response =
     await makeRequest(
       token
     );
 
-  // Token süresi dolmuşsa bir defa yeniden token al.
+  // HTTP 401 / 403 ise tokenı yenile ve bir kez tekrar dene.
   if (
-    response.status === 401 ||
-    response.status === 403
+    response.status ===
+      401 ||
+    response.status ===
+      403
   ) {
     clearWingSMToken();
 
@@ -558,28 +715,110 @@ export async function wingSMRequest<T = any>(
       );
   }
 
-  const raw =
-    await response.text();
+  let payload =
+    await parseWingSMResponse(
+      response
+    );
 
-  let payload: any =
-    null;
+  // ====================================================
+  // HTTP 200 AMA TOKEN / AUTH HATASI İHTİMALİ
+  // ====================================================
+  //
+  // Bazı eski API'lerde auth hatası HTTP 200 içinde gelebilir.
+  // Source/IP hatasında token yenilemenin anlamı yoktur.
+  // ====================================================
 
-  try {
-    payload =
-      raw
-        ? JSON.parse(raw)
-        : null;
-  } catch {
+  if (
+    response.ok &&
+    isWingSMFailure(
+      payload
+    ) &&
+    !isSourceError(
+      payload
+    )
+  ) {
+    const message =
+      getWingSMMessage(
+        payload,
+        ""
+      );
+
+    const possibleTokenError =
+      /token/i.test(
+        message
+      ) &&
+      (
+        /expire/i.test(
+          message
+        ) ||
+        /invalid/i.test(
+          message
+        ) ||
+        /unauthor/i.test(
+          message
+        )
+      );
+
+    if (
+      possibleTokenError
+    ) {
+      clearWingSMToken();
+
+      token =
+        await getWingSMToken(
+          true
+        );
+
+      response =
+        await makeRequest(
+          token
+        );
+
+      payload =
+        await parseWingSMResponse(
+          response
+        );
+    }
+  }
+
+  // ====================================================
+  // HTTP HATA
+  // ====================================================
+
+  if (!response.ok) {
     throw new Error(
-      `WingSM API JSON dönmedi. HTTP ${response.status}`
+      getWingSMMessage(
+        payload,
+        `WingSM API isteği başarısız. HTTP ${response.status}`
+      )
     );
   }
 
-  if (!response.ok) {
+  // ====================================================
+  // WINGSM HTTP 200 + success:false
+  // ====================================================
+
+  if (
+    isWingSMFailure(
+      payload
+    )
+  ) {
     const message =
-      payload?.message ||
-      payload?.error ||
-      `WingSM API isteği başarısız. HTTP ${response.status}`;
+      getWingSMMessage(
+        payload,
+        "WingSM işlemi başarısız."
+      );
+
+    // Source/IP engeli özellikle belirgin kalsın.
+    if (
+      isSourceError(
+        payload
+      )
+    ) {
+      throw new Error(
+        `WINGSM_SOURCE_BLOCKED: ${message}`
+      );
+    }
 
     throw new Error(
       message
@@ -596,22 +835,30 @@ export async function wingSMRequest<T = any>(
 // Dokümandaki:
 // GET /api/b2b/stok/list
 //
-// CNETMOBIL entegrasyonunda sabit kural:
-// - sadece 2. el ürün sınıfı: sinif = 2el
-// - sadece stoğu olan ürünler: stok = 1
-// - depo = ilgili WingSM mağaza/depo kodu
+// CNETMOBIL için sabit:
+// - sinif = 2el
+// - stok = 1
+// - depo = WingSM depo kodu
 //
-// NOT:
-// onlyInStock parametresi geriye uyumluluk için tutuluyor.
-// Mevcut route'lar getWingSMStock(depot, true) şeklinde çağırdığı için
-// kaldırmıyoruz; fakat değer ne olursa olsun stok=1 zorunlu gönderilir.
-// Böylece yanlışlıkla stok=0 / tüm stoklar çekilemez.
+// onlyInStock parametresi eski çağrılar bozulmasın diye
+// tutulur. Değeri ne olursa olsun stok=1 gönderilir.
 // ======================================================
 
 export async function getWingSMStock(
   depot: string,
   _onlyInStock = true
 ) {
+  const normalizedDepot =
+    normalizeBranch(
+      depot
+    );
+
+  if (!normalizedDepot) {
+    throw new Error(
+      "WingSM depo kodu boş olamaz."
+    );
+  }
+
   return wingSMRequest(
     "/api/b2b/stok/list",
     {
@@ -620,7 +867,7 @@ export async function getWingSMStock(
 
       query: {
         depo:
-          depot,
+          normalizedDepot,
 
         sinif:
           "2el",
@@ -676,9 +923,20 @@ export async function getWingSMStockByBranch(
 export async function getWingSMProductById(
   id: string | number
 ) {
+  const value =
+    String(
+      id ?? ""
+    ).trim();
+
+  if (!value) {
+    throw new Error(
+      "WingSM ürün ID gerekli."
+    );
+  }
+
   return wingSMRequest(
     `/api/b2b/urun/${encodeURIComponent(
-      String(id)
+      value
     )}`
   );
 }
@@ -690,27 +948,39 @@ export async function getWingSMProductById(
 export async function getWingSMProductByCode(
   code: string
 ) {
+  const value =
+    String(
+      code ?? ""
+    ).trim();
+
+  if (!value) {
+    throw new Error(
+      "WingSM ürün kodu gerekli."
+    );
+  }
+
   return wingSMRequest(
     `/api/b2b/urun/kod/${encodeURIComponent(
-      code
+      value
     )}`
   );
 }
 
 // ======================================================
-// HEALTH CONFIG
+// HEALTH / CONFIG
 // ======================================================
 
 export function getWingSMConfigStatus() {
   return {
-    configured: Boolean(
-      process.env
-        .WINGSM_BASE_URL &&
+    configured:
+      Boolean(
+        process.env
+          .WINGSM_BASE_URL &&
         process.env
           .WINGSM_USER &&
         process.env
           .WINGSM_PASSWORD
-    ),
+      ),
 
     hasBaseUrl:
       Boolean(
