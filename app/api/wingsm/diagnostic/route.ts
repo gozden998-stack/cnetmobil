@@ -1,16 +1,16 @@
 // app/api/wingsm/diagnostic/route.ts
-// CNETMOBIL - WingSM B2B teşhis testi
+// CNETMOBIL - WingSM B2B kesin teşhis testi
 //
-// TESTLER:
+// TEST:
 // 1) Authenticate
 // 2) B2B müşteri servisi
 // 3) B2B stok servisi
 //
-// NOT:
-// - Token response'a ASLA yazılmaz.
-// - Şifre response'a ASLA yazılmaz.
-// - Veri değiştirmez.
-// - Sadece GET teşhis çağrıları yapar.
+// Güvenlik:
+// - Token response'a yazılmaz.
+// - Şifre response'a yazılmaz.
+// - Sadece teşhis amaçlıdır.
+// - WingSM'de veri değiştirmez.
 
 import {
   NextRequest,
@@ -26,14 +26,45 @@ export const revalidate = 0;
 // ======================================================
 
 type AuthPayload = {
+  success?: boolean;
   token?: string;
   accessToken?: string;
   access_token?: string;
   data?: any;
   message?: string;
   error?: string;
-  success?: boolean;
 };
+
+type EndpointCheck = {
+  ok: boolean;
+  httpStatus?: number;
+  responseTimeMs?: number;
+  sourceBlocked?: boolean;
+  detectedSourceIp?: string | null;
+  networkError?: boolean;
+  message?: string;
+  responsePreview?: string;
+};
+
+// ======================================================
+// JSON RESPONSE
+// ======================================================
+
+function json(
+  body: Record<string, unknown>,
+  status = 200
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control":
+        "no-store, max-age=0",
+      Pragma: "no-cache",
+      "X-Content-Type-Options":
+        "nosniff",
+    },
+  });
+}
 
 // ======================================================
 // TOKEN BUL
@@ -58,13 +89,9 @@ function pickToken(
       : null,
   ];
 
-  for (
-    const candidate of
-    candidates
-  ) {
+  for (const candidate of candidates) {
     if (
-      typeof candidate ===
-        "string" &&
+      typeof candidate === "string" &&
       candidate.trim()
     ) {
       return candidate.trim();
@@ -75,7 +102,7 @@ function pickToken(
 }
 
 // ======================================================
-// JSON PARSE
+// RAW -> JSON
 // ======================================================
 
 function parsePayload(
@@ -93,7 +120,7 @@ function parsePayload(
 }
 
 // ======================================================
-// GÜVENLİ PREVIEW
+// HASSAS ALANLARI GİZLE
 // ======================================================
 
 function sanitizeValue(
@@ -106,17 +133,14 @@ function sanitizeValue(
     return value;
   }
 
-  if (
-    Array.isArray(value)
-  ) {
+  if (Array.isArray(value)) {
     return value.map(
       sanitizeValue
     );
   }
 
   if (
-    typeof value ===
-    "object"
+    typeof value === "object"
   ) {
     const cleaned: Record<
       string,
@@ -124,14 +148,10 @@ function sanitizeValue(
     > = {};
 
     for (
-      const [
-        key,
-        itemValue,
-      ] of Object.entries(
-        value
-      )
+      const [key, itemValue] of
+      Object.entries(value)
     ) {
-      const normalizedKey =
+      const normalized =
         key
           .toLowerCase()
           .replace(
@@ -140,14 +160,12 @@ function sanitizeValue(
           );
 
       if (
-        normalizedKey ===
-          "token" ||
-        normalizedKey ===
+        normalized === "token" ||
+        normalized ===
           "accesstoken" ||
-        normalizedKey ===
+        normalized ===
           "password" ||
-        normalizedKey ===
-          "secret"
+        normalized === "secret"
       ) {
         cleaned[key] =
           "***GIZLENDI***";
@@ -167,49 +185,44 @@ function sanitizeValue(
   return value;
 }
 
+// ======================================================
+// GÜVENLİ RESPONSE PREVIEW
+// ======================================================
+
 function safePreview(
   value: unknown,
   max = 2000
 ) {
-  let text = "";
-
   try {
     const cleaned =
-      sanitizeValue(
-        value
-      );
+      sanitizeValue(value);
 
-    text =
-      typeof cleaned ===
-      "string"
+    const text =
+      typeof cleaned === "string"
         ? cleaned
         : JSON.stringify(
             cleaned,
             null,
             2
           );
+
+    if (
+      text.length <= max
+    ) {
+      return text;
+    }
+
+    return (
+      text.slice(0, max) +
+      "\n...TRUNCATED..."
+    );
   } catch {
-    text =
-      "Cevap görüntülenemedi.";
+    return "Cevap görüntülenemedi.";
   }
-
-  if (
-    text.length <= max
-  ) {
-    return text;
-  }
-
-  return (
-    text.slice(
-      0,
-      max
-    ) +
-    "\n...TRUNCATED..."
-  );
 }
 
 // ======================================================
-// SOURCE BLOCK TESPİT
+// NO VALID SOURCE KONTROLÜ
 // ======================================================
 
 function detectSourceBlock(
@@ -219,36 +232,32 @@ function detectSourceBlock(
 
   try {
     text =
-      typeof payload ===
-      "string"
+      typeof payload === "string"
         ? payload
         : JSON.stringify(
             payload ?? {}
           );
   } catch {
-    text = "";
+    return false;
   }
 
-  return (
-    /no valid source/i.test(
-      text
-    )
+  return /no valid source/i.test(
+    text
   );
 }
 
 // ======================================================
-// SOURCE IP TESPİT
+// WINGSM'İN GÖRDÜĞÜ IP
 // ======================================================
 
 function extractSourceIp(
   payload: unknown
-) {
+): string | null {
   let text = "";
 
   try {
     text =
-      typeof payload ===
-      "string"
+      typeof payload === "string"
         ? payload
         : JSON.stringify(
             payload ?? {}
@@ -262,40 +271,27 @@ function extractSourceIp(
       /Ip\s*:\s*([0-9.]+)/i
     );
 
-  return (
-    match?.[1] ||
-    null
-  );
+  return match?.[1] || null;
 }
 
 // ======================================================
-// RESPONSE
+// PAYLOAD SUCCESS
 // ======================================================
 
-function json(
-  body: Record<
-    string,
-    unknown
-  >,
-  status = 200
+function payloadSucceeded(
+  payload: any
 ) {
-  return NextResponse.json(
-    body,
-    {
-      status,
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "success" in payload
+  ) {
+    return (
+      payload.success !== false
+    );
+  }
 
-      headers: {
-        "Cache-Control":
-          "no-store, max-age=0",
-
-        Pragma:
-          "no-cache",
-
-        "X-Content-Type-Options":
-          "nosniff",
-      },
-    }
-  );
+  return true;
 }
 
 // ======================================================
@@ -316,10 +312,7 @@ export async function GET(
     process.env
       .WINGSM_BASE_URL
       ?.trim()
-      .replace(
-        /\/+$/,
-        ""
-      );
+      .replace(/\/+$/, "");
 
   const user =
     process.env
@@ -355,23 +348,16 @@ export async function GET(
     ]);
 
   if (
-    !allowedDepots.has(
-      depo
-    )
+    !allowedDepots.has(depo)
   ) {
     return json(
       {
         success: false,
-
         diagnostic:
           "WINGSM_B2B_SOURCE_TEST",
-
-        stage:
-          "INPUT",
-
+        stage: "INPUT",
         message:
           `Geçersiz depo: ${depo}`,
-
         allowedDepots:
           Array.from(
             allowedDepots
@@ -393,31 +379,18 @@ export async function GET(
     return json(
       {
         success: false,
-
         diagnostic:
           "WINGSM_B2B_SOURCE_TEST",
-
-        stage:
-          "CONFIG",
-
+        stage: "CONFIG",
         message:
           "WingSM environment ayarları eksik.",
-
         env: {
           WINGSM_BASE_URL:
-            Boolean(
-              baseUrl
-            ),
-
+            Boolean(baseUrl),
           WINGSM_USER:
-            Boolean(
-              user
-            ),
-
+            Boolean(user),
           WINGSM_PASSWORD:
-            Boolean(
-              password
-            ),
+            Boolean(password),
         },
       },
       500
@@ -425,16 +398,40 @@ export async function GET(
   }
 
   // ====================================================
-  // SONUÇ NESNESİ
+  // SONUÇ
   // ====================================================
 
-  const result: any = {
+  const result: {
+    success: boolean;
+    diagnostic: string;
+    depot: string;
+    checks: {
+      authenticate:
+        EndpointCheck;
+      customer:
+        EndpointCheck;
+      stock:
+        EndpointCheck;
+    };
+    stage?: string;
+    message?: string;
+    detectedSourceIp?:
+      string | null;
+    summary?: {
+      authenticate: string;
+      customer: string;
+      stock: string;
+    };
+    totalTimeMs?: number;
+  } = {
     success: false,
 
     diagnostic:
       "WINGSM_B2B_SOURCE_TEST",
 
-    depot,
+    // BURASI ÖNCEKİ BUILD HATASININ
+    // DÜZELTİLDİĞİ YER:
+    depot: depo,
 
     checks: {
       authenticate: {
@@ -456,8 +453,7 @@ export async function GET(
   // ====================================================
 
   let token:
-    | string
-    | null = null;
+    string | null = null;
 
   try {
     const authStarted =
@@ -467,8 +463,7 @@ export async function GET(
       await fetch(
         `${baseUrl}/api/authenticate`,
         {
-          method:
-            "POST",
+          method: "POST",
 
           cache:
             "no-store",
@@ -500,10 +495,15 @@ export async function GET(
     const authPayload =
       parsePayload(
         authRaw
-      );
+      ) as AuthPayload | null;
 
     token =
       pickToken(
+        authPayload
+      );
+
+    const authPayloadOk =
+      payloadSucceeded(
         authPayload
       );
 
@@ -511,6 +511,7 @@ export async function GET(
       {
         ok:
           authResponse.ok &&
+          authPayloadOk &&
           Boolean(token),
 
         httpStatus:
@@ -520,10 +521,6 @@ export async function GET(
           Date.now() -
           authStarted,
 
-        tokenReceived:
-          Boolean(token),
-
-        // TOKEN BURADA ASLA GÖSTERİLMEZ
         responsePreview:
           authResponse.ok &&
           token
@@ -535,20 +532,24 @@ export async function GET(
 
     if (
       !authResponse.ok ||
+      !authPayloadOk ||
       !token
     ) {
       result.stage =
-        "AUTH";
+        "AUTH_FAILED";
 
       result.message =
-        "WingSM authenticate başarısız.";
+        "WingSM authenticate işlemi başarısız.";
 
       result.totalTimeMs =
         Date.now() -
         startedAt;
 
       return json(
-        result,
+        result as unknown as Record<
+          string,
+          unknown
+        >,
         502
       );
     }
@@ -559,9 +560,12 @@ export async function GET(
       {
         ok: false,
 
+        networkError:
+          true,
+
         message:
           error?.name ===
-          "TimeoutError"
+            "TimeoutError"
             ? "Authenticate 15 saniye içinde cevap vermedi."
             : error?.message ||
               "Authenticate bağlantı hatası.",
@@ -580,18 +584,21 @@ export async function GET(
       startedAt;
 
     return json(
-      result,
+      result as unknown as Record<
+        string,
+        unknown
+      >,
       502
     );
   }
 
   // ====================================================
-  // ORTAK B2B TEST
+  // ORTAK B2B ENDPOINT TESTİ
   // ====================================================
 
   async function testEndpoint(
     url: string
-  ) {
+  ): Promise<EndpointCheck> {
     const endpointStarted =
       Date.now();
 
@@ -600,8 +607,7 @@ export async function GET(
         await fetch(
           url,
           {
-            method:
-              "GET",
+            method: "GET",
 
             cache:
               "no-store",
@@ -628,33 +634,27 @@ export async function GET(
         await response.text();
 
       const payload =
-        parsePayload(
-          raw
-        );
+        parsePayload(raw);
 
       const sourceBlocked =
         detectSourceBlock(
           payload
         );
 
-      const detectedSourceIp =
+      const sourceIp =
         extractSourceIp(
           payload
         );
 
-      const payloadSuccess =
-        typeof payload ===
-          "object" &&
-        payload !== null &&
-        "success" in payload
-          ? payload.success !==
-            false
-          : true;
+      const appSuccess =
+        payloadSucceeded(
+          payload
+        );
 
       return {
         ok:
           response.ok &&
-          payloadSuccess &&
+          appSuccess &&
           !sourceBlocked,
 
         httpStatus:
@@ -666,7 +666,8 @@ export async function GET(
 
         sourceBlocked,
 
-        detectedSourceIp,
+        detectedSourceIp:
+          sourceIp,
 
         responsePreview:
           safePreview(
@@ -688,16 +689,16 @@ export async function GET(
 
         message:
           error?.name ===
-          "TimeoutError"
+            "TimeoutError"
             ? "Endpoint 20 saniye içinde cevap vermedi."
             : error?.message ||
-              "Bağlantı hatası.",
+              "WingSM endpoint bağlantı hatası.",
       };
     }
   }
 
   // ====================================================
-  // 2) MÜŞTERİ B2B TESTİ
+  // 2) MÜŞTERİ TESTİ
   // ====================================================
 
   result.checks.customer =
@@ -706,7 +707,7 @@ export async function GET(
     );
 
   // ====================================================
-  // 3) STOK B2B TESTİ
+  // 3) STOK TESTİ
   // ====================================================
 
   const stockUrl =
@@ -739,25 +740,16 @@ export async function GET(
   // ====================================================
 
   const authOk =
-    Boolean(
-      result.checks
-        .authenticate
-        .ok
-    );
+    result.checks
+      .authenticate.ok;
 
   const customerOk =
-    Boolean(
-      result.checks
-        .customer
-        .ok
-    );
+    result.checks
+      .customer.ok;
 
   const stockOk =
-    Boolean(
-      result.checks
-        .stock
-        .ok
-    );
+    result.checks
+      .stock.ok;
 
   const customerBlocked =
     Boolean(
@@ -790,9 +782,7 @@ export async function GET(
 
     result.message =
       "WingSM B2B bağlantısı tamamen başarılı. Authenticate, müşteri ve stok servisleri çalışıyor.";
-  }
-
-  else if (
+  } else if (
     authOk &&
     customerBlocked &&
     stockBlocked
@@ -805,9 +795,7 @@ export async function GET(
 
     result.message =
       "Authenticate başarılı ancak müşteri ve stok B2B servislerinin ikisi de source/IP kontrolünde reddediliyor.";
-  }
-
-  else if (
+  } else if (
     authOk &&
     customerOk &&
     stockBlocked
@@ -819,10 +807,8 @@ export async function GET(
       "STOCK_SOURCE_BLOCKED";
 
     result.message =
-      "Müşteri B2B servisi çalışıyor ancak stok servisi source/IP kontrolünde reddediliyor. WingSM stok/depo yetkisi kontrol edilmeli.";
-  }
-
-  else if (
+      "Müşteri B2B servisi başarılı ancak stok B2B servisi source/IP kontrolünde reddediliyor.";
+  } else if (
     authOk &&
     stockOk &&
     !customerOk
@@ -834,10 +820,8 @@ export async function GET(
       "STOCK_OK_CUSTOMER_ERROR";
 
     result.message =
-      "WingSM stok servisi başarılı. Müşteri servisi ayrı bir hata döndürüyor fakat stok entegrasyonu açısından source/IP engeli görünmüyor.";
-  }
-
-  else {
+      "WingSM stok servisi çalışıyor. Müşteri servisinde ayrı bir hata bulunuyor.";
+  } else {
     result.success =
       false;
 
@@ -849,14 +833,14 @@ export async function GET(
   }
 
   // ====================================================
-  // WINGSM'İN GÖRDÜĞÜ SOURCE IP
+  // WINGSM'İN GÖRDÜĞÜ IP
   // ====================================================
 
   result.detectedSourceIp =
     result.checks.stock
-      ?.detectedSourceIp ||
+      .detectedSourceIp ||
     result.checks.customer
-      ?.detectedSourceIp ||
+      .detectedSourceIp ||
     null;
 
   // ====================================================
@@ -873,26 +857,26 @@ export async function GET(
       customerOk
         ? "OK"
         : customerBlocked
-        ? "SOURCE_BLOCKED"
-        : "ERROR",
+          ? "SOURCE_BLOCKED"
+          : "ERROR",
 
     stock:
       stockOk
         ? "OK"
         : stockBlocked
-        ? "SOURCE_BLOCKED"
-        : "ERROR",
+          ? "SOURCE_BLOCKED"
+          : "ERROR",
   };
 
   result.totalTimeMs =
     Date.now() -
     startedAt;
 
-  // Kaynak engeli varsa teşhis endpoint'i 502 döndürür.
-  // Her şey başarılıysa 200 döndürür.
-
   return json(
-    result,
+    result as unknown as Record<
+      string,
+      unknown
+    >,
     result.success
       ? 200
       : 502
