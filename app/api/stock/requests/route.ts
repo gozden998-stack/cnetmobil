@@ -198,6 +198,12 @@ function normalizeBranch(value: unknown) {
   return String(value ?? '').trim().toLocaleUpperCase('tr-TR');
 }
 
+// Yönetici mail oturumu backend tarafında "admin" rolü ile temsil edilir.
+// Super Admin ayrı tutulur ve mevcut geniş yetkisi korunur.
+function isManagerUser(user: ActiveUser) {
+  return !user.isSuperAdmin && String(user.role || '').trim().toLowerCase() === 'admin';
+}
+
 function parsePositiveId(value: unknown) {
   const id = Number(value);
 
@@ -388,6 +394,9 @@ async function getCapacity(
 //   incoming = kendi stoğuna gelen talepler
 //   outgoing = kendi mağazasının yaptığı talepler
 //
+// Yönetici mail (admin):
+//   CNET deposunun incoming/outgoing taleplerini görür.
+//
 // Super Admin:
 //   tüm aktif/geçmiş talepler
 // ============================================================
@@ -403,9 +412,12 @@ export async function GET(request: NextRequest) {
 
     let whereSql = '';
     const params: unknown[] = [];
+    const managerAccess = isManagerUser(user);
 
     if (!user.isSuperAdmin) {
-      if (!user.stockBranchCode) {
+      const effectiveBranch = managerAccess ? 'CNET' : user.stockBranchCode;
+
+      if (!effectiveBranch) {
         return json(
           {
             success: false,
@@ -415,7 +427,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      params.push(user.stockBranchCode);
+      params.push(effectiveBranch);
       whereSql = `
         WHERE
           dr.requester_branch_code = $1
@@ -472,6 +484,8 @@ export async function GET(request: NextRequest) {
         username: user.username,
         stockBranchCode: user.stockBranchCode,
         isSuperAdmin: user.isSuperAdmin,
+        isManager: managerAccess,
+        effectiveRequestBranch: managerAccess ? 'CNET' : user.stockBranchCode,
       },
       requests: result.rows,
       count: result.rows.length,
@@ -492,6 +506,7 @@ export async function GET(request: NextRequest) {
 // body: { deviceId: 123 }
 //
 // Super Admin test/yönetim için requesterBranchCode gönderebilir.
+// Yönetici mailde requester her zaman CNET'tir.
 // Normal kullanıcıda requester her zaman kendi stock_branch_code değeridir.
 // ============================================================
 export async function POST(request: NextRequest) {
@@ -528,10 +543,16 @@ export async function POST(request: NextRequest) {
       data.requesterBranchCode
     );
 
+    const managerAccess = isManagerUser(user);
     let requesterBranch: string;
 
     if (user.isSuperAdmin && requestedRequesterBranch) {
       requesterBranch = requestedRequesterBranch;
+    } else if (managerAccess) {
+      // Yönetici mail CNET deposunu temsil eder.
+      // CMR / CADDE / KAPAKLI / SARAY cihazlarına yaptığı talepler CNET adına açılır.
+      // Body'den farklı requesterBranchCode göndererek bu kural aşılamaz.
+      requesterBranch = 'CNET';
     } else {
       if (!user.stockBranchCode) {
         return json(
@@ -544,6 +565,20 @@ export async function POST(request: NextRequest) {
       }
 
       requesterBranch = user.stockBranchCode;
+    }
+
+    if (
+      managerAccess &&
+      requestedRequesterBranch &&
+      requestedRequesterBranch !== 'CNET'
+    ) {
+      return json(
+        {
+          success: false,
+          error: 'Yönetici talepleri yalnızca CNET deposu adına oluşturabilir.',
+        },
+        403
+      );
     }
 
     client = await getPool().connect();
@@ -789,6 +824,7 @@ export async function POST(request: NextRequest) {
 // { requestId, action: "SEND" }
 //
 // Normal kullanıcı yalnızca kendi stoğuna gelen talepte RED/GÖNDERİLDİ yapabilir.
+// Yönetici mail yalnızca CNET deposuna gelen taleplerde RED/GÖNDERİLDİ yapabilir.
 // Super Admin tüm talepleri yönetebilir.
 // ============================================================
 export async function PATCH(request: NextRequest) {
@@ -880,15 +916,23 @@ export async function PATCH(request: NextRequest) {
       return json({ success: false, error: 'Talep bulunamadı.' }, 404);
     }
 
-    if (
-      !user.isSuperAdmin &&
-      user.stockBranchCode !== requestRow.owner_branch_code
-    ) {
+    const managerAccess = isManagerUser(user);
+    const ownerBranch = normalizeBranch(requestRow.owner_branch_code);
+
+    const canManageRequest =
+      user.isSuperAdmin ||
+      (managerAccess
+        ? ownerBranch === 'CNET'
+        : user.stockBranchCode === ownerBranch);
+
+    if (!canManageRequest) {
       await client.query('ROLLBACK');
       return json(
         {
           success: false,
-          error: 'Başka mağazanın talebini yönetemezsiniz.',
+          error: managerAccess
+            ? 'Yönetici yalnızca CNET deposuna gelen talepleri yönetebilir.'
+            : 'Başka mağazanın talebini yönetemezsiniz.',
         },
         403
       );
