@@ -5,27 +5,28 @@
 // KESIN KURAL:
 // - WingSM'e HICBIR ZAMAN yazmaz.
 // - WingSM tarafinda sadece GET kullanir.
-// - POST burada sadece BIZIM PostgreSQL'e yazar.
+// - Bu route'un POST olmasi WingSM'e POST attigi anlamina gelmez.
+// - POST sadece BIZIM PostgreSQL senkronunu baslatir.
 //
-// Akis:
+// AKIS:
 // 1) 5 WingSM deposunun 2el stoklarini oku.
 // 2) Pozitif stoktaki benzersiz MalKod'lari bul.
 // 3) Her MalKod icin /api/b2b/urun/kod/:kod oku.
 // 4) listSeri icinden DepoKod + SeriNo al.
 // 5) WingSM DepoMiktar ile IMEI sayisini karsilastir.
 // 6) Guvenli cihazlari public.stock_devices tablosuna upsert et.
-// 7) WingSM'de gercekten hedef magazaya gecmis TRANSFER_WAITING
-//    talebi varsa yerelde COMPLETED yap.
+// 7) WingSM'de gercek transfer gorulurse yerel talebi tamamla.
 //
 // GET:
+// - Sadece Super Admin.
 // - SADECE ONIZLEME.
 // - PostgreSQL'e yazmaz.
 //
 // POST:
+// - Super Admin panelden manuel calistirabilir.
+// - WINGSM_SYNC_SECRET ile cron otomatik calistirabilir.
 // - WingSM'i yine SADECE OKUR.
-// - PostgreSQL stock_devices senkronunu yapar.
-//
-// Sadece super_admin kullanabilir.
+// - PostgreSQL'i senkronlar.
 
 import {
   NextRequest,
@@ -101,7 +102,9 @@ type SessionPayload = {
 
 type ActiveUser = {
   id: number;
+
   username: string;
+
   isSuperAdmin: boolean;
 };
 
@@ -209,10 +212,8 @@ type SnapshotResult = {
   serialConflicts:
     Array<{
       imei: string;
-      first:
-        string;
-      second:
-        string;
+      first: string;
+      second: string;
     }>;
 
   productCount:
@@ -264,7 +265,8 @@ function json(
 
 function getPool() {
   const connectionString =
-    process.env.DATABASE_URL;
+    process.env
+      .DATABASE_URL;
 
   if (!connectionString) {
     throw new Error(
@@ -426,6 +428,7 @@ async function getSuperAdmin(
 
           EXISTS (
             SELECT 1
+
             FROM public.user_roles ur
 
             JOIN public.roles r
@@ -433,9 +436,11 @@ async function getSuperAdmin(
 
             WHERE ur.user_id = u.id
 
-              AND r.code = 'super_admin'
+              AND r.code =
+                'super_admin'
 
-              AND r.active = TRUE
+              AND r.active =
+                TRUE
           ) AS is_super_admin
 
         FROM public.users u
@@ -463,7 +468,9 @@ async function getSuperAdmin(
 
   return {
     id:
-      Number(row.id),
+      Number(
+        row.id
+      ),
 
     username:
       String(
@@ -476,7 +483,7 @@ async function getSuperAdmin(
 }
 
 // ======================================================
-// POST ORIGIN KONTROL
+// MANUEL POST ORIGIN KONTROL
 // ======================================================
 
 function validateOrigin(
@@ -492,7 +499,8 @@ function validateOrigin(
   }
 
   const expectedAppUrl =
-    process.env.APP_URL;
+    process.env
+      .APP_URL;
 
   if (expectedAppUrl) {
     try {
@@ -516,10 +524,12 @@ function validateOrigin(
     request.headers.get(
       "x-forwarded-proto"
     ) ||
-    request.nextUrl.protocol.replace(
-      ":",
-      ""
-    );
+    request.nextUrl
+      .protocol
+      .replace(
+        ":",
+        ""
+      );
 
   if (!host) {
     return false;
@@ -529,6 +539,60 @@ function validateOrigin(
     origin ===
     `${proto}://${host}`
   );
+}
+
+// ======================================================
+// CRON SECRET KONTROL
+// ======================================================
+
+function isCronAuthorized(
+  request: NextRequest
+) {
+  const secret =
+    String(
+      process.env
+        .WINGSM_SYNC_SECRET ||
+        ""
+    ).trim();
+
+  if (!secret) {
+    return false;
+  }
+
+  const received =
+    String(
+      request.headers.get(
+        "authorization"
+      ) || ""
+    );
+
+  const expected =
+    `Bearer ${secret}`;
+
+  const receivedBuffer =
+    Buffer.from(
+      received,
+      "utf8"
+    );
+
+  const expectedBuffer =
+    Buffer.from(
+      expected,
+      "utf8"
+    );
+
+  if (
+    receivedBuffer.length !==
+    expectedBuffer.length
+  ) {
+    return false;
+  }
+
+  return crypto
+    .timingSafeEqual(
+      receivedBuffer,
+      expectedBuffer
+    );
 }
 
 // ======================================================
@@ -552,7 +616,9 @@ function numberOrZero(
   value: unknown
 ) {
   const number =
-    Number(value);
+    Number(
+      value
+    );
 
   if (
     !Number.isFinite(
@@ -569,7 +635,9 @@ function validImei(
   value: unknown
 ) {
   return /^[0-9]{14,16}$/.test(
-    text(value)
+    text(
+      value
+    )
   );
 }
 
@@ -583,12 +651,15 @@ const DEPOT_TO_BRANCH =
     BranchCode
   >(
     MANAGED_BRANCHES.map(
-      (branch) => [
+      (
+        branch
+      ) => [
         String(
           WINGSM_DEPOT_MAP[
             branch
           ]
         ),
+
         branch,
       ]
     )
@@ -602,10 +673,11 @@ function extractMemory(
   value: unknown
 ) {
   const raw =
-    text(value)
-      .toLocaleUpperCase(
-        "tr-TR"
-      );
+    text(
+      value
+    ).toLocaleUpperCase(
+      "tr-TR"
+    );
 
   const match =
     raw.match(
@@ -641,7 +713,9 @@ function deriveModel(
   fallbackGroup: string
 ) {
   let value =
-    text(productName);
+    text(
+      productName
+    );
 
   value =
     value.replace(
@@ -662,7 +736,6 @@ function deriveModel(
       );
   }
 
-  // Hafizayi modelden ayir.
   value =
     value.replace(
       /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
@@ -711,16 +784,19 @@ function productMeta(
   stockRow?: WingStockRow
 ) {
   const data =
-    detail?.data || {};
+    detail?.data ||
+    {};
 
   const mamul =
-    data?.mamul || {};
+    data?.mamul ||
+    {};
 
   const brand =
     text(
       data?.cins?.Ad ||
         mamul?.CinsAdI ||
-        stockRow?.MalCinsAd
+        stockRow
+          ?.MalCinsAd
     );
 
   const productName =
@@ -733,7 +809,8 @@ function productMeta(
     text(
       data?.grup?.Ad ||
         mamul?.GrupAdI ||
-        stockRow?.MalGrupAd
+        stockRow
+          ?.MalGrupAd
     );
 
   const memory =
@@ -754,8 +831,10 @@ function productMeta(
   const color =
     text(
       data?.grup2?.Ad ||
-        mamul?.Grup2AdI ||
-        stockRow?.MalGrup2Ad
+        mamul
+          ?.Grup2AdI ||
+        stockRow
+          ?.MalGrup2Ad
     );
 
   return {
@@ -839,7 +918,8 @@ async function mapLimit<
 // WINGSM SNAPSHOT
 // ======================================================
 
-async function buildWingSMSnapshot(): Promise<SnapshotResult> {
+async function buildWingSMSnapshot():
+Promise<SnapshotResult> {
   const stockReadErrors:
     SnapshotResult["stockReadErrors"] =
     [];
@@ -859,21 +939,20 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
   const successfulBranches:
     string[] = [];
 
-  // MalKod -> örnek stok satırı
   const sampleStockByCode =
     new Map<
       string,
       WingStockRow
     >();
 
-  // MalKod|Depo -> WingSM DepoMiktar
   const expectedQuantity =
     new Map<
       string,
       number
     >();
 
-  let stockRowCount = 0;
+  let stockRowCount =
+    0;
 
   // ==================================================
   // 5 DEPO STOK OKUMA
@@ -892,7 +971,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
           );
 
         try {
-          const response: any =
+          const response:
+            any =
             await getWingSMStock(
               depot,
               true
@@ -901,7 +981,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
           const rows:
             WingStockRow[] =
             Array.isArray(
-              response?.data
+              response
+                ?.data
             )
               ? response.data
               : [];
@@ -916,18 +997,21 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
           ) {
             const quantity =
               numberOrZero(
-                row?.DepoMiktar
+                row
+                  ?.DepoMiktar
               );
 
             if (
-              quantity <= 0
+              quantity <=
+              0
             ) {
               continue;
             }
 
             const productCode =
               text(
-                row?.MalKod
+                row
+                  ?.MalKod
               );
 
             if (
@@ -958,23 +1042,28 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
               (
                 expectedQuantity.get(
                   key
-                ) || 0
+                ) ||
+                0
               ) +
                 quantity
             );
           }
-        } catch (error) {
-          stockReadErrors.push({
-            branch,
+        } catch (
+          error
+        ) {
+          stockReadErrors.push(
+            {
+              branch,
 
-            depot,
+              depot,
 
-            error:
-              error instanceof
-              Error
-                ? error.message
-                : "WingSM stok okuma hatası.",
-          });
+              error:
+                error instanceof
+                Error
+                  ? error.message
+                  : "WingSM stok okuma hatası.",
+            }
+          );
         }
       }
     )
@@ -982,7 +1071,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
 
   const productCodes =
     Array.from(
-      sampleStockByCode.keys()
+      sampleStockByCode
+        .keys()
     );
 
   const successfulDepots =
@@ -999,19 +1089,17 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
       )
     );
 
-  // IMEI -> aday cihaz
   const candidateMap =
     new Map<
       string,
       DeviceCandidate
     >();
 
-  // Conflict IMEI'leri sonra çıkaracağız.
   const conflictedImeis =
     new Set<string>();
 
   // ==================================================
-  // HER MALKOD ICIN SADECE 1 DETAY CAGRI
+  // HER MALKOD ICIN 1 DETAY CAGRI
   // ==================================================
 
   await mapLimit(
@@ -1021,7 +1109,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
       productCode
     ) => {
       try {
-        const detail: any =
+        const detail:
+          any =
           await getWingSMProductByCode(
             productCode
           );
@@ -1030,12 +1119,14 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
           !detail?.success ||
           !detail?.data
         ) {
-          detailErrors.push({
-            productCode,
+          detailErrors.push(
+            {
+              productCode,
 
-            error:
-              "WingSM ürün detayı boş döndü.",
-          });
+              error:
+                "WingSM ürün detayı boş döndü.",
+            }
+          );
 
           return;
         }
@@ -1056,15 +1147,16 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
             detail?.data
               ?.listSeri
           )
-            ? detail.data
+            ? detail
+                .data
                 .listSeri
             : [];
 
-        // Sadece bizim takip ettiğimiz
-        // ve stok okuması başarılı olan depolar.
         const managedSerials =
           serialRows.filter(
-            (serial: any) => {
+            (
+              serial: any
+            ) => {
               const depot =
                 text(
                   serial
@@ -1078,13 +1170,14 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
                 numberOrZero(
                   serial
                     ?.StokMiktar
-                ) > 0
+                ) >
+                  0
               );
             }
           );
 
         // ==================================================
-        // DEPO BAZINDA ADET / IMEI KONTROLU
+        // DEPO ADET / IMEI KONTROLU
         // ==================================================
 
         let productSafe =
@@ -1112,15 +1205,19 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
           const stockQuantity =
             expectedQuantity.get(
               `${productCode}|${depot}`
-            ) || 0;
+            ) ||
+            0;
 
           const depotSerials =
             managedSerials.filter(
-              (serial: any) =>
+              (
+                serial: any
+              ) =>
                 text(
                   serial
                     ?.DepoKod
-                ) === depot &&
+                ) ===
+                  depot &&
                 validImei(
                   serial
                     ?.SeriNo
@@ -1137,31 +1234,33 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
             productSafe =
               false;
 
-            mismatches.push({
-              productCode,
+            mismatches.push(
+              {
+                productCode,
 
-              productName:
-                meta.productName,
+                productName:
+                  meta.productName,
 
-              branch,
+                branch,
 
-              depot,
+                depot,
 
-              stockQuantity,
+                stockQuantity,
 
-              imeiCount,
-            });
+                imeiCount,
+              }
+            );
           }
         }
 
-        // Bu MalKod'da adet / IMEI farkı varsa
-        // o ürünü hiç senkronlamıyoruz.
-        if (!productSafe) {
+        if (
+          !productSafe
+        ) {
           return;
         }
 
         // ==================================================
-        // FIZIKSEL CIHAZLARI OLUSTUR
+        // FIZIKSEL CIHAZLAR
         // ==================================================
 
         for (
@@ -1170,7 +1269,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
         ) {
           const imei =
             text(
-              serial?.SeriNo
+              serial
+                ?.SeriNo
             );
 
           if (
@@ -1183,7 +1283,8 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
 
           const depot =
             text(
-              serial?.DepoKod
+              serial
+                ?.DepoKod
             );
 
           const branchCode =
@@ -1230,7 +1331,9 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
               imei
             );
 
-          if (!existing) {
+          if (
+            !existing
+          ) {
             candidateMap.set(
               imei,
               candidate
@@ -1239,8 +1342,6 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
             continue;
           }
 
-          // Aynı IMEI aynı cihaz/depo ise duplicate
-          // response olabilir, sorun değil.
           if (
             existing.productCode ===
               candidate.productCode &&
@@ -1250,32 +1351,36 @@ async function buildWingSMSnapshot(): Promise<SnapshotResult> {
             continue;
           }
 
-          // Aynı IMEI farklı ürün/depo altında görünüyorsa
-          // veri bütünlüğü açısından senkronlamıyoruz.
           conflictedImeis.add(
             imei
           );
 
-          serialConflicts.push({
-            imei,
+          serialConflicts.push(
+            {
+              imei,
 
-            first:
-              `${existing.productCode}/${existing.wingDepotCode}`,
+              first:
+                `${existing.productCode}/${existing.wingDepotCode}`,
 
-            second:
-              `${candidate.productCode}/${candidate.wingDepotCode}`,
-          });
+              second:
+                `${candidate.productCode}/${candidate.wingDepotCode}`,
+            }
+          );
         }
-      } catch (error) {
-        detailErrors.push({
-          productCode,
+      } catch (
+        error
+      ) {
+        detailErrors.push(
+          {
+            productCode,
 
-          error:
-            error instanceof
-            Error
-              ? error.message
-              : "WingSM ürün detay okuma hatası.",
-        });
+            error:
+              error instanceof
+              Error
+                ? error.message
+                : "WingSM ürün detay okuma hatası.",
+          }
+        );
       }
     }
   );
@@ -1357,9 +1462,12 @@ function branchCounts(
     ] =
       (
         result[
-          device.branchCode
-        ] || 0
-      ) + 1;
+          device
+            .branchCode
+        ] ||
+        0
+      ) +
+      1;
   }
 
   return result;
@@ -1370,8 +1478,10 @@ function branchCounts(
 // ======================================================
 
 async function getExistingDevices(
-  client: PoolClient,
-  imeis: string[]
+  client:
+    PoolClient,
+  imeis:
+    string[]
 ) {
   const map =
     new Map<
@@ -1379,7 +1489,9 @@ async function getExistingDevices(
       ExistingDeviceRow
     >();
 
-  if (!imeis.length) {
+  if (
+    !imeis.length
+  ) {
     return map;
   }
 
@@ -1414,10 +1526,12 @@ async function getExistingDevices(
 
           FROM public.device_requests r
 
-          WHERE r.device_id =
-            sd.id
+          WHERE
+            r.device_id =
+              sd.id
 
-            AND r.status IN (
+            AND
+            r.status IN (
               'PENDING',
               'SENT',
               'TRANSFER_WAITING'
@@ -1431,8 +1545,9 @@ async function getExistingDevices(
         ) dr
           ON TRUE
 
-        WHERE sd.imei =
-          ANY($1::text[])
+        WHERE
+          sd.imei =
+            ANY($1::text[])
       `,
       [
         imeis,
@@ -1444,13 +1559,19 @@ async function getExistingDevices(
     result.rows
   ) {
     map.set(
-      String(row.imei),
+      String(
+        row.imei
+      ),
       {
         id:
-          Number(row.id),
+          Number(
+            row.id
+          ),
 
         imei:
-          String(row.imei),
+          String(
+            row.imei
+          ),
 
         source:
           String(
@@ -1466,35 +1587,42 @@ async function getExistingDevices(
 
         current_branch_code:
           String(
-            row.current_branch_code ||
+            row
+              .current_branch_code ||
               ""
           ),
 
         request_id:
           row.request_id
             ? Number(
-                row.request_id
+                row
+                  .request_id
               )
             : null,
 
         request_status:
           row.request_status
             ? String(
-                row.request_status
+                row
+                  .request_status
               )
             : null,
 
         requester_branch_code:
-          row.requester_branch_code
+          row
+            .requester_branch_code
             ? String(
-                row.requester_branch_code
+                row
+                  .requester_branch_code
               )
             : null,
 
         owner_branch_code:
-          row.owner_branch_code
+          row
+            .owner_branch_code
             ? String(
-                row.owner_branch_code
+                row
+                  .owner_branch_code
               )
             : null,
       }
@@ -1510,7 +1638,9 @@ async function getExistingDevices(
 
 function desiredDeviceStatus(
   existing:
-    ExistingDeviceRow | undefined,
+    ExistingDeviceRow |
+    undefined,
+
   actualBranch:
     BranchCode
 ) {
@@ -1524,18 +1654,20 @@ function desiredDeviceStatus(
 
   const requestStatus =
     String(
-      existing.request_status
+      existing
+        .request_status
     ).toUpperCase();
 
   const requesterBranch =
     String(
-      existing.requester_branch_code ||
+      existing
+        .requester_branch_code ||
         ""
     ).toUpperCase();
 
   if (
     requestStatus ===
-      "PENDING"
+    "PENDING"
   ) {
     return "REQUESTED";
   }
@@ -1546,8 +1678,6 @@ function desiredDeviceStatus(
     requestStatus ===
       "TRANSFER_WAITING"
   ) {
-    // WingSM okumasinda cihaz gercekten
-    // talep eden magazaya gecmisse transfer bitmistir.
     if (
       requesterBranch ===
       actualBranch
@@ -1567,19 +1697,23 @@ function desiredDeviceStatus(
 
 function shouldCompleteTransfer(
   existing:
-    ExistingDeviceRow | undefined,
+    ExistingDeviceRow |
+    undefined,
+
   actualBranch:
     BranchCode
 ) {
   if (
-    !existing?.request_id
+    !existing
+      ?.request_id
   ) {
     return false;
   }
 
   const requestStatus =
     String(
-      existing.request_status ||
+      existing
+        .request_status ||
         ""
     ).toUpperCase();
 
@@ -1594,7 +1728,8 @@ function shouldCompleteTransfer(
 
   return (
     String(
-      existing.requester_branch_code ||
+      existing
+        .requester_branch_code ||
         ""
     ).toUpperCase() ===
     actualBranch
@@ -1608,12 +1743,14 @@ function shouldCompleteTransfer(
 async function syncSnapshotToDatabase(
   snapshot:
     SnapshotResult,
+
   actor:
     ActiveUser
 ) {
   if (
     !snapshot
-      .candidates.length
+      .candidates
+      .length
   ) {
     throw new Error(
       "Senkronlanacak WingSM IMEI kaydı bulunamadı."
@@ -1621,24 +1758,33 @@ async function syncSnapshotToDatabase(
   }
 
   const client =
-    await getPool().connect();
+    await getPool()
+      .connect();
 
   const syncStartedAt =
     new Date();
 
-  let inserted = 0;
-  let updated = 0;
-  let branchMoved = 0;
+  let inserted =
+    0;
+
+  let updated =
+    0;
+
+  let branchMoved =
+    0;
+
   let completedTransfers =
     0;
-  let missingMarked = 0;
+
+  let missingMarked =
+    0;
 
   try {
     await client.query(
       "BEGIN"
     );
 
-    // Aynı anda iki stok sync çalışmasın.
+    // Aynı anda iki sync calismasin.
     await client.query(
       `
         SELECT
@@ -1651,11 +1797,14 @@ async function syncSnapshotToDatabase(
     );
 
     const imeis =
-      snapshot.candidates.map(
-        (
-          item
-        ) => item.imei
-      );
+      snapshot
+        .candidates
+        .map(
+          (
+            item
+          ) =>
+            item.imei
+        );
 
     const existingMap =
       await getExistingDevices(
@@ -1665,7 +1814,8 @@ async function syncSnapshotToDatabase(
 
     for (
       const device of
-      snapshot.candidates
+      snapshot
+        .candidates
     ) {
       const existing =
         existingMap.get(
@@ -1675,21 +1825,26 @@ async function syncSnapshotToDatabase(
       const status =
         desiredDeviceStatus(
           existing,
-          device.branchCode
+          device
+            .branchCode
         );
 
-      const isTransferCompleted =
+      const transferCompleted =
         shouldCompleteTransfer(
           existing,
-          device.branchCode
+          device
+            .branchCode
         );
 
       if (
         existing &&
-        existing.current_branch_code !==
-          device.branchCode
+        existing
+          .current_branch_code !==
+          device
+            .branchCode
       ) {
-        branchMoved += 1;
+        branchMoved +=
+          1;
       }
 
       const result =
@@ -1783,12 +1938,20 @@ async function syncSnapshotToDatabase(
               color =
                 CASE
                   WHEN
-                    EXCLUDED.color IS NULL
-                    OR EXCLUDED.color = ''
-                    OR EXCLUDED.color IN (
-                      'DİĞER',
-                      'DIGER'
-                    )
+                    EXCLUDED.color
+                      IS NULL
+
+                    OR
+                    EXCLUDED.color =
+                      ''
+
+                    OR
+                    EXCLUDED.color
+                      IN (
+                        'DİĞER',
+                        'DIGER'
+                      )
+
                   THEN
                     COALESCE(
                       stock_devices.color,
@@ -1853,13 +2016,16 @@ async function syncSnapshotToDatabase(
 
             device.color,
 
-            device.branchCode,
+            device
+              .branchCode,
 
             status,
 
-            device.productCode,
+            device
+              .productCode,
 
-            device.wingDepotCode,
+            device
+              .wingDepotCode,
 
             syncStartedAt,
 
@@ -1869,23 +2035,29 @@ async function syncSnapshotToDatabase(
 
       const deviceId =
         Number(
-          result.rows[0]
+          result
+            .rows[0]
             ?.id
         );
 
-      if (existing) {
-        updated += 1;
+      if (
+        existing
+      ) {
+        updated +=
+          1;
       } else {
-        inserted += 1;
+        inserted +=
+          1;
       }
 
       // ==================================================
-      // DISARIDA WINGSM TRANSFERI GERCEKTEN YAPILDIYSA
+      // WINGSM'DE GERCEK TRANSFER GORULDU
       // ==================================================
 
       if (
-        isTransferCompleted &&
-        existing?.request_id &&
+        transferCompleted &&
+        existing
+          ?.request_id &&
         deviceId
       ) {
         const requestResult =
@@ -1906,9 +2078,11 @@ async function syncSnapshotToDatabase(
                 updated_at =
                   $2
 
-              WHERE id = $1
+              WHERE
+                id = $1
 
-                AND status IN (
+                AND
+                status IN (
                   'SENT',
                   'TRANSFER_WAITING'
                 )
@@ -1916,7 +2090,9 @@ async function syncSnapshotToDatabase(
               RETURNING id
             `,
             [
-              existing.request_id,
+              existing
+                .request_id,
+
               syncStartedAt,
             ]
           );
@@ -1928,7 +2104,6 @@ async function syncSnapshotToDatabase(
           completedTransfers +=
             1;
 
-          // Varsa yerel transfer takip kaydını da bitir.
           await client.query(
             `
               UPDATE public.device_transfers
@@ -1958,14 +2133,18 @@ async function syncSnapshotToDatabase(
                 updated_at =
                   $2
 
-              WHERE request_id =
-                $1
+              WHERE
+                request_id =
+                  $1
 
-                AND status =
+                AND
+                status =
                   'WAITING_WING'
             `,
             [
-              existing.request_id,
+              existing
+                .request_id,
+
               syncStartedAt,
             ]
           );
@@ -1974,22 +2153,20 @@ async function syncSnapshotToDatabase(
     }
 
     // ==================================================
-    // WINGSM'DE ARTIK GORUNMEYEN CIHAZLAR
+    // WINGSM'DE ARTIK GORUNMEYENLER
     // ==================================================
     //
-    // Bunu SADECE bütün snapshot tamamen temizse yapıyoruz.
+    // SADECE tum snapshot temizse calisir.
     //
-    // Tek bir WingSM API hatası / adet farkı varsa cihazları
-    // yanlışlıkla MISSING yapmıyoruz.
-    //
-    // MIXED kayıtta manuel bilgiler korunur; sadece wing_status
-    // MISSING olur.
-    //
-    // Saf WINGSM kaydında aktif talep yoksa status=MISSING olur.
+    // WingSM API hatasi,
+    // IMEI/adet uyusmazligi,
+    // serial conflict varsa
+    // hicbir cihazi MISSING yapmaz.
     // ==================================================
 
     if (
-      snapshot.safeForMissing
+      snapshot
+        .safeForMissing
     ) {
       const missingResult =
         await client.query(
@@ -2007,15 +2184,18 @@ async function syncSnapshotToDatabase(
                     sd.source =
                       'WINGSM'
 
-                    AND NOT EXISTS (
+                    AND
+                    NOT EXISTS (
                       SELECT 1
 
                       FROM public.device_requests dr
 
-                      WHERE dr.device_id =
-                        sd.id
+                      WHERE
+                        dr.device_id =
+                          sd.id
 
-                        AND dr.status IN (
+                        AND
+                        dr.status IN (
                           'PENDING',
                           'SENT',
                           'TRANSFER_WAITING'
@@ -2027,6 +2207,7 @@ async function syncSnapshotToDatabase(
 
                   ELSE
                     sd.status
+
                 END
 
             WHERE
@@ -2048,7 +2229,8 @@ async function syncSnapshotToDatabase(
                 COALESCE(
                   sd.wing_status,
                   ''
-                ) <> 'MISSING'
+                ) <>
+                  'MISSING'
           `,
           [
             syncStartedAt,
@@ -2056,7 +2238,8 @@ async function syncSnapshotToDatabase(
         );
 
       missingMarked =
-        missingResult.rowCount ||
+        missingResult
+          .rowCount ||
         0;
     }
 
@@ -2066,15 +2249,22 @@ async function syncSnapshotToDatabase(
 
     return {
       inserted,
+
       updated,
+
       branchMoved,
+
       completedTransfers,
+
       missingMarked,
 
       syncStartedAt:
-        syncStartedAt.toISOString(),
+        syncStartedAt
+          .toISOString(),
     };
-  } catch (error) {
+  } catch (
+    error
+  ) {
     try {
       await client.query(
         "ROLLBACK"
@@ -2092,7 +2282,8 @@ async function syncSnapshotToDatabase(
 // ======================================================
 
 export async function GET(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
     const user =
@@ -2103,7 +2294,9 @@ export async function GET(
     if (!user) {
       return json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             "Super Admin yetkisi gerekli.",
         },
@@ -2115,7 +2308,8 @@ export async function GET(
       await buildWingSMSnapshot();
 
     return json({
-      success: true,
+      success:
+        true,
 
       mode:
         "PREVIEW_ONLY",
@@ -2131,18 +2325,22 @@ export async function GET(
 
       summary: {
         productCount:
-          snapshot.productCount,
+          snapshot
+            .productCount,
 
         stockRowCount:
-          snapshot.stockRowCount,
+          snapshot
+            .stockRowCount,
 
         imeiCount:
           snapshot
-            .candidates.length,
+            .candidates
+            .length,
 
         branchCounts:
           branchCounts(
-            snapshot.candidates
+            snapshot
+              .candidates
           ),
 
         successfulBranches:
@@ -2216,32 +2414,42 @@ export async function GET(
               item
             ) => ({
               branch:
-                item.branchCode,
+                item
+                  .branchCode,
 
               depot:
-                item.wingDepotCode,
+                item
+                  .wingDepotCode,
 
               productCode:
-                item.productCode,
+                item
+                  .productCode,
 
               brand:
-                item.brand,
+                item
+                  .brand,
 
               model:
-                item.model,
+                item
+                  .model,
 
               memory:
-                item.memory,
+                item
+                  .memory,
 
               color:
-                item.color,
+                item
+                  .color,
 
               imei:
-                item.imei,
+                item
+                  .imei,
             })
           ),
     });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "WINGSM SYNC PREVIEW ERROR:",
       error
@@ -2249,7 +2457,8 @@ export async function GET(
 
     return json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           error instanceof
@@ -2263,57 +2472,117 @@ export async function GET(
 }
 
 // ======================================================
-// POST - POSTGRESQL SENKRON
+// POST
+//
+// 1) Cron:
+// Authorization: Bearer WINGSM_SYNC_SECRET
+//
+// 2) Manuel:
+// Super Admin session + same-origin
+//
+// WingSM'e POST YOK.
 // ======================================================
 
 export async function POST(
-  request: NextRequest
+  request:
+    NextRequest
 ) {
   try {
+    const cronAuthorized =
+      isCronAuthorized(
+        request
+      );
+
+    let actor:
+      ActiveUser;
+
+    // ==================================================
+    // OTOMATIK CRON
+    // ==================================================
+
     if (
-      !validateOrigin(
-        request
-      )
+      cronAuthorized
     ) {
-      return json(
-        {
-          success: false,
-          error:
-            "Geçersiz istek kaynağı.",
-        },
-        403
-      );
+      actor = {
+        id: 0,
+
+        username:
+          "WINGSM_CRON",
+
+        isSuperAdmin:
+          true,
+      };
     }
 
-    const user =
-      await getSuperAdmin(
-        request
-      );
+    // ==================================================
+    // MANUEL SUPER ADMIN
+    // ==================================================
 
-    if (!user) {
-      return json(
-        {
-          success: false,
-          error:
-            "Super Admin yetkisi gerekli.",
-        },
-        403
-      );
+    else {
+      if (
+        !validateOrigin(
+          request
+        )
+      ) {
+        return json(
+          {
+            success:
+              false,
+
+            error:
+              "Geçersiz istek kaynağı.",
+          },
+          403
+        );
+      }
+
+      const admin =
+        await getSuperAdmin(
+          request
+        );
+
+      if (!admin) {
+        return json(
+          {
+            success:
+              false,
+
+            error:
+              "Super Admin yetkisi gerekli.",
+          },
+          403
+        );
+      }
+
+      actor =
+        admin;
     }
+
+    // ==================================================
+    // WINGSM SADECE OKUNUR
+    // ==================================================
 
     const snapshot =
       await buildWingSMSnapshot();
 
     if (
       !snapshot
-        .candidates.length
+        .candidates
+        .length
     ) {
       return json(
         {
-          success: false,
+          success:
+            false,
 
           error:
             "WingSM'den senkronlanabilir IMEI bulunamadı.",
+
+          wingSMWrite:
+            false,
+
+          postgresWrite:
+            false,
 
           diagnostics: {
             stockReadErrors:
@@ -2337,14 +2606,24 @@ export async function POST(
       );
     }
 
+    // ==================================================
+    // BIZIM POSTGRESQL
+    // ==================================================
+
     const sync =
       await syncSnapshotToDatabase(
         snapshot,
-        user
+        actor
       );
 
     return json({
-      success: true,
+      success:
+        true,
+
+      mode:
+        cronAuthorized
+          ? "AUTOMATIC_CRON"
+          : "MANUAL_ADMIN",
 
       message:
         "WingSM stokları PostgreSQL ile senkronlandı.",
@@ -2371,23 +2650,29 @@ export async function POST(
 
         branches:
           branchCounts(
-            snapshot.candidates
+            snapshot
+              .candidates
           ),
 
         inserted:
-          sync.inserted,
+          sync
+            .inserted,
 
         updated:
-          sync.updated,
+          sync
+            .updated,
 
         branchMoved:
-          sync.branchMoved,
+          sync
+            .branchMoved,
 
         completedTransfers:
-          sync.completedTransfers,
+          sync
+            .completedTransfers,
 
         missingMarked:
-          sync.missingMarked,
+          sync
+            .missingMarked,
 
         safeForMissing:
           snapshot
@@ -2414,7 +2699,8 @@ export async function POST(
             .length,
 
         syncedAt:
-          sync.syncStartedAt,
+          sync
+            .syncStartedAt,
       },
 
       warnings: {
@@ -2447,7 +2733,9 @@ export async function POST(
             ),
       },
     });
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "WINGSM STOCK SYNC ERROR:",
       error
@@ -2455,7 +2743,14 @@ export async function POST(
 
     return json(
       {
-        success: false,
+        success:
+          false,
+
+        wingSMWrite:
+          false,
+
+        postgresWrite:
+          false,
 
         error:
           error instanceof
