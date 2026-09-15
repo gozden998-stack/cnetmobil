@@ -3,30 +3,35 @@
 // CNETMOBIL - WingSM -> PostgreSQL stok senkronu
 //
 // KESIN KURAL:
-// - WingSM'e HICBIR ZAMAN yazmaz.
-// - WingSM tarafinda sadece GET kullanir.
-// - Bu route'un POST olmasi WingSM'e POST attigi anlamina gelmez.
-// - POST sadece BIZIM PostgreSQL senkronunu baslatir.
+// - WingSM'e is verisi YAZMAZ.
+// - WingSM tarafinda sadece stok / urun GET okunur.
+// - POST bu route'u tetiklemek icindir; WingSM'e POST yapmaz.
 //
-// AKIS:
-// 1) 5 WingSM deposunun 2el stoklarini oku.
-// 2) Pozitif stoktaki benzersiz MalKod'lari bul.
-// 3) Her MalKod icin /api/b2b/urun/kod/:kod oku.
-// 4) listSeri icinden DepoKod + SeriNo al.
-// 5) WingSM DepoMiktar ile IMEI sayisini karsilastir.
-// 6) Guvenli cihazlari public.stock_devices tablosuna upsert et.
-// 7) WingSM'de gercek transfer gorulurse yerel talebi tamamla.
+// BU ROUTE:
+// 1) 5 WingSM deposunun 2el stoklarini okur.
+// 2) MalKod listesini toplar.
+// 3) Her MalKod icin urun/kod detail GET yapar.
+// 4) listSeri icinden fiziksel IMEI'leri cikarir.
+// 5) DepoMiktar <-> IMEI sayisini dogrular.
+// 6) stock_devices tablosunu besler.
+// 7) wingsm_device_locations tablosuna GERCEK WingSM konum kanitini yazar.
+// 8) wingsm_sync_runs tablosuna basarili sync kaydi yazar.
 //
-// GET:
-// - Sadece Super Admin.
-// - SADECE ONIZLEME.
-// - PostgreSQL'e yazmaz.
+// ONEMLI:
+// - TRANSFER_WAITING cihazlarin current_branch_code degerini burada
+//   hedef magazaya TASIMAZ.
+// - Talebi burada COMPLETED YAPMAZ.
+// - device_transfers kaydini burada COMPLETED YAPMAZ.
+// - Bunlari mevcut:
+//     /api/wingsm/transfers/complete
+//   endpointi yapar.
 //
-// POST:
-// - Super Admin panelden manuel calistirabilir.
-// - WINGSM_SYNC_SECRET ile cron otomatik calistirabilir.
-// - WingSM'i yine SADECE OKUR.
-// - PostgreSQL'i senkronlar.
+// Böylece:
+// GONDERILDI
+// -> TRANSFER_WAITING
+// -> WingSM gercek transfer
+// -> bu sync WingSM konumunu dogrular
+// -> complete route transferi tamamlar.
 
 import {
   NextRequest,
@@ -46,12 +51,8 @@ import {
   WINGSM_DEPOT_MAP,
 } from "@/app/lib/wingsm/server";
 
-export const runtime =
-  "nodejs";
-
-export const dynamic =
-  "force-dynamic";
-
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // ======================================================
@@ -86,49 +87,38 @@ const MANAGED_BRANCHES = [
 type BranchCode =
   (typeof MANAGED_BRANCHES)[number];
 
+// ======================================================
+// TYPES
+// ======================================================
+
 type SessionPayload = {
   userId: number | null;
-
   role:
     | "admin"
     | "personel";
-
   branch: string;
-
   exp: number;
-
   legacy?: boolean;
 };
 
 type ActiveUser = {
   id: number;
-
   username: string;
-
   isSuperAdmin: boolean;
 };
 
 type WingStockRow = {
   Id?: number | string;
-
   MalId?: number | string;
-
   MalKod?: string;
-
   MalAd?: string;
-
   MalCinsAd?: string;
-
   MalGrupAd?: string;
-
   MalGrup2Ad?: string;
-
   Depo?: string;
-
   DepoMiktar?:
     | number
     | string;
-
   MalSinifKod?: string;
 
   [key: string]: any;
@@ -159,15 +149,10 @@ type DeviceCandidate = {
 
 type ExistingDeviceRow = {
   id: number;
-
   imei: string;
-
   source: string;
-
   status: string;
-
-  current_branch_code:
-    string;
+  current_branch_code: string;
 
   request_id:
     number | null;
@@ -227,6 +212,20 @@ type SnapshotResult = {
 
   safeForMissing:
     boolean;
+
+  startedAt:
+    Date;
+
+  finishedAt:
+    Date;
+};
+
+type TableColumn = {
+  column_name: string;
+  is_nullable: string;
+  column_default:
+    string | null;
+  is_identity: string;
 };
 
 // ======================================================
@@ -268,7 +267,9 @@ function getPool() {
     process.env
       .DATABASE_URL;
 
-  if (!connectionString) {
+  if (
+    !connectionString
+  ) {
     throw new Error(
       "DATABASE_URL bulunamadı."
     );
@@ -434,18 +435,22 @@ async function getSuperAdmin(
             JOIN public.roles r
               ON r.id = ur.role_id
 
-            WHERE ur.user_id = u.id
+            WHERE
+              ur.user_id = u.id
 
-              AND r.code =
+              AND
+              r.code =
                 'super_admin'
 
-              AND r.active =
+              AND
+              r.active =
                 TRUE
           ) AS is_super_admin
 
         FROM public.users u
 
-        WHERE u.id = $1
+        WHERE
+          u.id = $1
 
         LIMIT 1
       `,
@@ -483,7 +488,7 @@ async function getSuperAdmin(
 }
 
 // ======================================================
-// MANUEL POST ORIGIN KONTROL
+// MANUEL POST ORIGIN
 // ======================================================
 
 function validateOrigin(
@@ -499,10 +504,11 @@ function validateOrigin(
   }
 
   const expectedAppUrl =
-    process.env
-      .APP_URL;
+    process.env.APP_URL;
 
-  if (expectedAppUrl) {
+  if (
+    expectedAppUrl
+  ) {
     try {
       return (
         origin ===
@@ -542,7 +548,7 @@ function validateOrigin(
 }
 
 // ======================================================
-// CRON SECRET KONTROL
+// CRON SECRET
 // ======================================================
 
 function isCronAuthorized(
@@ -569,34 +575,34 @@ function isCronAuthorized(
   const expected =
     `Bearer ${secret}`;
 
-  const receivedBuffer =
+  const a =
     Buffer.from(
       received,
       "utf8"
     );
 
-  const expectedBuffer =
+  const b =
     Buffer.from(
       expected,
       "utf8"
     );
 
   if (
-    receivedBuffer.length !==
-    expectedBuffer.length
+    a.length !==
+    b.length
   ) {
     return false;
   }
 
   return crypto
     .timingSafeEqual(
-      receivedBuffer,
-      expectedBuffer
+      a,
+      b
     );
 }
 
 // ======================================================
-// STRING
+// HELPERS
 // ======================================================
 
 function text(
@@ -616,9 +622,7 @@ function numberOrZero(
   value: unknown
 ) {
   const number =
-    Number(
-      value
-    );
+    Number(value);
 
   if (
     !Number.isFinite(
@@ -635,10 +639,17 @@ function validImei(
   value: unknown
 ) {
   return /^[0-9]{14,16}$/.test(
-    text(
-      value
-    )
+    text(value)
   );
+}
+
+function quoteIdent(
+  value: string
+) {
+  return `"${value.replace(
+    /"/g,
+    '""'
+  )}"`;
 }
 
 // ======================================================
@@ -758,21 +769,18 @@ function deriveModel(
     return value;
   }
 
-  const fallback =
-    text(
-      fallbackGroup
+  return text(
+    fallbackGroup
+  )
+    .replace(
+      /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
+      ""
     )
-      .replace(
-        /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
-        ""
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-
-  return fallback;
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
 }
 
 // ======================================================
@@ -802,7 +810,8 @@ function productMeta(
   const productName =
     text(
       mamul?.Ad ||
-        stockRow?.MalAd
+        stockRow
+          ?.MalAd
     );
 
   const groupName =
@@ -861,7 +870,9 @@ async function mapLimit<
     index: number
   ) => Promise<R>
 ): Promise<R[]> {
-  if (!items.length) {
+  if (
+    !items.length
+  ) {
     return [];
   }
 
@@ -870,7 +881,8 @@ async function mapLimit<
       items.length
     );
 
-  let cursor = 0;
+  let cursor =
+    0;
 
   async function run() {
     while (true) {
@@ -920,6 +932,9 @@ async function mapLimit<
 
 async function buildWingSMSnapshot():
 Promise<SnapshotResult> {
+  const startedAt =
+    new Date();
+
   const stockReadErrors:
     SnapshotResult["stockReadErrors"] =
     [];
@@ -955,7 +970,7 @@ Promise<SnapshotResult> {
     0;
 
   // ==================================================
-  // 5 DEPO STOK OKUMA
+  // 5 DEPO
   // ==================================================
 
   await Promise.all(
@@ -981,8 +996,7 @@ Promise<SnapshotResult> {
           const rows:
             WingStockRow[] =
             Array.isArray(
-              response
-                ?.data
+              response?.data
             )
               ? response.data
               : [];
@@ -1010,8 +1024,7 @@ Promise<SnapshotResult> {
 
             const productCode =
               text(
-                row
-                  ?.MalKod
+                row?.MalKod
               );
 
             if (
@@ -1042,8 +1055,7 @@ Promise<SnapshotResult> {
               (
                 expectedQuantity.get(
                   key
-                ) ||
-                0
+                ) || 0
               ) +
                 quantity
             );
@@ -1099,7 +1111,7 @@ Promise<SnapshotResult> {
     new Set<string>();
 
   // ==================================================
-  // HER MALKOD ICIN 1 DETAY CAGRI
+  // HER MALKOD 1 KEZ
   // ==================================================
 
   await mapLimit(
@@ -1119,14 +1131,12 @@ Promise<SnapshotResult> {
           !detail?.success ||
           !detail?.data
         ) {
-          detailErrors.push(
-            {
-              productCode,
+          detailErrors.push({
+            productCode,
 
-              error:
-                "WingSM ürün detayı boş döndü.",
-            }
-          );
+            error:
+              "WingSM ürün detayı boş döndü.",
+          });
 
           return;
         }
@@ -1147,8 +1157,7 @@ Promise<SnapshotResult> {
             detail?.data
               ?.listSeri
           )
-            ? detail
-                .data
+            ? detail.data
                 .listSeri
             : [];
 
@@ -1176,9 +1185,9 @@ Promise<SnapshotResult> {
             }
           );
 
-        // ==================================================
-        // DEPO ADET / IMEI KONTROLU
-        // ==================================================
+        // ==============================================
+        // ADET <-> IMEI KONTROL
+        // ==============================================
 
         let productSafe =
           true;
@@ -1205,8 +1214,7 @@ Promise<SnapshotResult> {
           const stockQuantity =
             expectedQuantity.get(
               `${productCode}|${depot}`
-            ) ||
-            0;
+            ) || 0;
 
           const depotSerials =
             managedSerials.filter(
@@ -1234,22 +1242,20 @@ Promise<SnapshotResult> {
             productSafe =
               false;
 
-            mismatches.push(
-              {
-                productCode,
+            mismatches.push({
+              productCode,
 
-                productName:
-                  meta.productName,
+              productName:
+                meta.productName,
 
-                branch,
+              branch,
 
-                depot,
+              depot,
 
-                stockQuantity,
+              stockQuantity,
 
-                imeiCount,
-              }
-            );
+              imeiCount,
+            });
           }
         }
 
@@ -1259,9 +1265,9 @@ Promise<SnapshotResult> {
           return;
         }
 
-        // ==================================================
-        // FIZIKSEL CIHAZLAR
-        // ==================================================
+        // ==============================================
+        // FIZIKSEL IMEI
+        // ==============================================
 
         for (
           const serial of
@@ -1269,8 +1275,7 @@ Promise<SnapshotResult> {
         ) {
           const imei =
             text(
-              serial
-                ?.SeriNo
+              serial?.SeriNo
             );
 
           if (
@@ -1283,8 +1288,7 @@ Promise<SnapshotResult> {
 
           const depot =
             text(
-              serial
-                ?.DepoKod
+              serial?.DepoKod
             );
 
           const branchCode =
@@ -1343,10 +1347,14 @@ Promise<SnapshotResult> {
           }
 
           if (
-            existing.productCode ===
-              candidate.productCode &&
-            existing.wingDepotCode ===
-              candidate.wingDepotCode
+            existing
+              .productCode ===
+              candidate
+                .productCode &&
+            existing
+              .wingDepotCode ===
+              candidate
+                .wingDepotCode
           ) {
             continue;
           }
@@ -1355,32 +1363,28 @@ Promise<SnapshotResult> {
             imei
           );
 
-          serialConflicts.push(
-            {
-              imei,
+          serialConflicts.push({
+            imei,
 
-              first:
-                `${existing.productCode}/${existing.wingDepotCode}`,
+            first:
+              `${existing.productCode}/${existing.wingDepotCode}`,
 
-              second:
-                `${candidate.productCode}/${candidate.wingDepotCode}`,
-            }
-          );
+            second:
+              `${candidate.productCode}/${candidate.wingDepotCode}`,
+          });
         }
       } catch (
         error
       ) {
-        detailErrors.push(
-          {
-            productCode,
+        detailErrors.push({
+          productCode,
 
-            error:
-              error instanceof
-              Error
-                ? error.message
-                : "WingSM ürün detay okuma hatası.",
-          }
-        );
+          error:
+            error instanceof
+            Error
+              ? error.message
+              : "WingSM ürün detay okuma hatası.",
+        });
       }
     }
   );
@@ -1430,11 +1434,16 @@ Promise<SnapshotResult> {
     successfulBranches,
 
     safeForMissing,
+
+    startedAt,
+
+    finishedAt:
+      new Date(),
   };
 }
 
 // ======================================================
-// BRANCH SAYIM
+// BRANCH COUNTS
 // ======================================================
 
 function branchCounts(
@@ -1462,26 +1471,21 @@ function branchCounts(
     ] =
       (
         result[
-          device
-            .branchCode
-        ] ||
-        0
-      ) +
-      1;
+          device.branchCode
+        ] || 0
+      ) + 1;
   }
 
   return result;
 }
 
 // ======================================================
-// EXISTING DEVICES
+// EXISTING DEVICES + ACTIVE REQUEST
 // ======================================================
 
 async function getExistingDevices(
-  client:
-    PoolClient,
-  imeis:
-    string[]
+  client: PoolClient,
+  imeis: string[]
 ) {
   const map =
     new Map<
@@ -1633,117 +1637,604 @@ async function getExistingDevices(
 }
 
 // ======================================================
-// DEVICE STATUS
+// LOCAL DEVICE STATE
+//
+// TRANSFER_WAITING ise burada magazayi DEGISTIRMIYORUZ.
+//
+// WingSM gercek konum:
+// wingsm_device_locations
+//
+// Panel sahipligi:
+// stock_devices.current_branch_code
+//
+// Transferi mevcut complete route tamamlayacak.
 // ======================================================
 
-function desiredDeviceStatus(
+function resolveLocalDeviceState(
   existing:
     ExistingDeviceRow |
     undefined,
 
-  actualBranch:
+  actualWingBranch:
     BranchCode
 ) {
   if (
-    !existing?.request_id ||
     !existing
-      ?.request_status
   ) {
-    return "AVAILABLE";
+    return {
+      currentBranch:
+        actualWingBranch,
+
+      status:
+        "AVAILABLE",
+    };
   }
 
+  const oldStatus =
+    text(
+      existing.status
+    ).toUpperCase();
+
   const requestStatus =
-    String(
+    text(
       existing
         .request_status
     ).toUpperCase();
 
-  const requesterBranch =
-    String(
-      existing
-        .requester_branch_code ||
-        ""
-    ).toUpperCase();
-
+  // SATILDI/PASIF kaydi stok sync ile
+  // yanlislikla tekrar aktife alma.
   if (
-    requestStatus ===
-    "PENDING"
+    oldStatus ===
+      "SOLD" ||
+    oldStatus ===
+      "PASSIVE"
   ) {
-    return "REQUESTED";
+    return {
+      currentBranch:
+        existing
+          .current_branch_code,
+
+      status:
+        oldStatus,
+    };
   }
 
+  // Talep daha yeni acildi.
+  if (
+    requestStatus ===
+      "PENDING"
+  ) {
+    return {
+      currentBranch:
+        existing
+          .current_branch_code,
+
+      status:
+        "REQUESTED",
+    };
+  }
+
+  // GONDERILDI / WINGSM TRANSFER BEKLENIYOR.
+  //
+  // WingSM cihaz hedef depoya gecmis olsa bile
+  // burada local sahipligi degistirmiyoruz.
+  //
+  // /api/wingsm/transfers/complete
+  // gercek WingSM kanitini kontrol edip tasiyacak.
   if (
     requestStatus ===
       "SENT" ||
     requestStatus ===
       "TRANSFER_WAITING"
   ) {
-    if (
-      requesterBranch ===
-      actualBranch
-    ) {
-      return "AVAILABLE";
-    }
+    return {
+      currentBranch:
+        existing
+          .current_branch_code,
 
-    return "TRANSFER_WAITING";
+      status:
+        "TRANSFER_WAITING",
+    };
   }
 
-  return "AVAILABLE";
+  // Aktif talep yoksa WingSM gercek stok konumu
+  // panel stok sahibini belirler.
+  return {
+    currentBranch:
+      actualWingBranch,
+
+    status:
+      "AVAILABLE",
+  };
 }
 
 // ======================================================
-// TRANSFER TAMAMLANDI MI?
+// WING SUPPORT TABLE KONTROL
 // ======================================================
 
-function shouldCompleteTransfer(
-  existing:
-    ExistingDeviceRow |
-    undefined,
-
-  actualBranch:
-    BranchCode
+async function tableExists(
+  client: PoolClient,
+  tableName: string
 ) {
+  const result =
+    await client.query(
+      `
+        SELECT
+          to_regclass(
+            $1
+          ) AS table_name
+      `,
+      [
+        `public.${tableName}`,
+      ]
+    );
+
+  return Boolean(
+    result.rows[0]
+      ?.table_name
+  );
+}
+
+async function getTableColumns(
+  client: PoolClient,
+  tableName: string
+): Promise<
+  TableColumn[]
+> {
+  const result =
+    await client.query(
+      `
+        SELECT
+          column_name,
+          is_nullable,
+          column_default,
+          is_identity
+
+        FROM information_schema.columns
+
+        WHERE
+          table_schema =
+            'public'
+
+          AND
+          table_name = $1
+
+        ORDER BY
+          ordinal_position
+      `,
+      [
+        tableName,
+      ]
+    );
+
+  return result
+    .rows as TableColumn[];
+}
+
+async function ensureWingSupportTables(
+  client: PoolClient
+) {
+  const [
+    hasLocations,
+    hasRuns,
+  ] =
+    await Promise.all([
+      tableExists(
+        client,
+        "wingsm_device_locations"
+      ),
+
+      tableExists(
+        client,
+        "wingsm_sync_runs"
+      ),
+    ]);
+
   if (
-    !existing
-      ?.request_id
+    !hasLocations
   ) {
-    return false;
+    throw new Error(
+      "public.wingsm_device_locations tablosu bulunamadı. Mevcut WingSM transfer altyapısı eksik."
+    );
   }
 
-  const requestStatus =
-    String(
-      existing
-        .request_status ||
-        ""
-    ).toUpperCase();
+  if (
+    !hasRuns
+  ) {
+    throw new Error(
+      "public.wingsm_sync_runs tablosu bulunamadı. Mevcut WingSM transfer altyapısı eksik."
+    );
+  }
+}
+
+// ======================================================
+// DINAMIK INSERT
+//
+// Eski WingSM tablolarinda fazladan kolon varsa
+// mevcut şemaya uyum sağlar.
+// ======================================================
+
+async function insertAdaptive(
+  client: PoolClient,
+  tableName: string,
+  values:
+    Record<
+      string,
+      unknown
+    >
+) {
+  const columns =
+    await getTableColumns(
+      client,
+      tableName
+    );
 
   if (
-    requestStatus !==
-      "SENT" &&
-    requestStatus !==
-      "TRANSFER_WAITING"
+    !columns.length
   ) {
-    return false;
+    throw new Error(
+      `${tableName} kolonları okunamadı.`
+    );
   }
 
-  return (
-    String(
-      existing
-        .requester_branch_code ||
-        ""
-    ).toUpperCase() ===
-    actualBranch
+  const available =
+    new Set(
+      columns.map(
+        (
+          column
+        ) =>
+          column
+            .column_name
+      )
+    );
+
+  const insertEntries =
+    Object.entries(
+      values
+    ).filter(
+      ([key]) =>
+        available.has(
+          key
+        )
+    );
+
+  const supplied =
+    new Set(
+      insertEntries.map(
+        ([key]) => key
+      )
+    );
+
+  const missingRequired =
+    columns.filter(
+      (
+        column
+      ) =>
+        column
+          .is_nullable ===
+          "NO" &&
+        !column
+          .column_default &&
+        column
+          .is_identity !==
+          "YES" &&
+        !supplied.has(
+          column
+            .column_name
+        )
+    );
+
+  if (
+    missingRequired.length
+  ) {
+    throw new Error(
+      `${tableName} zorunlu kolon eksik: ${missingRequired
+        .map(
+          (
+            column
+          ) =>
+            column
+              .column_name
+        )
+        .join(", ")}`
+    );
+  }
+
+  if (
+    !insertEntries.length
+  ) {
+    throw new Error(
+      `${tableName} için yazılabilir kolon bulunamadı.`
+    );
+  }
+
+  const columnSql =
+    insertEntries
+      .map(
+        ([key]) =>
+          quoteIdent(
+            key
+          )
+      )
+      .join(", ");
+
+  const placeholderSql =
+    insertEntries
+      .map(
+        (
+          _,
+          index
+        ) =>
+          `$${index + 1}`
+      )
+      .join(", ");
+
+  await client.query(
+    `
+      INSERT INTO public.${quoteIdent(
+        tableName
+      )} (
+        ${columnSql}
+      )
+      VALUES (
+        ${placeholderSql}
+      )
+    `,
+    insertEntries.map(
+      (
+        [, value]
+      ) => value
+    )
   );
 }
 
 // ======================================================
-// POSTGRES SYNC
+// WINGSM DEVICE LOCATION
+//
+// Aynı IMEI icin tek son bilinen WingSM konumu tutulur.
+// ======================================================
+
+async function upsertWingLocation(
+  client: PoolClient,
+  device:
+    DeviceCandidate,
+  seenAt:
+    Date
+) {
+  const columns =
+    await getTableColumns(
+      client,
+      "wingsm_device_locations"
+    );
+
+  const available =
+    new Set(
+      columns.map(
+        (
+          column
+        ) =>
+          column
+            .column_name
+      )
+    );
+
+  const requiredForTransfer = [
+    "serial_no",
+    "panel_branch",
+    "wingsm_depot",
+    "product_code",
+    "product_name",
+    "updated_at",
+  ];
+
+  for (
+    const column of
+    requiredForTransfer
+  ) {
+    if (
+      !available.has(
+        column
+      )
+    ) {
+      throw new Error(
+        `wingsm_device_locations.${column} bulunamadı. Transfer doğrulama şeması eksik.`
+      );
+    }
+  }
+
+  const updateResult =
+    await client.query(
+      `
+        UPDATE public.wingsm_device_locations
+
+        SET
+          panel_branch = $2,
+          wingsm_depot = $3,
+          product_code = $4,
+          product_name = $5,
+          updated_at = $6
+
+        WHERE
+          serial_no = $1
+      `,
+      [
+        device.imei,
+
+        device
+          .branchCode,
+
+        device
+          .wingDepotCode,
+
+        device
+          .productCode,
+
+        device
+          .productName,
+
+        seenAt,
+      ]
+    );
+
+  if (
+    updateResult.rowCount &&
+    updateResult.rowCount >
+      0
+  ) {
+    return;
+  }
+
+  // Tablo eski sürümse fazladan NOT NULL kolonlara
+  // da mümkün olduğunca uyum sağla.
+  await insertAdaptive(
+    client,
+    "wingsm_device_locations",
+    {
+      serial_no:
+        device.imei,
+
+      imei:
+        device.imei,
+
+      panel_branch:
+        device
+          .branchCode,
+
+      branch_code:
+        device
+          .branchCode,
+
+      wingsm_depot:
+        device
+          .wingDepotCode,
+
+      depot_code:
+        device
+          .wingDepotCode,
+
+      product_code:
+        device
+          .productCode,
+
+      mal_kod:
+        device
+          .productCode,
+
+      product_name:
+        device
+          .productName,
+
+      mal_ad:
+        device
+          .productName,
+
+      status:
+        "IN_STOCK",
+
+      stock_quantity:
+        1,
+
+      quantity:
+        1,
+
+      last_seen_at:
+        seenAt,
+
+      created_at:
+        seenAt,
+
+      updated_at:
+        seenAt,
+    }
+  );
+}
+
+// ======================================================
+// WINGSM SYNC RUN
+//
+// Mevcut transfer complete route:
+// panel_branch + SUCCESS + started_at/finished_at
+// alanlarini kontrol ediyor.
+// ======================================================
+
+async function insertSuccessfulSyncRun(
+  client: PoolClient,
+  branch:
+    BranchCode,
+  depot:
+    string,
+  count:
+    number,
+  startedAt:
+    Date,
+  finishedAt:
+    Date
+) {
+  await insertAdaptive(
+    client,
+    "wingsm_sync_runs",
+    {
+      panel_branch:
+        branch,
+
+      branch_code:
+        branch,
+
+      wingsm_depot:
+        depot,
+
+      depot_code:
+        depot,
+
+      status:
+        "SUCCESS",
+
+      success:
+        true,
+
+      row_count:
+        count,
+
+      device_count:
+        count,
+
+      item_count:
+        count,
+
+      record_count:
+        count,
+
+      records_count:
+        count,
+
+      started_at:
+        startedAt,
+
+      finished_at:
+        finishedAt,
+
+      created_at:
+        startedAt,
+
+      updated_at:
+        finishedAt,
+
+      message:
+        "WingSM stok ve IMEI senkronizasyonu başarılı.",
+
+      error_message:
+        null,
+    }
+  );
+}
+
+// ======================================================
+// DATABASE SYNC
 // ======================================================
 
 async function syncSnapshotToDatabase(
   snapshot:
     SnapshotResult,
-
   actor:
     ActiveUser
 ) {
@@ -1762,6 +2253,9 @@ async function syncSnapshotToDatabase(
       .connect();
 
   const syncStartedAt =
+    snapshot.startedAt;
+
+  const seenAt =
     new Date();
 
   let inserted =
@@ -1773,7 +2267,10 @@ async function syncSnapshotToDatabase(
   let branchMoved =
     0;
 
-  let completedTransfers =
+  let wingLocationsUpdated =
+    0;
+
+  let syncRunsWritten =
     0;
 
   let missingMarked =
@@ -1784,7 +2281,7 @@ async function syncSnapshotToDatabase(
       "BEGIN"
     );
 
-    // Aynı anda iki sync calismasin.
+    // Ayni anda iki sync calismasin.
     await client.query(
       `
         SELECT
@@ -1796,14 +2293,18 @@ async function syncSnapshotToDatabase(
       `
     );
 
+    await ensureWingSupportTables(
+      client
+    );
+
     const imeis =
       snapshot
         .candidates
         .map(
           (
-            item
+            device
           ) =>
-            item.imei
+            device.imei
         );
 
     const existingMap =
@@ -1812,25 +2313,21 @@ async function syncSnapshotToDatabase(
         imeis
       );
 
+    // ==================================================
+    // CIHAZLAR
+    // ==================================================
+
     for (
       const device of
-      snapshot
-        .candidates
+      snapshot.candidates
     ) {
       const existing =
         existingMap.get(
           device.imei
         );
 
-      const status =
-        desiredDeviceStatus(
-          existing,
-          device
-            .branchCode
-        );
-
-      const transferCompleted =
-        shouldCompleteTransfer(
+      const localState =
+        resolveLocalDeviceState(
           existing,
           device
             .branchCode
@@ -1840,8 +2337,8 @@ async function syncSnapshotToDatabase(
         existing &&
         existing
           .current_branch_code !==
-          device
-            .branchCode
+          localState
+            .currentBranch
       ) {
         branchMoved +=
           1;
@@ -1908,59 +2405,61 @@ async function syncSnapshotToDatabase(
             ON CONFLICT (imei)
             DO UPDATE SET
 
+              -- Marka/model/hafiza ilk dolu bilgi korunur.
+              -- Personel tarafindaki temiz bilgiyi
+              -- her 5 dakikada ezmeyelim.
+
               brand =
                 COALESCE(
                   NULLIF(
-                    EXCLUDED.brand,
+                    stock_devices.brand,
                     ''
                   ),
-                  stock_devices.brand
+                  NULLIF(
+                    EXCLUDED.brand,
+                    ''
+                  )
                 ),
 
               model =
                 COALESCE(
                   NULLIF(
-                    EXCLUDED.model,
+                    stock_devices.model,
                     ''
                   ),
-                  stock_devices.model
+                  NULLIF(
+                    EXCLUDED.model,
+                    ''
+                  )
                 ),
 
               memory =
                 COALESCE(
                   NULLIF(
-                    EXCLUDED.memory,
+                    stock_devices.memory,
                     ''
                   ),
-                  stock_devices.memory
+                  NULLIF(
+                    EXCLUDED.memory,
+                    ''
+                  )
                 ),
 
+              -- RENK personel tarafindan duzenlenebilir.
+              -- WingSM her sync'te DİĞER vb. degerle
+              -- personel duzenlemesini ezmesin.
+
               color =
-                CASE
-                  WHEN
-                    EXCLUDED.color
-                      IS NULL
-
-                    OR
-                    EXCLUDED.color =
-                      ''
-
-                    OR
-                    EXCLUDED.color
-                      IN (
-                        'DİĞER',
-                        'DIGER'
-                      )
-
-                  THEN
-                    COALESCE(
-                      stock_devices.color,
-                      EXCLUDED.color
-                    )
-
-                  ELSE
-                    EXCLUDED.color
-                END,
+                COALESCE(
+                  NULLIF(
+                    stock_devices.color,
+                    ''
+                  ),
+                  NULLIF(
+                    EXCLUDED.color,
+                    ''
+                  )
+                ),
 
               current_branch_code =
                 EXCLUDED.current_branch_code,
@@ -1987,16 +2486,20 @@ async function syncSnapshotToDatabase(
                 END,
 
               wing_product_code =
-                EXCLUDED.wing_product_code,
+                EXCLUDED
+                  .wing_product_code,
 
+              -- Burada WingSM depo kodu tutulmaya devam eder.
               wing_branch_code =
-                EXCLUDED.wing_branch_code,
+                EXCLUDED
+                  .wing_branch_code,
 
               wing_status =
                 'IN_STOCK',
 
               wing_last_seen_at =
-                EXCLUDED.wing_last_seen_at
+                EXCLUDED
+                  .wing_last_seen_at
 
             RETURNING
               id,
@@ -2016,10 +2519,10 @@ async function syncSnapshotToDatabase(
 
             device.color,
 
-            device
-              .branchCode,
+            localState
+              .currentBranch,
 
-            status,
+            localState.status,
 
             device
               .productCode,
@@ -2027,17 +2530,10 @@ async function syncSnapshotToDatabase(
             device
               .wingDepotCode,
 
-            syncStartedAt,
+            seenAt,
 
             `WINGSM_SYNC:${actor.username}`,
           ]
-        );
-
-      const deviceId =
-        Number(
-          result
-            .rows[0]
-            ?.id
         );
 
       if (
@@ -2050,118 +2546,44 @@ async function syncSnapshotToDatabase(
           1;
       }
 
-      // ==================================================
-      // WINGSM'DE GERCEK TRANSFER GORULDU
-      // ==================================================
-
       if (
-        transferCompleted &&
-        existing
-          ?.request_id &&
-        deviceId
+        !result
+          .rows[0]
       ) {
-        const requestResult =
-          await client.query(
-            `
-              UPDATE public.device_requests
-
-              SET
-                status =
-                  'COMPLETED',
-
-                completed_at =
-                  COALESCE(
-                    completed_at,
-                    $2
-                  ),
-
-                updated_at =
-                  $2
-
-              WHERE
-                id = $1
-
-                AND
-                status IN (
-                  'SENT',
-                  'TRANSFER_WAITING'
-                )
-
-              RETURNING id
-            `,
-            [
-              existing
-                .request_id,
-
-              syncStartedAt,
-            ]
-          );
-
-        if (
-          requestResult
-            .rowCount
-        ) {
-          completedTransfers +=
-            1;
-
-          await client.query(
-            `
-              UPDATE public.device_transfers
-
-              SET
-                status =
-                  'COMPLETED',
-
-                wing_transfer_at =
-                  COALESCE(
-                    wing_transfer_at,
-                    $2
-                  ),
-
-                wing_reference =
-                  COALESCE(
-                    wing_reference,
-                    'WINGSM_READ_SYNC'
-                  ),
-
-                completed_at =
-                  COALESCE(
-                    completed_at,
-                    $2
-                  ),
-
-                updated_at =
-                  $2
-
-              WHERE
-                request_id =
-                  $1
-
-                AND
-                status =
-                  'WAITING_WING'
-            `,
-            [
-              existing
-                .request_id,
-
-              syncStartedAt,
-            ]
-          );
-        }
+        throw new Error(
+          `stock_devices upsert sonucu alınamadı: ${device.imei}`
+        );
       }
+
+      // ==================================================
+      // GERCEK WINGSM KONUM KANITI
+      // ==================================================
+      //
+      // Dikkat:
+      // stock_devices.current_branch_code TRANSFER_WAITING
+      // sırasında kaynak mağazada kalabilir.
+      //
+      // Ama wingsm_device_locations.panel_branch
+      // WingSM'in GERCEKTE gösterdiği mağazadır.
+      //
+      // Complete route tam olarak bunu kontrol eder.
+      // ==================================================
+
+      await upsertWingLocation(
+        client,
+        device,
+        seenAt
+      );
+
+      wingLocationsUpdated +=
+        1;
     }
 
     // ==================================================
-    // WINGSM'DE ARTIK GORUNMEYENLER
+    // MISSING
     // ==================================================
     //
-    // SADECE tum snapshot temizse calisir.
-    //
-    // WingSM API hatasi,
-    // IMEI/adet uyusmazligi,
-    // serial conflict varsa
-    // hicbir cihazi MISSING yapmaz.
+    // SADECE TAM VE HATASIZ SNAPSHOTTA.
     // ==================================================
 
     if (
@@ -2202,6 +2624,12 @@ async function syncSnapshotToDatabase(
                         )
                     )
 
+                    AND
+                    sd.status NOT IN (
+                      'SOLD',
+                      'PASSIVE'
+                    )
+
                   THEN
                     'MISSING'
 
@@ -2221,8 +2649,8 @@ async function syncSnapshotToDatabase(
                   IS NULL
 
                 OR
-                sd.wing_last_seen_at
-                  < $1
+                sd.wing_last_seen_at <
+                  $1
               )
 
               AND
@@ -2233,7 +2661,7 @@ async function syncSnapshotToDatabase(
                   'MISSING'
           `,
           [
-            syncStartedAt,
+            seenAt,
           ]
         );
 
@@ -2241,6 +2669,56 @@ async function syncSnapshotToDatabase(
         missingResult
           .rowCount ||
         0;
+    }
+
+    // ==================================================
+    // BASARILI SYNC RUN
+    // ==================================================
+    //
+    // Transfer complete route'un güvenlik şartı:
+    //
+    // Gönderildi zamanından SONRA
+    // hedef mağaza için SUCCESS sync bulunmalı.
+    //
+    // Partial/hatalı snapshotta SUCCESS YAZMIYORUZ.
+    // ==================================================
+
+    if (
+      snapshot
+        .safeForMissing
+    ) {
+      const counts =
+        branchCounts(
+          snapshot.candidates
+        );
+
+      const runFinishedAt =
+        new Date();
+
+      for (
+        const branch of
+        MANAGED_BRANCHES
+      ) {
+        const depot =
+          String(
+            WINGSM_DEPOT_MAP[
+              branch
+            ]
+          );
+
+        await insertSuccessfulSyncRun(
+          client,
+          branch,
+          depot,
+          counts[branch] ||
+            0,
+          syncStartedAt,
+          runFinishedAt
+        );
+
+        syncRunsWritten +=
+          1;
+      }
     }
 
     await client.query(
@@ -2254,12 +2732,22 @@ async function syncSnapshotToDatabase(
 
       branchMoved,
 
-      completedTransfers,
+      wingLocationsUpdated,
+
+      syncRunsWritten,
 
       missingMarked,
 
+      // Transfer TAMAMLAMA burada yapilmiyor.
+      completedTransfers:
+        0,
+
       syncStartedAt:
         syncStartedAt
+          .toISOString(),
+
+      syncedAt:
+        seenAt
           .toISOString(),
     };
   } catch (
@@ -2278,7 +2766,7 @@ async function syncSnapshotToDatabase(
 }
 
 // ======================================================
-// GET - SADECE ONIZLEME
+// GET - PREVIEW
 // ======================================================
 
 export async function GET(
@@ -2321,6 +2809,9 @@ export async function GET(
         false,
 
       postgresWrite:
+        false,
+
+      transferCompletion:
         false,
 
       summary: {
@@ -2474,13 +2965,13 @@ export async function GET(
 // ======================================================
 // POST
 //
-// 1) Cron:
+// CRON:
 // Authorization: Bearer WINGSM_SYNC_SECRET
 //
-// 2) Manuel:
-// Super Admin session + same-origin
+// MANUEL:
+// Super Admin + same-origin
 //
-// WingSM'e POST YOK.
+// BURADA TRANSFER TAMAMLAMA YOK.
 // ======================================================
 
 export async function POST(
@@ -2497,7 +2988,7 @@ export async function POST(
       ActiveUser;
 
     // ==================================================
-    // OTOMATIK CRON
+    // CRON
     // ==================================================
 
     if (
@@ -2515,7 +3006,7 @@ export async function POST(
     }
 
     // ==================================================
-    // MANUEL SUPER ADMIN
+    // MANUEL ADMIN
     // ==================================================
 
     else {
@@ -2559,7 +3050,7 @@ export async function POST(
     }
 
     // ==================================================
-    // WINGSM SADECE OKUNUR
+    // WINGSM SNAPSHOT
     // ==================================================
 
     const snapshot =
@@ -2582,6 +3073,9 @@ export async function POST(
             false,
 
           postgresWrite:
+            false,
+
+          transferCompletion:
             false,
 
           diagnostics: {
@@ -2607,7 +3101,7 @@ export async function POST(
     }
 
     // ==================================================
-    // BIZIM POSTGRESQL
+    // POSTGRESQL
     // ==================================================
 
     const sync =
@@ -2626,13 +3120,20 @@ export async function POST(
           : "MANUAL_ADMIN",
 
       message:
-        "WingSM stokları PostgreSQL ile senkronlandı.",
+        "WingSM stokları, IMEI konumları ve sync doğrulamaları PostgreSQL ile senkronlandı.",
 
       wingSMWrite:
         false,
 
       postgresWrite:
         true,
+
+      // Transfer complete AYRI route.
+      transferCompletion:
+        false,
+
+      transferCompleteEndpoint:
+        "/api/wingsm/transfers/complete",
 
       summary: {
         products:
@@ -2662,13 +3163,23 @@ export async function POST(
           sync
             .updated,
 
+        // Aktif transfer yoksa normal WingSM konum
+        // değişikliklerinde oluşabilir.
         branchMoved:
           sync
             .branchMoved,
 
-        completedTransfers:
+        wingLocationsUpdated:
           sync
-            .completedTransfers,
+            .wingLocationsUpdated,
+
+        syncRunsWritten:
+          sync
+            .syncRunsWritten,
+
+        // Bu route transfer tamamlamaz.
+        completedTransfers:
+          0,
 
         missingMarked:
           sync
@@ -2698,9 +3209,13 @@ export async function POST(
             .serialConflicts
             .length,
 
-        syncedAt:
+        syncStartedAt:
           sync
             .syncStartedAt,
+
+        syncedAt:
+          sync
+            .syncedAt,
       },
 
       warnings: {
@@ -2750,6 +3265,9 @@ export async function POST(
           false,
 
         postgresWrite:
+          false,
+
+        transferCompletion:
           false,
 
         error:
