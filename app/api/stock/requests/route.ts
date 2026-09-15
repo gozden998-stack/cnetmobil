@@ -1,6 +1,6 @@
 // app/api/stock/requests/route.ts
 // CNETMOBIL V2 - Magazalar arasi IMEI bazli cihaz talep / red / gönderildi motoru.
-// WingSM henüz bağlı değildir.
+// WingSM entegrasyonu READ-ONLY çalışır; bu route WingSM'e veri yazmaz.
 // Gönderildi -> TRANSFER_WAITING.
 // Cihaz gerçek sahibinden ancak WingSM transferi doğrulanınca düşürülecek.
 
@@ -214,6 +214,83 @@ function cleanReason(value: unknown) {
   }
 
   return text;
+}
+
+// ============================================================
+// CNET MERKEZ DEPO - TALEP ICIN ZORUNLU CIHAZ DETAYLARI
+//
+// Bu kural SADECE current_branch_code = CNET icin gecerlidir.
+// CMR / CADDE / KAPAKLI / SARAY cihazlari bu detay kontrolune takilmaz.
+//
+// CNET cihazinda su alanlar dolu olmadan talep acilamaz:
+// - Renk
+// - Pil
+// - Grade
+// - Garanti
+// - Degisen Parca
+// - Kutu / Fatura
+// ============================================================
+
+function hasText(value: unknown) {
+  return String(value ?? '').trim().length > 0;
+}
+
+function hasUsableCnetColor(value: unknown) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR');
+
+  if (!normalized) return false;
+
+  // WingSM'den kalmis/genel renkler gerçek cihaz rengi sayilmaz.
+  return ![
+    '-',
+    '—',
+    'DİĞER',
+    'DIGER',
+    'OTHER',
+    'UNKNOWN',
+    'BİLİNMİYOR',
+    'BILINMIYOR',
+  ].includes(normalized);
+}
+
+function getCnetMissingDetails(device: Record<string, any>) {
+  const missing: string[] = [];
+
+  if (!hasUsableCnetColor(device.color)) {
+    missing.push('Renk');
+  }
+
+  const batteryPercent = Number(device.battery_percent);
+  if (
+    device.battery_percent === null ||
+    device.battery_percent === undefined ||
+    device.battery_percent === '' ||
+    !Number.isInteger(batteryPercent) ||
+    batteryPercent < 0 ||
+    batteryPercent > 100
+  ) {
+    missing.push('Pil');
+  }
+
+  if (!hasText(device.grade)) {
+    missing.push('Grade');
+  }
+
+  if (!hasText(device.warranty)) {
+    missing.push('Garanti');
+  }
+
+  if (!hasText(device.changed_parts)) {
+    missing.push('Değişen Parça');
+  }
+
+  if (!hasText(device.box_invoice)) {
+    missing.push('Kutu / Fatura');
+  }
+
+  return missing;
 }
 
 async function branchExists(
@@ -509,26 +586,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (device.status === 'DETAILS_PENDING') {
-      await client.query('ROLLBACK');
-      return json(
-        {
-          success: false,
-          error: 'Cihaz bilgileri tamamlanmadan talep edilemez.',
-        },
-        409
-      );
-    }
+    const ownerBranch = normalizeBranch(device.current_branch_code);
+    const deviceStatus = String(device.status ?? '')
+      .trim()
+      .toLocaleUpperCase('tr-TR');
 
-    if (device.status !== 'AVAILABLE') {
-      await client.query('ROLLBACK');
-      return json(
-        {
-          success: false,
-          error: 'Bu cihaz şu anda talebe açık değil.',
-        },
-        409
-      );
+    // =========================================================
+    // SADECE CNET DEPO KURALI
+    //
+    // CNET'teki cihazda 6 detay eksiksiz olmadan talep AÇILMAZ.
+    // Bu kontrol backend'dedir; arayuz atlansa bile istek reddedilir.
+    // Diger magazalarda bu 6 alan zorunlu degildir.
+    // =========================================================
+    if (ownerBranch === 'CNET') {
+      const missingDetails = getCnetMissingDetails(device);
+
+      if (missingDetails.length > 0) {
+        await client.query('ROLLBACK');
+
+        return json(
+          {
+            success: false,
+            error:
+              `CNET depo cihazı talebe açılmadan önce cihaz detayları tamamlanmalıdır. ` +
+              `Eksik: ${missingDetails.join(', ')}.`,
+            code: 'CNET_DEVICE_DETAILS_REQUIRED',
+            missingFields: missingDetails,
+          },
+          409
+        );
+      }
+
+      // CNET'te detaylar tam olsa bile cihaz aktif stokta olmalı.
+      if (deviceStatus !== 'AVAILABLE') {
+        await client.query('ROLLBACK');
+
+        return json(
+          {
+            success: false,
+            error: 'Bu CNET cihazı şu anda talebe açık değil.',
+          },
+          409
+        );
+      }
+    } else {
+      // CNET dışındaki mağazalarda detay zorunluluğu YOK.
+      // DETAILS_PENDING sadece eksik bilgi göstergesidir; talebi engellemez.
+      if (!['AVAILABLE', 'DETAILS_PENDING'].includes(deviceStatus)) {
+        await client.query('ROLLBACK');
+
+        return json(
+          {
+            success: false,
+            error: 'Bu cihaz şu anda talebe açık değil.',
+          },
+          409
+        );
+      }
     }
 
     const capacity = await getCapacity(client, requesterBranch);
@@ -604,9 +718,9 @@ export async function POST(request: NextRequest) {
         VALUES (
           $1, $2, 'REQUEST_CREATED',
           $3, $4,
-          'AVAILABLE', 'REQUESTED',
-          $5,
-          $6::jsonb
+          $5, 'REQUESTED',
+          $6,
+          $7::jsonb
         )
       `,
       [
@@ -614,6 +728,7 @@ export async function POST(request: NextRequest) {
         device.imei,
         device.current_branch_code,
         requesterBranch,
+        deviceStatus,
         user.username,
         JSON.stringify({
           requestId: requestRow.id,
