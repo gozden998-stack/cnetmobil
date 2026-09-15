@@ -677,8 +677,44 @@ const DEPOT_TO_BRANCH =
   );
 
 // ======================================================
-// MEMORY
+// WINGSM URUN ADI / HAFIZA NORMALIZASYONU
 // ======================================================
+//
+// WingSM ikinci el urun adlari ornek:
+//   2.EL APPLE IPHONE 11 64 GB
+//   2.EL SAMSUNG GALAXY S24 256/8 GB
+//
+// PANEL KURALI:
+// - marka ve model ayri tutulur; ekranda birlestirilince marka iki kez yazilmaz.
+// - 256/8 GB gibi ifadede depolama = 256 GB kabul edilir.
+// - renk WingSM'den ALINMAZ; personel DÜZENLE ekranindan girer.
+// ======================================================
+
+function normalizeCapacity(
+  value: string,
+  unit: string
+) {
+  const numeric =
+    Number(
+      String(value || "")
+        .replace(",", ".")
+    );
+
+  if (
+    !Number.isFinite(numeric) ||
+    numeric <= 0
+  ) {
+    return "";
+  }
+
+  const cleanNumber =
+    Number.isInteger(numeric)
+      ? String(numeric)
+      : String(numeric);
+
+  return `${cleanNumber} ${String(unit || "")
+    .toUpperCase()}`;
+}
 
 function extractMemory(
   value: unknown
@@ -690,19 +726,77 @@ function extractMemory(
       "tr-TR"
     );
 
-  const match =
+  // 256/8 GB, 128 / 6GB vb.
+  // WingSM'de ilk deger depolama, ikinci deger RAM olabilir.
+  // Ek guvenlik icin iki sayidan buyuk olani depolama kabul ediyoruz.
+  const pairMatch =
+    raw.match(
+      /\b(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)\s*(TB|GB)\b/i
+    );
+
+  if (pairMatch) {
+    const first =
+      Number(
+        pairMatch[1].replace(
+          ",",
+          "."
+        )
+      );
+
+    const second =
+      Number(
+        pairMatch[2].replace(
+          ",",
+          "."
+        )
+      );
+
+    const storage =
+      Math.max(
+        first,
+        second
+      );
+
+    return normalizeCapacity(
+      String(storage),
+      pairMatch[3]
+    );
+  }
+
+  const singleMatch =
     raw.match(
       /\b(\d+(?:[.,]\d+)?)\s*(TB|GB)\b/i
     );
 
-  if (!match) {
+  if (!singleMatch) {
     return "";
   }
 
-  return `${match[1].replace(
-    ",",
-    "."
-  )} ${match[2].toUpperCase()}`;
+  return normalizeCapacity(
+    singleMatch[1],
+    singleMatch[2]
+  );
+}
+
+function stripMemoryTokens(
+  value: unknown
+) {
+  return text(value)
+    // Once 256/8 GB gibi depolama/RAM ifadesini komple temizle.
+    .replace(
+      /\b\d+(?:[.,]\d+)?\s*\/\s*\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
+      " "
+    )
+    // Sonra tekli 64 GB / 1TB gibi hafiza ifadelerini temizle.
+    .replace(
+      /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
+      " "
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
 }
 
 // ======================================================
@@ -718,29 +812,40 @@ function escapeRegex(
   );
 }
 
+function stripSecondHandPrefix(
+  value: unknown
+) {
+  return text(value)
+    .replace(
+      /^\s*2\s*\.?\s*EL\s+/i,
+      ""
+    )
+    .replace(
+      /^\s*2EL\s+/i,
+      ""
+    )
+    .trim();
+}
+
 function deriveModel(
   productName: string,
   brand: string,
   fallbackGroup: string
 ) {
   let value =
-    text(
+    stripSecondHandPrefix(
       productName
     );
 
-  value =
-    value.replace(
-      /^\s*2\s*\.?\s*EL\s+/i,
-      ""
-    );
-
+  // Ekran zaten brand + model olarak gosteriyor.
+  // Bu nedenle model alaninin basinda markayi ikinci kez tutmuyoruz.
   if (brand) {
     value =
       value.replace(
         new RegExp(
           `^${escapeRegex(
             brand
-          )}\\s+`,
+          )}(?:\\s+|$)`,
           "i"
         ),
         ""
@@ -748,13 +853,13 @@ function deriveModel(
   }
 
   value =
-    value.replace(
-      /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
-      ""
-    );
-
-  value =
-    value
+    stripMemoryTokens(
+      value
+    )
+      .replace(
+        /^\s*[-–—/]\s*/g,
+        ""
+      )
       .replace(
         /\s*[-–—/]\s*$/g,
         ""
@@ -769,13 +874,27 @@ function deriveModel(
     return value;
   }
 
-  return text(
-    fallbackGroup
+  let fallback =
+    stripSecondHandPrefix(
+      fallbackGroup
+    );
+
+  if (brand) {
+    fallback =
+      fallback.replace(
+        new RegExp(
+          `^${escapeRegex(
+            brand
+          )}(?:\\s+|$)`,
+          "i"
+        ),
+        ""
+      );
+  }
+
+  return stripMemoryTokens(
+    fallback
   )
-    .replace(
-      /\b\d+(?:[.,]\d+)?\s*(TB|GB)\b/gi,
-      ""
-    )
     .replace(
       /\s+/g,
       " "
@@ -799,27 +918,26 @@ function productMeta(
     data?.mamul ||
     {};
 
-  const brand =
-    text(
-      data?.cins?.Ad ||
-        mamul?.CinsAdI ||
-        stockRow
-          ?.MalCinsAd
-    );
-
+  // WingSM stok ekraninda gorulen MalAd'i once kullan.
+  // Böylece panel ismi WingSM'deki urun adiyla ayni kaynaktan gelir.
   const productName =
     text(
-      mamul?.Ad ||
-        stockRow
-          ?.MalAd
+      stockRow?.MalAd ||
+        mamul?.Ad
+    );
+
+  const brand =
+    text(
+      stockRow?.MalCinsAd ||
+        data?.cins?.Ad ||
+        mamul?.CinsAdI
     );
 
   const groupName =
     text(
-      data?.grup?.Ad ||
-        mamul?.GrupAdI ||
-        stockRow
-          ?.MalGrupAd
+      stockRow?.MalGrupAd ||
+        data?.grup?.Ad ||
+        mamul?.GrupAdI
     );
 
   const memory =
@@ -837,14 +955,11 @@ function productMeta(
       groupName
     );
 
+  // KESIN KURAL:
+  // WingSM ikinci el stok kaydindan renk alma.
+  // Renk IMEI bazinda personel tarafindan DÜZENLE ile girilecek.
   const color =
-    text(
-      data?.grup2?.Ad ||
-        mamul
-          ?.Grup2AdI ||
-        stockRow
-          ?.MalGrup2Ad
-    );
+    "";
 
   return {
     brand,
@@ -2405,18 +2520,20 @@ async function syncSnapshotToDatabase(
             ON CONFLICT (imei)
             DO UPDATE SET
 
-              -- Marka/model/hafiza ilk dolu bilgi korunur.
-              -- Personel tarafindaki temiz bilgiyi
-              -- her 5 dakikada ezmeyelim.
+              -- Marka/model/hafiza WingSM urun bilgisidir.
+              -- Parser duzeltmeleri mevcut cihazlara da yansisin diye
+              -- WingSM'den gelen temiz deger varsa guncellenir.
+              -- Bu alanlar personelin IMEI detay duzenleme ekraninda
+              -- degistirdigi alanlar degildir.
 
               brand =
                 COALESCE(
                   NULLIF(
-                    stock_devices.brand,
+                    EXCLUDED.brand,
                     ''
                   ),
                   NULLIF(
-                    EXCLUDED.brand,
+                    stock_devices.brand,
                     ''
                   )
                 ),
@@ -2424,11 +2541,11 @@ async function syncSnapshotToDatabase(
               model =
                 COALESCE(
                   NULLIF(
-                    stock_devices.model,
+                    EXCLUDED.model,
                     ''
                   ),
                   NULLIF(
-                    EXCLUDED.model,
+                    stock_devices.model,
                     ''
                   )
                 ),
@@ -2436,30 +2553,45 @@ async function syncSnapshotToDatabase(
               memory =
                 COALESCE(
                   NULLIF(
-                    stock_devices.memory,
-                    ''
-                  ),
-                  NULLIF(
                     EXCLUDED.memory,
                     ''
-                  )
-                ),
-
-              -- RENK personel tarafindan duzenlenebilir.
-              -- WingSM her sync'te DİĞER vb. degerle
-              -- personel duzenlemesini ezmesin.
-
-              color =
-                COALESCE(
-                  NULLIF(
-                    stock_devices.color,
-                    ''
                   ),
                   NULLIF(
-                    EXCLUDED.color,
+                    stock_devices.memory,
                     ''
                   )
                 ),
+
+              -- RENK WingSM'den alinmaz.
+              -- Personelin daha once girdigi renk aynen korunur.
+              -- Eski senkronlardan kalan DİĞER / DIGER placeholder
+              -- degerleri ise temizlenir.
+
+              color =
+                CASE
+                  WHEN
+                    UPPER(
+                      TRIM(
+                        COALESCE(
+                          stock_devices.color,
+                          ''
+                        )
+                      )
+                    ) IN (
+                      'DİĞER',
+                      'DIGER',
+                      'OTHER',
+                      '-'
+                    )
+                  THEN
+                    NULL
+
+                  ELSE
+                    NULLIF(
+                      stock_devices.color,
+                      ''
+                    )
+                END,
 
               current_branch_code =
                 EXCLUDED.current_branch_code,
