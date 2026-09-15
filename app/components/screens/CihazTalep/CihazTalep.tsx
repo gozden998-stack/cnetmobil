@@ -356,14 +356,29 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
   setCihazTalepDialog({ type: 'message', title, message, tone });
 };
 
+const isCnetStockSource = stockSourceBranch === 'CNET';
+
+// CİHAZ TALEP YETKİ AYRIMI
+// ------------------------------------------------------
+// 1) Super Admin: seçili tüm mağaza stoklarını yönetebilir.
+// 2) Yönetici mail / master access:
+//    - CNET seçiliyse kendi depo gibi DÜZENLE görür.
+//    - CMR / CADDE / KAPAKLI / SARAY seçiliyse DÜZENLE görmez,
+//      cihaz uygun durumdaysa TALEP OL görür.
+// 3) Normal mağaza kullanıcısı:
+//    - Backend'den postgresCanManage=true gelen kendi mağazasında DÜZENLE,
+//    - diğer mağazalarda TALEP OL görür.
+// ------------------------------------------------------
 const canManageCihazStock = stockSourceBranch
-  ? Boolean(postgresCanManage || isSuperAdminUser)
+  ? Boolean(
+      isSuperAdminUser ||
+      (isMasterAccess ? isCnetStockSource : postgresCanManage)
+    )
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
 
-// PostgreSQL stok ekranında mağaza personeli kendi mağazasını yönetebiliyorsa
-// Aktif Talepler modalını açabilir ve kendi mağazasına gelen taleplerde
-// Gönderildi / Red işlemlerini kullanabilir.
-// Asıl mağaza/yetki doğrulaması backend /api/stock/requests tarafında kalır.
+// Aktif talepte Gönderildi / Red yetkisi, seçili stoğu gerçekten
+// yönetebilen tarafta kalır. Böylece yönetici diğer mağazadan talep açabilir
+// ama o mağazanın sahibi gibi Gönderildi / Red işlemi yapamaz.
 const canManageActiveRequests = stockSourceBranch
   ? canManageCihazStock
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
