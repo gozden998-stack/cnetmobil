@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   downloadCihazTalepTemplate,
   parseCihazTalepBulkXlsx,
@@ -68,6 +69,12 @@ const [postgresCapacity, setPostgresCapacity] = useState<any>(null);
 const [postgresRequests, setPostgresRequests] = useState<any[]>([]);
 const [postgresLoading, setPostgresLoading] = useState(false);
 const [postgresError, setPostgresError] = useState('');
+
+// ======================================================
+// YÖNETİCİ + CNET EXCEL DETAY TOPLU GÜNCELLEME
+// ======================================================
+const cnetDetailExcelInputRef = useRef<HTMLInputElement | null>(null);
+const [cnetDetailExcelBusy, setCnetDetailExcelBusy] = useState(false);
 
 // ======================================================
 // CİHAZ ADI + CNET DETAY KONTROLÜ
@@ -358,6 +365,10 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
 
 const isCnetStockSource = stockSourceBranch === 'CNET';
 
+// Excel detay işlemi SADECE yönetici mail + CNET depo ekranında görünür.
+// Diğer mağazalarda ve normal personelde bu butonlar hiç render edilmez.
+const canUseCnetDetailExcel = Boolean(isMasterAccess && isCnetStockSource);
+
 // CİHAZ TALEP YETKİ AYRIMI
 // ------------------------------------------------------
 // 1) Super Admin: seçili tüm mağaza stoklarını yönetebilir.
@@ -383,6 +394,319 @@ const canManageActiveRequests = stockSourceBranch
   ? canManageCihazStock
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
 
+
+
+const normalizeCnetExcelHeader = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C')
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const downloadCnetDetailExcel = () => {
+  if (!canUseCnetDetailExcel || cnetDetailExcelBusy) return;
+
+  const rows = effectiveCihazTalepData
+    .slice(1)
+    .filter((row) => String(row?.[15] ?? '').trim())
+    .map((row) => ({
+      IMEI: String(row?.[15] ?? '').trim(),
+      MARKA_MODEL: String(row?.[0] ?? '').trim(),
+      HAFIZA: String(row?.[1] ?? '').trim(),
+      RENK: String(row?.[2] ?? '').trim(),
+      PIL: String(row?.[3] ?? '').replace(/[^0-9]/g, '').trim(),
+      GRADE: String(row?.[4] ?? '').trim(),
+      GARANTI: String(row?.[5] ?? '').trim(),
+      DEGISEN_PARCA: String(row?.[6] ?? '').trim(),
+      KUTU_FATURA: String(row?.[7] ?? '').trim(),
+    }));
+
+  if (!rows.length) {
+    showTalepMessage(
+      'EXCEL OLUŞTURULAMADI',
+      'CNET deposunda Excel’e aktarılacak cihaz bulunamadı.',
+      'error'
+    );
+    return;
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, {
+    header: [
+      'IMEI',
+      'MARKA_MODEL',
+      'HAFIZA',
+      'RENK',
+      'PIL',
+      'GRADE',
+      'GARANTI',
+      'DEGISEN_PARCA',
+      'KUTU_FATURA',
+    ],
+  });
+
+  worksheet['!cols'] = [
+    { wch: 19 },
+    { wch: 34 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 9 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 22 },
+  ];
+
+  worksheet['!autofilter'] = {
+    ref: `A1:I${rows.length + 1}`,
+  };
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'CNET Detay');
+
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  XLSX.writeFile(workbook, `CNET_CIHAZ_DETAY_${today}.xlsx`);
+};
+
+const handleCnetDetailExcelUpload = async (file: File | null) => {
+  if (!file || !canUseCnetDetailExcel || cnetDetailExcelBusy) return;
+
+  const lowerName = file.name.toLocaleLowerCase('tr-TR');
+
+  if (!lowerName.endsWith('.xlsx')) {
+    showTalepMessage(
+      'GEÇERSİZ DOSYA',
+      'Lütfen EXCEL DETAY İNDİR ile oluşturulan .xlsx dosyasını seçin.',
+      'error'
+    );
+    return;
+  }
+
+  setCnetDetailExcelBusy(true);
+
+  try {
+    const workbook = XLSX.read(await file.arrayBuffer(), {
+      type: 'array',
+      cellDates: false,
+    });
+
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = firstSheetName
+      ? workbook.Sheets[firstSheetName]
+      : null;
+
+    if (!worksheet) {
+      throw new Error('Excel içinde okunabilir sayfa bulunamadı.');
+    }
+
+    const matrix = XLSX.utils.sheet_to_json<any[]>(worksheet, {
+      header: 1,
+      defval: '',
+      raw: false,
+      blankrows: false,
+    });
+
+    if (!matrix.length) {
+      throw new Error('Excel dosyası boş.');
+    }
+
+    const headerRow = Array.isArray(matrix[0]) ? matrix[0] : [];
+    const headerMap = new Map<string, number>();
+
+    headerRow.forEach((header, index) => {
+      const normalized = normalizeCnetExcelHeader(header);
+      if (normalized) headerMap.set(normalized, index);
+    });
+
+    const requiredHeaders = [
+      'IMEI',
+      'RENK',
+      'PIL',
+      'GRADE',
+      'GARANTI',
+      'DEGISEN_PARCA',
+      'KUTU_FATURA',
+    ];
+
+    const missingHeaders = requiredHeaders.filter(
+      (header) => !headerMap.has(header)
+    );
+
+    if (missingHeaders.length > 0) {
+      throw new Error(
+        `Excel başlıkları değiştirilmiş veya eksik. Eksik: ${missingHeaders.join(', ')}`
+      );
+    }
+
+    const getCell = (row: any[], key: string) => {
+      const index = headerMap.get(key);
+      return typeof index === 'number' ? row?.[index] : '';
+    };
+
+    const updates: Array<{
+      imei: string;
+      color: string;
+      batteryPercent: number;
+      grade: string;
+      warranty: string;
+      changedParts: string;
+      boxInvoice: string;
+    }> = [];
+
+    const localErrors: string[] = [];
+    const seenImeis = new Set<string>();
+
+    matrix.slice(1).forEach((rawRow, index) => {
+      const row = Array.isArray(rawRow) ? rawRow : [];
+      const excelRow = index + 2;
+
+      const imei = String(getCell(row, 'IMEI') ?? '')
+        .replace(/\s+/g, '')
+        .trim();
+
+      const color = String(getCell(row, 'RENK') ?? '').trim();
+      const batteryText = String(getCell(row, 'PIL') ?? '')
+        .replace('%', '')
+        .trim();
+      const grade = String(getCell(row, 'GRADE') ?? '').trim();
+      const warranty = String(getCell(row, 'GARANTI') ?? '').trim();
+      const changedParts = String(
+        getCell(row, 'DEGISEN_PARCA') ?? ''
+      ).trim();
+      const boxInvoice = String(getCell(row, 'KUTU_FATURA') ?? '').trim();
+
+      const rowHasAnyValue = row.some(
+        (value) => String(value ?? '').trim() !== ''
+      );
+
+      if (!rowHasAnyValue) return;
+
+      if (!/^[0-9]{14,16}$/.test(imei)) {
+        localErrors.push(`${excelRow}. satır: IMEI geçersiz.`);
+        return;
+      }
+
+      if (seenImeis.has(imei)) {
+        localErrors.push(`${excelRow}. satır: Aynı IMEI birden fazla kez var.`);
+        return;
+      }
+
+      seenImeis.add(imei);
+
+      const batteryPercent = Number(batteryText);
+
+      if (
+        !color ||
+        !batteryText ||
+        !Number.isInteger(batteryPercent) ||
+        batteryPercent < 0 ||
+        batteryPercent > 100 ||
+        !grade ||
+        !warranty ||
+        !changedParts ||
+        !boxInvoice
+      ) {
+        localErrors.push(
+          `${excelRow}. satır (${imei}): Renk, Pil, Grade, Garanti, Değişen Parça ve Kutu/Fatura eksiksiz olmalı.`
+        );
+        return;
+      }
+
+      updates.push({
+        imei,
+        color,
+        batteryPercent,
+        grade,
+        warranty,
+        changedParts,
+        boxInvoice,
+      });
+    });
+
+    if (localErrors.length > 0) {
+      throw new Error(
+        `${localErrors.slice(0, 5).join('\n')}${
+          localErrors.length > 5
+            ? `\n+${localErrors.length - 5} hata daha`
+            : ''
+        }`
+      );
+    }
+
+    if (!updates.length) {
+      throw new Error('Güncellenecek cihaz satırı bulunamadı.');
+    }
+
+    const confirmed = window.confirm(
+      `${updates.length} CNET cihazının detayları IMEI üzerinden toplu güncellenecek.\n\n` +
+        `Renk, Pil, Grade, Garanti, Değişen Parça ve Kutu/Fatura alanları Excel'deki değerlerle değiştirilecek.\n\n` +
+        `Devam edilsin mi?`
+    );
+
+    if (!confirmed) return;
+
+    const response = await fetch('/api/stock/devices/details-bulk', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({ updates }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result?.success) {
+      const backendErrors = Array.isArray(result?.errors)
+        ? result.errors
+            .slice(0, 5)
+            .map((item: any) =>
+              `${item?.row ? `${item.row}. satır` : 'Satır'}${
+                item?.imei ? ` (${item.imei})` : ''
+              }: ${item?.error || 'Hata'}`
+            )
+            .join('\n')
+        : '';
+
+      throw new Error(
+        backendErrors ||
+          result?.error ||
+          'Excel detayları toplu güncellenemedi.'
+      );
+    }
+
+    await loadPostgresStock();
+
+    showTalepMessage(
+      'EXCEL GÜNCELLEME TAMAMLANDI',
+      `${Number(result?.updatedCount || updates.length)} CNET cihazının detayları IMEI üzerinden güncellendi.`,
+      'success'
+    );
+  } catch (error: any) {
+    showTalepMessage(
+      'EXCEL YÜKLENEMEDİ',
+      error?.message || 'Excel detay güncelleme sırasında hata oluştu.',
+      'error'
+    );
+  } finally {
+    setCnetDetailExcelBusy(false);
+    if (cnetDetailExcelInputRef.current) {
+      cnetDetailExcelInputRef.current.value = '';
+    }
+  }
+};
 
 const openCihazDuzenleModal = (rowIndex: number) => {
   if (!stockSourceBranch || !canManageCihazStock) {
@@ -1977,6 +2301,49 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     >
                       Temizle
                     </button>
+
+                    {canUseCnetDetailExcel && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={downloadCnetDetailExcel}
+                          disabled={cnetDetailExcelBusy}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                          title="CNET cihaz detaylarını Excel olarak indir"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                          </svg>
+                          Excel Detay İndir
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => cnetDetailExcelInputRef.current?.click()}
+                          disabled={cnetDetailExcelBusy}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 text-[10px] font-black uppercase tracking-wider text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Doldurulmuş CNET detay Excel dosyasını yükle"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 16V4m0 0L8 8m4-4l4 4M5 20h14" />
+                          </svg>
+                          {cnetDetailExcelBusy
+                            ? 'Excel İşleniyor...'
+                            : 'Excel Detay Yükle'}
+                        </button>
+
+                        <input
+                          ref={cnetDetailExcelInputRef}
+                          type="file"
+                          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0] || null;
+                            void handleCnetDetailExcelUpload(file);
+                          }}
+                        />
+                      </>
+                    )}
 
                     {stockSourceBranch && (
                       <button
