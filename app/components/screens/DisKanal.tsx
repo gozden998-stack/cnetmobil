@@ -322,7 +322,24 @@ export default function DisKanal({
   const [receiptUploadTarget, setReceiptUploadTarget] = useState<number | null>(null);
 
   const isVodafone = selectedBranch === "VODAFONE KANALI";
+  const canUsePurchaseFlow = Boolean(isZumay);
   const accent = isZumay ? "red" : "teal";
+
+  const tableMinWidthClass = isVodafone
+    ? canUsePurchaseFlow
+      ? "min-w-[930px]"
+      : "min-w-[780px]"
+    : canUsePurchaseFlow
+    ? "min-w-[760px]"
+    : "min-w-[610px]";
+
+  const tableGridClass = isVodafone
+    ? canUsePurchaseFlow
+      ? "grid-cols-[48px_minmax(330px,1fr)_150px_170px_150px]"
+      : "grid-cols-[48px_minmax(330px,1fr)_150px_170px]"
+    : canUsePurchaseFlow
+    ? "grid-cols-[48px_minmax(360px,1fr)_170px_150px]"
+    : "grid-cols-[48px_minmax(360px,1fr)_170px]";
 
   const rows = useMemo<DisKanalRow[]>(() => {
     const source = Array.isArray(data) ? data.slice(1) : [];
@@ -373,18 +390,14 @@ export default function DisKanal({
   const accentBorder = isZumay ? "border-red-100" : "border-teal-100";
 
   const selectedAmount = useMemo(() => {
-    if (!selectedRow) return 0;
-
-    return parsePanelMoney(
-      isVodafone && String(selectedRow.vodafonePrice ?? "").trim()
-        ? selectedRow.vodafonePrice
-        : selectedRow.price
-    );
-  }, [selectedRow, isVodafone]);
+    if (!canUsePurchaseFlow || !selectedRow) return 0;
+    return parsePanelMoney(selectedRow.price);
+  }, [canUsePurchaseFlow, selectedRow]);
 
   const purchaseFormValid = useMemo(() => {
     return Boolean(
-      selectedRow &&
+      canUsePurchaseFlow &&
+        selectedRow &&
         selectedAmount > 0 &&
         purchaseForm.firstName.trim() &&
         purchaseForm.lastName.trim() &&
@@ -393,7 +406,7 @@ export default function DisKanal({
         /^TR\d{24}$/.test(purchaseForm.iban) &&
         purchaseForm.ibanHolder.trim()
     );
-  }, [selectedRow, selectedAmount, purchaseForm]);
+  }, [canUsePurchaseFlow, selectedRow, selectedAmount, purchaseForm]);
 
   function clearSearch() {
     setSearch("");
@@ -402,6 +415,8 @@ export default function DisKanal({
   }
 
   function openPurchase(row: DisKanalRow) {
+    if (!canUsePurchaseFlow) return;
+
     setSelectedRow(row);
     setPurchaseForm(EMPTY_FORM);
     setPurchaseMessage("");
@@ -429,6 +444,7 @@ export default function DisKanal({
   }
 
   async function submitPurchase() {
+    if (!canUsePurchaseFlow) return;
     if (!selectedRow || !purchaseFormValid || purchaseSubmitting) return;
 
     setPurchaseSubmitting(true);
@@ -519,6 +535,8 @@ export default function DisKanal({
   }
 
   async function openRequests() {
+    if (!canUsePurchaseFlow) return;
+
     setRequestsOpen(true);
     setSelectedRequest(null);
     await loadRequests();
@@ -636,13 +654,15 @@ export default function DisKanal({
 
   return (
     <div className="animate-in fade-in duration-300">
-      <input
-        ref={receiptInputRef}
-        type="file"
-        accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-        onChange={handleReceiptSelected}
-        className="hidden"
-      />
+      {canUsePurchaseFlow && (
+        <input
+          ref={receiptInputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+          onChange={handleReceiptSelected}
+          className="hidden"
+        />
+      )}
 
       {/* ÜST HERO */}
       <section
@@ -655,11 +675,13 @@ export default function DisKanal({
             </div>
 
             <h2 className="mt-2 text-[28px] font-black tracking-[-0.045em] text-slate-950 sm:text-[31px]">
-              Dış Kanal Satın Alma
+              {canUsePurchaseFlow ? "Dış Kanal Satın Alma" : "Dış Kanal Ürün Listesi"}
             </h2>
 
             <p className="mt-2 text-[10px] font-semibold text-slate-400">
-              Dış kanal ürünlerini görüntüleyin, cihaz alımını oluşturun ve ödeme sürecini takip edin.
+              {canUsePurchaseFlow
+                ? "Dış kanal ürünlerini görüntüleyin, cihaz alımını oluşturun ve ödeme sürecini takip edin."
+                : "Dış kanal ürünlerini ve güncel fiyatları görüntüleyin."}
             </p>
           </div>
 
@@ -676,7 +698,7 @@ export default function DisKanal({
                 <br />
                 Güncel Fiyat
                 <br />
-                Hızlı Satın Alma
+                {canUsePurchaseFlow ? "Hızlı Satın Alma" : "Ürün Listesi"}
               </div>
             </div>
 
@@ -699,7 +721,11 @@ export default function DisKanal({
           </div>
         </div>
 
-        <div className={`grid gap-2 border-t ${accentBorder} bg-slate-50/60 p-3 sm:grid-cols-2 xl:grid-cols-4`}>
+        <div
+          className={`grid gap-2 border-t ${accentBorder} bg-slate-50/60 p-3 sm:grid-cols-2 ${
+            canUsePurchaseFlow ? "xl:grid-cols-4" : "xl:grid-cols-3"
+          }`}
+        >
           <StatCard
             label="Toplam Ürün"
             value={rows.length}
@@ -742,13 +768,15 @@ export default function DisKanal({
             }
           />
 
-          <StatCard
-            label="İşlem Merkezi"
-            value="Aktif"
-            footer="Cihaz Al + Ödeme Takibi"
-            tone={accent}
-            icon={<ReceiptIcon className="h-5 w-5" />}
-          />
+          {canUsePurchaseFlow && (
+            <StatCard
+              label="İşlem Merkezi"
+              value="Aktif"
+              footer="Cihaz Al + Ödeme Takibi"
+              tone={accent}
+              icon={<ReceiptIcon className="h-5 w-5" />}
+            />
+          )}
         </div>
       </section>
 
@@ -774,14 +802,16 @@ export default function DisKanal({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={openRequests}
-            className="inline-flex h-[49px] min-w-[175px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-[10px] font-black text-white shadow-lg transition hover:bg-slate-800"
-          >
-            <ReceiptIcon className="h-4 w-4" />
-            ÖDEME TALEPLERİ
-          </button>
+          {canUsePurchaseFlow && (
+            <button
+              type="button"
+              onClick={openRequests}
+              className="inline-flex h-[49px] min-w-[175px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-[10px] font-black text-white shadow-lg transition hover:bg-slate-800"
+            >
+              <ReceiptIcon className="h-4 w-4" />
+              ÖDEME TALEPLERİ
+            </button>
+          )}
 
           {canEdit && onEdit && (
             <button
@@ -835,13 +865,9 @@ export default function DisKanal({
         </div>
 
         <div className="overflow-x-auto">
-          <div className={isVodafone ? "min-w-[930px]" : "min-w-[760px]"}>
+          <div className={tableMinWidthClass}>
             <div
-              className={`grid ${
-                isVodafone
-                  ? "grid-cols-[48px_minmax(330px,1fr)_150px_170px_150px]"
-                  : "grid-cols-[48px_minmax(360px,1fr)_170px_150px]"
-              } border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500`}
+              className={`grid ${tableGridClass} border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500`}
             >
               <div className="px-2 py-3 text-center">#</div>
               <div className="px-3 py-3">Ürün / Cihaz Adı</div>
@@ -855,7 +881,9 @@ export default function DisKanal({
                 </div>
               )}
 
-              <div className="px-3 py-3 text-center">İşlem</div>
+              {canUsePurchaseFlow && (
+                <div className="px-3 py-3 text-center">İşlem</div>
+              )}
             </div>
 
             {visibleRows.length === 0 ? (
@@ -872,20 +900,14 @@ export default function DisKanal({
               </div>
             ) : (
               visibleRows.map((row, index) => {
-                const operationPrice = parsePanelMoney(
-                  isVodafone && String(row.vodafonePrice ?? "").trim()
-                    ? row.vodafonePrice
-                    : row.price
-                );
+                const operationPrice = canUsePurchaseFlow
+                  ? parsePanelMoney(row.price)
+                  : 0;
 
                 return (
                   <div
                     key={`${row.name}-${index}`}
-                    className={`grid ${
-                      isVodafone
-                        ? "grid-cols-[48px_minmax(330px,1fr)_150px_170px_150px]"
-                        : "grid-cols-[48px_minmax(360px,1fr)_170px_150px]"
-                    } border-b border-slate-100 last:border-b-0 transition ${
+                    className={`grid ${tableGridClass} border-b border-slate-100 last:border-b-0 transition ${
                       row.highlighted
                         ? isZumay
                           ? "bg-red-50/80"
@@ -931,17 +953,19 @@ export default function DisKanal({
                       </div>
                     )}
 
-                    <div className="flex items-center justify-center border-l border-slate-100 px-3 py-[8px]">
-                      <button
-                        type="button"
-                        onClick={() => openPurchase(row)}
-                        disabled={operationPrice <= 0}
-                        className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl px-3 text-[9px] font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
-                      >
-                        CİHAZ AL
-                        <span className="text-[13px]">→</span>
-                      </button>
-                    </div>
+                    {canUsePurchaseFlow && (
+                      <div className="flex items-center justify-center border-l border-slate-100 px-3 py-[8px]">
+                        <button
+                          type="button"
+                          onClick={() => openPurchase(row)}
+                          disabled={operationPrice <= 0}
+                          className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl px-3 text-[9px] font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
+                        >
+                          CİHAZ AL
+                          <span className="text-[13px]">→</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -984,7 +1008,7 @@ export default function DisKanal({
       {/* ==================================================== */}
       {/* CİHAZ AL MODAL */}
       {/* ==================================================== */}
-      {purchaseModalOpen && selectedRow && (
+      {canUsePurchaseFlow && purchaseModalOpen && selectedRow && (
         <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5">
           <div className="max-h-[94vh] w-full max-w-[760px] overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:px-7">
@@ -1218,7 +1242,7 @@ export default function DisKanal({
       {/* ==================================================== */}
       {/* ÖDEME TALEPLERİ / YÖNETİM MODAL */}
       {/* ==================================================== */}
-      {requestsOpen && (
+      {canUsePurchaseFlow && requestsOpen && (
         <div className="fixed inset-0 z-[270] bg-slate-950/70 p-0 backdrop-blur-sm sm:p-4">
           <div className="mx-auto flex h-full w-full max-w-[1500px] flex-col overflow-hidden bg-slate-50 shadow-2xl sm:rounded-[28px]">
             <div className="shrink-0 border-b border-slate-800 bg-slate-950 px-4 py-4 text-white sm:px-6">
