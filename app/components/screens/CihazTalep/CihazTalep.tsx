@@ -1994,31 +1994,6 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       </button>
                     )}
 
-                    {canManageCihazStock && (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <button
-                          type="button"
-                          onClick={openTopluCihazEkleModal}
-                          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 text-[10px] font-black uppercase tracking-wider text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.99]"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 5h16v14H4zM8 9h8M8 13h8M8 17h5" />
-                          </svg>
-                          Toplu Cihaz Ekle
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={openCihazEkleModal}
-                          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 text-[11px] font-black uppercase tracking-wider text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.99]"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Cihaz Ekle
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </section>
 
