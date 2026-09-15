@@ -70,6 +70,76 @@ const [postgresRequests, setPostgresRequests] = useState<any[]>([]);
 const [postgresLoading, setPostgresLoading] = useState(false);
 const [postgresError, setPostgresError] = useState('');
 
+// ======================================================
+// CİHAZ ADI + CNET DETAY KONTROLÜ
+// ======================================================
+// WingSM model alanında marka zaten varsa ekranda tekrar marka ekleme.
+// Örn: brand=APPLE + model=APPLE IPHONE 13 => APPLE IPHONE 13
+//      brand=APPLE + model=IPHONE 13       => APPLE IPHONE 13
+const combineBrandModelSafely = (brandValue: unknown, modelValue: unknown) => {
+  const brand = String(brandValue ?? '').trim();
+  const model = String(modelValue ?? '').trim();
+
+  if (!brand) return model;
+  if (!model) return brand;
+
+  const normalizedBrand = brand.toLocaleUpperCase('tr-TR');
+  const normalizedModel = model.toLocaleUpperCase('tr-TR');
+
+  if (
+    normalizedModel === normalizedBrand ||
+    normalizedModel.startsWith(`${normalizedBrand} `)
+  ) {
+    return model;
+  }
+
+  return `${brand} ${model}`.trim();
+};
+
+// Bu kural SADECE CNET deposundaki cihazlar için geçerlidir.
+// CNET cihazı talep edilebilmesi için 6 detayın tamamı dolu olmalıdır.
+const getCnetMissingDetailsFromRow = (row: any[]) => {
+  if (stockSourceBranch !== 'CNET') return [] as string[];
+
+  const missing: string[] = [];
+
+  const color = String(row?.[2] ?? '').trim();
+  const normalizedColor = color.toLocaleUpperCase('tr-TR');
+  const unusableColors = [
+    '-',
+    '—',
+    'DİĞER',
+    'DIGER',
+    'OTHER',
+    'UNKNOWN',
+    'BİLİNMİYOR',
+    'BILINMIYOR',
+  ];
+
+  if (!color || unusableColors.includes(normalizedColor)) {
+    missing.push('Renk');
+  }
+
+  const batteryText = String(row?.[3] ?? '').replace(/[^0-9]/g, '').trim();
+  const batteryPercent = Number(batteryText);
+
+  if (
+    !batteryText ||
+    !Number.isInteger(batteryPercent) ||
+    batteryPercent < 0 ||
+    batteryPercent > 100
+  ) {
+    missing.push('Pil');
+  }
+
+  if (!String(row?.[4] ?? '').trim()) missing.push('Grade');
+  if (!String(row?.[5] ?? '').trim()) missing.push('Garanti');
+  if (!String(row?.[6] ?? '').trim()) missing.push('Değişen Parça');
+  if (!String(row?.[7] ?? '').trim()) missing.push('Kutu / Fatura');
+
+  return missing;
+};
+
 const loadPostgresStock = async () => {
   if (!stockSourceBranch) return;
 
@@ -191,7 +261,7 @@ const loadPostgresStock = async () => {
 
       const brand = String(device.brand || '').trim();
       const model = String(device.model || '').trim();
-      const markaModel = [brand, model].filter(Boolean).join(' ').trim();
+      const markaModel = combineBrandModelSafely(brand, model);
 
       return [
         markaModel || '-',
@@ -842,6 +912,20 @@ const aktifTalepleriExcelIndir = () => {
 };
 
 const handleTalepGonder = (rowIndex: number, modelName: string, stokAdedi: number) => {
+  const row = effectiveCihazTalepData[rowIndex - 1];
+  const cnetMissingDetails = getCnetMissingDetailsFromRow(row);
+
+  // UI butonu zaten pasif olur. Bu kontrol, fonksiyon başka bir yoldan
+  // çağrılsa bile CNET detayları eksikken talep penceresini açtırmaz.
+  if (cnetMissingDetails.length > 0) {
+    showTalepMessage(
+      'DETAYLAR EKSİK',
+      `CNET depo cihazı talebe açılmadan önce şu alanlar tamamlanmalıdır: ${cnetMissingDetails.join(', ')}.`,
+      'error'
+    );
+    return;
+  }
+
   const guvenliStok = Math.max(0, Number(stokAdedi) || 0);
 
   if (guvenliStok <= 0) {
@@ -2108,6 +2192,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           const stokAdedi = Math.max(0, Number(row[8]) || 0);
                           const talepAdedi = Math.max(0, Number(row[14]) || 0);
 
+                          const cnetMissingDetails =
+                            getCnetMissingDetailsFromRow(row);
+                          const cnetDetailsMissing =
+                            cnetMissingDetails.length > 0;
+
                           const isRejected =
                             talepDurumu === 'RED EDİLDİ' ||
                             talepDurumu === 'REDDEDİLDİ';
@@ -2356,7 +2445,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                   </div>
                                 ) : (
                                   <button
-                                    disabled={stokAdedi <= 0 || talepSaving}
+                                    disabled={
+                                      stokAdedi <= 0 ||
+                                      talepSaving ||
+                                      cnetDetailsMissing
+                                    }
                                     onClick={() =>
                                       handleTalepGonder(
                                         rowIndex,
@@ -2364,9 +2457,18 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                         stokAdedi
                                       )
                                     }
-                                    className="min-w-[112px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                                    title={
+                                      cnetDetailsMissing
+                                        ? `CNET cihazı için eksik: ${cnetMissingDetails.join(', ')}`
+                                        : undefined
+                                    }
+                                    className="min-w-[124px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
                                   >
-                                    {stokAdedi > 0 ? 'TALEP OL' : 'STOK YOK'}
+                                    {cnetDetailsMissing
+                                      ? 'DETAYLAR EKSİK'
+                                      : stokAdedi > 0
+                                      ? 'TALEP OL'
+                                      : 'STOK YOK'}
                                   </button>
                                 )}
                               </td>
@@ -3325,10 +3427,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               </thead>
               <tbody>
                 {transferBekleyenTalepler.map((request: any) => {
-                  const markaModel = [request?.brand, request?.model]
-                    .map((value: any) => String(value || '').trim())
-                    .filter(Boolean)
-                    .join(' ') || '-';
+                  const markaModel =
+                    combineBrandModelSafely(
+                      request?.brand,
+                      request?.model
+                    ) || '-';
                   const source = String(request?.owner_branch_code || request?.current_branch_code || '-');
                   const target = String(request?.requester_branch_code || '-');
 
