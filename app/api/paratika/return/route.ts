@@ -666,6 +666,145 @@ function htmlResponse(
   );
 }
 
+
+function extractCallbackFailure(
+  callbackBody: Record<
+    string,
+    unknown
+  >,
+  queryData: any
+) {
+  const transactions =
+    Array.isArray(
+      queryData?.transactionList
+    )
+      ? queryData.transactionList
+      : [];
+
+  const failedTransaction =
+    transactions.find(
+      (item: any) => {
+        const status = String(
+          item?.transactionStatus ||
+            ''
+        ).toUpperCase();
+
+        const returnCode = String(
+          item?.pgTranReturnCode ??
+            ''
+        );
+
+        return (
+          status === 'FA' ||
+          (
+            returnCode &&
+            returnCode !== '00'
+          )
+        );
+      }
+    ) || null;
+
+  const code = String(
+    getString(
+      callbackBody,
+      'pgTranErrorCode',
+      'PGTRANERRORCODE'
+    ) ||
+      failedTransaction
+        ?.pgTranErrorCode ||
+      getString(
+        callbackBody,
+        'errorCode',
+        'ERRORCODE'
+      ) ||
+      failedTransaction
+        ?.errorCode ||
+      queryData?.errorCode ||
+      (
+        failedTransaction
+          ?.pgTranReturnCode &&
+        String(
+          failedTransaction
+            .pgTranReturnCode
+        ) !== '00'
+          ? failedTransaction
+              .pgTranReturnCode
+          : ''
+      ) ||
+      ''
+  ).trim();
+
+  const text = String(
+    getString(
+      callbackBody,
+      'pgTranErrorText',
+      'PGTRANERRORTEXT'
+    ) ||
+      failedTransaction
+        ?.pgTranErrorText ||
+      getString(
+        callbackBody,
+        'errorMsg',
+        'ERRORMSG'
+      ) ||
+      failedTransaction
+        ?.errorMsg ||
+      queryData?.errorMsg ||
+      ''
+  ).trim();
+
+  const callbackCode = String(
+    getString(
+      callbackBody,
+      'responseCode',
+      'RESPONSECODE'
+    ) || ''
+  ).trim();
+
+  const failed =
+    Boolean(
+      failedTransaction
+    ) ||
+    Boolean(
+      callbackCode &&
+      callbackCode !== '00'
+    ) ||
+    Boolean(text) ||
+    Boolean(code);
+
+  const callbackMsg = String(
+    getString(
+      callbackBody,
+      'responseMsg',
+      'RESPONSEMSG'
+    ) || ''
+  ).trim();
+
+  const message =
+    text ||
+    (
+      callbackMsg &&
+      !['APPROVED', 'DECLINED'].includes(
+        callbackMsg.toUpperCase()
+      )
+        ? callbackMsg
+        : ''
+    ) ||
+    (
+      code
+        ? `Ödeme banka/ödeme sistemi tarafından reddedildi. Hata kodu: ${code}`
+        : 'Ödeme banka/ödeme sistemi tarafından reddedildi.'
+    );
+
+  return {
+    failed,
+    code,
+    message,
+    transaction:
+      failedTransaction,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
 
@@ -1147,6 +1286,163 @@ export async function POST(request: NextRequest) {
         true,
         'Ödemeniz başarıyla alındı',
         'Ödeme işleminiz onaylandı. Mağaza personelimiz sistem üzerinden ödemenizi görebilir.'
+      );
+    }
+
+    const failureInfo =
+      extractCallbackFailure(
+        callbackBody,
+        query.data
+      );
+
+    // ===============================================
+    // NET BAŞARISIZ ÖDEME
+    // Banka/ödeme sistemi gerçek hata döndürdüyse
+    // personelin görebilmesi için FAILED + hata mesajı kaydedilir.
+    // ===============================================
+    if (failureInfo.failed) {
+      const failedClient =
+        await pool.connect();
+
+      try {
+        await failedClient.query(
+          'BEGIN'
+        );
+
+        const lockedResult =
+          await failedClient.query(
+            `
+              SELECT
+                id,
+                status
+              FROM public.paratika_payments
+              WHERE id = $1
+              FOR UPDATE
+            `,
+            [payment.id]
+          );
+
+        const locked =
+          lockedResult.rows[0];
+
+        if (!locked) {
+          throw new Error(
+            'Paratika ödeme kaydı bulunamadı.'
+          );
+        }
+
+        const oldStatus = String(
+          locked.status || ''
+        );
+
+        // Daha önce APPROVED olmuş gerçek ödeme
+        // sonradan FAILED yapılmaz.
+        if (
+          oldStatus !== 'APPROVED'
+        ) {
+          await failedClient.query(
+            `
+              UPDATE public.paratika_payments
+              SET
+                status = 'FAILED',
+                paratika_status =
+                  COALESCE(
+                    NULLIF($2, ''),
+                    paratika_status
+                  ),
+                response_code =
+                  COALESCE(
+                    NULLIF($3, ''),
+                    response_code
+                  ),
+                response_msg =
+                  COALESCE(
+                    NULLIF($4, ''),
+                    response_msg
+                  ),
+                last_synced_at =
+                  NOW(),
+                raw_last_response =
+                  $5::jsonb
+              WHERE id = $1
+            `,
+            [
+              payment.id,
+              String(
+                failureInfo
+                  .transaction
+                  ?.transactionStatus ||
+                  'FA'
+              ),
+              failureInfo.code ||
+                callbackResponseCode ||
+                queryResponseCode ||
+                null,
+              failureInfo.message,
+              JSON.stringify(
+                safeJson({
+                  callback:
+                    callbackBody,
+                  queryTransaction:
+                    query.data,
+                  failure: {
+                    code:
+                      failureInfo.code,
+                    message:
+                      failureInfo.message,
+                  },
+                })
+              ),
+            ]
+          );
+
+          await addEvent(
+            failedClient,
+            Number(payment.id),
+            'PAYMENT_FAILED',
+            oldStatus,
+            'FAILED',
+            {
+              code:
+                failureInfo.code ||
+                null,
+              message:
+                failureInfo.message,
+              callback:
+                safeJson(
+                  callbackBody
+                ),
+              queryTransaction:
+                safeJson(
+                  query.data
+                ),
+            }
+          );
+        }
+
+        await failedClient.query(
+          'COMMIT'
+        );
+      } catch (failedError) {
+        try {
+          await failedClient.query(
+            'ROLLBACK'
+          );
+        } catch {}
+
+        console.error(
+          'PARATIKA PAYMENT FAILED UPDATE ERROR:',
+          failedError
+        );
+      } finally {
+        failedClient.release();
+      }
+
+      return htmlResponse(
+        false,
+        'Ödeme başarısız',
+        failureInfo.message,
+        200
       );
     }
 
