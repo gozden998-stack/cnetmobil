@@ -1,8 +1,17 @@
 // app/api/paratika/payment-link/route.ts
-// CNETMOBIL - PARATIKA PAY BY LINK + POSTGRES KAYIT
-// Tutar + Ad Soyad + E-posta + Telefon + Taksit Sayısı alır.
-// Paratika linkini oluşturur, ardından işlemi PostgreSQL'e kaydeder.
-// Ödeme linkini oluşturur ve Paratika üzerinden SMS bildirim talebi gönderir.
+// CNETMOBIL - PARATIKA FINAL PAYMENT LINK
+//
+// Akış:
+// 1) SESSIONTOKEN ile ödeme oturumu oluşturulur.
+// 2) ALLOWEDINSTALLMENTS ile sadece panelde seçilen taksit açılır.
+// 3) Aynı session token PAYBYLINKPAYMENT'e verilerek SMS bildirimi istenir.
+// 4) İşlem PostgreSQL'e kaydedilir.
+//
+// Not:
+// - Taksit 2..12
+// - INSTALLMENTSUPPORT kullanılmaz.
+// - Tüm taksitleri açan fallback yoktur.
+// - Paratika secret bilgileri yalnızca server-side env'de kalır.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool, PoolClient } from 'pg';
@@ -34,6 +43,19 @@ declare global {
   var cnetParatikaPool: Pool | undefined;
 }
 
+function noStoreJson(
+  body: Record<string, unknown>,
+  status = 200
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+      Pragma: 'no-cache',
+    },
+  });
+}
+
 function getPool() {
   const connectionString = process.env.DATABASE_URL;
 
@@ -53,18 +75,10 @@ function getPool() {
   return global.cnetParatikaPool;
 }
 
-function noStoreJson(body: Record<string, unknown>, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: {
-      'Cache-Control': 'no-store, max-age=0',
-      Pragma: 'no-cache',
-    },
-  });
-}
-
 function getSessionSecret() {
-  const secret = String(process.env.SESSION_SECRET || '').trim();
+  const secret = String(
+    process.env.SESSION_SECRET || ''
+  ).trim();
 
   if (!secret) {
     throw new Error('SESSION_SECRET bulunamadı.');
@@ -73,37 +87,56 @@ function getSessionSecret() {
   return secret;
 }
 
-function verifySession(token: string): SessionPayload | null {
+function verifySession(
+  token: string
+): SessionPayload | null {
   try {
     const [encoded, signature] = token.split('.');
 
-    if (!encoded || !signature) return null;
-
-    const expectedSignature = crypto
-      .createHmac('sha256', getSessionSecret())
-      .update(encoded)
-      .digest('base64url');
-
-    const signatureBuffer = Buffer.from(signature, 'utf8');
-    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
-
-    if (signatureBuffer.length !== expectedBuffer.length) {
+    if (!encoded || !signature) {
       return null;
     }
 
-    if (!crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    const expectedSignature = crypto
+      .createHmac(
+        'sha256',
+        getSessionSecret()
+      )
+      .update(encoded)
+      .digest('base64url');
+
+    const a = Buffer.from(
+      signature,
+      'utf8'
+    );
+
+    const b = Buffer.from(
+      expectedSignature,
+      'utf8'
+    );
+
+    if (
+      a.length !== b.length ||
+      !crypto.timingSafeEqual(a, b)
+    ) {
       return null;
     }
 
     const payload = JSON.parse(
-      Buffer.from(encoded, 'base64url').toString('utf8')
+      Buffer.from(
+        encoded,
+        'base64url'
+      ).toString('utf8')
     ) as SessionPayload;
 
     if (
       !payload ||
       !payload.exp ||
-      payload.exp < Math.floor(Date.now() / 1000) ||
-      !['admin', 'personel'].includes(payload.role) ||
+      payload.exp <
+        Math.floor(Date.now() / 1000) ||
+      !['admin', 'personel'].includes(
+        payload.role
+      ) ||
       typeof payload.branch !== 'string'
     ) {
       return null;
@@ -115,8 +148,13 @@ function verifySession(token: string): SessionPayload | null {
   }
 }
 
-function requireSession(request: NextRequest) {
-  const token = request.cookies.get(COOKIE_NAME)?.value || '';
+function requireSession(
+  request: NextRequest
+) {
+  const token =
+    request.cookies.get(COOKIE_NAME)
+      ?.value || '';
+
   const session = verifySession(token);
 
   if (!session) {
@@ -138,32 +176,51 @@ function requireSession(request: NextRequest) {
   };
 }
 
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get('origin');
+function sameOrigin(
+  request: NextRequest
+) {
+  const origin =
+    request.headers.get('origin');
 
-  if (!origin) return false;
+  if (!origin) {
+    return false;
+  }
 
   try {
     const originUrl = new URL(origin);
+
     const expectedHost =
-      request.headers.get('x-forwarded-host') ||
+      request.headers.get(
+        'x-forwarded-host'
+      ) ||
       request.headers.get('host') ||
       request.nextUrl.host;
 
-    return originUrl.host === expectedHost;
+    return (
+      originUrl.host === expectedHost
+    );
   } catch {
     return false;
   }
 }
 
 function getParatikaConfig(): ParatikaConfig {
-  const merchant = String(process.env.PARATIKA_MERCHANT || '').trim();
+  const merchant = String(
+    process.env.PARATIKA_MERCHANT ||
+      ''
+  ).trim();
+
   const merchantUser = String(
-    process.env.PARATIKA_MERCHANT_USER || ''
+    process.env
+      .PARATIKA_MERCHANT_USER || ''
   ).trim();
+
   const merchantPassword = String(
-    process.env.PARATIKA_MERCHANT_PASSWORD || ''
+    process.env
+      .PARATIKA_MERCHANT_PASSWORD ||
+      ''
   ).trim();
+
   const baseUrl = String(
     process.env.PARATIKA_BASE_URL ||
       'https://vpos.paratika.com.tr/paratika/api/v2'
@@ -173,19 +230,44 @@ function getParatikaConfig(): ParatikaConfig {
 
   const missing: string[] = [];
 
-  if (!merchant) missing.push('PARATIKA_MERCHANT');
-  if (!merchantUser) missing.push('PARATIKA_MERCHANT_USER');
-  if (!merchantPassword) missing.push('PARATIKA_MERCHANT_PASSWORD');
-  if (!baseUrl) missing.push('PARATIKA_BASE_URL');
-
-  if (missing.length) {
-    throw new Error(
-      `Eksik environment variable: ${missing.join(', ')}`
+  if (!merchant) {
+    missing.push(
+      'PARATIKA_MERCHANT'
     );
   }
 
-  if (!baseUrl.startsWith('https://')) {
-    throw new Error('PARATIKA_BASE_URL HTTPS olmalıdır.');
+  if (!merchantUser) {
+    missing.push(
+      'PARATIKA_MERCHANT_USER'
+    );
+  }
+
+  if (!merchantPassword) {
+    missing.push(
+      'PARATIKA_MERCHANT_PASSWORD'
+    );
+  }
+
+  if (!baseUrl) {
+    missing.push(
+      'PARATIKA_BASE_URL'
+    );
+  }
+
+  if (missing.length) {
+    throw new Error(
+      `Eksik environment variable: ${missing.join(
+        ', '
+      )}`
+    );
+  }
+
+  if (
+    !baseUrl.startsWith('https://')
+  ) {
+    throw new Error(
+      'PARATIKA_BASE_URL HTTPS olmalıdır.'
+    );
   }
 
   return {
@@ -196,9 +278,13 @@ function getParatikaConfig(): ParatikaConfig {
   };
 }
 
-function parseAmount(value: unknown) {
+function parseAmount(
+  value: unknown
+) {
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : 0;
+    return Number.isFinite(value)
+      ? value
+      : 0;
   }
 
   let text = String(value ?? '')
@@ -207,39 +293,66 @@ function parseAmount(value: unknown) {
     .replace(/₺/g, '')
     .replace(/TL/gi, '');
 
-  if (!text) return 0;
+  if (!text) {
+    return 0;
+  }
 
-  if (text.includes(',') && text.includes('.')) {
-    text = text.replace(/\./g, '').replace(',', '.');
-  } else if (text.includes(',')) {
+  if (
+    text.includes(',') &&
+    text.includes('.')
+  ) {
+    text = text
+      .replace(/\./g, '')
+      .replace(',', '.');
+  } else if (
+    text.includes(',')
+  ) {
     text = text.replace(',', '.');
   }
 
   const amount = Number(text);
 
-  return Number.isFinite(amount) ? amount : 0;
+  return Number.isFinite(amount)
+    ? amount
+    : 0;
 }
 
-function normalizePhone(value: unknown) {
-  let digits = String(value ?? '').replace(/\D/g, '');
+function normalizePhone(
+  value: unknown
+) {
+  let digits = String(value ?? '')
+    .replace(/\D/g, '');
 
-  if (digits.startsWith('0090')) {
+  if (
+    digits.startsWith('0090')
+  ) {
     digits = digits.slice(2);
   }
 
-  if (digits.startsWith('0') && digits.length === 11) {
-    digits = `90${digits.slice(1)}`;
+  if (
+    digits.startsWith('0') &&
+    digits.length === 11
+  ) {
+    digits =
+      `90${digits.slice(1)}`;
   }
 
-  if (digits.length === 10 && digits.startsWith('5')) {
+  if (
+    digits.length === 10 &&
+    digits.startsWith('5')
+  ) {
     digits = `90${digits}`;
   }
 
   return digits;
 }
 
-function validEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+function validEmail(
+  value: string
+) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    value
+  );
 }
 
 function createMerchantPaymentId() {
@@ -247,11 +360,21 @@ function createMerchantPaymentId() {
 
   const stamp = [
     now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0'),
+    String(
+      now.getMonth() + 1
+    ).padStart(2, '0'),
+    String(
+      now.getDate()
+    ).padStart(2, '0'),
+    String(
+      now.getHours()
+    ).padStart(2, '0'),
+    String(
+      now.getMinutes()
+    ).padStart(2, '0'),
+    String(
+      now.getSeconds()
+    ).padStart(2, '0'),
   ].join('');
 
   return `CNETPBL-${stamp}-${crypto
@@ -260,16 +383,27 @@ function createMerchantPaymentId() {
     .toUpperCase()}`;
 }
 
-function createCustomerCode(customerPhone: string, customerEmail: string) {
-  // Paratika live PAYBYLINKPAYMENT isteği CUSTOMER alanını zorunlu
-  // isteyebiliyor. Aynı müşteri için aynı kodu üretelim; kişisel veriyi
-  // CUSTOMER alanına açıkça yazmak yerine SHA-256 tabanlı kısa bir kod kullanıyoruz.
-  const normalizedPhone = customerPhone.replace(/\D/g, '');
-  const normalizedEmail = customerEmail.trim().toLowerCase();
+function createCustomerCode(
+  customerPhone: string,
+  customerEmail: string
+) {
+  const normalizedPhone =
+    customerPhone.replace(
+      /\D/g,
+      ''
+    );
+
+  const normalizedEmail =
+    customerEmail
+      .trim()
+      .toLowerCase();
 
   const hash = crypto
     .createHash('sha256')
-    .update(`${normalizedPhone}|${normalizedEmail}`, 'utf8')
+    .update(
+      `${normalizedPhone}|${normalizedEmail}`,
+      'utf8'
+    )
     .digest('hex')
     .slice(0, 24)
     .toUpperCase();
@@ -277,135 +411,12 @@ function createCustomerCode(customerPhone: string, customerEmail: string) {
   return `CNET-${hash}`;
 }
 
-function buildExactInstallmentSupport(
-  installmentCount: number,
-  installmentType: 'CONSUMER' | 'BUSINESS'
+function getReturnUrl(
+  request: NextRequest
 ) {
-  return JSON.stringify([
-    {
-      commissionKey: `CR${installmentCount}`,
-      installmentType,
-      active: 'true',
-    },
-  ]);
-}
-
-
-
-async function postParatika(
-  config: ParatikaConfig,
-  params: URLSearchParams
-) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20_000);
-
-  try {
-    const response = await fetch(config.baseUrl, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json, text/plain, */*',
-        'Content-Type':
-          'application/x-www-form-urlencoded;charset=UTF-8',
-      },
-      body: params.toString(),
-      signal: controller.signal,
-    });
-
-    const text = await response.text();
-
-    let data: any = null;
-
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      data = {
-        responseCode: '',
-        responseMsg: text || 'Paratika boş cevap döndürdü.',
-      };
-    }
-
-    return {
-      response,
-      data,
-      text,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-function collectInstallmentCounts(value: unknown) {
-  const result = new Set<number>();
-  const visited = new Set<object>();
-
-  const walk = (node: unknown) => {
-    if (!node || typeof node !== 'object') return;
-
-    const obj = node as Record<string, unknown>;
-
-    if (visited.has(obj)) return;
-    visited.add(obj);
-
-    if (Array.isArray(obj.installmentList)) {
-      for (const item of obj.installmentList) {
-        const count = Number(
-          item && typeof item === 'object'
-            ? (item as Record<string, unknown>).count
-            : NaN
-        );
-
-        if (Number.isInteger(count) && count >= 1 && count <= 99) {
-          result.add(count);
-        }
-      }
-    }
-
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item);
-      return;
-    }
-
-    for (const child of Object.values(obj)) {
-      walk(child);
-    }
-  };
-
-  walk(value);
-
-  return [...result].sort((a, b) => a - b);
-}
-
-async function getAllowedInstallments(config: ParatikaConfig) {
-  const params = new URLSearchParams();
-
-  params.set('ACTION', 'QUERYCUSTOMERCOMMISSION');
-  params.set('MERCHANT', config.merchant);
-  params.set('MERCHANTUSER', config.merchantUser);
-  params.set('MERCHANTPASSWORD', config.merchantPassword);
-
-  const { response, data } = await postParatika(config, params);
-
-  if (!response.ok) {
-    throw new Error(
-      `Paratika taksit bilgisi alınamadı. HTTP ${response.status}`
-    );
-  }
-
-  const counts = collectInstallmentCounts(data);
-
-  if (!counts.length) {
-    throw new Error(
-      'Paratika hesabından kullanılabilir taksit listesi alınamadı.'
-    );
-  }
-
-  return counts;
-}
-
-function getReturnUrl(request: NextRequest) {
   const configured = String(
-    process.env.PARATIKA_RETURN_URL || ''
+    process.env.PARATIKA_RETURN_URL ||
+      ''
   ).trim();
 
   if (configured) {
@@ -413,16 +424,24 @@ function getReturnUrl(request: NextRequest) {
   }
 
   const forwardedProto =
-    request.headers.get('x-forwarded-proto') || 'https';
+    request.headers.get(
+      'x-forwarded-proto'
+    ) || 'https';
+
   const forwardedHost =
-    request.headers.get('x-forwarded-host') ||
+    request.headers.get(
+      'x-forwarded-host'
+    ) ||
     request.headers.get('host') ||
     request.nextUrl.host;
 
   return `${forwardedProto}://${forwardedHost}/api/paratika/return`;
 }
 
-function buildPaymentUrl(baseUrl: string, sessionToken: string) {
+function buildPaymentUrl(
+  baseUrl: string,
+  sessionToken: string
+) {
   const url = new URL(baseUrl);
 
   return `${url.protocol}//${url.host}/merchant/payment/${encodeURIComponent(
@@ -430,106 +449,205 @@ function buildPaymentUrl(baseUrl: string, sessionToken: string) {
   )}`;
 }
 
-function safeJson(value: unknown) {
+function safeJson(
+  value: unknown
+) {
   try {
-    return JSON.parse(JSON.stringify(value ?? null));
+    return JSON.parse(
+      JSON.stringify(
+        value ?? null
+      )
+    );
   } catch {
     return null;
   }
 }
 
-async function savePaymentToPostgres(
+async function postParatika(
+  config: ParatikaConfig,
+  params: URLSearchParams
+) {
+  const controller =
+    new AbortController();
+
+  const timeoutId =
+    setTimeout(
+      () => controller.abort(),
+      20_000
+    );
+
+  try {
+    const response = await fetch(
+      config.baseUrl,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Accept:
+            'application/json, text/plain, */*',
+          'Content-Type':
+            'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body: params.toString(),
+        signal: controller.signal,
+      }
+    );
+
+    const text =
+      await response.text();
+
+    let data: any = null;
+
+    try {
+      data = text
+        ? JSON.parse(text)
+        : {};
+    } catch {
+      data = {
+        responseCode: '',
+        responseMsg:
+          text ||
+          'Paratika boş cevap döndürdü.',
+      };
+    }
+
+    return {
+      response,
+      data,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function paratikaField(
+  data: any,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    const value = data?.[key];
+
+    if (
+      value !== undefined &&
+      value !== null
+    ) {
+      return String(value);
+    }
+  }
+
+  return '';
+}
+
+async function savePayment(
   client: PoolClient,
   input: {
     merchantPaymentId: string;
     sessionToken: string;
+    payByLinkToken: string | null;
     paymentUrl: string;
+
     branchCode: string;
     createdByUserId: number | null;
+
     customerName: string;
     customerEmail: string;
     customerPhone: string;
+
     amount: number;
     installmentCount: number;
+
+    status:
+      | 'SENT'
+      | 'LINK_CREATED';
+
     responseCode: string;
     responseMsg: string;
-    rawResponse: unknown;
+
+    rawCreateResponse: unknown;
   }
 ) {
-  const insertResult = await client.query(
-    `
-      INSERT INTO public.paratika_payments (
-        merchant_payment_id,
-        session_token,
-        payment_url,
+  const result =
+    await client.query(
+      `
+        INSERT INTO public.paratika_payments (
+          merchant_payment_id,
+          session_token,
+          paybylink_token,
+          payment_url,
 
-        branch_code,
-        created_by_user_id,
+          branch_code,
+          created_by_user_id,
 
-        customer_name,
-        customer_email,
-        customer_phone,
+          customer_name,
+          customer_email,
+          customer_phone,
 
-        amount,
-        currency,
-        installment_count,
+          amount,
+          currency,
+          installment_count,
 
-        status,
-        paratika_status,
-        response_code,
-        response_msg,
+          status,
+          paratika_status,
+          response_code,
+          response_msg,
 
-        link_created_at,
-        sent_at,
-        raw_create_response,
-        raw_last_response,
-        last_synced_at
-      )
-      VALUES (
-        $1, $2, $3,
-        $4, $5,
-        $6, $7, $8,
-        $9, 'TRY', $10,
-        'SENT', 'SENT', $11, $12,
-        NOW(), NOW(), $13::jsonb, $13::jsonb, NOW()
-      )
-      RETURNING
-        id,
-        merchant_payment_id,
-        branch_code,
-        customer_name,
-        customer_email,
-        customer_phone,
-        amount,
-        currency,
-        installment_count,
-        status,
-        link_created_at,
-        created_at
-    `,
-    [
-      input.merchantPaymentId,
-      input.sessionToken,
-      input.paymentUrl,
+          link_created_at,
+          sent_at,
 
-      input.branchCode,
-      input.createdByUserId,
+          raw_create_response,
+          raw_last_response,
+          last_synced_at
+        )
+        VALUES (
+          $1, $2, $3, $4,
+          $5, $6,
+          $7, $8, $9,
+          $10, 'TRY', $11,
+          $12, $12, $13, $14,
+          NOW(),
+          CASE
+            WHEN $12 = 'SENT'
+            THEN NOW()
+            ELSE NULL
+          END,
+          $15::jsonb,
+          $15::jsonb,
+          NOW()
+        )
+        RETURNING *
+      `,
+      [
+        input.merchantPaymentId,
+        input.sessionToken,
+        input.payByLinkToken,
+        input.paymentUrl,
 
-      input.customerName,
-      input.customerEmail,
-      input.customerPhone,
+        input.branchCode,
+        input.createdByUserId,
 
-      input.amount,
-      input.installmentCount,
+        input.customerName,
+        input.customerEmail,
+        input.customerPhone,
 
-      input.responseCode || null,
-      input.responseMsg || null,
+        input.amount,
+        input.installmentCount,
 
-      JSON.stringify(safeJson(input.rawResponse)),
-    ]
-  );
+        input.status,
+        input.responseCode ||
+          null,
+        input.responseMsg ||
+          null,
 
-  const payment = insertResult.rows[0];
+        JSON.stringify(
+          safeJson(
+            input.rawCreateResponse
+          )
+        ),
+      ]
+    );
+
+  const payment =
+    result.rows[0];
 
   await client.query(
     `
@@ -543,21 +661,30 @@ async function savePaymentToPostgres(
       )
       VALUES (
         $1,
-        'PAYMENT_LINK_CREATED_SMS_REQUESTED',
+        $2,
         'PANEL',
         NULL,
-        'SENT',
-        $2::jsonb
+        $3,
+        $4::jsonb
       )
     `,
     [
       payment.id,
+      input.status === 'SENT'
+        ? 'PAYMENT_LINK_CREATED_SMS_REQUESTED'
+        : 'PAYMENT_SESSION_CREATED',
+      input.status,
       JSON.stringify({
-        merchantPaymentId: input.merchantPaymentId,
-        branchCode: input.branchCode,
-        createdByUserId: input.createdByUserId,
-        amount: input.amount,
-        installmentCount: input.installmentCount,
+        merchantPaymentId:
+          input.merchantPaymentId,
+        branchCode:
+          input.branchCode,
+        createdByUserId:
+          input.createdByUserId,
+        amount:
+          input.amount,
+        installmentCount:
+          input.installmentCount,
       }),
     ]
   );
@@ -565,7 +692,9 @@ async function savePaymentToPostgres(
   return payment;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   const startedAt = Date.now();
 
   try {
@@ -573,53 +702,88 @@ export async function POST(request: NextRequest) {
       return noStoreJson(
         {
           success: false,
-          error: 'Geçersiz istek kaynağı.',
+          error:
+            'Geçersiz istek kaynağı.',
         },
         403
       );
     }
 
-    const auth = requireSession(request);
+    const auth =
+      requireSession(request);
 
     if (!auth.ok) {
       return auth.response;
     }
 
-    const body = await request.json().catch(() => ({}));
+    const body =
+      await request
+        .json()
+        .catch(() => ({}));
 
-    const amount = parseAmount(body?.amount);
-    const customerName = String(body?.customerName || '').trim();
-    const customerEmail = String(body?.customerEmail || '')
-      .trim()
-      .toLowerCase();
-    const customerPhone = normalizePhone(body?.customerPhone);
-    const installmentCount = Number(body?.installmentCount);
+    const amount =
+      parseAmount(
+        body?.amount
+      );
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const customerName =
+      String(
+        body?.customerName || ''
+      ).trim();
+
+    const customerEmail =
+      String(
+        body?.customerEmail || ''
+      )
+        .trim()
+        .toLowerCase();
+
+    const customerPhone =
+      normalizePhone(
+        body?.customerPhone
+      );
+
+    const installmentCount =
+      Number(
+        body?.installmentCount
+      );
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
       return noStoreJson(
         {
           success: false,
-          error: 'Geçerli bir tutar girin.',
+          error:
+            'Geçerli bir tutar girin.',
         },
         400
       );
     }
 
-    if (amount > 10_000_000) {
+    if (
+      amount > 10_000_000
+    ) {
       return noStoreJson(
         {
           success: false,
-          error: 'Tutar güvenlik sınırını aşıyor.',
+          error:
+            'Tutar güvenlik sınırını aşıyor.',
         },
         400
       );
     }
 
-    if (customerName.length < 3 || customerName.length > 128) {
+    if (
+      customerName.length < 3 ||
+      customerName.length > 128
+    ) {
       return noStoreJson(
         {
           success: false,
-          error: 'Müşteri ad soyad bilgisi geçersiz.',
+          error:
+            'Müşteri ad soyad bilgisi geçersiz.',
         },
         400
       );
@@ -627,13 +791,16 @@ export async function POST(request: NextRequest) {
 
     if (
       !customerEmail ||
-      customerEmail.length > 128 ||
-      !validEmail(customerEmail)
+      customerEmail.length > 64 ||
+      !validEmail(
+        customerEmail
+      )
     ) {
       return noStoreJson(
         {
           success: false,
-          error: 'Geçerli bir e-posta adresi girin.',
+          error:
+            'Geçerli bir e-posta adresi girin.',
         },
         400
       );
@@ -641,7 +808,9 @@ export async function POST(request: NextRequest) {
 
     if (
       customerPhone.length !== 12 ||
-      !customerPhone.startsWith('905')
+      !customerPhone.startsWith(
+        '905'
+      )
     ) {
       return noStoreJson(
         {
@@ -654,319 +823,469 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      !Number.isInteger(installmentCount) ||
+      !Number.isInteger(
+        installmentCount
+      ) ||
       installmentCount < 2 ||
       installmentCount > 12
     ) {
       return noStoreJson(
         {
           success: false,
-          error: 'Geçerli bir taksit sayısı seçin.',
+          error:
+            'Taksit sayısı 2 ile 12 arasında olmalıdır.',
         },
         400
       );
     }
 
-    const config = getParatikaConfig();
+    const config =
+      getParatikaConfig();
 
-    const allowedInstallments = await getAllowedInstallments(config);
+    const merchantPaymentId =
+      createMerchantPaymentId();
 
-    if (!allowedInstallments.includes(installmentCount)) {
-      return noStoreJson(
-        {
-          success: false,
-          error: `${installmentCount} taksit Paratika hesabında kullanıma açık değil.`,
-          allowedInstallments,
-        },
-        400
+    const customerCode =
+      createCustomerCode(
+        customerPhone,
+        customerEmail
       );
-    }
 
-    const merchantPaymentId = createMerchantPaymentId();
-    const customerCode = createCustomerCode(
-      customerPhone,
+    const returnUrl =
+      getReturnUrl(request);
+
+    //
+    // ADIM 1
+    // SESSIONTOKEN + ALLOWEDINSTALLMENTS
+    //
+    const sessionParams =
+      new URLSearchParams();
+
+    sessionParams.set(
+      'ACTION',
+      'SESSIONTOKEN'
+    );
+
+    sessionParams.set(
+      'MERCHANT',
+      config.merchant
+    );
+
+    sessionParams.set(
+      'MERCHANTUSER',
+      config.merchantUser
+    );
+
+    sessionParams.set(
+      'MERCHANTPASSWORD',
+      config.merchantPassword
+    );
+
+    sessionParams.set(
+      'SESSIONTYPE',
+      'PAYMENTSESSION'
+    );
+
+    sessionParams.set(
+      'SESSIONEXPIRY',
+      '168h'
+    );
+
+    sessionParams.set(
+      'MERCHANTPAYMENTID',
+      merchantPaymentId
+    );
+
+    sessionParams.set(
+      'AMOUNT',
+      amount.toFixed(2)
+    );
+
+    sessionParams.set(
+      'CURRENCY',
+      'TRY'
+    );
+
+    sessionParams.set(
+      'CUSTOMER',
+      customerCode
+    );
+
+    sessionParams.set(
+      'CUSTOMERNAME',
+      customerName
+    );
+
+    sessionParams.set(
+      'CUSTOMEREMAIL',
       customerEmail
     );
-    const returnUrl = getReturnUrl(request);
 
-    const params = new URLSearchParams();
-
-    params.set('ACTION', 'PAYBYLINKPAYMENT');
-    params.set('MERCHANT', config.merchant);
-    params.set('MERCHANTUSER', config.merchantUser);
-    params.set('MERCHANTPASSWORD', config.merchantPassword);
-
-    params.set('SESSIONTYPE', 'PAYMENTSESSION');
-    params.set('SESSIONEXPIRY', '168h');
-
-    params.set('MERCHANTPAYMENTID', merchantPaymentId);
-    params.set('AMOUNT', amount.toFixed(2));
-    params.set('CURRENCY', 'TRY');
-
-    // Paratika PAYBYLINKPAYMENT örneğinde CUSTOMER alanı da gönderiliyor.
-    // Live API ERR10010 / violatorParam=CUSTOMER döndürdüğü için
-    // bu alanı stabil müşteri kodu ile gönderiyoruz.
-    params.set('CUSTOMER', customerCode);
-    params.set('CUSTOMERNAME', customerName);
-    params.set('CUSTOMEREMAIL', customerEmail);
-    params.set('CUSTOMERPHONE', customerPhone);
-
-    params.set('LANGUAGE', 'tr');
-    params.set('RETURNURL', returnUrl);
-
-    // Paratika Pay By Link bildirimi:
-    // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
-    params.set('NOTIFICATIONCHANNELS', 'SMS');
-
-    // Canlı hesapta CR1..CR12 anahtarları aktif.
-    // Ancak BUSINESS + CONSUMER birlikte gönderildiğinde Paratika
-    // ERR10237 döndürüyor. Bu yüzden seçilen CR anahtarını önce
-    // CONSUMER olarak deneriz; hesap bunu reddederse BUSINESS olarak
-    // ikinci kez deneriz. İki deneme de başarısızsa TÜM TAKSİTLERİ
-    // açan bir fallback YOKTUR.
-    //
-    // Böylece 2 seçilmiş bir işlemde yanlışlıkla 3..12 taksitlerin
-    // görünmesine izin vermeyiz.
-
-    const installmentTypes: Array<
-      'CONSUMER' | 'BUSINESS'
-    > = ['CONSUMER', 'BUSINESS'];
-
-    let response: Response | null = null;
-    let data: any = null;
-    let selectedInstallmentType:
-      | 'CONSUMER'
-      | 'BUSINESS'
-      | null = null;
-
-    const installmentAttempts: Array<{
-      installmentType: 'CONSUMER' | 'BUSINESS';
-      responseCode: string;
-      responseMsg: string;
-      errorCode: string;
-      errorMsg: string;
-    }> = [];
-
-    for (const installmentType of installmentTypes) {
-      const attemptParams =
-        new URLSearchParams(params);
-
-      attemptParams.set(
-        'INSTALLMENTSUPPORT',
-        buildExactInstallmentSupport(
-          installmentCount,
-          installmentType
-        )
-      );
-
-      const attempt =
-        await postParatika(
-          config,
-          attemptParams
-        );
-
-      const attemptCode = String(
-        attempt.data?.responseCode ??
-          attempt.data?.RESPONSECODE ??
-          ''
-      );
-
-      const attemptErrorCode = String(
-        attempt.data?.errorCode ??
-          attempt.data?.ERRORCODE ??
-          ''
-      );
-
-      installmentAttempts.push({
-        installmentType,
-        responseCode: attemptCode,
-        responseMsg: String(
-          attempt.data?.responseMsg ??
-            attempt.data?.RESPONSEMSG ??
-            ''
-        ),
-        errorCode: attemptErrorCode,
-        errorMsg: String(
-          attempt.data?.errorMsg ??
-            attempt.data?.ERRORMSG ??
-            ''
-        ),
-      });
-
-      response = attempt.response;
-      data = attempt.data;
-
-      if (
-        attemptCode === '00' &&
-        String(
-          attempt.data?.sessionToken ??
-            attempt.data?.SESSIONTOKEN ??
-            ''
-        ).trim()
-      ) {
-        selectedInstallmentType =
-          installmentType;
-        break;
-      }
-
-      // Sadece INSTALLMENTSUPPORT format/uyumluluk hatasında
-      // diğer kart tipini dene. Başka hata varsa aynı işlemi
-      // gereksiz yere tekrar göndermiyoruz.
-      if (
-        attemptErrorCode.toUpperCase() !==
-        'ERR10237'
-      ) {
-        break;
-      }
-    }
-
-    if (!response) {
-      throw new Error(
-        'Paratika taksit isteği gönderilemedi.'
-      );
-    }
-
-    const responseCode = String(
-      data?.responseCode ??
-      data?.RESPONSECODE ??
-      ''
+    sessionParams.set(
+      'CUSTOMERPHONE',
+      customerPhone
     );
 
-    const responseMsg = String(
-      data?.responseMsg ??
-      data?.RESPONSEMSG ??
-      ''
+    sessionParams.set(
+      'LANGUAGE',
+      'tr'
     );
 
-    // Paratika, responseCode 00 dışındaki hatalarda ERROR / ERRORCODE
-    // alanlarını döndürebilir. Teşhis için güvenli şekilde kullanıcıya
-    // geri döndürüyoruz; API kullanıcı adı/şifre gibi secret alanları
-    // kesinlikle response'a eklenmez.
-    const paratikaError = String(
-      data?.errorMsg ??
-      data?.ERRORMSG ??
-      data?.error ??
-      data?.ERROR ??
-      ''
+    sessionParams.set(
+      'RETURNURL',
+      returnUrl
     );
 
-    const paratikaErrorCode = String(
-      data?.errorCode ??
-      data?.ERRORCODE ??
-      ''
+    // Kritik:
+    // Sadece panelde seçilen taksit.
+    // Örnek: 2 seçildiyse "2".
+    sessionParams.set(
+      'ALLOWEDINSTALLMENTS',
+      String(
+        installmentCount
+      )
     );
 
-    const sessionToken = String(
-      data?.sessionToken ??
-      data?.SESSIONTOKEN ??
-      ''
-    ).trim();
+    const sessionResult =
+      await postParatika(
+        config,
+        sessionParams
+      );
+
+    const sessionCode =
+      paratikaField(
+        sessionResult.data,
+        'responseCode',
+        'RESPONSECODE'
+      );
+
+    const sessionMsg =
+      paratikaField(
+        sessionResult.data,
+        'responseMsg',
+        'RESPONSEMSG'
+      );
+
+    const sessionToken =
+      paratikaField(
+        sessionResult.data,
+        'sessionToken',
+        'SESSIONTOKEN'
+      ).trim();
 
     if (
-      !response.ok ||
-      responseCode !== '00' ||
+      !sessionResult.response.ok ||
+      sessionCode !== '00' ||
       !sessionToken
     ) {
-      console.error('PARATIKA PAYBYLINK FAILED', {
-        httpStatus: response.status,
-        responseCode,
-        responseMsg,
-        paratikaError,
-        paratikaErrorCode,
-        merchantPaymentId,
-        // Secret içermez; yalnızca Paratika response body'sidir.
-        paratikaResponse: data,
-      });
-
       return noStoreJson(
         {
           success: false,
           channel: 'PARATIKA',
+          stage: 'SESSIONTOKEN',
           message:
-            responseMsg ||
-            'Paratika ödeme linki oluşturulamadı.',
-          responseCode: responseCode || null,
-          responseMsg: responseMsg || null,
-          errorCode: paratikaErrorCode || null,
-          errorDetail: paratikaError || null,
-          violatorParam: String(
-            data?.violatorParam ??
-            data?.VIOLATORPARAM ??
-            ''
-          ) || null,
+            sessionMsg ||
+            'Paratika ödeme oturumu oluşturulamadı.',
+          responseCode:
+            sessionCode || null,
+          responseMsg:
+            sessionMsg || null,
+          errorCode:
+            paratikaField(
+              sessionResult.data,
+              'errorCode',
+              'ERRORCODE'
+            ) || null,
+          errorDetail:
+            paratikaField(
+              sessionResult.data,
+              'errorMsg',
+              'ERRORMSG',
+              'error',
+              'ERROR'
+            ) || null,
+          violatorParam:
+            paratikaField(
+              sessionResult.data,
+              'violatorParam',
+              'VIOLATORPARAM'
+            ) || null,
           merchantPaymentId,
-          // Geçici teşhis alanı. Paratika'nın hata cevabını görmemizi sağlar.
-          // İstek credential'ları burada yer almaz.
-          paratikaResponse: data,
-          installmentAttempts,
-          responseTimeMs: Date.now() - startedAt,
+          paratikaResponse:
+            sessionResult.data,
+          responseTimeMs:
+            Date.now() -
+            startedAt,
         },
-        response.ok ? 400 : 502
+        sessionResult.response.ok
+          ? 400
+          : 502
       );
     }
 
-    const paymentUrl = buildPaymentUrl(
-      config.baseUrl,
+    const paymentUrl =
+      buildPaymentUrl(
+        config.baseUrl,
+        sessionToken
+      );
+
+    //
+    // ADIM 2
+    // Aynı SESSIONTOKEN üzerinden PayByLink SMS bildirimi.
+    //
+    // Burada INSTALLMENTSUPPORT yok.
+    // Taksit kuralı SESSIONTOKEN oluşturulurken
+    // ALLOWEDINSTALLMENTS ile kilitlendi.
+    //
+    const smsParams =
+      new URLSearchParams();
+
+    smsParams.set(
+      'ACTION',
+      'PAYBYLINKPAYMENT'
+    );
+
+    smsParams.set(
+      'MERCHANT',
+      config.merchant
+    );
+
+    smsParams.set(
+      'MERCHANTUSER',
+      config.merchantUser
+    );
+
+    smsParams.set(
+      'MERCHANTPASSWORD',
+      config.merchantPassword
+    );
+
+    smsParams.set(
+      'SESSIONTOKEN',
       sessionToken
     );
 
+    smsParams.set(
+      'SESSIONTYPE',
+      'PAYMENTSESSION'
+    );
+
+    smsParams.set(
+      'SESSIONEXPIRY',
+      '168h'
+    );
+
+    smsParams.set(
+      'MERCHANTPAYMENTID',
+      merchantPaymentId
+    );
+
+    smsParams.set(
+      'AMOUNT',
+      amount.toFixed(2)
+    );
+
+    smsParams.set(
+      'CURRENCY',
+      'TRY'
+    );
+
+    smsParams.set(
+      'CUSTOMER',
+      customerCode
+    );
+
+    smsParams.set(
+      'CUSTOMERNAME',
+      customerName
+    );
+
+    smsParams.set(
+      'CUSTOMEREMAIL',
+      customerEmail
+    );
+
+    smsParams.set(
+      'CUSTOMERPHONE',
+      customerPhone
+    );
+
+    smsParams.set(
+      'LANGUAGE',
+      'tr'
+    );
+
+    smsParams.set(
+      'RETURNURL',
+      returnUrl
+    );
+
+    smsParams.set(
+      'NOTIFICATIONCHANNELS',
+      'SMS'
+    );
+
+    const smsResult =
+      await postParatika(
+        config,
+        smsParams
+      );
+
+    const smsCode =
+      paratikaField(
+        smsResult.data,
+        'responseCode',
+        'RESPONSECODE'
+      );
+
+    const smsMsg =
+      paratikaField(
+        smsResult.data,
+        'responseMsg',
+        'RESPONSEMSG'
+      );
+
+    const smsSessionToken =
+      paratikaField(
+        smsResult.data,
+        'sessionToken',
+        'SESSIONTOKEN'
+      ).trim();
+
+    const payByLinkToken =
+      paratikaField(
+        smsResult.data,
+        'payByLinkToken',
+        'PAYBYLINKTOKEN'
+      ).trim();
+
+    const smsAccepted =
+      smsResult.response.ok &&
+      smsCode === '00' &&
+      (
+        !smsSessionToken ||
+        smsSessionToken ===
+          sessionToken
+      );
+
+    // Eğer Paratika farklı session token üretirse
+    // bunu başarılı SMS olarak kabul etmiyoruz.
+    // Çünkü farklı session taksit kuralını taşımayabilir.
+    const smsSessionMismatch =
+      Boolean(
+        smsSessionToken &&
+        smsSessionToken !==
+          sessionToken
+      );
+
+    const dbStatus:
+      | 'SENT'
+      | 'LINK_CREATED' =
+      smsAccepted
+        ? 'SENT'
+        : 'LINK_CREATED';
+
     const pool = getPool();
-    const client = await pool.connect();
+    const client =
+      await pool.connect();
 
     let savedPayment: any = null;
 
     try {
       await client.query('BEGIN');
 
-      savedPayment = await savePaymentToPostgres(client, {
-        merchantPaymentId,
-        sessionToken,
-        paymentUrl,
-        branchCode: String(auth.session.branch || '').trim(),
-        createdByUserId:
-          auth.session.userId !== null
-            ? Number(auth.session.userId)
-            : null,
-        customerName,
-        customerEmail,
-        customerPhone,
-        amount: Number(amount.toFixed(2)),
-        installmentCount,
-        responseCode,
-        responseMsg,
-        rawResponse: data,
-      });
+      savedPayment =
+        await savePayment(
+          client,
+          {
+            merchantPaymentId,
+            sessionToken,
+            payByLinkToken:
+              payByLinkToken ||
+              null,
+            paymentUrl,
 
-      await client.query('COMMIT');
+            branchCode:
+              String(
+                auth.session.branch ||
+                  ''
+              ).trim(),
+
+            createdByUserId:
+              auth.session.userId !==
+              null
+                ? Number(
+                    auth.session.userId
+                  )
+                : null,
+
+            customerName,
+            customerEmail,
+            customerPhone,
+
+            amount:
+              Number(
+                amount.toFixed(2)
+              ),
+
+            installmentCount,
+
+            status:
+              dbStatus,
+
+            responseCode:
+              smsAccepted
+                ? smsCode
+                : sessionCode,
+
+            responseMsg:
+              smsAccepted
+                ? smsMsg
+                : sessionMsg,
+
+            rawCreateResponse: {
+              session:
+                sessionResult.data,
+              sms:
+                smsResult.data,
+              selectedInstallment:
+                installmentCount,
+            },
+          }
+        );
+
+      await client.query(
+        'COMMIT'
+      );
     } catch (dbError) {
       try {
-        await client.query('ROLLBACK');
+        await client.query(
+          'ROLLBACK'
+        );
       } catch {}
 
       console.error(
-        'PARATIKA LINK OLUŞTU AMA POSTGRES KAYDI BAŞARISIZ:',
+        'PARATIKA SESSION OLUŞTU AMA DB KAYDI BAŞARISIZ:',
         {
           merchantPaymentId,
           dbError,
         }
       );
 
-      // Kritik:
-      // Paratika linki gerçekten oluştuğu için kullanıcıya bunu gizlemiyoruz.
-      // Duplicate ödeme oluşturmaması için aynı isteği otomatik tekrar etmiyoruz.
       return noStoreJson(
         {
           success: false,
-          paratikaLinkCreated: true,
+          paratikaLinkCreated:
+            true,
           databaseSaved: false,
           channel: 'PARATIKA',
           message:
-            'Paratika ödeme linki oluştu ve SMS gönderim talebi iletildi fakat PostgreSQL kaydı yapılamadı. Aynı ödemeyi tekrar oluşturmayın.',
+            'Paratika ödeme oturumu oluştu fakat PostgreSQL kaydı yapılamadı. Aynı ödemeyi tekrar oluşturmayın.',
           merchantPaymentId,
           sessionToken,
           paymentUrl,
-          responseCode,
-          responseMsg,
+          selectedInstallment:
+            installmentCount,
         },
         500
       );
@@ -974,58 +1293,153 @@ export async function POST(request: NextRequest) {
       client.release();
     }
 
+    if (!smsAccepted) {
+      return noStoreJson(
+        {
+          success: true,
+          databaseSaved: true,
+          channel: 'PARATIKA',
+
+          warning: true,
+          smsSent: false,
+
+          message:
+            smsSessionMismatch
+              ? 'Ödeme linki oluşturuldu ve seçilen taksit kilitlendi; ancak Paratika SMS isteğinde farklı session token döndürdüğü için SMS güvenli kabul edilmedi.'
+              : 'Ödeme linki oluşturuldu ve seçilen taksit kilitlendi; ancak Paratika SMS bildirimi onaylanmadı.',
+
+          id:
+            savedPayment.id,
+
+          merchantPaymentId,
+          sessionToken,
+          paymentUrl,
+
+          amount:
+            Number(
+              amount.toFixed(2)
+            ),
+
+          currency: 'TRY',
+
+          customerName,
+          customerEmail,
+          customerPhone,
+
+          installmentCount,
+
+          status:
+            'LINK_CREATED',
+
+          sessionResponseCode:
+            sessionCode,
+
+          smsResponseCode:
+            smsCode || null,
+
+          smsResponseMsg:
+            smsMsg || null,
+
+          smsErrorCode:
+            paratikaField(
+              smsResult.data,
+              'errorCode',
+              'ERRORCODE'
+            ) || null,
+
+          smsErrorDetail:
+            paratikaField(
+              smsResult.data,
+              'errorMsg',
+              'ERRORMSG',
+              'error',
+              'ERROR'
+            ) || null,
+
+          smsSessionMismatch,
+
+          responseTimeMs:
+            Date.now() -
+            startedAt,
+        }
+      );
+    }
+
     return noStoreJson({
       success: true,
       databaseSaved: true,
       channel: 'PARATIKA',
-      message:
-        'Paratika ödeme linki oluşturuldu, SMS gönderim talebi Paratika\'ya iletildi ve kayıt PostgreSQL\'e kaydedildi.',
 
-      id: savedPayment.id,
+      message:
+        'Ödeme linki oluşturuldu, seçilen taksit kilitlendi ve SMS talebi Paratika tarafından onaylandı.',
+
+      id:
+        savedPayment.id,
+
       merchantPaymentId,
       sessionToken,
+      payByLinkToken:
+        payByLinkToken ||
+        null,
+
       paymentUrl,
 
-      amount: Number(amount.toFixed(2)),
+      amount:
+        Number(
+          amount.toFixed(2)
+        ),
+
       currency: 'TRY',
+
       customerName,
       customerEmail,
       customerPhone,
-      installmentCount,
-      allowedInstallments,
 
-      branch: String(auth.session.branch || '').trim(),
-      createdByUserId: auth.session.userId,
+      installmentCount,
 
       status: 'SENT',
-      notificationChannels: ['SMS'],
-      installmentSupportType:
-        selectedInstallmentType,
-      responseCode,
-      responseMsg,
+      smsSent: true,
+
+      responseCode:
+        smsCode,
+
+      responseMsg:
+        smsMsg,
 
       expiresIn: '168h',
-      responseTimeMs: Date.now() - startedAt,
-      createdAt: new Date().toISOString(),
+
+      responseTimeMs:
+        Date.now() -
+        startedAt,
+
+      createdAt:
+        new Date().toISOString(),
     });
   } catch (error: any) {
     const isAbort =
-      error?.name === 'AbortError' ||
-      String(error?.message || '')
+      error?.name ===
+        'AbortError' ||
+      String(
+        error?.message || ''
+      )
         .toLowerCase()
         .includes('aborted');
 
-    console.error('PARATIKA PAYMENT LINK ERROR:', error);
+    console.error(
+      'PARATIKA PAYMENT LINK ERROR:',
+      error
+    );
 
     return noStoreJson(
       {
         success: false,
         channel: 'PARATIKA',
-        error: isAbort
-          ? 'Paratika bağlantısı zaman aşımına uğradı.'
-          : error instanceof Error
-          ? error.message
-          : 'Paratika ödeme linki oluşturulamadı.',
+        error:
+          isAbort
+            ? 'Paratika bağlantısı zaman aşımına uğradı.'
+            : error instanceof Error
+            ? error.message
+            : 'Paratika ödeme linki oluşturulamadı.',
       },
       isAbort ? 504 : 500
     );
