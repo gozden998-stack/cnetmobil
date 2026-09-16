@@ -1,10 +1,11 @@
 // app/api/paratika/payment-link/route.ts
-// CNETMOBIL - Paratika Pay By Link
-// İlk aşama: ödeme linki oluşturur, SMS GÖNDERMEZ.
-// Personel/Yönetici giriş yapmış olmalıdır.
+// CNETMOBIL - PARATIKA PAY BY LINK + POSTGRES KAYIT
 // Tutar + Ad Soyad + E-posta + Telefon + Taksit Sayısı alır.
+// Paratika linkini oluşturur, ardından işlemi PostgreSQL'e kaydeder.
+// Şimdilik SMS göndermez.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Pool, PoolClient } from 'pg';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -27,6 +28,30 @@ type ParatikaConfig = {
   merchantPassword: string;
   baseUrl: string;
 };
+
+declare global {
+  // eslint-disable-next-line no-var
+  var cnetParatikaPool: Pool | undefined;
+}
+
+function getPool() {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL bulunamadı.');
+  }
+
+  if (!global.cnetParatikaPool) {
+    global.cnetParatikaPool = new Pool({
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+    });
+  }
+
+  return global.cnetParatikaPool;
+}
 
 function noStoreJson(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
@@ -184,7 +209,6 @@ function parseAmount(value: unknown) {
 
   if (!text) return 0;
 
-  // 45.000,50 -> 45000.50
   if (text.includes(',') && text.includes('.')) {
     text = text.replace(/\./g, '').replace(',', '.');
   } else if (text.includes(',')) {
@@ -348,9 +372,6 @@ async function getAllowedInstallments(config: ParatikaConfig) {
 }
 
 function buildInstallmentSupport(installmentCount: number) {
-  // Paratika PAYBYLINKPAYMENT dokümanındaki INSTALLMENTSUPPORT örneği
-  // commissionKey alanında CR2, CR6 vb. kullanıyor.
-  // Seçilen taksit için hem BUSINESS hem CONSUMER aktif edilir.
   return JSON.stringify([
     {
       commissionKey: `CR${installmentCount}`,
@@ -386,9 +407,144 @@ function getReturnUrl(request: NextRequest) {
 
 function buildPaymentUrl(baseUrl: string, sessionToken: string) {
   const url = new URL(baseUrl);
+
   return `${url.protocol}//${url.host}/payment/${encodeURIComponent(
     sessionToken
   )}`;
+}
+
+function safeJson(value: unknown) {
+  try {
+    return JSON.parse(JSON.stringify(value ?? null));
+  } catch {
+    return null;
+  }
+}
+
+async function savePaymentToPostgres(
+  client: PoolClient,
+  input: {
+    merchantPaymentId: string;
+    sessionToken: string;
+    paymentUrl: string;
+    branchCode: string;
+    createdByUserId: number | null;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    amount: number;
+    installmentCount: number;
+    responseCode: string;
+    responseMsg: string;
+    rawResponse: unknown;
+  }
+) {
+  const insertResult = await client.query(
+    `
+      INSERT INTO public.paratika_payments (
+        merchant_payment_id,
+        session_token,
+        payment_url,
+
+        branch_code,
+        created_by_user_id,
+
+        customer_name,
+        customer_email,
+        customer_phone,
+
+        amount,
+        currency,
+        installment_count,
+
+        status,
+        paratika_status,
+        response_code,
+        response_msg,
+
+        link_created_at,
+        raw_create_response,
+        raw_last_response,
+        last_synced_at
+      )
+      VALUES (
+        $1, $2, $3,
+        $4, $5,
+        $6, $7, $8,
+        $9, 'TRY', $10,
+        'LINK_CREATED', 'LINK_CREATED', $11, $12,
+        NOW(), $13::jsonb, $13::jsonb, NOW()
+      )
+      RETURNING
+        id,
+        merchant_payment_id,
+        branch_code,
+        customer_name,
+        customer_email,
+        customer_phone,
+        amount,
+        currency,
+        installment_count,
+        status,
+        link_created_at,
+        created_at
+    `,
+    [
+      input.merchantPaymentId,
+      input.sessionToken,
+      input.paymentUrl,
+
+      input.branchCode,
+      input.createdByUserId,
+
+      input.customerName,
+      input.customerEmail,
+      input.customerPhone,
+
+      input.amount,
+      input.installmentCount,
+
+      input.responseCode || null,
+      input.responseMsg || null,
+
+      JSON.stringify(safeJson(input.rawResponse)),
+    ]
+  );
+
+  const payment = insertResult.rows[0];
+
+  await client.query(
+    `
+      INSERT INTO public.paratika_payment_events (
+        payment_id,
+        event_type,
+        source,
+        old_status,
+        new_status,
+        detail
+      )
+      VALUES (
+        $1,
+        'PAYMENT_LINK_CREATED',
+        'PANEL',
+        NULL,
+        'LINK_CREATED',
+        $2::jsonb
+      )
+    `,
+    [
+      payment.id,
+      JSON.stringify({
+        merchantPaymentId: input.merchantPaymentId,
+        branchCode: input.branchCode,
+        createdByUserId: input.createdByUserId,
+        amount: input.amount,
+        installmentCount: input.installmentCount,
+      }),
+    ]
+  );
+
+  return payment;
 }
 
 export async function POST(request: NextRequest) {
@@ -453,7 +609,7 @@ export async function POST(request: NextRequest) {
 
     if (
       !customerEmail ||
-      customerEmail.length > 64 ||
+      customerEmail.length > 128 ||
       !validEmail(customerEmail)
     ) {
       return noStoreJson(
@@ -495,7 +651,6 @@ export async function POST(request: NextRequest) {
 
     const config = getParatikaConfig();
 
-    // Seçilen taksit gerçekten Paratika hesabında tanımlı mı kontrol et.
     const allowedInstallments = await getAllowedInstallments(config);
 
     if (!allowedInstallments.includes(installmentCount)) {
@@ -532,9 +687,6 @@ export async function POST(request: NextRequest) {
 
     params.set('LANGUAGE', 'tr');
     params.set('RETURNURL', returnUrl);
-
-    // İlk aşamada SMS gönderilmez.
-    // Link başarıyla oluşturulduktan sonra SMS adımını ayrıca ekleyeceğiz.
 
     params.set(
       'INSTALLMENTSUPPORT',
@@ -579,13 +731,81 @@ export async function POST(request: NextRequest) {
       sessionToken
     );
 
+    const pool = getPool();
+    const client = await pool.connect();
+
+    let savedPayment: any = null;
+
+    try {
+      await client.query('BEGIN');
+
+      savedPayment = await savePaymentToPostgres(client, {
+        merchantPaymentId,
+        sessionToken,
+        paymentUrl,
+        branchCode: String(auth.session.branch || '').trim(),
+        createdByUserId:
+          auth.session.userId !== null
+            ? Number(auth.session.userId)
+            : null,
+        customerName,
+        customerEmail,
+        customerPhone,
+        amount: Number(amount.toFixed(2)),
+        installmentCount,
+        responseCode,
+        responseMsg,
+        rawResponse: data,
+      });
+
+      await client.query('COMMIT');
+    } catch (dbError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+
+      console.error(
+        'PARATIKA LINK OLUŞTU AMA POSTGRES KAYDI BAŞARISIZ:',
+        {
+          merchantPaymentId,
+          dbError,
+        }
+      );
+
+      // Kritik:
+      // Paratika linki gerçekten oluştuğu için kullanıcıya bunu gizlemiyoruz.
+      // Duplicate ödeme oluşturmaması için aynı isteği otomatik tekrar etmiyoruz.
+      return noStoreJson(
+        {
+          success: false,
+          paratikaLinkCreated: true,
+          databaseSaved: false,
+          channel: 'PARATIKA',
+          message:
+            'Paratika ödeme linki oluştu fakat PostgreSQL kaydı yapılamadı. Aynı ödemeyi tekrar oluşturmayın.',
+          merchantPaymentId,
+          sessionToken,
+          paymentUrl,
+          responseCode,
+          responseMsg,
+        },
+        500
+      );
+    } finally {
+      client.release();
+    }
+
     return noStoreJson({
       success: true,
+      databaseSaved: true,
       channel: 'PARATIKA',
-      message: 'Paratika ödeme linki oluşturuldu.',
+      message: 'Paratika ödeme linki oluşturuldu ve kaydedildi.',
+
+      id: savedPayment.id,
       merchantPaymentId,
       sessionToken,
       paymentUrl,
+
       amount: Number(amount.toFixed(2)),
       currency: 'TRY',
       customerName,
@@ -593,9 +813,14 @@ export async function POST(request: NextRequest) {
       customerPhone,
       installmentCount,
       allowedInstallments,
-      branch: auth.session.branch,
+
+      branch: String(auth.session.branch || '').trim(),
+      createdByUserId: auth.session.userId,
+
+      status: 'LINK_CREATED',
       responseCode,
       responseMsg,
+
       expiresIn: '168h',
       responseTimeMs: Date.now() - startedAt,
       createdAt: new Date().toISOString(),
