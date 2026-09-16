@@ -317,6 +317,48 @@ async function queryTransaction(
   return postParatika(config, params);
 }
 
+async function queryTransactionByMerchantNote(
+  config: ParatikaConfig,
+  merchantPaymentId: string
+) {
+  const params = new URLSearchParams();
+
+  params.set(
+    'ACTION',
+    'QUERYTRANSACTION'
+  );
+  params.set(
+    'MERCHANT',
+    config.merchant
+  );
+  params.set(
+    'MERCHANTUSER',
+    config.merchantUser
+  );
+  params.set(
+    'MERCHANTPASSWORD',
+    config.merchantPassword
+  );
+
+  // PAYBYLINKPAYMENT oluştururken MERCHANTNOTE alanına
+  // merchantPaymentId yazıyoruz. QUERYTRANSACTION içinde
+  // MERCHANTPAYMENTID yalnız başarılı işlemleri döndürebildiği için
+  // başarısız kart denemelerini bu tekil note üzerinden arıyoruz.
+  params.set(
+    'MERCHANTNOTE',
+    merchantPaymentId
+  );
+
+  params.set('LIMIT', '50');
+  params.set('OFFSET', '0');
+
+  return postParatika(
+    config,
+    params
+  );
+}
+
+
 async function queryMerchantReconciliation(
   config: ParatikaConfig,
   pgTranId: string,
@@ -891,15 +933,54 @@ async function syncOnePayment(
     ? selectPayByLinkItem(payByLinkData)
     : null;
 
-  const transactionQuery = await queryTransaction(
-    config,
-    payment.merchant_payment_id
-  );
+  // 1) Önce normal sorgu:
+  // MERCHANTPAYMENTID ile başarılı işlemleri bulur.
+  const transactionQuery =
+    await queryTransaction(
+      config,
+      payment.merchant_payment_id
+    );
 
-  const transactionData = transactionQuery.data ?? null;
-  const transaction = selectRelevantTransaction(
-    transactionData
-  );
+  const primaryTransactionData =
+    transactionQuery.data ?? null;
+
+  let transactionData =
+    primaryTransactionData;
+
+  let transaction =
+    selectRelevantTransaction(
+      primaryTransactionData
+    );
+
+  let merchantNoteTransactionData:
+    any = null;
+
+  // 2) Normal sorguda işlem yoksa PayByLink oluştururken
+  // yazdığımız tekil MERCHANTNOTE üzerinden tekrar ara.
+  // Bu yol başarısız kart denemelerini de yakalar.
+  if (!transaction) {
+    const merchantNoteQuery =
+      await queryTransactionByMerchantNote(
+        config,
+        payment.merchant_payment_id
+      );
+
+    merchantNoteTransactionData =
+      merchantNoteQuery.data ?? null;
+
+    const merchantNoteTransaction =
+      selectRelevantTransaction(
+        merchantNoteTransactionData
+      );
+
+    if (merchantNoteTransaction) {
+      transactionData =
+        merchantNoteTransactionData;
+
+      transaction =
+        merchantNoteTransaction;
+    }
+  }
 
   let newStatus = String(payment.status || 'LINK_CREATED');
 
@@ -1282,7 +1363,12 @@ async function syncOnePayment(
         JSON.stringify(
           safeJson({
             payByLink: payByLinkData,
-            transaction: transactionData,
+            transaction:
+              transactionData,
+            transactionByMerchantPaymentId:
+              primaryTransactionData,
+            transactionByMerchantNote:
+              merchantNoteTransactionData,
             merchantReconciliation:
               reconciliationData,
             reconTransaction:
@@ -1308,7 +1394,19 @@ async function syncOnePayment(
             transactionStatus || null,
           pgTranReturnCode:
             pgTranReturnCode || null,
+          failureCode:
+            newStatus === 'FAILED'
+              ? failureInfo.code || null
+              : null,
+          failureMessage:
+            newStatus === 'FAILED'
+              ? failureInfo.message
+              : null,
           pgTranId: pgTranId || null,
+          transactionLookup:
+            merchantNoteTransactionData
+              ? 'MERCHANTNOTE'
+              : 'MERCHANTPAYMENTID',
           syncedAt: new Date().toISOString(),
         }
       );
