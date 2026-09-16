@@ -756,6 +756,61 @@ async function addEvent(
   );
 }
 
+
+function getFailureInfo(
+  transactionData: any,
+  transaction: any
+) {
+  const code = String(
+    transaction?.pgTranErrorCode ??
+      transaction?.errorCode ??
+      transactionData?.errorCode ??
+      (
+        transaction?.pgTranReturnCode &&
+        String(
+          transaction.pgTranReturnCode
+        ) !== '00'
+          ? transaction.pgTranReturnCode
+          : ''
+      ) ??
+      ''
+  ).trim();
+
+  const text = String(
+    transaction?.pgTranErrorText ??
+      transaction?.errorMsg ??
+      transactionData?.errorMsg ??
+      ''
+  ).trim();
+
+  const genericResponse = String(
+    transaction?.responseMsg ??
+      transactionData?.responseMsg ??
+      ''
+  ).trim();
+
+  const message =
+    text ||
+    (
+      genericResponse &&
+      !['APPROVED', 'DECLINED'].includes(
+        genericResponse.toUpperCase()
+      )
+        ? genericResponse
+        : ''
+    ) ||
+    (
+      code
+        ? `Ödeme banka/ödeme sistemi tarafından reddedildi. Hata kodu: ${code}`
+        : 'Ödeme banka/ödeme sistemi tarafından reddedildi.'
+    );
+
+  return {
+    code,
+    message,
+  };
+}
+
 async function syncOnePayment(
   pool: Pool,
   config: ParatikaConfig,
@@ -976,17 +1031,35 @@ async function syncOnePayment(
         ?.merchantPaymentDate
     );
 
-  const responseCode = String(
-    transactionData?.responseCode ??
-      payByLinkData?.responseCode ??
-      ''
-  );
+  const failureInfo =
+    getFailureInfo(
+      transactionData,
+      transaction
+    );
 
-  const responseMsg = String(
-    transactionData?.responseMsg ??
-      payByLinkData?.responseMsg ??
-      ''
-  );
+  const responseCode =
+    newStatus === 'FAILED'
+      ? failureInfo.code ||
+        pgTranReturnCode ||
+        String(
+          transactionData
+            ?.responseCode ??
+            ''
+        )
+      : String(
+          transactionData?.responseCode ??
+            payByLinkData?.responseCode ??
+            ''
+        );
+
+  const responseMsg =
+    newStatus === 'FAILED'
+      ? failureInfo.message
+      : String(
+          transactionData?.responseMsg ??
+            payByLinkData?.responseMsg ??
+            ''
+        );
 
   const client = await pool.connect();
 
