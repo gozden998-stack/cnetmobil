@@ -278,17 +278,13 @@ function createCustomerCode(customerPhone: string, customerEmail: string) {
 }
 
 function buildExactInstallmentSupport(
-  installmentCount: number
+  installmentCount: number,
+  installmentType: 'CONSUMER' | 'BUSINESS'
 ) {
   return JSON.stringify([
     {
       commissionKey: `CR${installmentCount}`,
-      installmentType: 'BUSINESS',
-      active: 'true',
-    },
-    {
-      commissionKey: `CR${installmentCount}`,
-      installmentType: 'CONSUMER',
+      installmentType,
       active: 'true',
     },
   ]);
@@ -722,30 +718,113 @@ export async function POST(request: NextRequest) {
     // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
     params.set('NOTIFICATIONCHANNELS', 'SMS');
 
-    // PAYBYLINKPAYMENT'te ödeme ekranında sadece panelde seçilen
-    // taksitin görünmesi için Paratika'nın dokümante ettiği
-    // INSTALLMENTSUPPORT alanını kullanıyoruz.
+    // Canlı hesapta CR1..CR12 anahtarları aktif.
+    // Ancak BUSINESS + CONSUMER birlikte gönderildiğinde Paratika
+    // ERR10237 döndürüyor. Bu yüzden seçilen CR anahtarını önce
+    // CONSUMER olarak deneriz; hesap bunu reddederse BUSINESS olarak
+    // ikinci kez deneriz. İki deneme de başarısızsa TÜM TAKSİTLERİ
+    // açan bir fallback YOKTUR.
     //
-    // Önemli: Paratika örneğinde "active" BOOLEAN değil STRING "true".
-    // Önceki sürüm boolean true gönderdiği için ERR10237 oluşuyor,
-    // fallback çalışınca link açılıyor fakat tüm taksitler görünüyordu.
-    params.set(
-      'INSTALLMENTSUPPORT',
-      buildExactInstallmentSupport(
-        installmentCount
-      )
-    );
+    // Böylece 2 seçilmiş bir işlemde yanlışlıkla 3..12 taksitlerin
+    // görünmesine izin vermeyiz.
 
-    const paratikaResult =
-      await postParatika(
-        config,
-        params
+    const installmentTypes: Array<
+      'CONSUMER' | 'BUSINESS'
+    > = ['CONSUMER', 'BUSINESS'];
+
+    let response: Response | null = null;
+    let data: any = null;
+    let selectedInstallmentType:
+      | 'CONSUMER'
+      | 'BUSINESS'
+      | null = null;
+
+    const installmentAttempts: Array<{
+      installmentType: 'CONSUMER' | 'BUSINESS';
+      responseCode: string;
+      responseMsg: string;
+      errorCode: string;
+      errorMsg: string;
+    }> = [];
+
+    for (const installmentType of installmentTypes) {
+      const attemptParams =
+        new URLSearchParams(params);
+
+      attemptParams.set(
+        'INSTALLMENTSUPPORT',
+        buildExactInstallmentSupport(
+          installmentCount,
+          installmentType
+        )
       );
 
-    const response =
-      paratikaResult.response;
-    const data =
-      paratikaResult.data;
+      const attempt =
+        await postParatika(
+          config,
+          attemptParams
+        );
+
+      const attemptCode = String(
+        attempt.data?.responseCode ??
+          attempt.data?.RESPONSECODE ??
+          ''
+      );
+
+      const attemptErrorCode = String(
+        attempt.data?.errorCode ??
+          attempt.data?.ERRORCODE ??
+          ''
+      );
+
+      installmentAttempts.push({
+        installmentType,
+        responseCode: attemptCode,
+        responseMsg: String(
+          attempt.data?.responseMsg ??
+            attempt.data?.RESPONSEMSG ??
+            ''
+        ),
+        errorCode: attemptErrorCode,
+        errorMsg: String(
+          attempt.data?.errorMsg ??
+            attempt.data?.ERRORMSG ??
+            ''
+        ),
+      });
+
+      response = attempt.response;
+      data = attempt.data;
+
+      if (
+        attemptCode === '00' &&
+        String(
+          attempt.data?.sessionToken ??
+            attempt.data?.SESSIONTOKEN ??
+            ''
+        ).trim()
+      ) {
+        selectedInstallmentType =
+          installmentType;
+        break;
+      }
+
+      // Sadece INSTALLMENTSUPPORT format/uyumluluk hatasında
+      // diğer kart tipini dene. Başka hata varsa aynı işlemi
+      // gereksiz yere tekrar göndermiyoruz.
+      if (
+        attemptErrorCode.toUpperCase() !==
+        'ERR10237'
+      ) {
+        break;
+      }
+    }
+
+    if (!response) {
+      throw new Error(
+        'Paratika taksit isteği gönderilemedi.'
+      );
+    }
 
     const responseCode = String(
       data?.responseCode ??
@@ -819,6 +898,7 @@ export async function POST(request: NextRequest) {
           // Geçici teşhis alanı. Paratika'nın hata cevabını görmemizi sağlar.
           // İstek credential'ları burada yer almaz.
           paratikaResponse: data,
+          installmentAttempts,
           responseTimeMs: Date.now() - startedAt,
         },
         response.ok ? 400 : 502
@@ -919,6 +999,8 @@ export async function POST(request: NextRequest) {
 
       status: 'SENT',
       notificationChannels: ['SMS'],
+      installmentSupportType:
+        selectedInstallmentType,
       responseCode,
       responseMsg,
 
