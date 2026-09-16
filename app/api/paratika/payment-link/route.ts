@@ -284,12 +284,12 @@ function buildExactInstallmentSupport(
     {
       commissionKey: `CR${installmentCount}`,
       installmentType: 'BUSINESS',
-      active: true,
+      active: 'true',
     },
     {
       commissionKey: `CR${installmentCount}`,
       installmentType: 'CONSUMER',
-      active: true,
+      active: 'true',
     },
   ]);
 }
@@ -722,13 +722,13 @@ export async function POST(request: NextRequest) {
     // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
     params.set('NOTIFICATIONCHANNELS', 'SMS');
 
-    // Kullanıcı panelde hangi taksiti seçtiyse ödeme sayfasında
-    // yalnızca o taksit seçeneğini göstermeyi deneriz.
+    // PAYBYLINKPAYMENT'te ödeme ekranında sadece panelde seçilen
+    // taksitin görünmesi için Paratika'nın dokümante ettiği
+    // INSTALLMENTSUPPORT alanını kullanıyoruz.
     //
-    // Paratika PayByLink dokümanındaki INSTALLMENTSUPPORT yapısı
-    // CR{taksit} + BUSINESS / CONSUMER çiftini kullanıyor.
-    // Bazı hesap konfigürasyonlarında bu alan ERR10237 dönebildiği için
-    // güvenli fallback de bırakıyoruz.
+    // Önemli: Paratika örneğinde "active" BOOLEAN değil STRING "true".
+    // Önceki sürüm boolean true gönderdiği için ERR10237 oluşuyor,
+    // fallback çalışınca link açılıyor fakat tüm taksitler görünüyordu.
     params.set(
       'INSTALLMENTSUPPORT',
       buildExactInstallmentSupport(
@@ -736,69 +736,16 @@ export async function POST(request: NextRequest) {
       )
     );
 
-    // Destekleyen akışlarda seçili taksiti ayrıca sabitler.
-    params.set(
-      'INSTALLMENTS',
-      String(installmentCount)
-    );
-
-    let paratikaResult =
+    const paratikaResult =
       await postParatika(
         config,
         params
       );
 
-    let response =
+    const response =
       paratikaResult.response;
-    let data =
+    const data =
       paratikaResult.data;
-
-    const firstErrorCode = String(
-      data?.errorCode ??
-      data?.ERRORCODE ??
-      ''
-    ).toUpperCase();
-
-    // Hesap INSTALLMENTSUPPORT şemasını reddederse çalışan akışı bozmayalım.
-    // ALLOWEDINSTALLMENTS + INSTALLMENTS ile ikinci deneme yapılır.
-    if (
-      String(
-        data?.responseCode ??
-        data?.RESPONSECODE ??
-        ''
-      ) !== '00' &&
-      firstErrorCode === 'ERR10237'
-    ) {
-      const fallbackParams =
-        new URLSearchParams(
-          params
-        );
-
-      fallbackParams.delete(
-        'INSTALLMENTSUPPORT'
-      );
-
-      fallbackParams.set(
-        'ALLOWEDINSTALLMENTS',
-        String(installmentCount)
-      );
-
-      fallbackParams.set(
-        'INSTALLMENTS',
-        String(installmentCount)
-      );
-
-      paratikaResult =
-        await postParatika(
-          config,
-          fallbackParams
-        );
-
-      response =
-        paratikaResult.response;
-      data =
-        paratikaResult.data;
-    }
 
     const responseCode = String(
       data?.responseCode ??
