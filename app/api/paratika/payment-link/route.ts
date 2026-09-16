@@ -1209,22 +1209,11 @@ export async function POST(
     const rawUserId =
       auth.session.userId;
 
-    const normalizedUserId =
-      rawUserId === null ||
-      rawUserId === undefined ||
-      rawUserId === ''
-        ? null
-        : Number(rawUserId);
-
     const safeCreatedByUserId =
-      normalizedUserId !== null &&
-      Number.isFinite(
-        normalizedUserId
-      ) &&
-      Number.isInteger(
-        normalizedUserId
-      )
-        ? normalizedUserId
+      typeof rawUserId === 'number' &&
+      Number.isFinite(rawUserId) &&
+      Number.isInteger(rawUserId)
+        ? rawUserId
         : null;
 
     const pool = getPool();
