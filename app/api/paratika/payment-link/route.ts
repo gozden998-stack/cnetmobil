@@ -2,7 +2,7 @@
 // CNETMOBIL - PARATIKA PAY BY LINK + POSTGRES KAYIT
 // Tutar + Ad Soyad + E-posta + Telefon + Taksit Sayısı alır.
 // Paratika linkini oluşturur, ardından işlemi PostgreSQL'e kaydeder.
-// Şimdilik SMS göndermez.
+// Ödeme linkini oluşturur ve Paratika üzerinden SMS bildirim talebi gönderir.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool, PoolClient } from 'pg';
@@ -408,7 +408,7 @@ function getReturnUrl(request: NextRequest) {
 function buildPaymentUrl(baseUrl: string, sessionToken: string) {
   const url = new URL(baseUrl);
 
-  return `${url.protocol}//${url.host}/payment/${encodeURIComponent(
+  return `${url.protocol}//${url.host}/merchant/payment/${encodeURIComponent(
     sessionToken
   )}`;
 }
@@ -463,6 +463,7 @@ async function savePaymentToPostgres(
         response_msg,
 
         link_created_at,
+        sent_at,
         raw_create_response,
         raw_last_response,
         last_synced_at
@@ -472,8 +473,8 @@ async function savePaymentToPostgres(
         $4, $5,
         $6, $7, $8,
         $9, 'TRY', $10,
-        'LINK_CREATED', 'LINK_CREATED', $11, $12,
-        NOW(), $13::jsonb, $13::jsonb, NOW()
+        'SENT', 'SENT', $11, $12,
+        NOW(), NOW(), $13::jsonb, $13::jsonb, NOW()
       )
       RETURNING
         id,
@@ -525,10 +526,10 @@ async function savePaymentToPostgres(
       )
       VALUES (
         $1,
-        'PAYMENT_LINK_CREATED',
+        'PAYMENT_LINK_CREATED_SMS_REQUESTED',
         'PANEL',
         NULL,
-        'LINK_CREATED',
+        'SENT',
         $2::jsonb
       )
     `,
@@ -688,6 +689,10 @@ export async function POST(request: NextRequest) {
     params.set('LANGUAGE', 'tr');
     params.set('RETURNURL', returnUrl);
 
+    // Paratika Pay By Link bildirimi:
+    // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
+    params.set('NOTIFICATIONCHANNELS', 'SMS');
+
     params.set(
       'INSTALLMENTSUPPORT',
       buildInstallmentSupport(installmentCount)
@@ -782,7 +787,7 @@ export async function POST(request: NextRequest) {
           databaseSaved: false,
           channel: 'PARATIKA',
           message:
-            'Paratika ödeme linki oluştu fakat PostgreSQL kaydı yapılamadı. Aynı ödemeyi tekrar oluşturmayın.',
+            'Paratika ödeme linki oluştu ve SMS gönderim talebi iletildi fakat PostgreSQL kaydı yapılamadı. Aynı ödemeyi tekrar oluşturmayın.',
           merchantPaymentId,
           sessionToken,
           paymentUrl,
@@ -799,7 +804,8 @@ export async function POST(request: NextRequest) {
       success: true,
       databaseSaved: true,
       channel: 'PARATIKA',
-      message: 'Paratika ödeme linki oluşturuldu ve kaydedildi.',
+      message:
+        'Paratika ödeme linki oluşturuldu, SMS gönderim talebi Paratika\'ya iletildi ve kayıt PostgreSQL\'e kaydedildi.',
 
       id: savedPayment.id,
       merchantPaymentId,
@@ -817,7 +823,8 @@ export async function POST(request: NextRequest) {
       branch: String(auth.session.branch || '').trim(),
       createdByUserId: auth.session.userId,
 
-      status: 'LINK_CREATED',
+      status: 'SENT',
+      notificationChannels: ['SMS'],
       responseCode,
       responseMsg,
 
