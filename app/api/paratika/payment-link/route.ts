@@ -260,6 +260,24 @@ function createMerchantPaymentId() {
     .toUpperCase()}`;
 }
 
+function createCustomerCode(customerPhone: string, customerEmail: string) {
+  // Paratika live PAYBYLINKPAYMENT isteği CUSTOMER alanını zorunlu
+  // isteyebiliyor. Aynı müşteri için aynı kodu üretelim; kişisel veriyi
+  // CUSTOMER alanına açıkça yazmak yerine SHA-256 tabanlı kısa bir kod kullanıyoruz.
+  const normalizedPhone = customerPhone.replace(/\D/g, '');
+  const normalizedEmail = customerEmail.trim().toLowerCase();
+
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${normalizedPhone}|${normalizedEmail}`, 'utf8')
+    .digest('hex')
+    .slice(0, 24)
+    .toUpperCase();
+
+  return `CNET-${hash}`;
+}
+
+
 async function postParatika(
   config: ParatikaConfig,
   params: URLSearchParams
@@ -666,6 +684,10 @@ export async function POST(request: NextRequest) {
     }
 
     const merchantPaymentId = createMerchantPaymentId();
+    const customerCode = createCustomerCode(
+      customerPhone,
+      customerEmail
+    );
     const returnUrl = getReturnUrl(request);
 
     const params = new URLSearchParams();
@@ -682,6 +704,10 @@ export async function POST(request: NextRequest) {
     params.set('AMOUNT', amount.toFixed(2));
     params.set('CURRENCY', 'TRY');
 
+    // Paratika PAYBYLINKPAYMENT örneğinde CUSTOMER alanı da gönderiliyor.
+    // Live API ERR10010 / violatorParam=CUSTOMER döndürdüğü için
+    // bu alanı stabil müşteri kodu ile gönderiyoruz.
+    params.set('CUSTOMER', customerCode);
     params.set('CUSTOMERNAME', customerName);
     params.set('CUSTOMEREMAIL', customerEmail);
     params.set('CUSTOMERPHONE', customerPhone);
@@ -717,6 +743,8 @@ export async function POST(request: NextRequest) {
     // geri döndürüyoruz; API kullanıcı adı/şifre gibi secret alanları
     // kesinlikle response'a eklenmez.
     const paratikaError = String(
+      data?.errorMsg ??
+      data?.ERRORMSG ??
       data?.error ??
       data?.ERROR ??
       ''
