@@ -616,6 +616,111 @@ function findDeepStringByKeys(
 }
 
 
+
+function formatParatikaQueryDate(
+  value: Date
+) {
+  const parts =
+    new Intl.DateTimeFormat(
+      'en-GB',
+      {
+        timeZone:
+          'Europe/Istanbul',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }
+    ).formatToParts(value);
+
+  const map = Object.fromEntries(
+    parts.map((part) => [
+      part.type,
+      part.value,
+    ])
+  );
+
+  return `${map.day}-${map.month}-${map.year} ${map.hour}:${map.minute}`;
+}
+
+function extractPayByLinkToken(
+  data: any,
+  amount: number,
+  customerEmail: string
+) {
+  const list =
+    Array.isArray(
+      data?.payByLinkPaymentList
+    )
+      ? data.payByLinkPaymentList
+      : Array.isArray(
+          data?.PAYBYLINKPAYMENTLIST
+        )
+      ? data.PAYBYLINKPAYMENTLIST
+      : [];
+
+  const normalizedEmail =
+    customerEmail
+      .trim()
+      .toLowerCase();
+
+  const candidates = list
+    .map((item: any) => ({
+      token: String(
+        item?.token ??
+          item?.payByLinkToken ??
+          item?.PAYBYLINKTOKEN ??
+          ''
+      ).trim(),
+      amount: Number(
+        item?.amount ?? NaN
+      ),
+      email: String(
+        item?.cardHolderEmail ??
+          item?.customerEmail ??
+          ''
+      )
+        .trim()
+        .toLowerCase(),
+      createdTs: String(
+        item?.createdTs ??
+          item?.createdAt ??
+          ''
+      ).trim(),
+    }))
+    .filter(
+      (item: any) =>
+        item.token &&
+        (
+          !Number.isFinite(
+            item.amount
+          ) ||
+          Math.abs(
+            item.amount - amount
+          ) < 0.001
+        ) &&
+        (
+          !item.email ||
+          item.email ===
+            normalizedEmail
+        )
+    )
+    .sort(
+      (a: any, b: any) =>
+        String(
+          b.createdTs
+        ).localeCompare(
+          String(a.createdTs)
+        )
+    );
+
+  return (
+    candidates[0]?.token || ''
+  );
+}
+
 async function savePayment(
   client: PoolClient,
   input: {
@@ -1017,6 +1122,14 @@ export async function POST(
       returnUrl
     );
 
+    // QUERYPAYBYLINKPAYMENT tarafında bu kaydı güvenli biçimde
+    // filtreleyebilmek için tekil merchant note kullanıyoruz.
+    // MERCHANTNOTE max 50 karakter; merchantPaymentId bu sınırın altında.
+    payByLinkParams.set(
+      'MERCHANTNOTE',
+      merchantPaymentId
+    );
+
     const payByLinkResult =
       await postParatika(
         config,
@@ -1351,9 +1464,46 @@ export async function POST(
       config.merchantPassword
     );
 
+    // Bu canlı hesapta SESSIONTOKEN tek başına sorgu filtresi olarak
+    // kabul edilmiyor ve PAYBYLINKTOKEN istiyor. Dokümante edilen diğer
+    // sorgu yolu olan tarih aralığı + MERCHANTNOTE ile kaydı buluyoruz.
+    const queryNow =
+      new Date();
+
+    const queryStart =
+      new Date(
+        queryNow.getTime() -
+          5 * 60 * 1000
+      );
+
+    const queryEnd =
+      new Date(
+        queryNow.getTime() +
+          5 * 60 * 1000
+      );
+
     queryParams.set(
-      'SESSIONTOKEN',
-      sessionToken
+      'STARTDATE',
+      formatParatikaQueryDate(
+        queryStart
+      )
+    );
+
+    queryParams.set(
+      'ENDDATE',
+      formatParatikaQueryDate(
+        queryEnd
+      )
+    );
+
+    queryParams.set(
+      'MERCHANTNOTE',
+      merchantPaymentId
+    );
+
+    queryParams.set(
+      'CUSTOMEREMAIL',
+      customerEmail
     );
 
     const queryResult =
@@ -1380,11 +1530,21 @@ export async function POST(
 
     if (!payByLinkToken) {
       payByLinkToken =
+        extractPayByLinkToken(
+          queryResult.data,
+          amount,
+          customerEmail
+        );
+    }
+
+    if (!payByLinkToken) {
+      payByLinkToken =
         findDeepStringByKeys(
           queryResult.data,
           [
             'payByLinkToken',
             'PAYBYLINKTOKEN',
+            'token',
           ]
         );
     }
@@ -1425,6 +1585,19 @@ export async function POST(
           sessionToken,
           selectedInstallment:
             installmentCount,
+          queryFilters: {
+            startDate:
+              formatParatikaQueryDate(
+                queryStart
+              ),
+            endDate:
+              formatParatikaQueryDate(
+                queryEnd
+              ),
+            merchantNote:
+              merchantPaymentId,
+            customerEmail,
+          },
           queryResponse:
             queryResult.data,
         },
@@ -1457,11 +1630,6 @@ export async function POST(
     resendParams.set(
       'MERCHANTPASSWORD',
       config.merchantPassword
-    );
-
-    resendParams.set(
-      'SESSIONTOKEN',
-      sessionToken
     );
 
     resendParams.set(
