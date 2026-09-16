@@ -1247,37 +1247,61 @@ async function syncOnePayment(
         UPDATE public.paratika_payments
         SET
           paybylink_token =
-            COALESCE(NULLIF($2, ''), paybylink_token),
+            COALESCE(
+              NULLIF($2::varchar, ''),
+              paybylink_token
+            ),
 
-          status = $3,
+          status = $3::varchar,
 
           paratika_status =
             COALESCE(
-              NULLIF($4, ''),
-              NULLIF($5, ''),
+              NULLIF($4::varchar, ''),
+              NULLIF($5::varchar, ''),
               paratika_status
             ),
 
           response_code =
-            COALESCE(NULLIF($6, ''), response_code),
+            COALESCE(
+              NULLIF($6::varchar, ''),
+              response_code
+            ),
 
           response_msg =
-            COALESCE(NULLIF($7, ''), response_msg),
+            COALESCE(
+              NULLIF($7::text, ''),
+              response_msg
+            ),
 
           pg_tran_id =
-            COALESCE(NULLIF($8, ''), pg_tran_id),
+            COALESCE(
+              NULLIF($8::varchar, ''),
+              pg_tran_id
+            ),
 
           pg_tran_ref_id =
-            COALESCE(NULLIF($9, ''), pg_tran_ref_id),
+            COALESCE(
+              NULLIF($9::varchar, ''),
+              pg_tran_ref_id
+            ),
 
           pg_order_id =
-            COALESCE(NULLIF($10, ''), pg_order_id),
+            COALESCE(
+              NULLIF($10::varchar, ''),
+              pg_order_id
+            ),
 
           approval_code =
-            COALESCE(NULLIF($11, ''), approval_code),
+            COALESCE(
+              NULLIF($11::varchar, ''),
+              approval_code
+            ),
 
           issuer =
-            COALESCE(NULLIF($12, ''), issuer),
+            COALESCE(
+              NULLIF($12::varchar, ''),
+              issuer
+            ),
 
           number_of_installments =
             CASE
@@ -1299,32 +1323,31 @@ async function syncOnePayment(
 
           paratika_payment_date =
             CASE
-              WHEN $3 = 'APPROVED'
+              WHEN $3::text = 'APPROVED'
                 THEN COALESCE(
                   $16::timestamptz,
-                  paratika_payment_date,
-                  NOW()
+                  paratika_payment_date
                 )
               ELSE paratika_payment_date
             END,
 
           approved_at =
             CASE
-              WHEN $3 = 'APPROVED'
+              WHEN $3::text = 'APPROVED'
                 THEN COALESCE(approved_at, NOW())
               ELSE approved_at
             END,
 
           cancelled_at =
             CASE
-              WHEN $3 = 'CANCELLED'
+              WHEN $3::text = 'CANCELLED'
                 THEN COALESCE(cancelled_at, NOW())
               ELSE cancelled_at
             END,
 
           expired_at =
             CASE
-              WHEN $3 = 'EXPIRED'
+              WHEN $3::text = 'EXPIRED'
                 THEN COALESCE(expired_at, NOW())
               ELSE expired_at
             END,
