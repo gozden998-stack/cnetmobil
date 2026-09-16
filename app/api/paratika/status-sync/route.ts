@@ -447,6 +447,24 @@ function parseParatikaDate(value: unknown): Date | null {
     return direct;
   }
 
+  // Banka işlem tarihi örneği:
+  // 20260916 20:39:02
+  const compact = raw.match(
+    /^(\d{4})(\d{2})(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
+  );
+
+  if (compact) {
+    const [, y, m, d, hh, mm, ss] = compact;
+
+    const parsed = new Date(
+      `${y}-${m}-${d}T${hh}:${mm}:${ss}+03:00`
+    );
+
+    return Number.isNaN(parsed.getTime())
+      ? null
+      : parsed;
+  }
+
   // QUERYTRANSACTION örneği:
   // 2018-10-12 14:16:27.967
   const sqlLike = raw.match(
@@ -613,8 +631,13 @@ async function syncOnePayment(
     transaction?.pgTranId || ''
   ).trim();
 
+  // Panelde ÖSN olarak banka referans numarasını gösteriyoruz.
+  // Bazı sanal POS cevaplarında pgTranRefId yerine aynı değer
+  // pgTranTraceAudit alanında gelebiliyor.
   const pgTranRefId = String(
-    transaction?.pgTranRefId || ''
+    transaction?.pgTranRefId ||
+      transaction?.pgTranTraceAudit ||
+      ''
   ).trim();
 
   const pgOrderId = String(
@@ -635,7 +658,9 @@ async function syncOnePayment(
     transaction?.installmentCount || 0
   );
 
+  // ÜÖT: önce bankanın işlem tarihini kullan.
   const paymentDate =
+    parseParatikaDate(transaction?.pgTranDate) ||
     parseParatikaDate(transaction?.timePsReceived) ||
     parseParatikaDate(transaction?.timeCreated) ||
     parseParatikaDate(transaction?.timePsSent);
