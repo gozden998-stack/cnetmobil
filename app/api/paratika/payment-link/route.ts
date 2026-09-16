@@ -538,6 +538,84 @@ function paratikaField(
   return '';
 }
 
+function findDeepStringByKeys(
+  value: unknown,
+  keys: string[]
+): string {
+  const wanted = new Set(
+    keys.map((key) =>
+      key.toLowerCase()
+    )
+  );
+
+  const visit = (
+    node: unknown
+  ): string => {
+    if (
+      node === null ||
+      node === undefined
+    ) {
+      return '';
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found =
+          visit(item);
+
+        if (found) {
+          return found;
+        }
+      }
+
+      return '';
+    }
+
+    if (
+      typeof node !== 'object'
+    ) {
+      return '';
+    }
+
+    for (const [
+      key,
+      child,
+    ] of Object.entries(
+      node as Record<
+        string,
+        unknown
+      >
+    )) {
+      if (
+        wanted.has(
+          key.toLowerCase()
+        ) &&
+        child !== null &&
+        child !== undefined
+      ) {
+        const text =
+          String(child).trim();
+
+        if (text) {
+          return text;
+        }
+      }
+
+      const nested =
+        visit(child);
+
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return '';
+  };
+
+  return visit(value);
+}
+
+
 async function savePayment(
   client: PoolClient,
   input: {
@@ -1052,152 +1130,357 @@ export async function POST(
 
     //
     // ADIM 2
-    // Aynı SESSIONTOKEN üzerinden PayByLink SMS bildirimi.
+    // Aynı SESSIONTOKEN'i PayByLink kaydına dönüştür.
     //
-    // Burada INSTALLMENTSUPPORT yok.
-    // Taksit kuralı SESSIONTOKEN oluşturulurken
-    // ALLOWEDINSTALLMENTS ile kilitlendi.
+    // Burada NOTIFICATIONCHANNELS göndermiyoruz.
+    // Böylece Paratika ilk eklemede SMS atmaya çalışmaz ve
+    // aşağıdaki RESEND adımında SMS'i yalnızca 1 kez biz tetikleriz.
     //
-    const smsParams =
+    // Taksit kuralı ADIM 1'de SESSIONTOKEN oluşturulurken
+    // ALLOWEDINSTALLMENTS ile kilitlenmiştir.
+    //
+    const payByLinkParams =
       new URLSearchParams();
 
-    smsParams.set(
+    payByLinkParams.set(
       'ACTION',
       'PAYBYLINKPAYMENT'
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'MERCHANT',
       config.merchant
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'MERCHANTUSER',
       config.merchantUser
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'MERCHANTPASSWORD',
       config.merchantPassword
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'SESSIONTOKEN',
       sessionToken
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'SESSIONTYPE',
       'PAYMENTSESSION'
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'SESSIONEXPIRY',
       '168h'
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'MERCHANTPAYMENTID',
       merchantPaymentId
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'AMOUNT',
       amount.toFixed(2)
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'CURRENCY',
       'TRY'
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'CUSTOMER',
       customerCode
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'CUSTOMERNAME',
       customerName
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'CUSTOMEREMAIL',
       customerEmail
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'CUSTOMERPHONE',
       customerPhone
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'LANGUAGE',
       'tr'
     );
 
-    smsParams.set(
+    payByLinkParams.set(
       'RETURNURL',
       returnUrl
     );
 
-    smsParams.set(
-      'NOTIFICATIONCHANNELS',
-      'SMS'
-    );
-
-    const smsResult =
+    const payByLinkResult =
       await postParatika(
         config,
-        smsParams
+        payByLinkParams
       );
 
-    const smsCode =
+    const payByLinkCode =
       paratikaField(
-        smsResult.data,
+        payByLinkResult.data,
         'responseCode',
         'RESPONSECODE'
       );
 
-    const smsMsg =
+    const payByLinkMsg =
       paratikaField(
-        smsResult.data,
+        payByLinkResult.data,
         'responseMsg',
         'RESPONSEMSG'
       );
 
-    const smsSessionToken =
+    const payByLinkSessionToken =
       paratikaField(
-        smsResult.data,
+        payByLinkResult.data,
         'sessionToken',
         'SESSIONTOKEN'
       ).trim();
 
-    const payByLinkToken =
+    const payByLinkSessionMismatch =
+      Boolean(
+        payByLinkSessionToken &&
+        payByLinkSessionToken !==
+          sessionToken
+      );
+
+    if (
+      !payByLinkResult.response.ok ||
+      payByLinkCode !== '00' ||
+      payByLinkSessionMismatch
+    ) {
+      return noStoreJson(
+        {
+          success: false,
+          channel: 'PARATIKA',
+          stage:
+            'PAYBYLINKPAYMENT',
+          message:
+            payByLinkSessionMismatch
+              ? 'Paratika PayByLink farklı session token döndürdü; seçilen taksit kuralını korumak için işlem durduruldu.'
+              : payByLinkMsg ||
+                'Paratika PayByLink kaydı oluşturulamadı.',
+          responseCode:
+            payByLinkCode || null,
+          responseMsg:
+            payByLinkMsg || null,
+          errorCode:
+            paratikaField(
+              payByLinkResult.data,
+              'errorCode',
+              'ERRORCODE'
+            ) || null,
+          errorDetail:
+            paratikaField(
+              payByLinkResult.data,
+              'errorMsg',
+              'ERRORMSG',
+              'error',
+              'ERROR'
+            ) || null,
+          merchantPaymentId,
+          sessionToken,
+          selectedInstallment:
+            installmentCount,
+          paratikaResponse:
+            payByLinkResult.data,
+        },
+        payByLinkResult.response.ok
+          ? 400
+          : 502
+      );
+    }
+
+    //
+    // ADIM 3
+    // SESSIONTOKEN üzerinden oluşan PAYBYLINKTOKEN'i bul.
+    //
+    const queryParams =
+      new URLSearchParams();
+
+    queryParams.set(
+      'ACTION',
+      'QUERYPAYBYLINKPAYMENT'
+    );
+
+    queryParams.set(
+      'MERCHANT',
+      config.merchant
+    );
+
+    queryParams.set(
+      'MERCHANTUSER',
+      config.merchantUser
+    );
+
+    queryParams.set(
+      'MERCHANTPASSWORD',
+      config.merchantPassword
+    );
+
+    queryParams.set(
+      'SESSIONTOKEN',
+      sessionToken
+    );
+
+    const queryResult =
+      await postParatika(
+        config,
+        queryParams
+      );
+
+    const queryCode =
       paratikaField(
-        smsResult.data,
-        'payByLinkToken',
-        'PAYBYLINKTOKEN'
-      ).trim();
+        queryResult.data,
+        'responseCode',
+        'RESPONSECODE'
+      );
+
+    let payByLinkToken =
+      findDeepStringByKeys(
+        payByLinkResult.data,
+        [
+          'payByLinkToken',
+          'PAYBYLINKTOKEN',
+        ]
+      );
+
+    if (!payByLinkToken) {
+      payByLinkToken =
+        findDeepStringByKeys(
+          queryResult.data,
+          [
+            'payByLinkToken',
+            'PAYBYLINKTOKEN',
+          ]
+        );
+    }
+
+    if (
+      !queryResult.response.ok ||
+      (
+        queryCode &&
+        queryCode !== '00'
+      ) ||
+      !payByLinkToken
+    ) {
+      return noStoreJson(
+        {
+          success: false,
+          channel: 'PARATIKA',
+          stage:
+            'QUERYPAYBYLINKPAYMENT',
+          message:
+            'Paratika PayByLink kaydı oluştu ancak SMS göndermek için PAYBYLINKTOKEN alınamadı.',
+          responseCode:
+            queryCode || null,
+          errorCode:
+            paratikaField(
+              queryResult.data,
+              'errorCode',
+              'ERRORCODE'
+            ) || null,
+          errorDetail:
+            paratikaField(
+              queryResult.data,
+              'errorMsg',
+              'ERRORMSG',
+              'error',
+              'ERROR'
+            ) || null,
+          merchantPaymentId,
+          sessionToken,
+          selectedInstallment:
+            installmentCount,
+          queryResponse:
+            queryResult.data,
+        },
+        400
+      );
+    }
+
+    //
+    // ADIM 4
+    // SMS'i Paratika'nın kendi RESEND aksiyonu ile gönder.
+    //
+    // Resmi API bu aksiyonda NOTIFICATIONCHANNELS=SMS kabul eder.
+    //
+    const resendParams =
+      new URLSearchParams();
+
+    resendParams.set(
+      'ACTION',
+      'PAYBYLINKPAYMENTRESEND'
+    );
+
+    resendParams.set(
+      'MERCHANT',
+      config.merchant
+    );
+
+    resendParams.set(
+      'MERCHANTUSER',
+      config.merchantUser
+    );
+
+    resendParams.set(
+      'MERCHANTPASSWORD',
+      config.merchantPassword
+    );
+
+    resendParams.set(
+      'SESSIONTOKEN',
+      sessionToken
+    );
+
+    resendParams.set(
+      'PAYBYLINKTOKEN',
+      payByLinkToken
+    );
+
+    resendParams.set(
+      'NOTIFICATIONCHANNELS',
+      'SMS'
+    );
+
+    const resendResult =
+      await postParatika(
+        config,
+        resendParams
+      );
+
+    const resendCode =
+      paratikaField(
+        resendResult.data,
+        'responseCode',
+        'RESPONSECODE'
+      );
+
+    const resendMsg =
+      paratikaField(
+        resendResult.data,
+        'responseMsg',
+        'RESPONSEMSG'
+      );
 
     const smsAccepted =
-      smsResult.response.ok &&
-      smsCode === '00' &&
-      (
-        !smsSessionToken ||
-        smsSessionToken ===
-          sessionToken
-      );
+      resendResult.response.ok &&
+      resendCode === '00';
 
-    // Eğer Paratika farklı session token üretirse
-    // bunu başarılı SMS olarak kabul etmiyoruz.
-    // Çünkü farklı session taksit kuralını taşımayabilir.
     const smsSessionMismatch =
-      Boolean(
-        smsSessionToken &&
-        smsSessionToken !==
-          sessionToken
-      );
+      false;
 
     const dbStatus:
       | 'SENT'
@@ -1258,19 +1541,24 @@ export async function POST(
 
             responseCode:
               smsAccepted
-                ? smsCode
-                : sessionCode,
+                ? resendCode
+                : payByLinkCode,
 
             responseMsg:
               smsAccepted
-                ? smsMsg
-                : sessionMsg,
+                ? resendMsg
+                : payByLinkMsg,
 
             rawCreateResponse: {
               session:
                 sessionResult.data,
-              sms:
-                smsResult.data,
+              payByLink:
+                payByLinkResult.data,
+              queryPayByLink:
+                queryResult.data,
+              resend:
+                resendResult.data,
+              payByLinkToken,
               selectedInstallment:
                 installmentCount,
             },
@@ -1383,22 +1671,25 @@ export async function POST(
           sessionResponseCode:
             sessionCode,
 
+          payByLinkResponseCode:
+            payByLinkCode || null,
+
           smsResponseCode:
-            smsCode || null,
+            resendCode || null,
 
           smsResponseMsg:
-            smsMsg || null,
+            resendMsg || null,
 
           smsErrorCode:
             paratikaField(
-              smsResult.data,
+              resendResult.data,
               'errorCode',
               'ERRORCODE'
             ) || null,
 
           smsErrorDetail:
             paratikaField(
-              smsResult.data,
+              resendResult.data,
               'errorMsg',
               'ERRORMSG',
               'error',
@@ -1450,10 +1741,10 @@ export async function POST(
       smsSent: true,
 
       responseCode:
-        smsCode,
+        resendCode,
 
       responseMsg:
-        smsMsg,
+        resendMsg,
 
       expiresIn: '168h',
 
