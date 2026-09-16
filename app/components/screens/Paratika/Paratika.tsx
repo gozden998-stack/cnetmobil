@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -112,7 +113,7 @@ type CreateResult = {
 };
 
 const INSTALLMENTS = Array.from(
-  { length: 17 },
+  { length: 11 },
   (_, index) => index + 2
 );
 
@@ -164,6 +165,50 @@ function dateTime(value?: string | null) {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
+}
+
+
+function istanbulDateKey(value = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value);
+}
+
+function shiftDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00+03:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return istanbulDateKey(date);
+}
+
+function dateKeyLabel(dateKey: string, todayKey: string) {
+  const yesterdayKey = shiftDateKey(todayKey, -1);
+
+  if (dateKey === todayKey) {
+    return 'BUGÜN';
+  }
+
+  if (dateKey === yesterdayKey) {
+    return 'DÜN';
+  }
+
+  const selected = new Date(`${dateKey}T12:00:00+03:00`);
+  const today = new Date(`${todayKey}T12:00:00+03:00`);
+
+  const diff = Math.round(
+    (today.getTime() - selected.getTime()) / 86_400_000
+  );
+
+  if (diff > 1 && diff <= 30) {
+    return `${diff} GÜN ÖNCE`;
+  }
+
+  return new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'medium',
+    timeZone: 'Europe/Istanbul',
+  }).format(selected);
 }
 
 function displayPhone(value?: string | null) {
@@ -247,6 +292,14 @@ export default function Paratika() {
 
   const [search, setSearch] = useState('');
 
+  const initialTodayKey = istanbulDateKey();
+  const [todayKey, setTodayKey] =
+    useState(initialTodayKey);
+  const [selectedDate, setSelectedDate] =
+    useState(initialTodayKey);
+  const previousTodayRef =
+    useRef(initialTodayKey);
+
   const [form, setForm] = useState({
     amount: '',
     customerName: '',
@@ -298,6 +351,7 @@ export default function Paratika() {
         const params = new URLSearchParams();
 
         params.set('limit', '100');
+        params.set('date', selectedDate);
 
         if (branchFilter !== 'ALL') {
           params.set('branch', branchFilter);
@@ -345,12 +399,38 @@ export default function Paratika() {
         }
       }
     },
-    [branchFilter, statusFilter, search]
+    [branchFilter, statusFilter, search, selectedDate]
   );
 
   useEffect(() => {
     void loadPayments();
   }, [loadPayments]);
+
+  // Gün değişince kullanıcı BUGÜN ekranındaysa otomatik yeni güne geç.
+  // Böylece dünün kayıtları dünde kalır; yeni gün temiz başlar.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const nextTodayKey = istanbulDateKey();
+      const previousToday = previousTodayRef.current;
+
+      if (nextTodayKey === previousToday) {
+        return;
+      }
+
+      setSelectedDate((current) =>
+        current === previousToday
+          ? nextTodayKey
+          : current
+      );
+
+      previousTodayRef.current = nextTodayKey;
+      setTodayKey(nextTodayKey);
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // Listeyi hafif biçimde güncel tutuyoruz.
   // Gerçek Paratika sorgusu burada yapılmaz;
@@ -841,9 +921,85 @@ export default function Paratika() {
                 <h3 className="mt-1 text-xl font-black text-slate-950">
                   Paratika İşlemleri
                 </h3>
+
+                <div className="mt-1 text-[11px] font-black text-slate-400">
+                  {dateKeyLabel(selectedDate, todayKey)} •{' '}
+                  {new Intl.DateTimeFormat('tr-TR', {
+                    dateStyle: 'long',
+                    timeZone: 'Europe/Istanbul',
+                  }).format(
+                    new Date(
+                      `${selectedDate}T12:00:00+03:00`
+                    )
+                  )}
+                </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="flex min-w-[260px] items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedDate((current) =>
+                        shiftDateKey(current, -1)
+                      )
+                    }
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-black text-slate-700 shadow-sm"
+                    title="Önceki gün"
+                  >
+                    ‹
+                  </button>
+
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    max={todayKey}
+                    onChange={(event) => {
+                      const value =
+                        event.target.value;
+
+                      if (
+                        value &&
+                        value <= todayKey
+                      ) {
+                        setSelectedDate(value);
+                      }
+                    }}
+                    className="min-w-0 flex-1 bg-transparent px-1 text-[11px] font-black text-slate-700 outline-none"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedDate(todayKey)
+                    }
+                    className="h-8 shrink-0 rounded-lg bg-white px-2 text-[10px] font-black text-blue-600 shadow-sm"
+                  >
+                    BUGÜN
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedDate((current) => {
+                        const next =
+                          shiftDateKey(current, 1);
+
+                        return next > todayKey
+                          ? todayKey
+                          : next;
+                      })
+                    }
+                    disabled={
+                      selectedDate >= todayKey
+                    }
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-30"
+                    title="Sonraki gün"
+                  >
+                    ›
+                  </button>
+                </div>
+
                 {permissions?.canViewAllBranches ? (
                   <select
                     value={branchFilter}
@@ -911,7 +1067,7 @@ export default function Paratika() {
                   onChange={(event) =>
                     setSearch(event.target.value)
                   }
-                  placeholder="Müşteri / telefon / işlem no"
+                  placeholder="Müşteri / telefon / ÖSN"
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
                 />
               </div>
@@ -1083,35 +1239,27 @@ export default function Paratika() {
                       <td className="px-4 py-4">
                         {payment.status ===
                         'APPROVED' ? (
-                          <div className="space-y-1 text-[10px]">
+                          <div className="space-y-2 text-[10px]">
                             <div>
-                              <span className="font-black uppercase text-slate-400">
-                                İşlem No:
-                              </span>{' '}
-                              <span className="font-black text-slate-800">
-                                {payment.pgTranId ||
-                                  '-'}
-                              </span>
+                              <div className="font-black uppercase tracking-wide text-emerald-600">
+                                ÜÖT
+                              </div>
+                              <div className="mt-0.5 whitespace-nowrap text-[11px] font-black text-slate-800">
+                                {dateTime(
+                                  payment.paratikaPaymentDate ||
+                                    payment.approvedAt
+                                )}
+                              </div>
                             </div>
 
                             <div>
-                              <span className="font-black uppercase text-slate-400">
-                                Onay:
-                              </span>{' '}
-                              <span className="font-black text-slate-800">
-                                {payment.approvalCode ||
+                              <div className="font-black uppercase tracking-wide text-blue-600">
+                                ÖSN
+                              </div>
+                              <div className="mt-0.5 whitespace-nowrap text-[11px] font-black text-slate-900">
+                                {payment.pgTranRefId ||
                                   '-'}
-                              </span>
-                            </div>
-
-                            <div>
-                              <span className="font-black uppercase text-slate-400">
-                                Banka:
-                              </span>{' '}
-                              <span className="font-black text-slate-800">
-                                {payment.issuer ||
-                                  '-'}
-                              </span>
+                              </div>
                             </div>
                           </div>
                         ) : (
