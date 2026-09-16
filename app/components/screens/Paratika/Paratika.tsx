@@ -168,6 +168,62 @@ function dateTime(value?: string | null) {
 }
 
 
+function merchantPaymentDate(
+  value?: string | null
+) {
+  if (!value) return '-';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  const parts =
+    new Intl.DateTimeFormat(
+      'tr-TR',
+      {
+        timeZone:
+          'Europe/Istanbul',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }
+    ).formatToParts(date);
+
+  const day =
+    parts.find(
+      (part) =>
+        part.type === 'day'
+    )?.value || '';
+
+  const month =
+    parts.find(
+      (part) =>
+        part.type === 'month'
+    )?.value || '';
+
+  const year =
+    parts.find(
+      (part) =>
+        part.type === 'year'
+    )?.value || '';
+
+  const cleanMonth =
+    month
+      .replace('.', '')
+      .replace(
+        /^./,
+        (char) =>
+          char.toLocaleUpperCase(
+            'tr-TR'
+          )
+      );
+
+  return `${day}-${cleanMonth}-${year}`;
+}
+
+
 function istanbulDateKey(value = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Istanbul',
@@ -321,6 +377,11 @@ export default function Paratika() {
     number | null
   >(null);
 
+  const [
+    copiedField,
+    setCopiedField,
+  ] = useState('');
+
   const branchOptions = useMemo(() => {
     const branches = new Set<string>();
 
@@ -431,6 +492,70 @@ export default function Paratika() {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  // PARATIKA_AUTO_SYNC_UOT
+  // Açık işlemler ve ONAYLANDI olup ÜÖT henüz gelmemiş kayıtlar
+  // Paratika'dan periyodik doğrulanır.
+  useEffect(() => {
+    if (selectedDate !== todayKey) {
+      return;
+    }
+
+    let running = false;
+
+    const run = async () => {
+      if (running) {
+        return;
+      }
+
+      running = true;
+
+      try {
+        await fetch(
+          '/api/paratika/status-sync',
+          {
+            method: 'POST',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+            body: JSON.stringify({
+              syncAll: true,
+            }),
+          }
+        );
+
+        await loadPayments(true);
+      } catch {
+        // Sessiz otomatik sync:
+        // ekranı hata popup'larıyla rahatsız etmiyoruz.
+      } finally {
+        running = false;
+      }
+    };
+
+    void run();
+
+    const intervalId =
+      window.setInterval(
+        () => {
+          void run();
+        },
+        30_000
+      );
+
+    return () => {
+      window.clearInterval(
+        intervalId
+      );
+    };
+  }, [
+    loadPayments,
+    selectedDate,
+    todayKey,
+  ]);
 
   // Listeyi hafif biçimde güncel tutuyoruz.
   // Gerçek Paratika sorgusu burada yapılmaz;
@@ -602,6 +727,39 @@ export default function Paratika() {
       );
     } finally {
       setSyncingAll(false);
+    }
+  }
+
+  async function copyInfo(
+    key: string,
+    value: string
+  ) {
+    if (
+      !value ||
+      value === '-'
+    ) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        value
+      );
+
+      setCopiedField(key);
+
+      window.setTimeout(() => {
+        setCopiedField(
+          (current) =>
+            current === key
+              ? ''
+              : current
+        );
+      }, 1400);
+    } catch {
+      window.alert(
+        'Bilgi kopyalanamadı.'
+      );
     }
   }
 
@@ -1239,26 +1397,120 @@ export default function Paratika() {
                       <td className="px-4 py-4">
                         {payment.status ===
                         'APPROVED' ? (
-                          <div className="space-y-2 text-[10px]">
-                            <div>
-                              <div className="font-black uppercase tracking-wide text-emerald-600">
+                          <div className="flex min-w-[300px] items-start gap-3">
+                            <div className="min-w-[118px]">
+                              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-600">
                                 ÜÖT
                               </div>
-                              <div className="mt-0.5 whitespace-nowrap text-[11px] font-black text-slate-800">
-                                {dateTime(
-                                  payment.paratikaPaymentDate ||
-                                    payment.approvedAt
-                                )}
+
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <span className="whitespace-nowrap text-[11px] font-black text-slate-900">
+                                  {merchantPaymentDate(
+                                    payment.paratikaPaymentDate
+                                  )}
+                                </span>
+
+                                {payment.paratikaPaymentDate ? (
+                                  <button
+                                    type="button"
+                                    title="ÜÖT kopyala"
+                                    onClick={() =>
+                                      void copyInfo(
+                                        `uot-${payment.id}`,
+                                        merchantPaymentDate(
+                                          payment.paratikaPaymentDate
+                                        )
+                                      )
+                                    }
+                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:text-emerald-600"
+                                  >
+                                    {copiedField ===
+                                    `uot-${payment.id}` ? (
+                                      <span className="text-[10px] font-black">
+                                        ✓
+                                      </span>
+                                    ) : (
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        className="h-3.5 w-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <rect
+                                          x="9"
+                                          y="9"
+                                          width="11"
+                                          height="11"
+                                          rx="2"
+                                        />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
 
-                            <div>
-                              <div className="font-black uppercase tracking-wide text-blue-600">
+                            <div className="mt-1 h-8 w-px bg-slate-200" />
+
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-blue-600">
                                 ÖSN
                               </div>
-                              <div className="mt-0.5 whitespace-nowrap text-[11px] font-black text-slate-900">
-                                {payment.pgTranRefId ||
-                                  '-'}
+
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <span
+                                  title={
+                                    payment.pgOrderId ||
+                                    payment.merchantPaymentId
+                                  }
+                                  className="max-w-[190px] truncate text-[11px] font-black text-slate-950"
+                                >
+                                  {payment.pgOrderId ||
+                                    payment.merchantPaymentId ||
+                                    '-'}
+                                </span>
+
+                                {payment.pgOrderId ||
+                                payment.merchantPaymentId ? (
+                                  <button
+                                    type="button"
+                                    title="ÖSN kopyala"
+                                    onClick={() =>
+                                      void copyInfo(
+                                        `osn-${payment.id}`,
+                                        payment.pgOrderId ||
+                                          payment.merchantPaymentId
+                                      )
+                                    }
+                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600"
+                                  >
+                                    {copiedField ===
+                                    `osn-${payment.id}` ? (
+                                      <span className="text-[10px] font-black">
+                                        ✓
+                                      </span>
+                                    ) : (
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        className="h-3.5 w-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <rect
+                                          x="9"
+                                          y="9"
+                                          width="11"
+                                          height="11"
+                                          rx="2"
+                                        />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
                           </div>
