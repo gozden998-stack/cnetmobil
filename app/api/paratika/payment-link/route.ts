@@ -389,21 +389,6 @@ async function getAllowedInstallments(config: ParatikaConfig) {
   return counts;
 }
 
-function buildInstallmentSupport(installmentCount: number) {
-  return JSON.stringify([
-    {
-      commissionKey: `CR${installmentCount}`,
-      installmentType: 'BUSINESS',
-      active: 'true',
-    },
-    {
-      commissionKey: `CR${installmentCount}`,
-      installmentType: 'CONSUMER',
-      active: 'true',
-    },
-  ]);
-}
-
 function getReturnUrl(request: NextRequest) {
   const configured = String(
     process.env.PARATIKA_RETURN_URL || ''
@@ -719,9 +704,13 @@ export async function POST(request: NextRequest) {
     // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
     params.set('NOTIFICATIONCHANNELS', 'SMS');
 
+    // Bu hesapta QUERYCUSTOMERCOMMISSION cevabı paymentSystemBased=NO.
+    // INSTALLMENTSUPPORT içindeki BUSINESS/CONSUMER şeması canlı API tarafından
+    // ERR10237 ile reddediliyor. Bu nedenle seçilen taksiti HPP oturumunda
+    // desteklenen ALLOWEDINSTALLMENTS alanı ile sınırlandırıyoruz.
     params.set(
-      'INSTALLMENTSUPPORT',
-      buildInstallmentSupport(installmentCount)
+      'ALLOWEDINSTALLMENTS',
+      String(installmentCount)
     );
 
     const { response, data } = await postParatika(config, params);
@@ -789,6 +778,11 @@ export async function POST(request: NextRequest) {
           responseMsg: responseMsg || null,
           errorCode: paratikaErrorCode || null,
           errorDetail: paratikaError || null,
+          violatorParam: String(
+            data?.violatorParam ??
+            data?.VIOLATORPARAM ??
+            ''
+          ) || null,
           merchantPaymentId,
           // Geçici teşhis alanı. Paratika'nın hata cevabını görmemizi sağlar.
           // İstek credential'ları burada yer almaz.
