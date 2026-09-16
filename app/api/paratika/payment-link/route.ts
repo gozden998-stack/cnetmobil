@@ -543,7 +543,6 @@ async function savePayment(
   input: {
     merchantPaymentId: string;
     sessionToken: string;
-    payByLinkToken: string | null;
     paymentUrl: string;
 
     branchCode: string;
@@ -572,7 +571,6 @@ async function savePayment(
         INSERT INTO public.paratika_payments (
           merchant_payment_id,
           session_token,
-          paybylink_token,
           payment_url,
 
           branch_code,
@@ -599,19 +597,19 @@ async function savePayment(
           last_synced_at
         )
         VALUES (
-          $1, $2, $3, $4,
-          $5, $6,
-          $7, $8, $9,
-          $10, 'TRY', $11,
-          $12, $12, $13, $14,
+          $1, $2, $3,
+          $4, $5,
+          $6, $7, $8,
+          $9, 'TRY', $10,
+          $11, $11, $12, $13,
           NOW(),
           CASE
             WHEN $12 = 'SENT'
             THEN NOW()
             ELSE NULL
           END,
-          $15::jsonb,
-          $15::jsonb,
+          $14::jsonb,
+          $14::jsonb,
           NOW()
         )
         RETURNING *
@@ -619,7 +617,6 @@ async function savePayment(
       [
         input.merchantPaymentId,
         input.sessionToken,
-        input.payByLinkToken,
         input.paymentUrl,
 
         input.branchCode,
@@ -1209,6 +1206,27 @@ export async function POST(
         ? 'SENT'
         : 'LINK_CREATED';
 
+    const rawUserId =
+      auth.session.userId;
+
+    const normalizedUserId =
+      rawUserId === null ||
+      rawUserId === undefined ||
+      rawUserId === ''
+        ? null
+        : Number(rawUserId);
+
+    const safeCreatedByUserId =
+      normalizedUserId !== null &&
+      Number.isFinite(
+        normalizedUserId
+      ) &&
+      Number.isInteger(
+        normalizedUserId
+      )
+        ? normalizedUserId
+        : null;
+
     const pool = getPool();
     const client =
       await pool.connect();
@@ -1224,9 +1242,6 @@ export async function POST(
           {
             merchantPaymentId,
             sessionToken,
-            payByLinkToken:
-              payByLinkToken ||
-              null,
             paymentUrl,
 
             branchCode:
@@ -1236,12 +1251,7 @@ export async function POST(
               ).trim(),
 
             createdByUserId:
-              auth.session.userId !==
-              null
-                ? Number(
-                    auth.session.userId
-                  )
-                : null,
+              safeCreatedByUserId,
 
             customerName,
             customerEmail,
@@ -1296,6 +1306,16 @@ export async function POST(
         }
       );
 
+      const pgError =
+        dbError as {
+          message?: string;
+          code?: string;
+          detail?: string;
+          constraint?: string;
+          column?: string;
+          table?: string;
+        };
+
       return noStoreJson(
         {
           success: false,
@@ -1310,6 +1330,22 @@ export async function POST(
           paymentUrl,
           selectedInstallment:
             installmentCount,
+
+          // Secret içermez. DB şema/constraint hatasını net görmek için.
+          databaseError:
+            pgError?.message ||
+            'Bilinmeyen PostgreSQL hatası',
+          databaseCode:
+            pgError?.code || null,
+          databaseDetail:
+            pgError?.detail || null,
+          databaseConstraint:
+            pgError?.constraint ||
+            null,
+          databaseColumn:
+            pgError?.column || null,
+          databaseTable:
+            pgError?.table || null,
         },
         500
       );
