@@ -610,21 +610,20 @@ const IP_HARITASI: any = {
 };
 
 const MASTER_IPLER = [
-  "95.70.226.118",
   "148.0.18.162"
 ];
 
 // ======================================================
 // VODAFONE MAĞAZA IP'LERİ
-// Yarın 4 IP geldiğinde aşağıdaki diziye sadece gerçek IP'leri ekle.
-// Dizi boşken mevcut Vodafone erişimi bozulmaz.
-// Diziye IP girildiği anda Vodafone personel erişimi SADECE bu IP'lerden olur.
+// Vodafone Kanalı personel hesabı tek mail ile kullanılabilir.
+// Ancak giriş yalnızca aşağıdaki 4 yetkili mağaza IP'sinden kabul edilir.
+// Aynı VODAFONE KANALI hesabı Meydan / Saray / Erna / Tekira mağazalarında çalışır.
 // ======================================================
 const VODAFONE_IPLER: string[] = [
-  // "1.2.3.4",   // Vodafone Mağaza 1
-  // "1.2.3.5",   // Vodafone Mağaza 2
-  // "1.2.3.6",   // Vodafone Mağaza 3
-  // "1.2.3.7",   // Vodafone Mağaza 4
+  "95.70.226.118", // Vodafone Meydan
+  "95.70.220.18",  // Vodafone Saray
+  "149.0.16.251",  // Vodafone Erna
+  "94.54.124.85",  // Vodafone Tekira
 ];
 
 // Bayi/partner erişimi için mevcut teknik şube anahtarını değiştirmiyoruz.
