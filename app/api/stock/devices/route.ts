@@ -249,6 +249,40 @@ function parseBattery(value: unknown): number | null {
   return n;
 }
 
+// CNET cihazı diğer mağazalara ancak bütün zorunlu detayları tamamlanınca görünür.
+function isCnetDeviceReadyForStores(device: Record<string, any>) {
+  const color = String(device.color ?? '').trim();
+  const normalizedColor = color.toLocaleUpperCase('tr-TR');
+
+  const unusableColors = [
+    '-',
+    '—',
+    'DİĞER',
+    'DIGER',
+    'OTHER',
+    'UNKNOWN',
+    'BİLİNMİYOR',
+    'BILINMIYOR',
+  ];
+
+  const batteryPercent = Number(device.battery_percent);
+
+  return (
+    Boolean(color) &&
+    !unusableColors.includes(normalizedColor) &&
+    device.battery_percent !== null &&
+    device.battery_percent !== undefined &&
+    device.battery_percent !== '' &&
+    Number.isInteger(batteryPercent) &&
+    batteryPercent >= 0 &&
+    batteryPercent <= 100 &&
+    Boolean(String(device.grade ?? '').trim()) &&
+    Boolean(String(device.warranty ?? '').trim()) &&
+    Boolean(String(device.changed_parts ?? '').trim()) &&
+    Boolean(String(device.box_invoice ?? '').trim())
+  );
+}
+
 async function branchExists(branchCode: string) {
   const result = await getPool().query(
     `
@@ -266,7 +300,9 @@ async function branchExists(branchCode: string) {
 
 // ============================================================
 // GET /api/stock/devices?branch=CMR
-// Her aktif kullanici tum magazalarin stoklarini gorebilir.
+// Her aktif kullanici yetkisine göre mağaza stoklarını görebilir.
+// CNET'te detayları eksik cihazlar sadece CNET yöneticisine/Super Admin'e görünür.
+// Diğer mağazalar CNET'te yalnız talebe hazır cihazları görür.
 // Normal kullanicida canManage sadece kendi magazasinda true olur.
 // Yonetici mailde canManage sadece CNET icin true olur.
 // Super Admin tum magazalari yonetebilir.
@@ -363,6 +399,31 @@ export async function GET(request: NextRequest) {
       ),
     ]);
 
+    const rawDevices = devicesResult.rows;
+
+    // CNET deposunu yönetemeyen kullanıcılar:
+    // - Detayları eksik CNET cihazlarını hiç görmez.
+    // - Sadece bütün detayları tamamlanmış AVAILABLE cihazları görür.
+    // - Daha önce talep edilmiş REQUESTED / TRANSFER_WAITING cihazlar,
+    //   talep takibinin kaybolmaması için görünmeye devam eder.
+    const visibleDevices =
+      requestedBranch === 'CNET' && !canManage
+        ? rawDevices.filter((device: Record<string, any>) => {
+            const status = String(device.status ?? '')
+              .trim()
+              .toLocaleUpperCase('tr-TR');
+
+            if (status === 'REQUESTED' || status === 'TRANSFER_WAITING') {
+              return true;
+            }
+
+            return (
+              status === 'AVAILABLE' &&
+              isCnetDeviceReadyForStores(device)
+            );
+          })
+        : rawDevices;
+
     return json({
       success: true,
       branch: {
@@ -378,8 +439,8 @@ export async function GET(request: NextRequest) {
         isManager: managerAccess,
       },
       capacity: capacityResult.rows[0] ?? null,
-      devices: devicesResult.rows,
-      count: devicesResult.rows.length,
+      devices: visibleDevices,
+      count: visibleDevices.length,
     });
   } catch (error) {
     console.error('STOCK DEVICES GET ERROR:', error);
