@@ -601,10 +601,10 @@ async function savePayment(
           $4, $5,
           $6, $7, $8,
           $9, 'TRY', $10,
-          $11, $11, $12, $13,
+          $11::varchar, $11::varchar, $12::varchar, $13::text,
           NOW(),
           CASE
-            WHEN $12 = 'SENT'
+            WHEN $11::text = 'SENT'
             THEN NOW()
             ELSE NULL
           END,
