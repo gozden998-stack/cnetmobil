@@ -969,15 +969,18 @@ export async function POST(request: NextRequest) {
                 payment.merchant_payment_id,
               pgTranId,
               pgTranRefId,
-              pgOrderId,
+              pgOrderId:
+                exactPgOrderId,
               approvalCode,
               issuer,
               installmentCount:
                 Number.isInteger(numberOfInstallments)
                   ? numberOfInstallments
                   : null,
-              paymentDate:
-                paymentDate.toISOString(),
+              merchantPaymentDate:
+                merchantPaymentDate
+                  ? merchantPaymentDate.toISOString()
+                  : null,
               verifiedBy:
                 'QUERYTRANSACTION',
             }
