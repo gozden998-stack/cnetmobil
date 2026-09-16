@@ -277,6 +277,24 @@ function createCustomerCode(customerPhone: string, customerEmail: string) {
   return `CNET-${hash}`;
 }
 
+function buildExactInstallmentSupport(
+  installmentCount: number
+) {
+  return JSON.stringify([
+    {
+      commissionKey: `CR${installmentCount}`,
+      installmentType: 'BUSINESS',
+      active: true,
+    },
+    {
+      commissionKey: `CR${installmentCount}`,
+      installmentType: 'CONSUMER',
+      active: true,
+    },
+  ]);
+}
+
+
 
 async function postParatika(
   config: ParatikaConfig,
@@ -641,8 +659,8 @@ export async function POST(request: NextRequest) {
 
     if (
       !Number.isInteger(installmentCount) ||
-      installmentCount < 1 ||
-      installmentCount > 24
+      installmentCount < 2 ||
+      installmentCount > 12
     ) {
       return noStoreJson(
         {
@@ -704,16 +722,83 @@ export async function POST(request: NextRequest) {
     // Müşteriye ödeme linkinin SMS ile iletilmesini ister.
     params.set('NOTIFICATIONCHANNELS', 'SMS');
 
-    // Bu hesapta QUERYCUSTOMERCOMMISSION cevabı paymentSystemBased=NO.
-    // INSTALLMENTSUPPORT içindeki BUSINESS/CONSUMER şeması canlı API tarafından
-    // ERR10237 ile reddediliyor. Bu nedenle seçilen taksiti HPP oturumunda
-    // desteklenen ALLOWEDINSTALLMENTS alanı ile sınırlandırıyoruz.
+    // Kullanıcı panelde hangi taksiti seçtiyse ödeme sayfasında
+    // yalnızca o taksit seçeneğini göstermeyi deneriz.
+    //
+    // Paratika PayByLink dokümanındaki INSTALLMENTSUPPORT yapısı
+    // CR{taksit} + BUSINESS / CONSUMER çiftini kullanıyor.
+    // Bazı hesap konfigürasyonlarında bu alan ERR10237 dönebildiği için
+    // güvenli fallback de bırakıyoruz.
     params.set(
-      'ALLOWEDINSTALLMENTS',
+      'INSTALLMENTSUPPORT',
+      buildExactInstallmentSupport(
+        installmentCount
+      )
+    );
+
+    // Destekleyen akışlarda seçili taksiti ayrıca sabitler.
+    params.set(
+      'INSTALLMENTS',
       String(installmentCount)
     );
 
-    const { response, data } = await postParatika(config, params);
+    let paratikaResult =
+      await postParatika(
+        config,
+        params
+      );
+
+    let response =
+      paratikaResult.response;
+    let data =
+      paratikaResult.data;
+
+    const firstErrorCode = String(
+      data?.errorCode ??
+      data?.ERRORCODE ??
+      ''
+    ).toUpperCase();
+
+    // Hesap INSTALLMENTSUPPORT şemasını reddederse çalışan akışı bozmayalım.
+    // ALLOWEDINSTALLMENTS + INSTALLMENTS ile ikinci deneme yapılır.
+    if (
+      String(
+        data?.responseCode ??
+        data?.RESPONSECODE ??
+        ''
+      ) !== '00' &&
+      firstErrorCode === 'ERR10237'
+    ) {
+      const fallbackParams =
+        new URLSearchParams(
+          params
+        );
+
+      fallbackParams.delete(
+        'INSTALLMENTSUPPORT'
+      );
+
+      fallbackParams.set(
+        'ALLOWEDINSTALLMENTS',
+        String(installmentCount)
+      );
+
+      fallbackParams.set(
+        'INSTALLMENTS',
+        String(installmentCount)
+      );
+
+      paratikaResult =
+        await postParatika(
+          config,
+          fallbackParams
+        );
+
+      response =
+        paratikaResult.response;
+      data =
+        paratikaResult.data;
+    }
 
     const responseCode = String(
       data?.responseCode ??
