@@ -700,9 +700,39 @@ export async function POST(request: NextRequest) {
 
     const { response, data } = await postParatika(config, params);
 
-    const responseCode = String(data?.responseCode ?? '');
-    const responseMsg = String(data?.responseMsg ?? '');
-    const sessionToken = String(data?.sessionToken ?? '').trim();
+    const responseCode = String(
+      data?.responseCode ??
+      data?.RESPONSECODE ??
+      ''
+    );
+
+    const responseMsg = String(
+      data?.responseMsg ??
+      data?.RESPONSEMSG ??
+      ''
+    );
+
+    // Paratika, responseCode 00 dışındaki hatalarda ERROR / ERRORCODE
+    // alanlarını döndürebilir. Teşhis için güvenli şekilde kullanıcıya
+    // geri döndürüyoruz; API kullanıcı adı/şifre gibi secret alanları
+    // kesinlikle response'a eklenmez.
+    const paratikaError = String(
+      data?.error ??
+      data?.ERROR ??
+      ''
+    );
+
+    const paratikaErrorCode = String(
+      data?.errorCode ??
+      data?.ERRORCODE ??
+      ''
+    );
+
+    const sessionToken = String(
+      data?.sessionToken ??
+      data?.SESSIONTOKEN ??
+      ''
+    ).trim();
 
     if (
       !response.ok ||
@@ -713,7 +743,11 @@ export async function POST(request: NextRequest) {
         httpStatus: response.status,
         responseCode,
         responseMsg,
+        paratikaError,
+        paratikaErrorCode,
         merchantPaymentId,
+        // Secret içermez; yalnızca Paratika response body'sidir.
+        paratikaResponse: data,
       });
 
       return noStoreJson(
@@ -724,7 +758,13 @@ export async function POST(request: NextRequest) {
             responseMsg ||
             'Paratika ödeme linki oluşturulamadı.',
           responseCode: responseCode || null,
+          responseMsg: responseMsg || null,
+          errorCode: paratikaErrorCode || null,
+          errorDetail: paratikaError || null,
           merchantPaymentId,
+          // Geçici teşhis alanı. Paratika'nın hata cevabını görmemizi sağlar.
+          // İstek credential'ları burada yer almaz.
+          paratikaResponse: data,
           responseTimeMs: Date.now() - startedAt,
         },
         response.ok ? 400 : 502
