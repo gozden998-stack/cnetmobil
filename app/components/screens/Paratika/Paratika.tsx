@@ -1397,58 +1397,16 @@ export default function Paratika() {
                       <td className="px-4 py-4">
                         {payment.status ===
                         'APPROVED' ? (
-                          <div className="flex min-w-[300px] items-start gap-3">
-                            <div className="min-w-[118px]">
+                          <div className="flex min-w-[340px] items-start gap-3">
+                            <div className="min-w-[112px]">
                               <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-600">
                                 ÜÖT
                               </div>
 
-                              <div className="mt-1 flex items-center gap-1.5">
-                                <span className="whitespace-nowrap text-[11px] font-black text-slate-900">
-                                  {merchantPaymentDate(
-                                    payment.paratikaPaymentDate
-                                  )}
-                                </span>
-
-                                {payment.paratikaPaymentDate ? (
-                                  <button
-                                    type="button"
-                                    title="ÜÖT kopyala"
-                                    onClick={() =>
-                                      void copyInfo(
-                                        `uot-${payment.id}`,
-                                        merchantPaymentDate(
-                                          payment.paratikaPaymentDate
-                                        )
-                                      )
-                                    }
-                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:text-emerald-600"
-                                  >
-                                    {copiedField ===
-                                    `uot-${payment.id}` ? (
-                                      <span className="text-[10px] font-black">
-                                        ✓
-                                      </span>
-                                    ) : (
-                                      <svg
-                                        viewBox="0 0 24 24"
-                                        className="h-3.5 w-3.5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                      >
-                                        <rect
-                                          x="9"
-                                          y="9"
-                                          width="11"
-                                          height="11"
-                                          rx="2"
-                                        />
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                ) : null}
+                              <div className="mt-1 whitespace-nowrap text-[11px] font-black text-slate-900">
+                                {merchantPaymentDate(
+                                  payment.paratikaPaymentDate
+                                )}
                               </div>
                             </div>
 
@@ -1459,35 +1417,40 @@ export default function Paratika() {
                                 ÖSN
                               </div>
 
-                              <div className="mt-1 flex items-center gap-1.5">
+                              <div className="mt-1 flex items-center gap-2">
                                 <span
                                   title={
                                     payment.pgOrderId ||
                                     payment.merchantPaymentId
                                   }
-                                  className="max-w-[190px] truncate text-[11px] font-black text-slate-950"
+                                  className="max-w-[180px] truncate text-[11px] font-black text-slate-950"
                                 >
                                   {payment.pgOrderId ||
                                     payment.merchantPaymentId ||
                                     '-'}
                                 </span>
 
-                                {payment.pgOrderId ||
-                                payment.merchantPaymentId ? (
+                                {payment.paratikaPaymentDate &&
+                                (payment.pgOrderId ||
+                                  payment.merchantPaymentId) ? (
                                   <button
                                     type="button"
-                                    title="ÖSN kopyala"
+                                    title="ÜÖT + ÖSN kopyala"
                                     onClick={() =>
                                       void copyInfo(
-                                        `osn-${payment.id}`,
-                                        payment.pgOrderId ||
+                                        `uot-osn-${payment.id}`,
+                                        `${merchantPaymentDate(
+                                          payment.paratikaPaymentDate
+                                        )} ${
+                                          payment.pgOrderId ||
                                           payment.merchantPaymentId
+                                        }`
                                       )
                                     }
                                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600"
                                   >
                                     {copiedField ===
-                                    `osn-${payment.id}` ? (
+                                    `uot-osn-${payment.id}` ? (
                                       <span className="text-[10px] font-black">
                                         ✓
                                       </span>
