@@ -210,6 +210,93 @@ async function queryTransaction(
   return postParatika(config, params);
 }
 
+async function queryMerchantReconciliation(
+  config: ParatikaConfig,
+  pgTranId: string,
+  pgOrderId: string,
+  approvalCode: string
+) {
+  const params = new URLSearchParams();
+
+  params.set(
+    'ACTION',
+    'QUERYMERCHANTRECONCILIATION'
+  );
+  params.set(
+    'MERCHANT',
+    config.merchant
+  );
+  params.set(
+    'MERCHANTUSER',
+    config.merchantUser
+  );
+  params.set(
+    'MERCHANTPASSWORD',
+    config.merchantPassword
+  );
+  params.set('LIMIT', '50');
+  params.set('OFFSET', '0');
+
+  if (pgTranId) {
+    params.set(
+      'TRANSACTIONID',
+      pgTranId
+    );
+  } else if (pgOrderId) {
+    params.set(
+      'ORDERID',
+      pgOrderId
+    );
+  } else if (approvalCode) {
+    params.set(
+      'APPROVALCODE',
+      approvalCode
+    );
+  } else {
+    return null;
+  }
+
+  return postParatika(
+    config,
+    params
+  );
+}
+
+function selectMerchantRecon(
+  data: any,
+  pgTranId: string,
+  pgOrderId: string
+) {
+  const list = Array.isArray(
+    data?.reconcilationReportMerchant
+  )
+    ? data.reconcilationReportMerchant
+    : [];
+
+  if (!list.length) {
+    return null;
+  }
+
+  return (
+    list.find(
+      (item: any) =>
+        pgTranId &&
+        String(
+          item?.pgTranId || ''
+        ) === pgTranId
+    ) ||
+    list.find(
+      (item: any) =>
+        pgOrderId &&
+        String(
+          item?.pgOrderId || ''
+        ) === pgOrderId
+    ) ||
+    list[0]
+  );
+}
+
+
 function pickApprovedTransaction(data: any) {
   const list = Array.isArray(data?.transactionList)
     ? data.transactionList
@@ -260,9 +347,35 @@ function pickApprovedTransaction(data: any) {
 }
 
 function parseParatikaDate(value: unknown): Date | null {
-  const raw = String(value || '').trim();
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value)
+  ) {
+    const epochDate =
+      new Date(value);
+
+    return Number.isNaN(
+      epochDate.getTime()
+    )
+      ? null
+      : epochDate;
+  }
+
+  const raw =
+    String(value || '').trim();
 
   if (!raw) return null;
+
+  if (/^\d{12,13}$/.test(raw)) {
+    const epochDate =
+      new Date(Number(raw));
+
+    return Number.isNaN(
+      epochDate.getTime()
+    )
+      ? null
+      : epochDate;
+  }
 
   // Callback örneği: 20170113 12:20:35
   const compact = raw.match(
@@ -706,24 +819,43 @@ export async function POST(request: NextRequest) {
           0
       );
 
-      const paymentDate =
+      const reconciliationQuery =
+        await queryMerchantReconciliation(
+          config,
+          pgTranId,
+          pgOrderId,
+          approvalCode
+        );
+
+      const reconciliationData =
+        reconciliationQuery?.data ??
+        null;
+
+      const reconciliationItem =
+        reconciliationData
+          ? selectMerchantRecon(
+              reconciliationData,
+              pgTranId,
+              pgOrderId
+            )
+          : null;
+
+      // ÖSN için Paratika mutabakatındaki
+      // pgOrderId öncelikli.
+      const exactPgOrderId =
+        String(
+          reconciliationItem
+            ?.pgOrderId ||
+            pgOrderId ||
+            ''
+        ).trim();
+
+      // ÜÖT = Üye İşyeri Ödeme Tarihi.
+      const merchantPaymentDate =
         parseParatikaDate(
-          getString(
-            callbackBody,
-            'pgTranDate',
-            'PGTRANDATE'
-          )
-        ) ||
-        parseParatikaDate(
-          verifiedTransaction?.timePsReceived
-        ) ||
-        parseParatikaDate(
-          verifiedTransaction?.timeCreated
-        ) ||
-        parseParatikaDate(
-          verifiedTransaction?.timePsSent
-        ) ||
-        new Date();
+          reconciliationItem
+            ?.merchantPaymentDate
+        );
 
       const updateClient = await pool.connect();
 
@@ -782,8 +914,7 @@ export async function POST(request: NextRequest) {
               paratika_payment_date =
                 COALESCE(
                   $11::timestamptz,
-                  paratika_payment_date,
-                  NOW()
+                  paratika_payment_date
                 ),
 
               last_synced_at = NOW(),
@@ -804,17 +935,23 @@ export async function POST(request: NextRequest) {
               String(query.data?.responseMsg || 'Approved'),
             pgTranId,
             pgTranRefId,
-            pgOrderId,
+            exactPgOrderId,
             approvalCode,
             issuer,
             Number.isInteger(numberOfInstallments)
               ? numberOfInstallments
               : 0,
-            paymentDate.toISOString(),
+            merchantPaymentDate
+              ? merchantPaymentDate.toISOString()
+              : null,
             JSON.stringify(
               safeJson({
-                callback: callbackBody,
-                queryTransaction: query.data,
+                callback:
+                  callbackBody,
+                queryTransaction:
+                  query.data,
+                merchantReconciliation:
+                  reconciliationData,
               })
             ),
           ]
