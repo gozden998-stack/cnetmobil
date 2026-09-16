@@ -936,6 +936,30 @@ export async function POST(
       returnUrl
     );
 
+    // Bu canlı merchant hesabında SESSIONTOKEN isteğinde ORDERITEMS
+    // zorunlu dönüyor (ERR10010 / violatorParam=ORDERITEMS).
+    // Tek ödeme kalemi gönderiyoruz ve toplamı AMOUNT ile birebir tutuyoruz.
+    const orderItems = [
+      {
+        productCode: 'CNET-PARATIKA',
+        name: 'CNETMOBIL Ödeme',
+        description: `Paratika ödeme - ${installmentCount} taksit`,
+        quantity: 1,
+        amount: Number(amount.toFixed(2)),
+      },
+    ];
+
+    sessionParams.set(
+      'ORDERITEMS',
+      JSON.stringify(orderItems)
+    );
+
+    // Sipariş kalemlerinin ödeme sayfasında ayrıca gösterilmesini istemiyoruz.
+    sessionParams.set(
+      'SHOWORDERDETAILS',
+      'NO'
+    );
+
     // Kritik:
     // Sadece panelde seçilen taksit.
     // Örnek: 2 seçildiyse "2".
