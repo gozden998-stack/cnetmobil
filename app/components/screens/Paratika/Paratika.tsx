@@ -644,7 +644,7 @@ export default function Paratika() {
             </div>
 
             <h3 className="mt-1 text-xl font-black text-slate-950">
-              Ödeme Linki Oluştur
+              Link Oluştur ve SMS Gönder
             </h3>
           </div>
 
@@ -778,7 +778,7 @@ export default function Paratika() {
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs text-white">
                     ✓
                   </span>
-                  ÖDEME LİNKİ OLUŞTU
+                  ÖDEME LİNKİ OLUŞTU • SMS TALEBİ GÖNDERİLDİ
                 </div>
 
                 <div className="mt-2 break-all rounded-xl bg-white/80 p-2.5 text-[10px] font-bold leading-4 text-emerald-700">
@@ -817,13 +817,14 @@ export default function Paratika() {
             >
               {creating
                 ? 'OLUŞTURULUYOR...'
-                : 'ÖDEME LİNKİ OLUŞTUR'}
+                : 'LİNK OLUŞTUR VE SMS GÖNDER'}
             </button>
 
             <div className="text-center text-[10px] font-bold leading-4 text-slate-400">
-              Bu aşamada link oluşturulur ve
-              işlem mağaza bilgisiyle
-              PostgreSQL&apos;e kaydedilir.
+              Link Paratika&apos;da oluşturulur,
+              SMS bildirim talebi müşterinin telefonuna
+              iletilmek üzere Paratika&apos;ya gönderilir
+              ve işlem mağaza bilgisiyle PostgreSQL&apos;e kaydedilir.
             </div>
           </form>
         </section>
