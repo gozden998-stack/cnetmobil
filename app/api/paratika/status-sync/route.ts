@@ -530,64 +530,97 @@ function selectPayByLinkItem(data: any) {
 }
 
 function selectRelevantTransaction(data: any) {
-  const list = Array.isArray(data?.transactionList)
+  const list = Array.isArray(
+    data?.transactionList
+  )
     ? data.transactionList
     : [];
 
-  if (!list.length) return null;
+  if (!list.length) {
+    return null;
+  }
 
-  const saleTransactions = list.filter((item: any) => {
-    const type = String(item?.transactionType || '').toUpperCase();
+  const saleTransactions =
+    list.filter((item: any) => {
+      const type = String(
+        item?.transactionType || ''
+      ).toUpperCase();
 
-    return type === 'SALE' || type === '';
-  });
+      return (
+        type === 'SALE' ||
+        type === ''
+      );
+    });
 
-  const source = saleTransactions.length
-    ? saleTransactions
-    : list;
+  const source =
+    saleTransactions.length
+      ? saleTransactions
+      : list;
 
-  // Öncelik:
-  // AP -> VD -> MR/IP -> FA/CA -> diğer
-  const priority: Record<string, number> = {
-    AP: 1,
-    VD: 2,
-    MR: 3,
-    IP: 4,
-    FA: 5,
-    CA: 6,
-  };
+  function transactionTime(
+    item: any
+  ) {
+    const candidates = [
+      item?.pgTranDate,
+      item?.timePsReceived,
+      item?.timeCreated,
+      item?.timePsSent,
+    ];
 
-  return [...source].sort((a: any, b: any) => {
-    const aStatus = String(
-      a?.transactionStatus || ''
-    ).toUpperCase();
-    const bStatus = String(
-      b?.transactionStatus || ''
-    ).toUpperCase();
+    for (const candidate of candidates) {
+      const parsed =
+        parseParatikaDate(
+          candidate
+        );
 
-    const aPriority = priority[aStatus] ?? 99;
-    const bPriority = priority[bStatus] ?? 99;
-
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
+      if (parsed) {
+        return parsed.getTime();
+      }
     }
 
-    const aDate = String(
-      a?.timePsReceived ||
-        a?.timeCreated ||
-        a?.timePsSent ||
-        ''
-    );
+    return 0;
+  }
 
-    const bDate = String(
-      b?.timePsReceived ||
-        b?.timeCreated ||
-        b?.timePsSent ||
-        ''
-    );
+  function isTerminal(
+    item: any
+  ) {
+    const status = String(
+      item?.transactionStatus || ''
+    ).toUpperCase();
 
-    return bDate.localeCompare(aDate);
-  })[0];
+    const returnCode = String(
+      item?.pgTranReturnCode ??
+        ''
+    ).trim();
+
+    return (
+      ['AP', 'VD', 'FA', 'CA'].includes(
+        status
+      ) ||
+      (
+        returnCode !== '' &&
+        returnCode !== '00'
+      )
+    );
+  }
+
+  const terminal =
+    source.filter(isTerminal);
+
+  const candidates =
+    terminal.length
+      ? terminal
+      : source;
+
+  // En güncel terminal sonucu esas alınır.
+  // Örnek:
+  // önce IP/MR, ardından FA geldiyse artık IP/MR seçilip
+  // PENDING'de takılı kalmaz; FA seçilir.
+  return [...candidates].sort(
+    (a: any, b: any) =>
+      transactionTime(b) -
+      transactionTime(a)
+  )[0];
 }
 
 function mapTransactionStatus(
@@ -595,31 +628,54 @@ function mapTransactionStatus(
   pgTranReturnCode: string,
   currentStatus: string
 ) {
-  const status = String(transactionStatus || '').toUpperCase();
-  const returnCode = String(pgTranReturnCode || '');
+  const status = String(
+    transactionStatus || ''
+  ).toUpperCase();
 
-  if (status === 'AP' && returnCode === '00') {
+  const returnCode = String(
+    pgTranReturnCode || ''
+  ).trim();
+
+  if (
+    status === 'AP' &&
+    returnCode === '00'
+  ) {
     return 'APPROVED';
   }
 
-  if (status === 'VD') {
+  if (
+    status === 'VD' ||
+    status === 'CA'
+  ) {
     return 'CANCELLED';
   }
 
-  if (status === 'CA') {
-    return 'CANCELLED';
+  // Kritik:
+  // Bazı banka/Paratika cevaplarında işlem statusü IP/MR kalsa bile
+  // pgTranReturnCode başarısızlık kodu dönebiliyor.
+  // 00 dışındaki gerçek banka sonucu FAILED kabul edilir.
+  if (
+    returnCode !== '' &&
+    returnCode !== '00'
+  ) {
+    return 'FAILED';
   }
 
   if (status === 'FA') {
     return 'FAILED';
   }
 
-  if (status === 'IP' || status === 'MR') {
-    // Terminal durumu geri PENDING'e düşürmeyelim.
+  if (
+    status === 'IP' ||
+    status === 'MR'
+  ) {
     if (
-      currentStatus === 'APPROVED' ||
-      currentStatus === 'CANCELLED' ||
-      currentStatus === 'EXPIRED'
+      currentStatus ===
+        'APPROVED' ||
+      currentStatus ===
+        'CANCELLED' ||
+      currentStatus ===
+        'EXPIRED'
     ) {
       return currentStatus;
     }
@@ -761,16 +817,19 @@ function getFailureInfo(
   transactionData: any,
   transaction: any
 ) {
+  const returnCode = String(
+    transaction?.pgTranReturnCode ??
+      ''
+  ).trim();
+
   const code = String(
     transaction?.pgTranErrorCode ??
       transaction?.errorCode ??
       transactionData?.errorCode ??
       (
-        transaction?.pgTranReturnCode &&
-        String(
-          transaction.pgTranReturnCode
-        ) !== '00'
-          ? transaction.pgTranReturnCode
+        returnCode &&
+        returnCode !== '00'
+          ? returnCode
           : ''
       ) ??
       ''
@@ -778,27 +837,32 @@ function getFailureInfo(
 
   const text = String(
     transaction?.pgTranErrorText ??
+      transaction?.pgTranReturnText ??
       transaction?.errorMsg ??
+      transaction?.responseMsg ??
       transactionData?.errorMsg ??
       ''
   ).trim();
 
-  const genericResponse = String(
-    transaction?.responseMsg ??
-      transactionData?.responseMsg ??
+  const topLevelMsg = String(
+    transactionData?.responseMsg ??
       ''
   ).trim();
 
+  const usefulTopLevelMsg =
+    topLevelMsg &&
+    ![
+      'APPROVED',
+      'DECLINED',
+    ].includes(
+      topLevelMsg.toUpperCase()
+    )
+      ? topLevelMsg
+      : '';
+
   const message =
     text ||
-    (
-      genericResponse &&
-      !['APPROVED', 'DECLINED'].includes(
-        genericResponse.toUpperCase()
-      )
-        ? genericResponse
-        : ''
-    ) ||
+    usefulTopLevelMsg ||
     (
       code
         ? `Ödeme banka/ödeme sistemi tarafından reddedildi. Hata kodu: ${code}`
