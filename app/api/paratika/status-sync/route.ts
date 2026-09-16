@@ -317,6 +317,103 @@ async function queryTransaction(
   return postParatika(config, params);
 }
 
+async function queryMerchantReconciliation(
+  config: ParatikaConfig,
+  pgTranId: string,
+  pgOrderId: string,
+  approvalCode: string
+) {
+  const params = new URLSearchParams();
+
+  params.set(
+    'ACTION',
+    'QUERYMERCHANTRECONCILIATION'
+  );
+  params.set(
+    'MERCHANT',
+    config.merchant
+  );
+  params.set(
+    'MERCHANTUSER',
+    config.merchantUser
+  );
+  params.set(
+    'MERCHANTPASSWORD',
+    config.merchantPassword
+  );
+  params.set('LIMIT', '50');
+  params.set('OFFSET', '0');
+
+  if (pgTranId) {
+    params.set(
+      'TRANSACTIONID',
+      pgTranId
+    );
+  } else if (pgOrderId) {
+    params.set(
+      'ORDERID',
+      pgOrderId
+    );
+  } else if (approvalCode) {
+    params.set(
+      'APPROVALCODE',
+      approvalCode
+    );
+  } else {
+    return null;
+  }
+
+  return postParatika(
+    config,
+    params
+  );
+}
+
+function selectMerchantRecon(
+  data: any,
+  pgTranId: string,
+  pgOrderId: string
+) {
+  const list = Array.isArray(
+    data?.reconcilationReportMerchant
+  )
+    ? data.reconcilationReportMerchant
+    : [];
+
+  if (!list.length) {
+    return null;
+  }
+
+  const exactTransaction =
+    list.find(
+      (item: any) =>
+        pgTranId &&
+        String(
+          item?.pgTranId || ''
+        ) === pgTranId
+    );
+
+  if (exactTransaction) {
+    return exactTransaction;
+  }
+
+  const exactOrder =
+    list.find(
+      (item: any) =>
+        pgOrderId &&
+        String(
+          item?.pgOrderId || ''
+        ) === pgOrderId
+    );
+
+  if (exactOrder) {
+    return exactOrder;
+  }
+
+  return list[0];
+}
+
+
 function selectPayByLinkItem(data: any) {
   const list = Array.isArray(data?.payByLinkPaymentList)
     ? data.payByLinkPaymentList
@@ -436,9 +533,35 @@ function mapTransactionStatus(
 }
 
 function parseParatikaDate(value: unknown): Date | null {
-  const raw = String(value || '').trim();
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value)
+  ) {
+    const epochDate =
+      new Date(value);
+
+    return Number.isNaN(
+      epochDate.getTime()
+    )
+      ? null
+      : epochDate;
+  }
+
+  const raw =
+    String(value || '').trim();
 
   if (!raw) return null;
+
+  if (/^\d{12,13}$/.test(raw)) {
+    const epochDate =
+      new Date(Number(raw));
+
+    return Number.isNaN(
+      epochDate.getTime()
+    )
+      ? null
+      : epochDate;
+  }
 
   // ISO_8601
   const direct = new Date(raw);
@@ -640,9 +763,10 @@ async function syncOnePayment(
       ''
   ).trim();
 
-  const pgOrderId = String(
-    transaction?.pgOrderId || ''
-  ).trim();
+  const transactionPgOrderId =
+    String(
+      transaction?.pgOrderId || ''
+    ).trim();
 
   const approvalCode = String(
     transaction?.pgTranApprCode || ''
@@ -658,12 +782,54 @@ async function syncOnePayment(
     transaction?.installmentCount || 0
   );
 
-  // ÜÖT: önce bankanın işlem tarihini kullan.
-  const paymentDate =
-    parseParatikaDate(transaction?.pgTranDate) ||
-    parseParatikaDate(transaction?.timePsReceived) ||
-    parseParatikaDate(transaction?.timeCreated) ||
-    parseParatikaDate(transaction?.timePsSent);
+  let reconciliationData: any =
+    null;
+
+  let reconciliationItem: any =
+    null;
+
+  if (newStatus === 'APPROVED') {
+    const reconciliationQuery =
+      await queryMerchantReconciliation(
+        config,
+        pgTranId,
+        transactionPgOrderId,
+        approvalCode
+      );
+
+    reconciliationData =
+      reconciliationQuery?.data ??
+      null;
+
+    reconciliationItem =
+      reconciliationData
+        ? selectMerchantRecon(
+            reconciliationData,
+            pgTranId,
+            transactionPgOrderId
+          )
+        : null;
+  }
+
+  // ÖSN:
+  // Paratika panelindeki ÖSN ile eşleşen
+  // mutabakat pgOrderId değeri.
+  const pgOrderId = String(
+    reconciliationItem?.pgOrderId ||
+      transactionPgOrderId ||
+      ''
+  ).trim();
+
+  // ÜÖT:
+  // Üye İşyeri Ödeme Tarihi =
+  // merchantPaymentDate.
+  // pgTranDate banka işlem tarihidir;
+  // burada kullanılmaz.
+  const merchantPaymentDate =
+    parseParatikaDate(
+      reconciliationItem
+        ?.merchantPaymentDate
+    );
 
   const responseCode = String(
     transactionData?.responseCode ??
@@ -828,13 +994,15 @@ async function syncOnePayment(
         pblDueDate
           ? pblDueDate.toISOString()
           : null,
-        paymentDate
-          ? paymentDate.toISOString()
+        merchantPaymentDate
+          ? merchantPaymentDate.toISOString()
           : null,
         JSON.stringify(
           safeJson({
             payByLink: payByLinkData,
             transaction: transactionData,
+            merchantReconciliation:
+              reconciliationData,
           })
         ),
       ]
@@ -1036,10 +1204,18 @@ export async function POST(request: NextRequest) {
             installment_count,
             status
           FROM public.paratika_payments
-          WHERE status IN (
-            'LINK_CREATED',
-            'SENT',
-            'PENDING'
+          WHERE (
+            status IN (
+              'LINK_CREATED',
+              'SENT',
+              'PENDING'
+            )
+            OR (
+              status = 'APPROVED'
+              AND paratika_payment_date IS NULL
+              AND created_at >=
+                NOW() - INTERVAL '30 days'
+            )
           )
           ${branchSql}
           ORDER BY
