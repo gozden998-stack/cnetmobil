@@ -261,6 +261,10 @@ function dateKeyLabel(dateKey: string, todayKey: string) {
     return `${diff} GÜN ÖNCE`;
   }
 
+  if (diff < 0 && diff >= -90) {
+    return `${Math.abs(diff)} GÜN SONRA`;
+  }
+
   return new Intl.DateTimeFormat('tr-TR', {
     dateStyle: 'medium',
     timeZone: 'Europe/Istanbul',
@@ -1111,15 +1115,11 @@ export default function Paratika() {
                   <input
                     type="date"
                     value={selectedDate}
-                    max={todayKey}
                     onChange={(event) => {
                       const value =
                         event.target.value;
 
-                      if (
-                        value &&
-                        value <= todayKey
-                      ) {
+                      if (value) {
                         setSelectedDate(value);
                       }
                     }}
@@ -1139,19 +1139,11 @@ export default function Paratika() {
                   <button
                     type="button"
                     onClick={() =>
-                      setSelectedDate((current) => {
-                        const next =
-                          shiftDateKey(current, 1);
-
-                        return next > todayKey
-                          ? todayKey
-                          : next;
-                      })
+                      setSelectedDate((current) =>
+                        shiftDateKey(current, 1)
+                      )
                     }
-                    disabled={
-                      selectedDate >= todayKey
-                    }
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-30"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-black text-slate-700 shadow-sm"
                     title="Sonraki gün"
                   >
                     ›
@@ -1476,6 +1468,25 @@ export default function Paratika() {
                                 ) : null}
                               </div>
                             </div>
+                          </div>
+                        ) : payment.status ===
+                          'FAILED' ? (
+                          <div className="max-w-[260px] rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-red-500">
+                              HATA NEDENİ
+                            </div>
+
+                            <div className="mt-1 text-[11px] font-bold leading-5 text-red-700">
+                              {payment.responseMsg ||
+                                'Ödeme banka/ödeme sistemi tarafından reddedildi.'}
+                            </div>
+
+                            {payment.responseCode ? (
+                              <div className="mt-1 text-[9px] font-black text-red-400">
+                                KOD:{' '}
+                                {payment.responseCode}
+                              </div>
+                            ) : null}
                           </div>
                         ) : (
                           <div className="max-w-[220px] text-[11px] font-semibold leading-5 text-slate-500">
