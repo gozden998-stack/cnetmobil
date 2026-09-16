@@ -1067,7 +1067,9 @@ async function syncOnePayment(
       paymentSystem:
         issuer || null,
       paymentDate:
-        paymentDate?.toISOString() || null,
+        merchantPaymentDate
+          ? merchantPaymentDate.toISOString()
+          : null,
       payByLinkCreatedAt:
         pblCreatedAt?.toISOString() || null,
       payByLinkDueDate:
