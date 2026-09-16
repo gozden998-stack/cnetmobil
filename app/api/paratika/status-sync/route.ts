@@ -369,6 +369,104 @@ async function queryMerchantReconciliation(
   );
 }
 
+async function queryReconTransaction(
+  config: ParatikaConfig,
+  pgTranId: string,
+  pgOrderId: string,
+  merchantPaymentId: string
+) {
+  const params = new URLSearchParams();
+
+  params.set(
+    'ACTION',
+    'RECONTRANSACTION'
+  );
+  params.set(
+    'MERCHANT',
+    config.merchant
+  );
+  params.set(
+    'MERCHANTUSER',
+    config.merchantUser
+  );
+  params.set(
+    'MERCHANTPASSWORD',
+    config.merchantPassword
+  );
+  params.set('LIMIT', '50');
+  params.set('OFFSET', '0');
+
+  // Paratika dokümanındaki Recon Transaction alanları.
+  // En güçlü eşleştirme PGTRANID; yoksa PGORDERID;
+  // en son MERCHANTPAYMENTID kullanılır.
+  if (pgTranId) {
+    params.set(
+      'PGTRANID',
+      pgTranId
+    );
+  } else if (pgOrderId) {
+    params.set(
+      'PGORDERID',
+      pgOrderId
+    );
+  } else if (merchantPaymentId) {
+    params.set(
+      'MERCHANTPAYMENTID',
+      merchantPaymentId
+    );
+  } else {
+    return null;
+  }
+
+  return postParatika(
+    config,
+    params
+  );
+}
+
+function selectReconTransaction(
+  data: any,
+  pgTranId: string,
+  pgOrderId: string,
+  merchantPaymentId: string
+) {
+  const list = Array.isArray(
+    data?.transactionList
+  )
+    ? data.transactionList
+    : [];
+
+  if (!list.length) {
+    return null;
+  }
+
+  return (
+    list.find(
+      (item: any) =>
+        pgTranId &&
+        String(
+          item?.pgTranId || ''
+        ) === pgTranId
+    ) ||
+    list.find(
+      (item: any) =>
+        pgOrderId &&
+        String(
+          item?.pgOrderId || ''
+        ) === pgOrderId
+    ) ||
+    list.find(
+      (item: any) =>
+        merchantPaymentId &&
+        String(
+          item?.merchantPaymentId || ''
+        ) === merchantPaymentId
+    ) ||
+    list[0]
+  );
+}
+
+
 function selectMerchantRecon(
   data: any,
   pgTranId: string,
@@ -788,7 +886,45 @@ async function syncOnePayment(
   let reconciliationItem: any =
     null;
 
+  let reconTransactionData: any =
+    null;
+
+  let reconTransactionItem: any =
+    null;
+
   if (newStatus === 'APPROVED') {
+    // MPD / ÜÖT için Paratika Recon Transaction verisini kullan.
+    // Dokümanda bu alan transactionList[].merchant.paymentDate
+    // olarak dönüyor.
+    const reconTransactionQuery =
+      await queryReconTransaction(
+        config,
+        pgTranId,
+        transactionPgOrderId,
+        String(
+          payment.merchant_payment_id ||
+            ''
+        )
+      );
+
+    reconTransactionData =
+      reconTransactionQuery?.data ??
+      null;
+
+    reconTransactionItem =
+      reconTransactionData
+        ? selectReconTransaction(
+            reconTransactionData,
+            pgTranId,
+            transactionPgOrderId,
+            String(
+              payment.merchant_payment_id ||
+                ''
+            )
+          )
+        : null;
+
+    // Eski mutabakat sorgusunu yedek kaynak olarak koruyoruz.
     const reconciliationQuery =
       await queryMerchantReconciliation(
         config,
@@ -826,6 +962,15 @@ async function syncOnePayment(
   // pgTranDate banka işlem tarihidir;
   // burada kullanılmaz.
   const merchantPaymentDate =
+    parseParatikaDate(
+      reconTransactionItem
+        ?.merchant
+        ?.paymentDate
+    ) ||
+    parseParatikaDate(
+      reconTransactionItem
+        ?.merchantPaymentDate
+    ) ||
     parseParatikaDate(
       reconciliationItem
         ?.merchantPaymentDate
@@ -1003,6 +1148,8 @@ async function syncOnePayment(
             transaction: transactionData,
             merchantReconciliation:
               reconciliationData,
+            reconTransaction:
+              reconTransactionData,
           })
         ),
       ]
