@@ -16,6 +16,7 @@ import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
+import Paratika from './components/screens/Paratika/Paratika';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -667,7 +668,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -682,6 +683,7 @@ export default function CnetmobilCmrFinalUltimate() {
       'merkez',
       'online',
       'alim',
+      'paratika',
       'servis',
       'cep_tablet',
       'yna_list',
@@ -1878,6 +1880,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ]
         },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
+        { id: 'paratika', label: 'Paratika', visible: !isZumay },
         { id: 'ihale', label: 'Mağazalar Arası İhale', visible: !isZumay && (isAdmin || isMasterAccess || selectedBranch.startsWith('CMR') || selectedBranch === 'VODAFONE KANALI') },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
@@ -1985,6 +1988,13 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 005-5l-3 3-3-3 3-3z" />
+          </svg>
+        );
+      case 'paratika':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="5" width="18" height="14" rx="2" strokeWidth="2" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h4" />
           </svg>
         );
       case 'ihale':
@@ -3907,6 +3917,7 @@ export default function CnetmobilCmrFinalUltimate() {
               appMode === 'merkez' ||
               appMode === 'ikas' ||
               appMode === 'idefix' ||
+              appMode === 'paratika' ||
               appMode === 'ihale') &&
             step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
@@ -4024,6 +4035,8 @@ export default function CnetmobilCmrFinalUltimate() {
             <Ikas />
           ) : appMode === 'idefix' && step < 99 && isSuperAdminUser ? (
             <Idefix />
+          ) : appMode === 'paratika' && step < 99 && !isZumay ? (
+            <Paratika />
           ) : appMode === 'imei_list' && step < 99 ? (
             <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
