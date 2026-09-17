@@ -5,6 +5,7 @@
 //   başarılı ödemeyi FAILED yapamaz.
 // - AP + 00/0000 + doğru tutar/para birimi önceliklidir.
 // - "İŞLEM BAŞARILI" ve 0000 artık hata nedeni/kodu olarak gösterilmez.
+// - İlk FAILED sinyali kullanıcıya hemen gösterilmez; 5 sn sonra teyit edilir.
 // - Mevcut SQL cast düzeltmeleri ve ÜÖT/ÖSN mantığı korunur.
 //
 // CNETMOBIL - PARATIKA DURUM SENKRONİZASYONU
@@ -64,6 +65,7 @@ type PaymentRow = {
   currency: string;
   installment_count: number;
   status: string;
+  paratika_status: string | null;
 };
 
 declare global {
@@ -1170,6 +1172,52 @@ async function syncOnePayment(
     }
   }
 
+  // YANLIŞ FAILED GÖSTERME KORUMASI
+  //
+  // Paratika bazen başarılı işlem kaydı oluşurken birkaç saniyelik
+  // gecikmeyle önce başarısız/ara sonuç döndürebiliyor.
+  // İlk FAILED sinyalinde kullanıcıya hemen kırmızı hata göstermiyoruz.
+  // paratika_status ilk başarısız sinyali DB'ye teknik olarak kaydeder;
+  // 5 saniye sonraki kontrolde yine başarısızsa FAILED kesinleşir.
+  //
+  // Böylece:
+  // - gerçek başarılı çekim birkaç saniye gecikse bile panel FAILED demez,
+  // - gerçek başarısız işlem ise yaklaşık 5 saniye sonra kesin FAILED olur.
+  const priorParatikaStatus =
+    String(
+      payment.paratika_status || ''
+    ).toUpperCase();
+
+  const priorWasFailureSignal =
+    priorParatikaStatus === 'FA' ||
+    (
+      priorParatikaStatus !== '' &&
+      priorParatikaStatus !== 'AP' &&
+      priorParatikaStatus !== 'IP' &&
+      priorParatikaStatus !== 'MR'
+    );
+
+  let provisionalFailure = false;
+
+  if (
+    newStatus === 'FAILED' &&
+    String(payment.status || '') !== 'FAILED' &&
+    !priorWasFailureSignal
+  ) {
+    provisionalFailure = true;
+
+    if (
+      ['LINK_CREATED', 'SENT', 'PENDING'].includes(
+        String(payment.status || '')
+      )
+    ) {
+      newStatus =
+        String(payment.status || '');
+    } else {
+      newStatus = 'PENDING';
+    }
+  }
+
   const pblCreatedAt = parseParatikaDate(
     payByLinkItem?.createdTs
   );
@@ -1333,7 +1381,9 @@ async function syncOnePayment(
     );
 
   const responseCode =
-    newStatus === 'FAILED'
+    provisionalFailure
+      ? ''
+      : newStatus === 'FAILED'
       ? (
           failureInfo.code ||
           (
@@ -1352,7 +1402,9 @@ async function syncOnePayment(
         );
 
   const responseMsg =
-    newStatus === 'FAILED'
+    provisionalFailure
+      ? 'Paratika sonucu doğrulanıyor...'
+      : newStatus === 'FAILED'
       ? failureInfo.message
       : String(
           transactionData?.responseMsg ??
@@ -1579,6 +1631,7 @@ async function syncOnePayment(
             newStatus === 'FAILED'
               ? failureInfo.message
               : null,
+          provisionalFailure,
           pgTranId: pgTranId || null,
           transactionLookup:
             merchantNoteTransactionData
@@ -1715,7 +1768,8 @@ export async function POST(request: NextRequest) {
             amount,
             currency,
             installment_count,
-            status
+            status,
+            paratika_status
           FROM public.paratika_payments
           WHERE id = $1
           ${branchSql}
@@ -1750,8 +1804,13 @@ export async function POST(request: NextRequest) {
         `;
       }
 
-      // Bir çağrıda en fazla 50 açık işlem.
-      // Paratika'yı gereksiz yüklememek için terminal durumları dışarıda bırakılır.
+      // Bir çağrıda en fazla 50 canlı takip kaydı.
+      // LINK_CREATED / SENT / PENDING sürekli doğrulanır.
+      // FAILED kayıtlar yalnızca ilk 2 dakika canlı doğrulamada tutulur:
+      // amaç Paratika tarafındaki kısa gecikmeyi yakalamaktır.
+      // Personel aynı linkte yeniden dener ve ödeme başarılı olursa
+      // panel birkaç saniye içinde APPROVED'a döner.
+      // APPROVED olup ÜÖT bekleyen kayıtlar da kontrol edilmeye devam eder.
       const result = await pool.query(
         `
           SELECT
@@ -1763,13 +1822,23 @@ export async function POST(request: NextRequest) {
             amount,
             currency,
             installment_count,
-            status
+            status,
+            paratika_status
           FROM public.paratika_payments
           WHERE (
             status IN (
               'LINK_CREATED',
               'SENT',
               'PENDING'
+            )
+            OR (
+              status = 'FAILED'
+              AND created_at >=
+                NOW() - INTERVAL '2 minutes'
+              AND (
+                paratika_due_date IS NULL
+                OR paratika_due_date >= NOW()
+              )
             )
             OR (
               status = 'APPROVED'
