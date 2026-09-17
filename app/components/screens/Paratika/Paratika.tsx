@@ -27,6 +27,9 @@ type Payment = {
   createdByUserId: number | null;
   createdByEmail: string | null;
 
+  wingsmPersonnelCode: string | null;
+  wingsmPersonnelName: string | null;
+
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -188,6 +191,47 @@ function money(value: number) {
     currency: 'TRY',
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+}
+
+function dealerReturnAmount(
+  amount: number,
+  installmentCount: number
+) {
+  const installment =
+    INSTALLMENT_CALCULATOR.find(
+      (item) =>
+        item.month === installmentCount
+    );
+
+  if (!installment) {
+    return Number(amount || 0);
+  }
+
+  const multiplier =
+    1 + installment.rate / 100;
+
+  if (
+    !Number.isFinite(multiplier) ||
+    multiplier <= 0
+  ) {
+    return Number(amount || 0);
+  }
+
+  return (
+    Number(amount || 0) /
+    multiplier
+  );
+}
+
+function escapeExcelHtml(
+  value: unknown
+) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function dateTime(value?: string | null) {
@@ -434,6 +478,11 @@ export default function Paratika() {
   const [syncingId, setSyncingId] = useState<
     number | null
   >(null);
+
+  const [deletingId, setDeletingId] =
+    useState<number | null>(null);
+  const [exportingExcel, setExportingExcel] =
+    useState(false);
 
   const [
     copiedField,
@@ -879,6 +928,232 @@ export default function Paratika() {
       );
     } finally {
       setSyncingAll(false);
+    }
+  }
+
+  async function deletePayment(
+    payment: Payment
+  ) {
+    if (
+      permissions?.role !== 'admin' ||
+      deletingId !== null
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `#${payment.id} numaralı işlem panelden silinsin mi?\n\nBu işlem sadece CNETMOBİL panel/PostgreSQL kaydını siler. Paratika tarafındaki gerçek ödeme veya işlem iptal edilmez.`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(payment.id);
+
+    try {
+      const response = await fetch(
+        `/api/paratika/payments?id=${payment.id}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          cache: 'no-store',
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.error ||
+            'İşlem silinemedi.'
+        );
+      }
+
+      await loadPayments(true);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : 'İşlem silinemedi.'
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function exportApprovedExcel() {
+    if (exportingExcel) {
+      return;
+    }
+
+    setExportingExcel(true);
+
+    try {
+      const params =
+        new URLSearchParams();
+
+      params.set('limit', '1000');
+      params.set('date', selectedDate);
+      params.set('status', 'APPROVED');
+
+      if (
+        permissions?.canViewAllBranches &&
+        branchFilter !== 'ALL'
+      ) {
+        params.set(
+          'branch',
+          branchFilter
+        );
+      }
+
+      const response = await fetch(
+        `/api/paratika/payments?${params.toString()}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        }
+      );
+
+      const data =
+        (await response.json()) as PaymentsResponse;
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            'Onaylanan işlemler alınamadı.'
+        );
+      }
+
+      const approvedPayments =
+        (data.payments || []).filter(
+          (payment) =>
+            payment.status === 'APPROVED'
+        );
+
+      if (!approvedPayments.length) {
+        window.alert(
+          'Seçili gün için onaylanmış işlem bulunamadı.'
+        );
+        return;
+      }
+
+      const rows =
+        approvedPayments
+          .map((payment) => {
+            const installments =
+              payment.numberOfInstallments ||
+              payment.installmentCount ||
+              1;
+
+            const returnAmount =
+              dealerReturnAmount(
+                payment.amount,
+                installments
+              );
+
+            const paymentDate =
+              merchantPaymentDate(
+                payment.paratikaPaymentDate ||
+                  payment.approvedAt
+              );
+
+            const osn =
+              payment.pgOrderId ||
+              payment.merchantPaymentId ||
+              '-';
+
+            return `
+              <tr>
+                <td style="mso-number-format:'\\@';">
+                  ${escapeExcelHtml(paymentDate)}
+                </td>
+                <td style="mso-number-format:'\\@';">
+                  ${escapeExcelHtml(osn)}
+                </td>
+                <td style="mso-number-format:'#,##0.00';">
+                  ${returnAmount.toFixed(2)}
+                </td>
+              </tr>
+            `;
+          })
+          .join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              table {
+                border-collapse: collapse;
+                font-family: Arial, sans-serif;
+              }
+              th, td {
+                border: 1px solid #d1d5db;
+                padding: 8px 10px;
+              }
+              th {
+                background: #f3f4f6;
+                font-weight: 700;
+              }
+            </style>
+          </head>
+          <body>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ödeme Tarihi</th>
+                  <th>ÖSN</th>
+                  <th>Bayiye Geri Dönüş Tutarı</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const blob =
+        new Blob(
+          ['\ufeff', html],
+          {
+            type:
+              'application/vnd.ms-excel;charset=utf-8;',
+          }
+        );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      const anchor =
+        document.createElement('a');
+
+      anchor.href = url;
+      anchor.download =
+        `paratika_onaylanan_${selectedDate}.xls`;
+
+      document.body.appendChild(
+        anchor
+      );
+      anchor.click();
+      anchor.remove();
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : 'Excel dosyası hazırlanamadı.'
+      );
+    } finally {
+      setExportingExcel(false);
     }
   }
 
@@ -1512,7 +1787,24 @@ export default function Paratika() {
                 </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void exportApprovedExcel()
+                    }
+                    disabled={exportingExcel}
+                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Seçili gün için sadece ONAYLANDI işlemlerini Excel'e indir"
+                  >
+                    {exportingExcel
+                      ? 'EXCEL HAZIRLANIYOR...'
+                      : 'EXCEL İNDİR'}
+                  </button>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="flex min-w-[260px] items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
                   <button
                     type="button"
@@ -1632,9 +1924,10 @@ export default function Paratika() {
                   onChange={(event) =>
                     setSearch(event.target.value)
                   }
-                  placeholder="Müşteri / telefon / ÖSN"
+                  placeholder="Müşteri / telefon / ÖSN / personel"
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
                 />
+                </div>
               </div>
             </div>
 
@@ -1646,7 +1939,7 @@ export default function Paratika() {
           </div>
 
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[1180px] border-collapse text-left">
+            <table className="w-full min-w-[1320px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-3">
@@ -1657,6 +1950,9 @@ export default function Paratika() {
                   </th>
                   <th className="px-4 py-3">
                     Mağaza
+                  </th>
+                  <th className="px-4 py-3">
+                    Yapan Personel
                   </th>
                   <th className="px-4 py-3">
                     Tutar
@@ -1680,7 +1976,7 @@ export default function Paratika() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-14 text-center text-xs font-black text-slate-400"
                     >
                       İŞLEMLER YÜKLENİYOR...
@@ -1689,7 +1985,7 @@ export default function Paratika() {
                 ) : payments.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-14 text-center text-xs font-black text-slate-400"
                     >
                       KAYIT BULUNAMADI
@@ -1743,6 +2039,22 @@ export default function Paratika() {
                         <div className="mt-1 text-[10px] font-bold text-slate-400">
                           #{payment.id}
                         </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="max-w-[180px] text-xs font-black text-slate-800">
+                          {payment.wingsmPersonnelName ||
+                            '-'}
+                        </div>
+
+                        {payment.wingsmPersonnelCode ? (
+                          <div className="mt-1 text-[10px] font-bold text-slate-400">
+                            Kod:{' '}
+                            {
+                              payment.wingsmPersonnelCode
+                            }
+                          </div>
+                        ) : null}
                       </td>
 
                       <td className="px-4 py-4">
@@ -1950,6 +2262,30 @@ export default function Paratika() {
                               className="rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700 transition hover:bg-blue-100"
                             >
                               LİNKİ KOPYALA
+                            </button>
+                          ) : null}
+
+                          {permissions?.role ===
+                          'admin' ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void deletePayment(
+                                  payment
+                                )
+                              }
+                              disabled={
+                                deletingId ===
+                                payment.id
+                              }
+                              title="İşlemi panel kayıtlarından sil"
+                              aria-label={`#${payment.id} işlemini sil`}
+                              className="flex h-8 w-8 items-center justify-center self-end rounded-lg border border-rose-200 bg-rose-50 text-base font-black leading-none text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingId ===
+                              payment.id
+                                ? '…'
+                                : '×'}
                             </button>
                           ) : null}
                         </div>
