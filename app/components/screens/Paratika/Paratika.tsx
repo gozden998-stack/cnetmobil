@@ -546,6 +546,9 @@ export default function Paratika() {
                 code: String(item.code).trim(),
                 name: String(item.name).trim(),
               }))
+              .sort((a, b) =>
+                a.name.localeCompare(b.name, 'tr-TR')
+              )
           : [];
 
         setPersonnel(list);
@@ -1539,7 +1542,7 @@ export default function Paratika() {
                     key={item.code}
                     value={item.code}
                   >
-                    {item.name} • {item.code}
+                    {item.name}
                   </option>
                 ))}
               </select>
