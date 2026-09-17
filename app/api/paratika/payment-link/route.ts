@@ -446,8 +446,10 @@ function buildInstallmentSupport(
       result.push({
         commissionKey:
           `CR${installment}`,
+        // Paratika desteğinin verdiği örneği birebir izliyoruz:
+        // Örn. 6 seçildiyse CR1..CR6 = true, CR7..CR24 = false.
         active:
-          installment ===
+          installment <=
           selectedInstallment,
         installmentType,
         encryptable: false,
@@ -1088,8 +1090,9 @@ export async function POST(
     // Paratika desteğinin verdiği format:
     // - CR1..CR24 tamamı gönderilir.
     // - CONSUMER + BUSINESS tamamı gönderilir.
-    // - Sadece panelde seçilen CR active=true olur.
-    // - Diğer CR kayıtları active=false olur.
+    // - Paratika destek örneğindeki gibi kümülatif aktiflik kullanılır.
+    // - Örn. 6 seçildiyse CR1..CR6 active=true,
+    //   CR7..CR24 active=false olur.
     // - active BOOLEAN'dır.
     // - encryptable=false gönderilir.
     //
@@ -1188,8 +1191,9 @@ export async function POST(
     );
 
     // Paratika desteği bu parametrenin encode edilmesini istedi.
-    // URLSearchParams + params.toString() bunu form-urlencoded olarak
-    // tek kez encode eder. Burada ayrıca encodeURIComponent kullanmıyoruz.
+    // İstek application/x-www-form-urlencoded gönderildiği için
+    // URLSearchParams.toString() alanı form-encode eder.
+    // Burada ayrıca encodeURIComponent kullanmıyoruz; double-encode etmiyoruz.
     payByLinkParams.set(
       'INSTALLMENTSUPPORT',
       installmentSupport
