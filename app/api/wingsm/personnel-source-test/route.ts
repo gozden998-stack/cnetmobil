@@ -1,23 +1,16 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM PERSONEL KARŞILAŞTIRMA TESTİ
+// CNETMOBIL - WingSM B2B personel/satici izin karşılaştırma testi
 //
 // Amaç:
-// - Eski ve doğrulanmış 71 kişilik HizliSatis/ListSatici kümesi ile
-// - yeni B2B CariKart P endpointindeki canlı listeyi karşılaştırmak.
+// CariKart P endpointindeki 80 kayıt içinden,
+// eski doğrulanmış HizliSatis/ListSatici 71 kaydını ayıran
+// işaretin Izinler alanında olup olmadığını bulmak.
 //
-// Bu route SADECE GET yapar.
-// WingSM'e hiçbir veri yazmaz.
-// PostgreSQL'e hiçbir veri yazmaz.
-//
-// Özellikle şu alanlara bakıyoruz:
-// - TarihCikis
-// - CalistigiSube / CalistigiSubeAdI
-// - Pozisyon
-//
-// Böylece B2B endpointindeki fazladan kayıtların
-// eski/çıkış yapmış personel mi, yoksa başka bir cari kart türü mü
-// olduğunu netleştireceğiz.
+// SADECE GET.
+// WingSM'e yazmaz.
+// PostgreSQL'e yazmaz.
+// TC / telefon / email / adres dönmez.
 
 import {
   NextRequest,
@@ -160,10 +153,9 @@ function getBaseUrl() {
 async function makeRequest(
   token: string
 ) {
-  const url =
-    new URL(
-      `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
-    );
+  const url = new URL(
+    `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
+  );
 
   url.searchParams.set(
     "filter",
@@ -191,7 +183,69 @@ async function makeRequest(
   );
 }
 
-function safePersonnel(
+function safePermissionSummary(
+  value: unknown
+): unknown {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      count: value.length,
+      preview:
+        value.slice(0, 20),
+    };
+  }
+
+  const obj =
+    asObject(value);
+
+  if (obj) {
+    return {
+      type: "object",
+      keys:
+        Object.keys(obj),
+      values:
+        Object.fromEntries(
+          Object.entries(obj)
+            .slice(0, 30)
+            .map(
+              ([key, val]) => [
+                key,
+                typeof val === "string" ||
+                typeof val === "number" ||
+                typeof val === "boolean" ||
+                val === null
+                  ? val
+                  : Array.isArray(val)
+                    ? `[array:${val.length}]`
+                    : "[object]",
+              ]
+            )
+        ),
+    };
+  }
+
+  return {
+    type:
+      typeof value,
+  };
+}
+
+function safeRow(
   value: unknown
 ) {
   const row =
@@ -202,35 +256,22 @@ function safePersonnel(
   }
 
   const code =
-    cleanString(
-      row.Kod ??
-        row.kod ??
-        row.Code ??
-        row.code
-    );
+    cleanString(row.Kod);
 
   const name =
-    cleanString(
-      row.Ad ??
-        row.ad ??
-        row.Name ??
-        row.name
-    );
+    cleanString(row.Ad);
 
-  if (
-    !code ||
-    !name
-  ) {
+  if (!code || !name) {
     return null;
   }
 
   return {
     code,
     name,
-    tarihGiris:
-      cleanString(
-        row.TarihGiris
-      ) || null,
+    inOldSeller71:
+      OLD_71_CODES.has(
+        code
+      ),
     tarihCikis:
       cleanString(
         row.TarihCikis
@@ -247,11 +288,23 @@ function safePersonnel(
       cleanString(
         row.Pozisyon
       ) || null,
-    sirket:
-      cleanString(
-        row.Sirket
-      ) || null,
+    izinler:
+      safePermissionSummary(
+        row.Izinler
+      ),
   };
+}
+
+function stableKey(
+  value: unknown
+) {
+  try {
+    return JSON.stringify(
+      value
+    );
+  } catch {
+    return String(value);
+  }
 }
 
 export async function GET(
@@ -289,8 +342,7 @@ export async function GET(
     const raw =
       await response.text();
 
-    let payload: unknown =
-      null;
+    let payload: unknown;
 
     try {
       payload =
@@ -301,12 +353,10 @@ export async function GET(
       return json(
         {
           success: false,
-          stage:
-            "JSON_PARSE",
-          httpStatus:
-            response.status,
           message:
             "WingSM JSON dönmedi.",
+          httpStatus:
+            response.status,
         },
         502
       );
@@ -317,176 +367,141 @@ export async function GET(
 
     if (
       root?.success !== true ||
-      !Array.isArray(
-        root?.data
-      )
+      !Array.isArray(root.data)
     ) {
       return json(
         {
           success: false,
-          stage:
-            "WINGSM_RESPONSE",
-          httpStatus:
-            response.status,
-          wingSuccess:
-            root?.success ??
-            null,
-          rootKeys:
-            root
-              ? Object.keys(root)
-              : [],
+          message:
+            "WingSM success:true + data array dönmedi.",
         },
         502
       );
     }
 
-    const live =
+    const rows =
       root.data
-        .map(
-          safePersonnel
-        )
+        .map(safeRow)
         .filter(
           (
             row
           ): row is NonNullable<
             ReturnType<
-              typeof safePersonnel
+              typeof safeRow
             >
           > =>
             Boolean(row)
         );
 
-    const liveCodeSet =
-      new Set(
-        live.map(
-          (row) =>
-            row.code
-        )
+    const oldRows =
+      rows.filter(
+        (row) =>
+          row.inOldSeller71
       );
 
-    const extraVsOld71 =
-      live
-        .filter(
-          (row) =>
-            !OLD_71_CODES
-              .has(
-                row.code
-              )
-        )
-        .sort(
-          (a, b) =>
-            a.name.localeCompare(
-              b.name,
-              "tr-TR"
-            )
-        );
+    const extraRows =
+      rows.filter(
+        (row) =>
+          !row.inOldSeller71
+      );
 
-    const missingFromLive =
-      Array.from(
-        OLD_71_CODES
-      )
-        .filter(
-          (code) =>
-            !liveCodeSet
-              .has(code)
-        )
-        .sort();
-
-    const tarihCikisGroups =
+    const permissionGroups =
       new Map<
         string,
-        number
+        {
+          izinler: unknown;
+          oldCount: number;
+          extraCount: number;
+          oldExamples: string[];
+          extraExamples: string[];
+        }
       >();
 
-    for (const row of live) {
+    for (const row of rows) {
       const key =
-        row.tarihCikis ||
-        "(BOŞ)";
+        stableKey(
+          row.izinler
+        );
 
-      tarihCikisGroups.set(
+      const group =
+        permissionGroups.get(
+          key
+        ) || {
+          izinler:
+            row.izinler,
+          oldCount: 0,
+          extraCount: 0,
+          oldExamples: [],
+          extraExamples: [],
+        };
+
+      if (
+        row.inOldSeller71
+      ) {
+        group.oldCount += 1;
+
+        if (
+          group.oldExamples
+            .length < 5
+        ) {
+          group.oldExamples
+            .push(
+              `${row.code} - ${row.name}`
+            );
+        }
+      } else {
+        group.extraCount += 1;
+
+        if (
+          group.extraExamples
+            .length < 10
+        ) {
+          group.extraExamples
+            .push(
+              `${row.code} - ${row.name}`
+            );
+        }
+      }
+
+      permissionGroups.set(
         key,
-        (
-          tarihCikisGroups
-            .get(key) ||
-          0
-        ) + 1
+        group
       );
     }
-
-    const extrasWithExitDate =
-      extraVsOld71.filter(
-        (row) =>
-          Boolean(
-            row.tarihCikis
-          )
-      );
-
-    const extrasWithoutExitDate =
-      extraVsOld71.filter(
-        (row) =>
-          !row.tarihCikis
-      );
 
     return json({
       success: true,
 
       stage:
-        "WINGSM_PERSONNEL_COMPARE_71_VS_LIVE",
+        "WINGSM_PERSONNEL_IZIN_COMPARE",
 
       counts: {
-        oldVerified:
-          OLD_71_CODES.size,
-        live:
-          live.length,
-        extraVsOld71:
-          extraVsOld71.length,
-        missingFromLive:
-          missingFromLive.length,
-        liveWithExitDate:
-          live.filter(
-            (row) =>
-              Boolean(
-                row.tarihCikis
-              )
-          ).length,
-        liveWithoutExitDate:
-          live.filter(
-            (row) =>
-              !row.tarihCikis
-          ).length,
-        extrasWithExitDate:
-          extrasWithExitDate.length,
-        extrasWithoutExitDate:
-          extrasWithoutExitDate.length,
+        oldSeller71:
+          oldRows.length,
+        extra:
+          extraRows.length,
+        total:
+          rows.length,
+        permissionPatternCount:
+          permissionGroups.size,
       },
 
-      tarihCikisValues:
+      permissionGroups:
         Array.from(
-          tarihCikisGroups
-            .entries()
+          permissionGroups.values()
         )
-          .map(
-            ([
-              value,
-              count,
-            ]) => ({
-              value,
-              count,
-            })
-          )
           .sort(
             (a, b) =>
-              b.count -
-              a.count
+              b.extraCount -
+              a.extraCount ||
+              b.oldCount -
+              a.oldCount
           ),
 
-      extraVsOld71,
-
-      missingOld71Codes:
-        missingFromLive,
+      extraRows,
 
       note:
-        "Bu test yalnızca Kod/Ad ve personel durumunu anlamak için gerekli iş alanlarını gösterir; TC, telefon, e-posta ve adres alanları döndürülmez.",
+        "Amaç, CariKart P listesinden gerçek HizliSatis satıcılarını ayıran izin/rol işaretini bulmaktır.",
 
       responseTimeMs:
         Date.now() -
@@ -496,8 +511,6 @@ export async function GET(
     return json(
       {
         success: false,
-        stage:
-          "COMPARE",
         message:
           error instanceof Error
             ? error.message
