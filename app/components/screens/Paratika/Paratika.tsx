@@ -119,7 +119,13 @@ const INSTALLMENTS = Array.from(
 
 // Oranlar personel arayüzünde GÖSTERİLMEZ.
 // Sadece hesaplama amacıyla kullanılır.
-const INSTALLMENT_CALCULATOR = [
+type InstallmentCalculatorItem = {
+  month: number;
+  rate: number;
+  label?: string;
+};
+
+const INSTALLMENT_CALCULATOR: InstallmentCalculatorItem[] = [
   { month: 1, rate: 4, label: 'Tek Çekim' },
   { month: 2, rate: 7.83 },
   { month: 3, rate: 10.05 },
@@ -132,7 +138,7 @@ const INSTALLMENT_CALCULATOR = [
   { month: 10, rate: 28.88 },
   { month: 11, rate: 32.07 },
   { month: 12, rate: 35.41, label: 'En Popüler' },
-] as const;
+];
 
 const STATUS_TEXT: Record<PaymentStatus, string> = {
   LINK_CREATED: 'LİNK OLUŞTU',
