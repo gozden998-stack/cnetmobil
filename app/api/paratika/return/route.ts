@@ -2,6 +2,10 @@
 // CNETMOBIL - PARATIKA RETURN / CALLBACK
 //
 // Paratika, ödeme tamamlandıktan sonra RETURNURL adresine POST eder.
+// FIX 17.09.2026:
+// - Paratika başarılı çekim kısa gecikmeyle QUERYTRANSACTION'a düşerse 3 kısa retry yapılır.
+// - DB zaten APPROVED ise müşteriye asla "Ödeme başarısız" sayfası dönmez.
+// - 00/0000 ve "İŞLEM BAŞARILI" hata olarak yorumlanmaz.
 // Bu endpoint callback verisine KÖRÜ KÖRÜNE güvenmez.
 // Önce yerel kaydı bulur, ardından Paratika API'ye QUERYTRANSACTION
 // isteği atarak işlemi server-to-server doğrular.
@@ -667,6 +671,40 @@ function htmlResponse(
 }
 
 
+function isSuccessCode(
+  value: unknown
+) {
+  const code = String(
+    value ?? ''
+  ).trim();
+
+  return (
+    code === '00' ||
+    code === '0000'
+  );
+}
+
+function normalizeResultMessage(
+  value: unknown
+) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ç/g, 'C')
+    .replace(/Ö/g, 'O')
+    .replace(/Ü/g, 'U');
+}
+
+function sleep(ms: number) {
+  return new Promise<void>(
+    (resolve) =>
+      setTimeout(resolve, ms)
+  );
+}
+
 function extractCallbackFailure(
   callbackBody: Record<
     string,
@@ -698,7 +736,9 @@ function extractCallbackFailure(
           status === 'FA' ||
           (
             returnCode &&
-            returnCode !== '00'
+            !isSuccessCode(
+              returnCode
+            )
           )
         );
       }
@@ -723,10 +763,10 @@ function extractCallbackFailure(
       (
         failedTransaction
           ?.pgTranReturnCode &&
-        String(
+        !isSuccessCode(
           failedTransaction
             .pgTranReturnCode
-        ) !== '00'
+        )
           ? failedTransaction
               .pgTranReturnCode
           : ''
@@ -767,7 +807,9 @@ function extractCallbackFailure(
     ) ||
     Boolean(
       callbackCode &&
-      callbackCode !== '00'
+      !isSuccessCode(
+        callbackCode
+      )
     ) ||
     Boolean(text) ||
     Boolean(code);
@@ -780,12 +822,22 @@ function extractCallbackFailure(
     ) || ''
   ).trim();
 
+  const normalizedCallbackMsg =
+    normalizeResultMessage(
+      callbackMsg
+    );
+
   const message =
     text ||
     (
       callbackMsg &&
-      !['APPROVED', 'DECLINED'].includes(
-        callbackMsg.toUpperCase()
+      ![
+        'APPROVED',
+        'SUCCESS',
+        'SUCCESSFUL',
+        'ISLEM BASARILI',
+      ].includes(
+        normalizedCallbackMsg
       )
         ? callbackMsg
         : ''
@@ -966,27 +1018,48 @@ export async function POST(request: NextRequest) {
     }
 
     // ===============================================
+    // BAŞARI KORUMASI
+    // Bu callback işlenirken 5 sn status-sync işlemi DB'yi
+    // zaten APPROVED yaptıysa müşteriye asla başarısız sayfa dönme.
+    // ===============================================
+    if (
+      String(
+        payment.status || ''
+      ).toUpperCase() === 'APPROVED'
+    ) {
+      return htmlResponse(
+        true,
+        'Ödemeniz başarıyla alındı',
+        'Ödeme işleminiz onaylandı. Mağaza personelimiz sistem üzerinden ödemenizi görebilir.'
+      );
+    }
+
+    // ===============================================
     // SERVER-TO-SERVER DOĞRULAMA
     // Callback tek başına APPROVED yapamaz.
     // ===============================================
     const config = getParatikaConfig();
 
-    const query = await queryTransaction(
+    let query = await queryTransaction(
       config,
       String(payment.merchant_payment_id)
     );
 
-    const queryResponseCode = String(
+    let queryResponseCode = String(
       query.data?.responseCode ?? ''
     );
 
-    const verifiedTransaction =
+    let verifiedTransaction =
       query.response.ok &&
-      queryResponseCode === '00'
-        ? pickApprovedTransaction(query.data)
+      isSuccessCode(
+        queryResponseCode
+      )
+        ? pickApprovedTransaction(
+            query.data
+          )
         : null;
 
-    const verified =
+    let verified =
       Boolean(verifiedTransaction) &&
       amountMatches(
         payment.amount,
@@ -996,6 +1069,68 @@ export async function POST(request: NextRequest) {
         verifiedTransaction?.currency || ''
       ).toUpperCase() ===
         String(payment.currency || '').toUpperCase();
+
+    // Paratika başarılı çekimi kendi panelinde onaylamış olsa bile
+    // QUERYTRANSACTION sonucu birkaç yüz ms gecikmeli gelebilir.
+    // Başarılı işlem ilk sorguda görünmediyse kısa süre içinde yeniden sor.
+    // Gerçek başarısız işlem yaklaşık 1.8 sn içinde yine hata mesajını alır.
+    if (!verified) {
+      for (
+        let attempt = 1;
+        attempt <= 3;
+        attempt += 1
+      ) {
+        await sleep(600);
+
+        const retryQuery =
+          await queryTransaction(
+            config,
+            String(
+              payment.merchant_payment_id
+            )
+          );
+
+        query = retryQuery;
+
+        queryResponseCode =
+          String(
+            query.data?.responseCode ??
+              ''
+          );
+
+        verifiedTransaction =
+          query.response.ok &&
+          isSuccessCode(
+            queryResponseCode
+          )
+            ? pickApprovedTransaction(
+                query.data
+              )
+            : null;
+
+        verified =
+          Boolean(
+            verifiedTransaction
+          ) &&
+          amountMatches(
+            payment.amount,
+            verifiedTransaction?.amount
+          ) &&
+          String(
+            verifiedTransaction
+              ?.currency ||
+              ''
+          ).toUpperCase() ===
+            String(
+              payment.currency ||
+                ''
+            ).toUpperCase();
+
+        if (verified) {
+          break;
+        }
+      }
+    }
 
     if (verified && verifiedTransaction) {
       const pgTranId = String(
@@ -1304,6 +1439,9 @@ export async function POST(request: NextRequest) {
       const failedClient =
         await pool.connect();
 
+      let alreadyApproved =
+        false;
+
       try {
         await failedClient.query(
           'BEGIN'
@@ -1335,11 +1473,13 @@ export async function POST(request: NextRequest) {
           locked.status || ''
         );
 
-        // Daha önce APPROVED olmuş gerçek ödeme
-        // sonradan FAILED yapılmaz.
+        // Daha önce veya paralel status-sync ile APPROVED olmuş gerçek ödeme
+        // sonradan FAILED yapılmaz ve müşteriye başarısız sayfa dönülmez.
         if (
-          oldStatus !== 'APPROVED'
+          oldStatus === 'APPROVED'
         ) {
+          alreadyApproved = true;
+        } else {
           await failedClient.query(
             `
               UPDATE public.paratika_payments
@@ -1436,6 +1576,14 @@ export async function POST(request: NextRequest) {
         );
       } finally {
         failedClient.release();
+      }
+
+      if (alreadyApproved) {
+        return htmlResponse(
+          true,
+          'Ödemeniz başarıyla alındı',
+          'Ödeme işleminiz onaylandı. Mağaza personelimiz sistem üzerinden ödemenizi görebilir.'
+        );
       }
 
       return htmlResponse(
