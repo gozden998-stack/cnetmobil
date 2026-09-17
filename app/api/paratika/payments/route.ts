@@ -5,6 +5,8 @@
 // - Admin/Yönetici oturumu: tüm mağazalar
 // - Liste ve özet seçilen GÜNE göre döner.
 // - Gün hesabı Europe/Istanbul saat dilimine göre yapılır.
+// - Kayıt hangi gün OLUŞTURULDUYSA hep o günde kalır.
+// - APPROVED olduğunda ÜÖT tarihine göre başka güne TAŞINMAZ.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
@@ -346,26 +348,21 @@ export async function GET(
       return `$${values.length}`;
     };
 
-    // Tarih bazımız:
-    // - APPROVED + ÜÖT(MPD) varsa: paratika_payment_date
-    // - Henüz ödeme tamamlanmadıysa / ÜÖT yoksa: created_at
+    // Tarih bazımız HER ZAMAN kaydın oluşturulduğu gündür.
     //
-    // Böylece örneğin işlem Eylül'de oluşturulup ÜÖT 19-Ekim ise
-    // onaylandıktan sonra Eylül'de değil 19-Ekim gününde görünür.
+    // Önemli:
+    // Bir işlem daha sonra APPROVED olduğunda ÜÖT / paratika_payment_date
+    // farklı bir güne düşse bile kayıt oluşturulduğu günün listesinden
+    // KAYBOLMAZ ve başka güne taşınmaz.
+    //
+    // ÜÖT ayrıca işlem satırında bilgi olarak gösterilmeye devam eder.
     const dateParam =
       addParam(selectedDate);
 
     where.push(`
       (
-        (
-          CASE
-            WHEN
-              p.status = 'APPROVED'
-              AND p.paratika_payment_date IS NOT NULL
-            THEN p.paratika_payment_date
-            ELSE p.created_at
-          END
-        ) AT TIME ZONE '${ISTANBUL_TZ}'
+        p.created_at
+        AT TIME ZONE '${ISTANBUL_TZ}'
       )::date = ${dateParam}::date
     `);
 
@@ -495,13 +492,7 @@ export async function GET(
             p.created_at,
             p.updated_at,
 
-            CASE
-              WHEN
-                p.status = 'APPROVED'
-                AND p.paratika_payment_date IS NOT NULL
-              THEN p.paratika_payment_date
-              ELSE p.created_at
-            END AS basis_date
+            p.created_at AS basis_date
 
           FROM public.paratika_payments p
 
@@ -555,15 +546,8 @@ export async function GET(
 
     summaryWhere.push(`
       (
-        (
-          CASE
-            WHEN
-              status = 'APPROVED'
-              AND paratika_payment_date IS NOT NULL
-            THEN paratika_payment_date
-            ELSE created_at
-          END
-        ) AT TIME ZONE '${ISTANBUL_TZ}'
+        created_at
+        AT TIME ZONE '${ISTANBUL_TZ}'
       )::date = $1::date
     `);
 
