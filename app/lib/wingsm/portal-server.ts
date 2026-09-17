@@ -1,36 +1,32 @@
 // app/lib/wingsm/portal-server.ts
 //
-// CNETMOBIL - WingSM WEB PORTAL server helper
+// CNETMOBIL - WingSM WEB PORTAL helper
 //
-// ÖNEMLİ:
-// - Bu dosya mevcut B2B app/lib/wingsm/server.ts dosyasından AYRIDIR.
-// - B2B x-access-token sistemine dokunmaz.
-// - WingSM WEB PORTAL session/cookie sistemi için kullanılır.
-// - Kullanıcı adı / şifre / cookie / session hiçbir zaman response'a yazılmaz.
-// - Login formunu portal HTML'inden bulmaya çalışır.
-// - Session geçersiz olursa otomatik yeniden login olur.
+// MEVCUT B2B API'YE DOKUNMAZ.
+// app/lib/wingsm/server.ts AYNI KALACAK.
 //
-// Kullanım:
+// Mevcut ENV:
+// WINGSM_USER
+// WINGSM_PASSWORD
 //
-// const result = await wingSMPortalRequest<MyType>(
-//   "/HttpApiHizliSatis/HizliSatisInitilas",
-//   {
-//     method: "GET",
-//     query: {
-//       TarihN: "20260917",
-//       Sirket: null,
-//     },
-//   }
-// );
+// Portal:
+// https://ports.wingsmonline.com
+//
+// Amaç:
+// 1. WingSM portal login sayfasını aç
+// 2. Login formunu tespit et
+// 3. Mevcut WINGSM_USER / WINGSM_PASSWORD ile giriş yap
+// 4. Set-Cookie değerlerini server tarafında tut
+// 5. /Http/AktifKullanici ile session doğrula
+// 6. Portal API isteklerinde aynı cookie/session kullan
 //
 
 export const runtime = "nodejs";
 
-// ======================================================
-// TYPES
-// ======================================================
+const PORTAL_BASE_URL =
+  "https://ports.wingsmonline.com";
 
-export type WingSMPortalRequestOptions = {
+type PortalRequestOptions = {
   method?:
     | "GET"
     | "POST"
@@ -56,33 +52,24 @@ export type WingSMPortalRequestOptions = {
 };
 
 type PortalSession = {
-  cookieHeader: string;
-
+  cookie: string;
   createdAt: number;
-
   expiresAt: number;
 };
 
-type LoginFormInfo = {
-  actionUrl: string;
+type CookieJar =
+  Map<string, string>;
 
+type LoginForm = {
+  action: string;
   method: string;
-
   usernameField: string;
-
   passwordField: string;
-
   hiddenFields: Record<
     string,
     string
   >;
 };
-
-type CookieJar =
-  Map<
-    string,
-    string
-  >;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -100,87 +87,241 @@ declare global {
 // ENV
 // ======================================================
 
-function getPortalBaseUrl() {
+function getUsername() {
   const value =
     String(
       process.env
-        .WINGSM_PORTAL_BASE_URL ||
-        "https://ports.wingsmonline.com"
-    ).trim();
-
-  if (!value) {
-    throw new Error(
-      "WINGSM_PORTAL_BASE_URL bulunamadı."
-    );
-  }
-
-  return value.replace(
-    /\/+$/,
-    ""
-  );
-}
-
-function getPortalUsername() {
-  const value =
-    String(
-      process.env
-        .WINGSM_PORTAL_USER ||
-        process.env
-          .WINGSM_USER ||
+        .WINGSM_USER ||
         ""
     ).trim();
 
   if (!value) {
     throw new Error(
-      "WINGSM_PORTAL_USER veya WINGSM_USER bulunamadı."
+      "WINGSM_USER bulunamadı."
     );
   }
 
   return value;
 }
 
-function getPortalPassword() {
+function getPassword() {
   const value =
     String(
       process.env
-        .WINGSM_PORTAL_PASSWORD ||
-        process.env
-          .WINGSM_PASSWORD ||
+        .WINGSM_PASSWORD ||
         ""
     );
 
   if (!value) {
     throw new Error(
-      "WINGSM_PORTAL_PASSWORD veya WINGSM_PASSWORD bulunamadı."
+      "WINGSM_PASSWORD bulunamadı."
     );
   }
 
   return value;
-}
-
-function getPortalLoginStartUrl() {
-  const baseUrl =
-    getPortalBaseUrl();
-
-  const configured =
-    String(
-      process.env
-        .WINGSM_PORTAL_LOGIN_PATH ||
-        ""
-    ).trim();
-
-  if (!configured) {
-    return `${baseUrl}/`;
-  }
-
-  return new URL(
-    configured,
-    `${baseUrl}/`
-  ).toString();
 }
 
 // ======================================================
-// HTML
+// COOKIE
+// ======================================================
+
+function splitSetCookie(
+  value: string
+) {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(
+      /,(?=\s*[^;,=\s]+=[^;,]*)/
+    )
+    .map(
+      (item) =>
+        item.trim()
+    )
+    .filter(Boolean);
+}
+
+function getSetCookies(
+  response: Response
+) {
+  const headers =
+    response.headers as Headers & {
+      getSetCookie?:
+        () => string[];
+    };
+
+  if (
+    typeof headers
+      .getSetCookie ===
+    "function"
+  ) {
+    const values =
+      headers.getSetCookie();
+
+    if (
+      Array.isArray(values) &&
+      values.length
+    ) {
+      return values;
+    }
+  }
+
+  const value =
+    response.headers.get(
+      "set-cookie"
+    );
+
+  if (!value) {
+    return [];
+  }
+
+  return splitSetCookie(
+    value
+  );
+}
+
+function applyCookies(
+  jar: CookieJar,
+  response: Response
+) {
+  const cookies =
+    getSetCookies(
+      response
+    );
+
+  for (
+    const raw
+    of cookies
+  ) {
+    const first =
+      raw
+        .split(";")[0]
+        ?.trim();
+
+    if (!first) {
+      continue;
+    }
+
+    const index =
+      first.indexOf("=");
+
+    if (
+      index <= 0
+    ) {
+      continue;
+    }
+
+    const name =
+      first
+        .slice(
+          0,
+          index
+        )
+        .trim();
+
+    const value =
+      first
+        .slice(
+          index + 1
+        )
+        .trim();
+
+    if (!name) {
+      continue;
+    }
+
+    const lower =
+      raw.toLowerCase();
+
+    if (
+      !value ||
+      lower.includes(
+        "max-age=0"
+      )
+    ) {
+      jar.delete(name);
+      continue;
+    }
+
+    jar.set(
+      name,
+      value
+    );
+  }
+}
+
+function jarToCookie(
+  jar: CookieJar
+) {
+  return Array
+    .from(
+      jar.entries()
+    )
+    .map(
+      ([name, value]) =>
+        `${name}=${value}`
+    )
+    .join("; ");
+}
+
+function cookieToJar(
+  cookie: string
+) {
+  const jar:
+    CookieJar =
+    new Map();
+
+  String(
+    cookie || ""
+  )
+    .split(";")
+    .map(
+      (item) =>
+        item.trim()
+    )
+    .filter(Boolean)
+    .forEach(
+      (item) => {
+        const index =
+          item.indexOf("=");
+
+        if (
+          index <= 0
+        ) {
+          return;
+        }
+
+        const name =
+          item
+            .slice(
+              0,
+              index
+            )
+            .trim();
+
+        const value =
+          item
+            .slice(
+              index + 1
+            )
+            .trim();
+
+        if (name) {
+          jar.set(
+            name,
+            value
+          );
+        }
+      }
+    );
+
+  return jar;
+}
+
+// ======================================================
+// HTML HELPERS
 // ======================================================
 
 function decodeHtml(
@@ -193,7 +334,7 @@ function decodeHtml(
     )
     .replace(
       /&quot;/gi,
-      '"'
+      "\""
     )
     .replace(
       /&#39;/gi,
@@ -212,28 +353,28 @@ function decodeHtml(
 function parseAttributes(
   source: string
 ) {
-  const result: Record<
-    string,
-    string
-  > = {};
+  const result:
+    Record<
+      string,
+      string
+    > = {};
 
   const regex =
     /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
   let match:
-    | RegExpExecArray
-    | null;
+    RegExpExecArray |
+    null;
 
   while (
-    (match =
-      regex.exec(
-        source
-      )) !== null
+    (
+      match =
+        regex.exec(source)
+    ) !== null
   ) {
     const key =
       String(
-        match[1] ||
-          ""
+        match[1] || ""
       )
         .trim()
         .toLowerCase();
@@ -249,301 +390,59 @@ function parseAttributes(
       "";
 
     result[key] =
-      decodeHtml(
-        value
-      );
+      decodeHtml(value);
   }
 
   return result;
 }
 
 // ======================================================
-// COOKIE
-// ======================================================
-
-function splitSetCookieHeader(
-  header: string
-) {
-  if (!header) {
-    return [];
-  }
-
-  /*
-   * Expires=Wed, 17 Sep...
-   * içindeki virgülü cookie ayıracı sanmamak için
-   * sadece yeni cookie başlangıcındaki virgülü böler.
-   */
-  return header
-    .split(
-      /,(?=\s*[^;,=\s]+=[^;,]*)/
-    )
-    .map(
-      (
-        value
-      ) =>
-        value.trim()
-    )
-    .filter(
-      Boolean
-    );
-}
-
-function getSetCookieValues(
-  response: Response
-) {
-  const headers =
-    response.headers as Headers & {
-      getSetCookie?:
-        () => string[];
-    };
-
-  if (
-    typeof headers
-      .getSetCookie ===
-    "function"
-  ) {
-    const values =
-      headers.getSetCookie();
-
-    if (
-      Array.isArray(
-        values
-      ) &&
-      values.length >
-        0
-    ) {
-      return values;
-    }
-  }
-
-  const combined =
-    response.headers.get(
-      "set-cookie"
-    );
-
-  if (!combined) {
-    return [];
-  }
-
-  return splitSetCookieHeader(
-    combined
-  );
-}
-
-function applySetCookies(
-  jar: CookieJar,
-  response: Response
-) {
-  const setCookies =
-    getSetCookieValues(
-      response
-    );
-
-  for (
-    const cookieString
-    of setCookies
-  ) {
-    const parts =
-      cookieString
-        .split(";");
-
-    const first =
-      parts[0]?.trim();
-
-    if (!first) {
-      continue;
-    }
-
-    const separator =
-      first.indexOf(
-        "="
-      );
-
-    if (
-      separator <=
-      0
-    ) {
-      continue;
-    }
-
-    const name =
-      first
-        .slice(
-          0,
-          separator
-        )
-        .trim();
-
-    const value =
-      first
-        .slice(
-          separator + 1
-        )
-        .trim();
-
-    if (!name) {
-      continue;
-    }
-
-    const lower =
-      cookieString
-        .toLowerCase();
-
-    const deleteCookie =
-      value === "" ||
-      lower.includes(
-        "max-age=0"
-      );
-
-    if (
-      deleteCookie
-    ) {
-      jar.delete(
-        name
-      );
-
-      continue;
-    }
-
-    jar.set(
-      name,
-      value
-    );
-  }
-}
-
-function jarToHeader(
-  jar: CookieJar
-) {
-  return Array.from(
-    jar.entries()
-  )
-    .map(
-      ([
-        name,
-        value,
-      ]) =>
-        `${name}=${value}`
-    )
-    .join("; ");
-}
-
-function headerToJar(
-  header: string
-) {
-  const jar:
-    CookieJar =
-    new Map();
-
-  const parts =
-    String(
-      header ||
-        ""
-    )
-      .split(";")
-      .map(
-        (
-          value
-        ) =>
-          value.trim()
-      )
-      .filter(
-        Boolean
-      );
-
-  for (
-    const part
-    of parts
-  ) {
-    const separator =
-      part.indexOf(
-        "="
-      );
-
-    if (
-      separator <=
-      0
-    ) {
-      continue;
-    }
-
-    const name =
-      part
-        .slice(
-          0,
-          separator
-        )
-        .trim();
-
-    const value =
-      part
-        .slice(
-          separator + 1
-        )
-        .trim();
-
-    if (name) {
-      jar.set(
-        name,
-        value
-      );
-    }
-  }
-
-  return jar;
-}
-
-// ======================================================
-// FETCH + COOKIE JAR + REDIRECT
+// FETCH + COOKIE + REDIRECT
 // ======================================================
 
 async function fetchWithJar(
-  inputUrl: string,
-  inputInit:
-    RequestInit,
+  startUrl: string,
+  init: RequestInit,
   jar: CookieJar
 ) {
   let currentUrl =
-    inputUrl;
+    startUrl;
 
   let method =
     String(
-      inputInit.method ||
+      init.method ||
         "GET"
     ).toUpperCase();
 
   let body =
-    inputInit.body;
+    init.body;
 
   let headers =
     new Headers(
-      inputInit.headers
+      init.headers
     );
 
-  const maxRedirects =
-    8;
-
   for (
-    let redirectCount =
+    let redirectIndex =
       0;
-    redirectCount <=
-    maxRedirects;
-    redirectCount++
+    redirectIndex <
+      8;
+    redirectIndex++
   ) {
     const requestHeaders =
       new Headers(
         headers
       );
 
-    const cookieHeader =
-      jarToHeader(
+    const cookie =
+      jarToCookie(
         jar
       );
 
-    if (cookieHeader) {
+    if (cookie) {
       requestHeaders.set(
         "Cookie",
-        cookieHeader
+        cookie
       );
     }
 
@@ -551,15 +450,13 @@ async function fetchWithJar(
       await fetch(
         currentUrl,
         {
-          ...inputInit,
+          ...init,
 
           method,
 
           body:
-            method ===
-              "GET" ||
-            method ===
-              "HEAD"
+            method === "GET" ||
+            method === "HEAD"
               ? undefined
               : body,
 
@@ -574,7 +471,7 @@ async function fetchWithJar(
         }
       );
 
-    applySetCookies(
+    applyCookies(
       jar,
       response
     );
@@ -592,7 +489,7 @@ async function fetchWithJar(
     ) {
       return {
         response,
-        finalUrl:
+        url:
           currentUrl,
       };
     }
@@ -605,18 +502,9 @@ async function fetchWithJar(
     if (!location) {
       return {
         response,
-        finalUrl:
+        url:
           currentUrl,
       };
-    }
-
-    if (
-      redirectCount >=
-      maxRedirects
-    ) {
-      throw new Error(
-        "WingSM portal çok fazla redirect döndürdü."
-      );
     }
 
     currentUrl =
@@ -625,19 +513,19 @@ async function fetchWithJar(
         currentUrl
       ).toString();
 
-    /*
-     * Browser davranışı:
-     * POST -> 302/303 -> GET
-     */
     if (
       response.status ===
         303 ||
-      ((response.status ===
-          301 ||
-        response.status ===
-          302) &&
+      (
+        (
+          response.status ===
+            301 ||
+          response.status ===
+            302
+        ) &&
         method ===
-          "POST")
+          "POST"
+      )
     ) {
       method =
         "GET";
@@ -653,93 +541,80 @@ async function fetchWithJar(
       headers.delete(
         "content-type"
       );
-
-      headers.delete(
-        "content-length"
-      );
     }
   }
 
   throw new Error(
-    "WingSM portal redirect işlemi tamamlanamadı."
+    "WingSM portal redirect limiti aşıldı."
   );
 }
 
 // ======================================================
-// LOGIN FORM DISCOVERY
+// LOGIN FORM BUL
 // ======================================================
 
-function discoverLoginForm(
+function findLoginForm(
   html: string,
-  pageUrl: string
-): LoginFormInfo {
+  currentUrl: string
+): LoginForm {
   const formRegex =
     /<form\b([^>]*)>([\s\S]*?)<\/form>/gi;
 
-  let selectedFormAttributes =
+  let formAttributes =
     "";
 
-  let selectedFormBody =
+  let formBody =
     "";
 
-  let formMatch:
-    | RegExpExecArray
-    | null;
+  let match:
+    RegExpExecArray |
+    null;
 
   while (
-    (formMatch =
-      formRegex.exec(
-        html
-      )) !== null
+    (
+      match =
+        formRegex.exec(html)
+    ) !== null
   ) {
-    const attributes =
-      formMatch[1] ||
-      "";
-
     const body =
-      formMatch[2] ||
-      "";
+      match[2] || "";
 
     if (
       /type\s*=\s*["']?password/i.test(
         body
       )
     ) {
-      selectedFormAttributes =
-        attributes;
+      formAttributes =
+        match[1] || "";
 
-      selectedFormBody =
+      formBody =
         body;
 
       break;
     }
   }
 
-  if (
-    !selectedFormBody
-  ) {
+  if (!formBody) {
     throw new Error(
-      "WingSM login formu bulunamadı."
+      "WingSM portal login formu bulunamadı."
     );
   }
 
   const formAttrs =
     parseAttributes(
-      selectedFormAttributes
+      formAttributes
     );
 
   const action =
     String(
-      process.env
-        .WINGSM_PORTAL_LOGIN_PATH ||
-        formAttrs.action ||
-        pageUrl
+      formAttrs.action ||
+        currentUrl
     ).trim();
 
   const actionUrl =
     new URL(
       action,
-      pageUrl
+      currentUrl
     ).toString();
 
   const method =
@@ -750,7 +625,7 @@ function discoverLoginForm(
       .trim()
       .toUpperCase();
 
-  const inputs: Array<{
+  const fields: Array<{
     name: string;
     type: string;
     value: string;
@@ -760,14 +635,16 @@ function discoverLoginForm(
     /<input\b([^>]*)>/gi;
 
   let inputMatch:
-    | RegExpExecArray
-    | null;
+    RegExpExecArray |
+    null;
 
   while (
-    (inputMatch =
-      inputRegex.exec(
-        selectedFormBody
-      )) !== null
+    (
+      inputMatch =
+        inputRegex.exec(
+          formBody
+        )
+    ) !== null
   ) {
     const attrs =
       parseAttributes(
@@ -785,7 +662,7 @@ function discoverLoginForm(
       continue;
     }
 
-    inputs.push({
+    fields.push({
       name,
 
       type:
@@ -804,34 +681,16 @@ function discoverLoginForm(
     });
   }
 
-  const configuredUserField =
-    String(
-      process.env
-        .WINGSM_PORTAL_USER_FIELD ||
-        ""
-    ).trim();
-
-  const configuredPasswordField =
-    String(
-      process.env
-        .WINGSM_PORTAL_PASSWORD_FIELD ||
-        ""
-    ).trim();
-
-  const passwordInput =
-    inputs.find(
-      (
-        input
-      ) =>
-        input.type ===
+  const passwordField =
+    fields.find(
+      (field) =>
+        field.type ===
         "password"
     );
 
-  const usernameCandidates =
-    inputs.filter(
-      (
-        input
-      ) =>
+  const usernameField =
+    fields.find(
+      (field) =>
         ![
           "hidden",
           "password",
@@ -840,34 +699,31 @@ function discoverLoginForm(
           "checkbox",
           "radio",
         ].includes(
-          input.type
-        )
-    );
-
-  const usernameInput =
-    usernameCandidates.find(
-      (
-        input
-      ) =>
+          field.type
+        ) &&
         /user|login|kullanici|username|email/i.test(
-          input.name
+          field.name
         )
     ) ||
-    usernameCandidates[0];
-
-  const usernameField =
-    configuredUserField ||
-    usernameInput?.name;
-
-  const passwordField =
-    configuredPasswordField ||
-    passwordInput?.name;
+    fields.find(
+      (field) =>
+        ![
+          "hidden",
+          "password",
+          "submit",
+          "button",
+          "checkbox",
+          "radio",
+        ].includes(
+          field.type
+        )
+    );
 
   if (
     !usernameField
   ) {
     throw new Error(
-      "WingSM login kullanıcı alanı bulunamadı."
+      "WingSM kullanıcı adı alanı bulunamadı."
     );
   }
 
@@ -875,7 +731,7 @@ function discoverLoginForm(
     !passwordField
   ) {
     throw new Error(
-      "WingSM login şifre alanı bulunamadı."
+      "WingSM şifre alanı bulunamadı."
     );
   }
 
@@ -886,50 +742,48 @@ function discoverLoginForm(
     > = {};
 
   for (
-    const input
-    of inputs
+    const field
+    of fields
   ) {
     if (
-      input.type ===
+      field.type ===
       "hidden"
     ) {
       hiddenFields[
-        input.name
+        field.name
       ] =
-        input.value;
+        field.value;
     }
   }
 
   return {
-    actionUrl,
+    action:
+      actionUrl,
 
     method,
 
-    usernameField,
+    usernameField:
+      usernameField.name,
 
-    passwordField,
+    passwordField:
+      passwordField.name,
 
     hiddenFields,
   };
 }
 
 // ======================================================
-// SESSION VALIDATION
+// SESSION TEST
 // ======================================================
 
-async function validatePortalSession(
+async function sessionIsValid(
   jar: CookieJar
 ) {
   try {
     const url =
-      new URL(
-        "/Http/AktifKullanici",
-        `${getPortalBaseUrl()}/`
-      ).toString();
+      `${PORTAL_BASE_URL}/Http/AktifKullanici`;
 
-    const {
-      response,
-    } =
+    const result =
       await fetchWithJar(
         url,
         {
@@ -941,23 +795,25 @@ async function validatePortalSession(
               "application/json",
 
             "User-Agent":
-              "Mozilla/5.0 CNETMOBIL-WingSM-Sync",
+              "Mozilla/5.0 CNETMOBIL",
           },
         },
         jar
       );
 
     if (
-      !response.ok
+      !result.response.ok
     ) {
       return false;
     }
 
     const contentType =
       String(
-        response.headers.get(
-          "content-type"
-        ) ||
+        result.response
+          .headers
+          .get(
+            "content-type"
+          ) ||
           ""
       ).toLowerCase();
 
@@ -970,7 +826,7 @@ async function validatePortalSession(
     }
 
     const data =
-      await response
+      await result.response
         .json()
         .catch(
           () =>
@@ -985,135 +841,126 @@ async function validatePortalSession(
       return false;
     }
 
-    const record =
-      data as Record<
-        string,
-        unknown
-      >;
+    const obj =
+      data as {
+        kullanici?: {
+          Id?: number;
+        };
+      };
 
-    const kullanici =
-      record.kullanici;
-
-    if (
-      !kullanici ||
-      typeof kullanici !==
-        "object"
-    ) {
-      return false;
-    }
-
-    return true;
+    return (
+      Number(
+        obj.kullanici
+          ?.Id ||
+          0
+      ) >
+      0
+    );
   } catch {
     return false;
   }
 }
 
 // ======================================================
-// PORTAL LOGIN
+// LOGIN
 // ======================================================
 
-async function createPortalSession(): Promise<PortalSession> {
+async function loginPortal():
+Promise<PortalSession> {
   const username =
-    getPortalUsername();
+    getUsername();
 
   const password =
-    getPortalPassword();
+    getPassword();
 
   const jar:
     CookieJar =
     new Map();
 
   /*
-   * 1) Login sayfasını aç.
-   *
-   * Burada ASP.NET session / antiforgery cookie gelirse
-   * CookieJar içine alınır.
+   * 1) Portal ana login sayfası.
    */
-  const loginStartUrl =
-    getPortalLoginStartUrl();
-
-  const loginPageResult =
+  const page =
     await fetchWithJar(
-      loginStartUrl,
+      `${PORTAL_BASE_URL}/`,
       {
         method:
           "GET",
 
         headers: {
           Accept:
-            "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+            "text/html,application/xhtml+xml,*/*",
 
           "User-Agent":
-            "Mozilla/5.0 CNETMOBIL-WingSM-Sync",
+            "Mozilla/5.0 CNETMOBIL",
         },
       },
       jar
     );
 
   if (
-    !loginPageResult
-      .response.ok
+    !page.response.ok
   ) {
     throw new Error(
-      `WingSM portal login sayfası açılamadı. HTTP ${loginPageResult.response.status}`
+      `WingSM portal login sayfası açılamadı. HTTP ${page.response.status}`
     );
   }
 
-  const loginHtml =
-    await loginPageResult
-      .response.text();
+  const html =
+    await page.response
+      .text();
 
   /*
-   * 2) Form action + field isimleri + hidden CSRF alanlarını bul.
+   * 2) Form action + field isimlerini
+   * gerçek login HTML'inden bul.
    */
   const loginForm =
-    discoverLoginForm(
-      loginHtml,
-      loginPageResult
-        .finalUrl
+    findLoginForm(
+      html,
+      page.url
     );
 
   /*
-   * 3) Login POST body.
+   * 3) Hidden alanlar.
+   * CSRF varsa otomatik taşınır.
    */
-  const form =
+  const body =
     new URLSearchParams();
 
   for (
     const [
-      name,
+      key,
       value,
     ]
     of Object.entries(
-      loginForm.hiddenFields
+      loginForm
+        .hiddenFields
     )
   ) {
-    form.set(
-      name,
+    body.set(
+      key,
       value
     );
   }
 
-  form.set(
+  body.set(
     loginForm
       .usernameField,
     username
   );
 
-  form.set(
+  body.set(
     loginForm
       .passwordField,
     password
   );
 
   /*
-   * 4) Login.
-   *
-   * credentials hiçbir yerde loglanmaz.
+   * 4) Login POST.
    */
-  const loginResult =
+  const login =
     await fetchWithJar(
-      loginForm.actionUrl,
+      loginForm.action,
       {
         method:
           loginForm.method ===
@@ -1123,48 +970,41 @@ async function createPortalSession(): Promise<PortalSession> {
 
         headers: {
           Accept:
-            "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/json,*/*",
 
           "Content-Type":
-            "application/x-www-form-urlencoded; charset=UTF-8",
+            "application/x-www-form-urlencoded",
 
           Origin:
-            new URL(
-              getPortalBaseUrl()
-            ).origin,
+            PORTAL_BASE_URL,
 
           Referer:
-            loginPageResult
-              .finalUrl,
+            page.url,
 
           "User-Agent":
-            "Mozilla/5.0 CNETMOBIL-WingSM-Sync",
+            "Mozilla/5.0 CNETMOBIL",
         },
 
         body:
-          form.toString(),
+          body.toString(),
       },
       jar
     );
 
   if (
-    loginResult.response
-      .status >=
+    login.response.status >=
     500
   ) {
     throw new Error(
-      `WingSM portal login sunucu hatası. HTTP ${loginResult.response.status}`
+      `WingSM portal login hatası. HTTP ${login.response.status}`
     );
   }
 
   /*
-   * 5) Login başarılı mı kesin doğrula.
-   *
-   * Cookie ismine güvenmiyoruz.
-   * /Http/AktifKullanici gerçekten çalışıyorsa session geçerli.
+   * 5) Gerçek session testi.
    */
   const valid =
-    await validatePortalSession(
+    await sessionIsValid(
       jar
     );
 
@@ -1174,36 +1014,38 @@ async function createPortalSession(): Promise<PortalSession> {
     );
   }
 
-  const cookieHeader =
-    jarToHeader(
+  const cookie =
+    jarToCookie(
       jar
     );
 
-  if (!cookieHeader) {
+  if (!cookie) {
     throw new Error(
-      "WingSM portal session cookie oluşturulamadı."
+      "WingSM portal session cookie oluşmadı."
     );
   }
 
   const now =
     Date.now();
 
-  /*
-   * 10 dakika local cache.
-   *
-   * Gerçek cookie daha uzun yaşayabilir.
-   * 10 dakika sonra yeniden AktifKullanici kontrolü/login yapılır.
-   */
-  const session: PortalSession =
+  const session:
+    PortalSession =
     {
-      cookieHeader,
+      cookie,
 
       createdAt:
         now,
 
+      /*
+       * 10 dk local cache.
+       * Session ölürse ayrıca
+       * otomatik login yapılacak.
+       */
       expiresAt:
         now +
-        10 * 60 * 1000,
+        10 *
+          60 *
+          1000,
     };
 
   global
@@ -1214,26 +1056,24 @@ async function createPortalSession(): Promise<PortalSession> {
 }
 
 // ======================================================
-// GET / CREATE SESSION
+// SESSION CACHE
 // ======================================================
 
-async function getPortalSession() {
+async function getSession():
+Promise<PortalSession> {
   const cached =
     global
       .cnetWingSMPortalSession;
 
   if (
     cached &&
-    cached.cookieHeader &&
+    cached.cookie &&
     cached.expiresAt >
       Date.now()
   ) {
     return cached;
   }
 
-  /*
-   * Aynı anda 5 request gelirse 5 login yapma.
-   */
   if (
     global
       .cnetWingSMPortalLoginPromise
@@ -1244,24 +1084,17 @@ async function getPortalSession() {
 
   global
     .cnetWingSMPortalLoginPromise =
-    createPortalSession();
+    loginPortal();
 
   try {
-    const session =
-      await global
-        .cnetWingSMPortalLoginPromise;
-
-    return session;
+    return await global
+      .cnetWingSMPortalLoginPromise;
   } finally {
     global
       .cnetWingSMPortalLoginPromise =
       undefined;
   }
 }
-
-// ======================================================
-// CLEAR SESSION
-// ======================================================
 
 export function clearWingSMPortalSession() {
   global
@@ -1277,17 +1110,17 @@ export function clearWingSMPortalSession() {
 // URL
 // ======================================================
 
-function createRequestUrl(
+function createUrl(
   path: string,
-  query?: WingSMPortalRequestOptions["query"]
+  query?:
+    PortalRequestOptions[
+      "query"
+    ]
 ) {
-  const baseUrl =
-    getPortalBaseUrl();
-
   const url =
     new URL(
       path,
-      `${baseUrl}/`
+      `${PORTAL_BASE_URL}/`
     );
 
   if (query) {
@@ -1311,9 +1144,7 @@ function createRequestUrl(
 
       url.searchParams.set(
         key,
-        String(
-          value
-        )
+        String(value)
       );
     }
   }
@@ -1322,29 +1153,25 @@ function createRequestUrl(
 }
 
 // ======================================================
-// SINGLE AUTHENTICATED REQUEST
+// AUTHENTICATED PORTAL FETCH
 // ======================================================
 
-async function portalFetch(
+async function authenticatedFetch(
   path: string,
   options:
-    WingSMPortalRequestOptions,
+    PortalRequestOptions,
   session:
     PortalSession
 ) {
   const url =
-    createRequestUrl(
+    createUrl(
       path,
       options.query
     );
 
-  const method =
-    options.method ||
-    "GET";
-
   const jar =
-    headerToJar(
-      session.cookieHeader
+    cookieToJar(
+      session.cookie
     );
 
   const headers =
@@ -1362,12 +1189,16 @@ async function portalFetch(
 
   headers.set(
     "User-Agent",
-    "Mozilla/5.0 CNETMOBIL-WingSM-Sync"
+    "Mozilla/5.0 CNETMOBIL"
   );
 
+  const method =
+    options.method ||
+    "GET";
+
   let body:
-    BodyInit
-    | undefined;
+    string |
+    undefined;
 
   if (
     options.body !==
@@ -1377,12 +1208,10 @@ async function portalFetch(
   ) {
     if (
       typeof options.body ===
-      "string" ||
-      options.body instanceof
-        URLSearchParams
+      "string"
     ) {
       body =
-        options.body as BodyInit;
+        options.body;
     } else {
       headers.set(
         "Content-Type",
@@ -1408,28 +1237,27 @@ async function portalFetch(
         headers,
 
         body,
+
+        cache:
+          "no-store",
       },
       jar
     );
 
   /*
-   * WingSM session cookie rotate ederse cache'i güncelle.
+   * Cookie rotate olursa cache'i yenile.
    */
-  const newCookieHeader =
-    jarToHeader(
+  const cookie =
+    jarToCookie(
       jar
     );
 
-  if (
-    newCookieHeader
-  ) {
+  if (cookie) {
     global
       .cnetWingSMPortalSession =
       {
         ...session,
-
-        cookieHeader:
-          newCookieHeader,
+        cookie,
       };
   }
 
@@ -1445,21 +1273,21 @@ export async function wingSMPortalRequest<
 >(
   path: string,
   options:
-    WingSMPortalRequestOptions =
+    PortalRequestOptions =
       {}
 ): Promise<T> {
   let session =
-    await getPortalSession();
+    await getSession();
 
   let response =
-    await portalFetch(
+    await authenticatedFetch(
       path,
       options,
       session
     );
 
   /*
-   * Session öldüyse bir kez yeniden login yap.
+   * Oturum düşmüşse yeniden login.
    */
   if (
     response.status ===
@@ -1470,17 +1298,17 @@ export async function wingSMPortalRequest<
     clearWingSMPortalSession();
 
     session =
-      await getPortalSession();
+      await getSession();
 
     response =
-      await portalFetch(
+      await authenticatedFetch(
         path,
         options,
         session
       );
   }
 
-  const contentType =
+  let contentType =
     String(
       response.headers.get(
         "content-type"
@@ -1489,51 +1317,50 @@ export async function wingSMPortalRequest<
     ).toLowerCase();
 
   /*
-   * Portal login ekranına redirect olup
-   * sonunda HTML dönmüş olabilir.
+   * Session bittiyse WingSM JSON yerine
+   * login HTML'i döndürebilir.
    */
   if (
     !contentType.includes(
       "json"
     )
   ) {
-    /*
-     * Bir kere daha yeni session ile deneyelim.
-     */
     clearWingSMPortalSession();
 
     session =
-      await getPortalSession();
+      await getSession();
 
     response =
-      await portalFetch(
+      await authenticatedFetch(
         path,
         options,
         session
       );
 
-    const retryContentType =
+    contentType =
       String(
         response.headers.get(
           "content-type"
         ) ||
           ""
       ).toLowerCase();
-
-    if (
-      !retryContentType.includes(
-        "json"
-      )
-    ) {
-      throw new Error(
-        `WingSM portal JSON dönmedi. HTTP ${response.status}`
-      );
-    }
   }
 
-  if (!response.ok) {
+  if (
+    !response.ok
+  ) {
     throw new Error(
       `WingSM portal isteği başarısız. HTTP ${response.status}`
+    );
+  }
+
+  if (
+    !contentType.includes(
+      "json"
+    )
+  ) {
+    throw new Error(
+      `WingSM portal JSON dönmedi. HTTP ${response.status}`
     );
   }
 
@@ -1543,26 +1370,26 @@ export async function wingSMPortalRequest<
     ) as T;
   } catch {
     throw new Error(
-      `WingSM portal JSON parse edilemedi. HTTP ${response.status}`
+      "WingSM portal cevabı JSON parse edilemedi."
     );
   }
 }
 
 // ======================================================
-// SESSION TEST
+// TEST
 // ======================================================
 
 export async function testWingSMPortalSession() {
   const session =
-    await getPortalSession();
+    await getSession();
 
   const jar =
-    headerToJar(
-      session.cookieHeader
+    cookieToJar(
+      session.cookie
     );
 
   const valid =
-    await validatePortalSession(
+    await sessionIsValid(
       jar
     );
 
@@ -1570,10 +1397,14 @@ export async function testWingSMPortalSession() {
     clearWingSMPortalSession();
 
     throw new Error(
-      "WingSM portal session testi başarısız."
+      "WingSM portal session geçersiz."
     );
   }
 
+  /*
+   * Güvenlik:
+   * cookie, user, password dönmüyor.
+   */
   return {
     success:
       true,
@@ -1581,13 +1412,10 @@ export async function testWingSMPortalSession() {
     connected:
       true,
 
-    portal:
-      "WingSM",
-
-    /*
-     * Cookie / kullanıcı / şifre kesinlikle dönmüyor.
-     */
     sessionValid:
       true,
+
+    portal:
+      "WingSM",
   };
 }
