@@ -1,12 +1,11 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM CariKart PERSONEL RAW DIAGNOSTIC
+// CNETMOBIL - WingSM CariKart PERSONEL hata detay testi
 //
 // Amaç:
-// /api/b2b/carikart/list/P/20260917/20260917?filter='*'
-// endpointi HTTP olarak çalışıyor ama success:false dönüyor.
-// Bu route wingSMRequest içindeki generic hata dönüşünü BYPASS eder,
-// gerçek WingSM cevap yapısındaki hata/message alanlarını güvenli biçimde gösterir.
+// WingSM cevabı HTTP 200 + success:false dönüyor.
+// Hata detayı response.data içinde:
+// Type / Number / Message / Key / Values
 //
 // SADECE GET.
 // WingSM'e hiçbir veri yazılmaz.
@@ -52,7 +51,7 @@ function asObject(
   return null;
 }
 
-function safeErrorValue(
+function safeValues(
   value: unknown
 ): unknown {
   if (
@@ -71,111 +70,90 @@ function safeErrorValue(
   }
 
   if (Array.isArray(value)) {
-    return value
-      .slice(0, 10)
-      .map((item) => {
-        if (
-          typeof item === "string" ||
-          typeof item === "number" ||
-          typeof item === "boolean"
-        ) {
-          return item;
-        }
-
-        const row = asObject(item);
-
-        if (!row) {
-          return typeof item;
-        }
-
-        return {
-          message:
-            row.message ??
-            row.Message ??
-            null,
-          error:
-            row.error ??
-            row.Error ??
-            null,
-          code:
-            row.code ??
-            row.Code ??
-            null,
-          description:
-            row.description ??
-            row.Description ??
-            null,
-        };
-      });
-  }
-
-  const obj = asObject(value);
-
-  if (!obj) {
-    return typeof value;
-  }
-
-  return {
-    message:
-      obj.message ??
-      obj.Message ??
-      null,
-    error:
-      obj.error ??
-      obj.Error ??
-      null,
-    code:
-      obj.code ??
-      obj.Code ??
-      null,
-    description:
-      obj.description ??
-      obj.Description ??
-      null,
-  };
-}
-
-function inspectData(
-  data: unknown
-) {
-  if (Array.isArray(data)) {
-    const first =
-      asObject(data[0]);
-
     return {
       type: "array",
-      count: data.length,
-      firstRowKeys:
-        first
-          ? Object.keys(first)
-          : [],
+      count: value.length,
+      preview: value
+        .slice(0, 10)
+        .map((item) => {
+          if (
+            typeof item === "string" ||
+            typeof item === "number" ||
+            typeof item === "boolean"
+          ) {
+            return item;
+          }
+
+          const obj =
+            asObject(item);
+
+          if (!obj) {
+            return typeof item;
+          }
+
+          return {
+            keys:
+              Object.keys(obj),
+            message:
+              obj.Message ??
+              obj.message ??
+              null,
+            key:
+              obj.Key ??
+              obj.key ??
+              null,
+            value:
+              obj.Value ??
+              obj.value ??
+              null,
+          };
+        }),
     };
   }
 
   const obj =
-    asObject(data);
+    asObject(value);
 
   if (obj) {
     return {
       type: "object",
       keys:
         Object.keys(obj),
+      preview:
+        Object.fromEntries(
+          Object.entries(obj)
+            .slice(0, 15)
+            .map(
+              ([key, val]) => [
+                key,
+                typeof val ===
+                    "string" ||
+                  typeof val ===
+                    "number" ||
+                  typeof val ===
+                    "boolean" ||
+                  val === null
+                  ? val
+                  : Array.isArray(val)
+                  ? `[array:${val.length}]`
+                  : "[object]",
+              ]
+            )
+        ),
     };
   }
 
   return {
-    type:
-      data === null
-        ? "null"
-        : typeof data,
+    type: typeof value,
   };
 }
 
 function getBaseUrl() {
-  const raw = String(
-    process.env.WINGSM_BASE_URL ||
-      ""
-  ).trim();
+  const raw =
+    String(
+      process.env.WINGSM_BASE_URL ||
+        ""
+    ).trim();
 
   if (!raw) {
     throw new Error(
@@ -189,16 +167,11 @@ function getBaseUrl() {
 async function makeRequest(
   token: string
 ) {
-  const baseUrl =
-    getBaseUrl();
-
   const url =
     new URL(
-      `${baseUrl}/api/b2b/carikart/list/P/20260917/20260917`
+      `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
     );
 
-  // WingSM desteğinin verdiği ifade:
-  // ?filter='*'
   url.searchParams.set(
     "filter",
     "'*'"
@@ -236,7 +209,9 @@ export async function GET(
       await getWingSMToken();
 
     let response =
-      await makeRequest(token);
+      await makeRequest(
+        token
+      );
 
     if (
       response.status === 401 ||
@@ -270,19 +245,11 @@ export async function GET(
       return json({
         success: false,
         stage:
-          "WINGSM_RAW_RESPONSE",
+          "WINGSM_JSON_PARSE",
         httpStatus:
           response.status,
-        httpOk:
-          response.ok,
-        contentType:
-          response.headers.get(
-            "content-type"
-          ),
         rawPreview:
           raw.slice(0, 500),
-        note:
-          "WingSM JSON dönmedi.",
         responseTimeMs:
           Date.now() -
           startedAt,
@@ -293,17 +260,16 @@ export async function GET(
       asObject(payload);
 
     const data =
-      root?.data ??
-      root?.Data ??
-      root?.list ??
-      root?.List ??
-      null;
+      asObject(
+        root?.data ??
+          root?.Data
+      );
 
     return json({
       success: true,
 
       stage:
-        "WINGSM_RAW_DIAGNOSTIC",
+        "WINGSM_CARIKART_ERROR_DETAIL",
 
       request: {
         method: "GET",
@@ -318,42 +284,45 @@ export async function GET(
           response.status,
         httpOk:
           response.ok,
-
         success:
           root?.success ??
           root?.Success ??
           null,
 
-        message:
-          safeErrorValue(
-            root?.message ??
-            root?.Message
-          ),
+        data: data
+          ? {
+              Type:
+                data.Type ??
+                data.type ??
+                null,
 
-        error:
-          safeErrorValue(
-            root?.error ??
-            root?.Error
-          ),
+              Number:
+                data.Number ??
+                data.number ??
+                null,
 
-        errors:
-          safeErrorValue(
-            root?.errors ??
-            root?.Errors
-          ),
+              Message:
+                data.Message ??
+                data.message ??
+                null,
 
-        code:
-          root?.code ??
-          root?.Code ??
-          null,
+              Key:
+                data.Key ??
+                data.key ??
+                null,
+
+              Values:
+                safeValues(
+                  data.Values ??
+                    data.values
+                ),
+            }
+          : null,
 
         rootKeys:
           root
             ? Object.keys(root)
             : [],
-
-        data:
-          inspectData(data),
       },
 
       responseTimeMs:
@@ -365,13 +334,11 @@ export async function GET(
       {
         success: false,
         stage:
-          "WINGSM_RAW_DIAGNOSTIC",
-
+          "WINGSM_CARIKART_ERROR_DETAIL",
         message:
           error instanceof Error
             ? error.message
             : String(error),
-
         responseTimeMs:
           Date.now() -
           startedAt,
