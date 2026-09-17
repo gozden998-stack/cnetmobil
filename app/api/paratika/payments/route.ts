@@ -276,7 +276,7 @@ export async function GET(
       ),
       100,
       1,
-      100
+      1000
     );
 
     const offset =
@@ -346,13 +346,28 @@ export async function GET(
       return `$${values.length}`;
     };
 
-    // Her zaman seçilen güne kilitlenir.
+    // Tarih bazımız:
+    // - APPROVED + ÜÖT(MPD) varsa: paratika_payment_date
+    // - Henüz ödeme tamamlanmadıysa / ÜÖT yoksa: created_at
+    //
+    // Böylece örneğin işlem Eylül'de oluşturulup ÜÖT 19-Ekim ise
+    // onaylandıktan sonra Eylül'de değil 19-Ekim gününde görünür.
     const dateParam =
       addParam(selectedDate);
 
-    where.push(
-      `(p.created_at AT TIME ZONE '${ISTANBUL_TZ}')::date = ${dateParam}::date`
-    );
+    where.push(`
+      (
+        (
+          CASE
+            WHEN
+              p.status = 'APPROVED'
+              AND p.paratika_payment_date IS NOT NULL
+            THEN p.paratika_payment_date
+            ELSE p.created_at
+          END
+        ) AT TIME ZONE '${ISTANBUL_TZ}'
+      )::date = ${dateParam}::date
+    `);
 
     // Mağaza yetkisi.
     if (!canViewAllBranches) {
@@ -405,7 +420,10 @@ export async function GET(
           OR p.merchant_payment_id ILIKE ${searchParam}
           OR COALESCE(p.pg_tran_id, '') ILIKE ${searchParam}
           OR COALESCE(p.pg_tran_ref_id, '') ILIKE ${searchParam}
+          OR COALESCE(p.pg_order_id, '') ILIKE ${searchParam}
           OR COALESCE(p.approval_code, '') ILIKE ${searchParam}
+          OR COALESCE(p.wingsm_personnel_code, '') ILIKE ${searchParam}
+          OR COALESCE(p.wingsm_personnel_name, '') ILIKE ${searchParam}
         )
       `);
     }
@@ -440,6 +458,9 @@ export async function GET(
             p.created_by_user_id,
             p.created_by_email,
 
+            p.wingsm_personnel_code,
+            p.wingsm_personnel_name,
+
             p.customer_name,
             p.customer_email,
             p.customer_phone,
@@ -472,7 +493,15 @@ export async function GET(
 
             p.last_synced_at,
             p.created_at,
-            p.updated_at
+            p.updated_at,
+
+            CASE
+              WHEN
+                p.status = 'APPROVED'
+                AND p.paratika_payment_date IS NOT NULL
+              THEN p.paratika_payment_date
+              ELSE p.created_at
+            END AS basis_date
 
           FROM public.paratika_payments p
 
@@ -524,9 +553,19 @@ export async function GET(
       selectedDate
     );
 
-    summaryWhere.push(
-      `(created_at AT TIME ZONE '${ISTANBUL_TZ}')::date = $1::date`
-    );
+    summaryWhere.push(`
+      (
+        (
+          CASE
+            WHEN
+              status = 'APPROVED'
+              AND paratika_payment_date IS NOT NULL
+            THEN paratika_payment_date
+            ELSE created_at
+          END
+        ) AT TIME ZONE '${ISTANBUL_TZ}'
+      )::date = $1::date
+    `);
 
     if (!canViewAllBranches) {
       summaryValues.push(
@@ -705,6 +744,11 @@ export async function GET(
             createdByEmail:
               row.created_by_email,
 
+            wingsmPersonnelCode:
+              row.wingsm_personnel_code,
+            wingsmPersonnelName:
+              row.wingsm_personnel_name,
+
             customerName:
               row.customer_name,
             customerEmail:
@@ -772,6 +816,10 @@ export async function GET(
               row.created_at,
             updatedAt:
               row.updated_at,
+
+            // Günlük ekranın hangi tarihe göre bu kaydı gösterdiği.
+            basisDate:
+              row.basis_date,
           })
         ),
 
@@ -808,3 +856,151 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest
+) {
+  const startedAt = Date.now();
+
+  try {
+    const auth =
+      requireSession(request);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const { session } = auth;
+
+    // Yalnızca yönetici/admin ödeme kaydı silebilir.
+    if (session.role !== 'admin') {
+      return noStoreJson(
+        {
+          success: false,
+          error:
+            'Bu işlem için yönetici yetkisi gerekli.',
+        },
+        403
+      );
+    }
+
+    const rawId =
+      request.nextUrl.searchParams.get(
+        'id'
+      );
+
+    const paymentId =
+      Number(rawId);
+
+    if (
+      !Number.isInteger(paymentId) ||
+      paymentId <= 0
+    ) {
+      return noStoreJson(
+        {
+          success: false,
+          error:
+            'Geçerli bir işlem ID gerekli.',
+        },
+        400
+      );
+    }
+
+    const pool = getPool();
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const existingResult =
+        await client.query(
+          `
+            SELECT
+              id,
+              merchant_payment_id,
+              branch_code,
+              status,
+              amount,
+              pg_order_id,
+              wingsm_personnel_code,
+              wingsm_personnel_name
+            FROM public.paratika_payments
+            WHERE id = $1
+            FOR UPDATE
+          `,
+          [paymentId]
+        );
+
+      const existing =
+        existingResult.rows[0];
+
+      if (!existing) {
+        await client.query('ROLLBACK');
+
+        return noStoreJson(
+          {
+            success: false,
+            error:
+              'Paratika işlem kaydı bulunamadı.',
+          },
+          404
+        );
+      }
+
+      // paratika_payment_events FK'si ON DELETE CASCADE.
+      // Bu silme SADECE panel/PostgreSQL kaydını siler.
+      // Paratika tarafındaki gerçek ödeme/işlem iptal edilmez.
+      await client.query(
+        `
+          DELETE FROM public.paratika_payments
+          WHERE id = $1
+        `,
+        [paymentId]
+      );
+
+      await client.query('COMMIT');
+
+      return noStoreJson({
+        success: true,
+        deleted: true,
+        id: Number(existing.id),
+        merchantPaymentId:
+          existing.merchant_payment_id,
+        branchCode:
+          existing.branch_code,
+        status:
+          existing.status,
+        message:
+          'İşlem panel kayıtlarından silindi. Paratika tarafındaki ödeme işlemi değiştirilmedi.',
+        responseTimeMs:
+          Date.now() - startedAt,
+      });
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(
+      'PARATIKA PAYMENT DELETE ERROR:',
+      error
+    );
+
+    return noStoreJson(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Paratika işlem kaydı silinemedi.',
+      },
+      500
+    );
+  }
+}
+
