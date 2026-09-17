@@ -781,6 +781,9 @@ async function savePayment(
     branchCode: string;
     createdByUserId: number | null;
 
+    wingsmPersonnelCode: string;
+    wingsmPersonnelName: string;
+
     customerName: string;
     customerEmail: string;
     customerPhone: string;
@@ -809,6 +812,9 @@ async function savePayment(
           branch_code,
           created_by_user_id,
 
+          wingsm_personnel_code,
+          wingsm_personnel_name,
+
           customer_name,
           customer_email,
           customer_phone,
@@ -832,17 +838,18 @@ async function savePayment(
         VALUES (
           $1, $2, $3,
           $4, $5,
-          $6, $7, $8,
-          $9, 'TRY', $10,
-          $11::varchar, $11::varchar, $12::varchar, $13::text,
+          $6::varchar, $7::varchar,
+          $8, $9, $10,
+          $11, 'TRY', $12,
+          $13::varchar, $13::varchar, $14::varchar, $15::text,
           NOW(),
           CASE
-            WHEN $11::text = 'SENT'
+            WHEN $13::text = 'SENT'
             THEN NOW()
             ELSE NULL
           END,
-          $14::jsonb,
-          $14::jsonb,
+          $16::jsonb,
+          $16::jsonb,
           NOW()
         )
         RETURNING *
@@ -854,6 +861,9 @@ async function savePayment(
 
         input.branchCode,
         input.createdByUserId,
+
+        input.wingsmPersonnelCode,
+        input.wingsmPersonnelName,
 
         input.customerName,
         input.customerEmail,
@@ -911,6 +921,10 @@ async function savePayment(
           input.branchCode,
         createdByUserId:
           input.createdByUserId,
+        wingsmPersonnelCode:
+          input.wingsmPersonnelCode,
+        wingsmPersonnelName:
+          input.wingsmPersonnelName,
         amount:
           input.amount,
         installmentCount:
@@ -977,6 +991,11 @@ export async function POST(
       Number(
         body?.installmentCount
       );
+
+    const personnelCode =
+      String(
+        body?.personnelCode || ''
+      ).trim();
 
     if (
       !Number.isFinite(amount) ||
@@ -1066,6 +1085,78 @@ export async function POST(
             'Taksit sayısı 1 ile 12 arasında olmalıdır.',
         },
         400
+      );
+    }
+
+    if (
+      !personnelCode ||
+      personnelCode.length > 50
+    ) {
+      return noStoreJson(
+        {
+          success: false,
+          error:
+            'İşlemi yapan personeli seçin.',
+        },
+        400
+      );
+    }
+
+    // Frontend yalnızca personel KODUNU gönderir.
+    // İsim frontend'den kabul edilmez/güvenilmez.
+    // Aktif personelin gerçek adı PostgreSQL wingsm_personnel
+    // tablosundan server tarafında çözülür ve ödeme kaydına snapshot yazılır.
+    const personnelPool = getPool();
+
+    const personnelResult =
+      await personnelPool.query(
+        `
+          SELECT
+            code,
+            name
+          FROM public.wingsm_personnel
+          WHERE code = $1::varchar
+            AND active = TRUE
+          LIMIT 1
+        `,
+        [personnelCode]
+      );
+
+    if (!personnelResult.rowCount) {
+      return noStoreJson(
+        {
+          success: false,
+          error:
+            'Seçilen WingSM personeli bulunamadı veya aktif değil.',
+          personnelCode,
+        },
+        400
+      );
+    }
+
+    const wingsmPersonnelCode =
+      String(
+        personnelResult.rows[0]?.code ||
+          ''
+      ).trim();
+
+    const wingsmPersonnelName =
+      String(
+        personnelResult.rows[0]?.name ||
+          ''
+      ).trim();
+
+    if (
+      !wingsmPersonnelCode ||
+      !wingsmPersonnelName
+    ) {
+      return noStoreJson(
+        {
+          success: false,
+          error:
+            'WingSM personel kaydı eksik.',
+        },
+        500
       );
     }
 
@@ -1591,6 +1682,9 @@ export async function POST(
             createdByUserId:
               safeCreatedByUserId,
 
+            wingsmPersonnelCode,
+            wingsmPersonnelName,
+
             customerName,
             customerEmail,
             customerPhone,
@@ -1637,6 +1731,12 @@ export async function POST(
               payByLinkToken,
               selectedInstallment:
                 installmentCount,
+              wingsmPersonnel: {
+                code:
+                  wingsmPersonnelCode,
+                name:
+                  wingsmPersonnelName,
+              },
             },
           }
         );
@@ -1683,6 +1783,10 @@ export async function POST(
           paymentUrl,
           selectedInstallment:
             installmentCount,
+          personnelCode:
+            wingsmPersonnelCode,
+          personnelName:
+            wingsmPersonnelName,
 
           // Secret içermez. DB şema/constraint hatasını net görmek için.
           databaseError:
@@ -1740,6 +1844,11 @@ export async function POST(
           customerPhone,
 
           installmentCount,
+
+          personnelCode:
+            wingsmPersonnelCode,
+          personnelName:
+            wingsmPersonnelName,
 
           status:
             'LINK_CREATED',
@@ -1812,6 +1921,11 @@ export async function POST(
       customerPhone,
 
       installmentCount,
+
+      personnelCode:
+        wingsmPersonnelCode,
+      personnelName:
+        wingsmPersonnelName,
 
       status: 'SENT',
       smsSent: true,
