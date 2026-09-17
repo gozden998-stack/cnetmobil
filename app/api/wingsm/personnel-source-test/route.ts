@@ -1,12 +1,12 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM B2B CariKart PERSONEL endpoint TEST
+// CNETMOBIL - WingSM CariKart PERSONEL RAW DIAGNOSTIC
 //
-// WingSM tarafından verilen endpoint:
-// b2b/carikart/list/P/20260917/20260917?filter='*'
-//
-// Mevcut WingSM B2B servisinde çalışan diğer route'lar
-// /api/b2b/... altında olduğu için burada /api prefix'i kullanılır.
+// Amaç:
+// /api/b2b/carikart/list/P/20260917/20260917?filter='*'
+// endpointi HTTP olarak çalışıyor ama success:false dönüyor.
+// Bu route wingSMRequest içindeki generic hata dönüşünü BYPASS eder,
+// gerçek WingSM cevap yapısındaki hata/message alanlarını güvenli biçimde gösterir.
 //
 // SADECE GET.
 // WingSM'e hiçbir veri yazılmaz.
@@ -17,7 +17,8 @@ import {
 } from "next/server";
 
 import {
-  wingSMRequest,
+  clearWingSMToken,
+  getWingSMToken,
 } from "@/app/lib/wingsm/server";
 
 export const runtime = "nodejs";
@@ -45,150 +46,183 @@ function asObject(
     typeof value === "object" &&
     !Array.isArray(value)
   ) {
-    return value as Record<
-      string,
-      unknown
-    >;
+    return value as Record<string, unknown>;
   }
 
   return null;
 }
 
-function findArray(
-  payload: unknown
-): {
-  path: string;
-  list: unknown[];
-} | null {
-  if (Array.isArray(payload)) {
-    return {
-      path: "root",
-      list: payload,
-    };
-  }
-
-  const root = asObject(payload);
-
-  if (!root) {
+function safeErrorValue(
+  value: unknown
+): unknown {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return null;
   }
 
-  const directKeys = [
-    "data",
-    "Data",
-    "list",
-    "List",
-    "items",
-    "Items",
-    "rows",
-    "Rows",
-    "result",
-    "Result",
-  ];
-
-  for (const key of directKeys) {
-    if (Array.isArray(root[key])) {
-      return {
-        path: key,
-        list: root[key] as unknown[],
-      };
-    }
-  }
-
-  for (
-    const [parentKey, parentValue]
-    of Object.entries(root)
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
   ) {
-    const parent =
-      asObject(parentValue);
+    return value;
+  }
 
-    if (!parent) continue;
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 10)
+      .map((item) => {
+        if (
+          typeof item === "string" ||
+          typeof item === "number" ||
+          typeof item === "boolean"
+        ) {
+          return item;
+        }
 
-    for (const key of directKeys) {
-      if (Array.isArray(parent[key])) {
+        const row = asObject(item);
+
+        if (!row) {
+          return typeof item;
+        }
+
         return {
-          path:
-            `${parentKey}.${key}`,
-          list:
-            parent[key] as unknown[],
+          message:
+            row.message ??
+            row.Message ??
+            null,
+          error:
+            row.error ??
+            row.Error ??
+            null,
+          code:
+            row.code ??
+            row.Code ??
+            null,
+          description:
+            row.description ??
+            row.Description ??
+            null,
         };
-      }
-    }
+      });
   }
 
-  return null;
-}
+  const obj = asObject(value);
 
-function previewRow(
-  value: unknown
-) {
-  const row =
-    asObject(value);
-
-  if (!row) {
-    return {
-      type:
-        Array.isArray(value)
-          ? "array"
-          : typeof value,
-    };
-  }
-
-  const wantedKeys = [
-    "Id",
-    "ID",
-    "id",
-    "Kod",
-    "KOD",
-    "kod",
-    "Code",
-    "code",
-    "CariKod",
-    "CariKodu",
-    "PersonelKod",
-    "SaticiKod",
-    "Ad",
-    "ADI",
-    "adi",
-    "Name",
-    "name",
-    "CariAd",
-    "CariAdi",
-    "PersonelAd",
-    "SaticiAd",
-    "Sirket",
-    "Sube",
-    "GorevYeri",
-    "Aktif",
-    "Active",
-    "Status",
-    "Durum",
-    "IseGirisTarih",
-    "IstenCikisTarih",
-  ];
-
-  const preview:
-    Record<string, unknown> = {};
-
-  for (const key of wantedKeys) {
-    if (
-      Object.prototype
-        .hasOwnProperty.call(
-          row,
-          key
-        )
-    ) {
-      preview[key] =
-        row[key];
-    }
+  if (!obj) {
+    return typeof value;
   }
 
   return {
-    keys:
-      Object.keys(row),
-    fields:
-      preview,
+    message:
+      obj.message ??
+      obj.Message ??
+      null,
+    error:
+      obj.error ??
+      obj.Error ??
+      null,
+    code:
+      obj.code ??
+      obj.Code ??
+      null,
+    description:
+      obj.description ??
+      obj.Description ??
+      null,
   };
+}
+
+function inspectData(
+  data: unknown
+) {
+  if (Array.isArray(data)) {
+    const first =
+      asObject(data[0]);
+
+    return {
+      type: "array",
+      count: data.length,
+      firstRowKeys:
+        first
+          ? Object.keys(first)
+          : [],
+    };
+  }
+
+  const obj =
+    asObject(data);
+
+  if (obj) {
+    return {
+      type: "object",
+      keys:
+        Object.keys(obj),
+    };
+  }
+
+  return {
+    type:
+      data === null
+        ? "null"
+        : typeof data,
+  };
+}
+
+function getBaseUrl() {
+  const raw = String(
+    process.env.WINGSM_BASE_URL ||
+      ""
+  ).trim();
+
+  if (!raw) {
+    throw new Error(
+      "WINGSM_BASE_URL bulunamadı."
+    );
+  }
+
+  return raw.replace(/\/+$/, "");
+}
+
+async function makeRequest(
+  token: string
+) {
+  const baseUrl =
+    getBaseUrl();
+
+  const url =
+    new URL(
+      `${baseUrl}/api/b2b/carikart/list/P/20260917/20260917`
+    );
+
+  // WingSM desteğinin verdiği ifade:
+  // ?filter='*'
+  url.searchParams.set(
+    "filter",
+    "'*'"
+  );
+
+  return fetch(
+    url.toString(),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept:
+          "application/json",
+        "Content-Type":
+          "application/json",
+        "x-access-token":
+          token,
+      },
+      signal:
+        AbortSignal.timeout(
+          20000
+        ),
+    }
+  );
 }
 
 export async function GET(
@@ -197,68 +231,129 @@ export async function GET(
   const startedAt =
     Date.now();
 
-  // DÜZELTME:
-  // İlk testte /b2b/... kullanılmıştı.
-  // Mevcut çalışan WingSM B2B route yapısına göre /api/b2b/... olmalı.
-  const path =
-    "/api/b2b/carikart/list/P/20260917/20260917";
-
   try {
-    const payload =
-      await wingSMRequest<unknown>(
-        path,
-        {
-          method: "GET",
-          query: {
-            filter: "'*'",
-          },
-        }
-      );
+    let token =
+      await getWingSMToken();
 
-    const found =
-      findArray(payload);
+    let response =
+      await makeRequest(token);
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      clearWingSMToken();
+
+      token =
+        await getWingSMToken(
+          true
+        );
+
+      response =
+        await makeRequest(
+          token
+        );
+    }
+
+    const raw =
+      await response.text();
+
+    let payload: unknown =
+      null;
+
+    try {
+      payload =
+        raw
+          ? JSON.parse(raw)
+          : null;
+    } catch {
+      return json({
+        success: false,
+        stage:
+          "WINGSM_RAW_RESPONSE",
+        httpStatus:
+          response.status,
+        httpOk:
+          response.ok,
+        contentType:
+          response.headers.get(
+            "content-type"
+          ),
+        rawPreview:
+          raw.slice(0, 500),
+        note:
+          "WingSM JSON dönmedi.",
+        responseTimeMs:
+          Date.now() -
+          startedAt,
+      });
+    }
 
     const root =
       asObject(payload);
+
+    const data =
+      root?.data ??
+      root?.Data ??
+      root?.list ??
+      root?.List ??
+      null;
 
     return json({
       success: true,
 
       stage:
-        "WINGSM_CARIKART_PERSONNEL_TEST",
+        "WINGSM_RAW_DIAGNOSTIC",
 
       request: {
         method: "GET",
-        path,
+        path:
+          "/api/b2b/carikart/list/P/20260917/20260917",
         filter:
           "'*'",
       },
 
-      response: {
-        rootType:
-          Array.isArray(payload)
-            ? "array"
-            : typeof payload,
+      wingResponse: {
+        httpStatus:
+          response.status,
+        httpOk:
+          response.ok,
+
+        success:
+          root?.success ??
+          root?.Success ??
+          null,
+
+        message:
+          safeErrorValue(
+            root?.message ??
+            root?.Message
+          ),
+
+        error:
+          safeErrorValue(
+            root?.error ??
+            root?.Error
+          ),
+
+        errors:
+          safeErrorValue(
+            root?.errors ??
+            root?.Errors
+          ),
+
+        code:
+          root?.code ??
+          root?.Code ??
+          null,
 
         rootKeys:
           root
             ? Object.keys(root)
             : [],
 
-        arrayPath:
-          found?.path ||
-          null,
-
-        count:
-          found?.list.length ??
-          null,
-
-        preview:
-          found
-            ? found.list
-                .slice(0, 5)
-                .map(previewRow)
-            : [],
+        data:
+          inspectData(data),
       },
 
       responseTimeMs:
@@ -269,16 +364,8 @@ export async function GET(
     return json(
       {
         success: false,
-
         stage:
-          "WINGSM_CARIKART_PERSONNEL_TEST",
-
-        request: {
-          method: "GET",
-          path,
-          filter:
-            "'*'",
-        },
+          "WINGSM_RAW_DIAGNOSTIC",
 
         message:
           error instanceof Error
