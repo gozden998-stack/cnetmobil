@@ -96,6 +96,19 @@ type PaymentsResponse = {
   error?: string;
 };
 
+type WingsmPersonnel = {
+  code: string;
+  name: string;
+};
+
+type WingsmPersonnelResponse = {
+  success: boolean;
+  count?: number;
+  personnel?: WingsmPersonnel[];
+  message?: string;
+  error?: string;
+};
+
 type CreateResult = {
   success: boolean;
   databaseSaved?: boolean;
@@ -110,6 +123,8 @@ type CreateResult = {
   installmentCount?: number;
   branch?: string;
   status?: string;
+  personnelCode?: string;
+  personnelName?: string;
 };
 
 const INSTALLMENTS = Array.from(
@@ -389,6 +404,7 @@ export default function Paratika() {
     customerEmail: '',
     customerPhone: '',
     installmentCount: '2',
+    personnelCode: '',
   });
 
   const [calculatorOpen, setCalculatorOpen] =
@@ -397,6 +413,14 @@ export default function Paratika() {
     useState('');
   const paymentFormRef =
     useRef<HTMLElement | null>(null);
+
+  const [personnel, setPersonnel] = useState<
+    WingsmPersonnel[]
+  >([]);
+  const [personnelLoading, setPersonnelLoading] =
+    useState(true);
+  const [personnelError, setPersonnelError] =
+    useState('');
 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] =
@@ -433,6 +457,62 @@ export default function Paratika() {
       a.localeCompare(b, 'tr')
     );
   }, [payments, permissions?.ownBranch]);
+
+  const loadPersonnel = useCallback(
+    async () => {
+      setPersonnelLoading(true);
+
+      try {
+        setPersonnelError('');
+
+        const response = await fetch(
+          '/api/wingsm/personnel',
+          {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'include',
+          }
+        );
+
+        const data =
+          (await response.json()) as WingsmPersonnelResponse;
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.error ||
+              data.message ||
+              'WingSM personel listesi alınamadı.'
+          );
+        }
+
+        const list = Array.isArray(data.personnel)
+          ? data.personnel
+              .filter(
+                (item) =>
+                  item &&
+                  String(item.code || '').trim() &&
+                  String(item.name || '').trim()
+              )
+              .map((item) => ({
+                code: String(item.code).trim(),
+                name: String(item.name).trim(),
+              }))
+          : [];
+
+        setPersonnel(list);
+      } catch (error) {
+        setPersonnel([]);
+        setPersonnelError(
+          error instanceof Error
+            ? error.message
+            : 'WingSM personel listesi alınamadı.'
+        );
+      } finally {
+        setPersonnelLoading(false);
+      }
+    },
+    []
+  );
 
   const loadPayments = useCallback(
     async (silent = false) => {
@@ -496,6 +576,10 @@ export default function Paratika() {
     },
     [branchFilter, statusFilter, search, selectedDate]
   );
+
+  useEffect(() => {
+    void loadPersonnel();
+  }, [loadPersonnel]);
 
   useEffect(() => {
     void loadPayments();
@@ -636,6 +720,14 @@ export default function Paratika() {
       return;
     }
 
+    if (!form.personnelCode) {
+      setCreateError(
+        'İşlemi yapan personeli seçin.'
+      );
+      setCreated(null);
+      return;
+    }
+
     setCreating(true);
     setCreateError('');
     setCreated(null);
@@ -658,6 +750,8 @@ export default function Paratika() {
             installmentCount: Number(
               form.installmentCount
             ),
+            personnelCode:
+              form.personnelCode,
           }),
         }
       );
@@ -682,6 +776,7 @@ export default function Paratika() {
         customerPhone: '',
         installmentCount:
           current.installmentCount,
+        personnelCode: '',
       }));
 
       await loadPayments(true);
@@ -1135,6 +1230,69 @@ export default function Paratika() {
             className="space-y-4"
           >
             <div>
+              <FieldLabel>
+                İşlemi Yapan Personel
+              </FieldLabel>
+
+              <select
+                value={form.personnelCode}
+                onChange={(event) => {
+                  setForm((old) => ({
+                    ...old,
+                    personnelCode:
+                      event.target.value,
+                  }));
+                  setCreateError('');
+                }}
+                required
+                disabled={
+                  personnelLoading ||
+                  personnel.length === 0
+                }
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-black text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">
+                  {personnelLoading
+                    ? 'PERSONELLER YÜKLENİYOR...'
+                    : personnel.length > 0
+                    ? 'PERSONEL SEÇİN'
+                    : 'PERSONEL BULUNAMADI'}
+                </option>
+
+                {personnel.map((item) => (
+                  <option
+                    key={item.code}
+                    value={item.code}
+                  >
+                    {item.name} • {item.code}
+                  </option>
+                ))}
+              </select>
+
+              {personnelError ? (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                  <span className="text-[10px] font-bold leading-4 text-rose-700">
+                    {personnelError}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void loadPersonnel()
+                    }
+                    className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black text-rose-700 shadow-sm"
+                  >
+                    TEKRAR DENE
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-1.5 text-[10px] font-bold text-slate-400">
+                  WingSM personel listesi • mağaza filtresi yok
+                </div>
+              )}
+            </div>
+
+            <div>
               <FieldLabel>Tutar</FieldLabel>
 
               <div className="relative">
@@ -1263,6 +1421,15 @@ export default function Paratika() {
                   ÖDEME LİNKİ OLUŞTU • SMS TALEBİ GÖNDERİLDİ
                 </div>
 
+                {created.personnelName ? (
+                  <div className="mt-2 rounded-xl border border-emerald-200 bg-white/80 px-3 py-2 text-[10px] font-black text-emerald-800">
+                    YAPAN PERSONEL: {created.personnelName}
+                    {created.personnelCode
+                      ? ` • ${created.personnelCode}`
+                      : ''}
+                  </div>
+                ) : null}
+
                 <div className="mt-2 break-all rounded-xl bg-white/80 p-2.5 text-[10px] font-bold leading-4 text-emerald-700">
                   {created.paymentUrl}
                 </div>
@@ -1294,11 +1461,19 @@ export default function Paratika() {
 
             <button
               type="submit"
-              disabled={creating}
+              disabled={
+                creating ||
+                personnelLoading ||
+                !form.personnelCode
+              }
               className="w-full rounded-2xl bg-blue-600 px-4 py-4 text-sm font-black tracking-wide text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {creating
                 ? 'OLUŞTURULUYOR...'
+                : personnelLoading
+                ? 'PERSONELLER YÜKLENİYOR...'
+                : !form.personnelCode
+                ? 'ÖNCE PERSONEL SEÇİN'
                 : 'LİNK OLUŞTUR VE SMS GÖNDER'}
             </button>
 
