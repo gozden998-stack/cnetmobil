@@ -1,22 +1,17 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM personel kaynagi TEST
+// CNETMOBIL - WingSM B2B carikart PERSONEL endpoint TEST
 //
-// AMAC:
-// - WingSM web ekraninda personel listesi:
-//     GET /HttpApiHizliSatis/HizliSatisInitilas
-//     response.settings.ListSatici
-//   icinden geliyor.
+// WingSM tarafından verilen endpoint:
+// GET b2b/carikart/list/P/20260917/20260917?filter='*'
 //
-// BU ROUTE SADECE TEST ICINDIR:
-// - Mevcut app/lib/wingsm/server.ts icindeki wingSMRequest() kullanilir.
-// - WingSM'e veri YAZILMAZ.
-// - Sadece GET yapilir.
-// - B2B token'in bu portal endpointinde kabul edilip edilmedigini test eder.
-//
-// TEST BASARILI OLURSA sonraki adim:
-// - Liste PostgreSQL public.wingsm_personnel tablosuna UPSERT edilecek.
-// - 15 dakikalik otomatik senkron kurulacak.
+// NOT:
+// - Mevcut app/lib/wingsm/server.ts değiştirilmez.
+// - Mevcut B2B authenticate + x-access-token akışı kullanılır.
+// - WingSM'e yalnızca GET isteği gider.
+// - Veri yazma / güncelleme / silme YOKTUR.
+// - Test cevabında tüm ham kayıtlar dönülmez.
+//   Sadece response yapısı + ilk birkaç kaydın güvenli önizlemesi döner.
 
 import {
   NextRequest,
@@ -30,24 +25,6 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-type WingSeller = {
-  Id?: number | string;
-  Kod?: string;
-  Ad?: string;
-  [key: string]: unknown;
-};
-
-type WingInitResponse = {
-  success?: boolean;
-  settings?: {
-    ListSatici?: WingSeller[];
-    [key: string]: unknown;
-  };
-  message?: string;
-  error?: string;
-  [key: string]: unknown;
-};
 
 function json(
   body: Record<string, unknown>,
@@ -65,31 +42,162 @@ function json(
   );
 }
 
-function wingDateNumber(
-  date = new Date()
+function asObject(
+  value: unknown
+): Record<string, unknown> | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<
+      string,
+      unknown
+    >;
+  }
+
+  return null;
+}
+
+function findArray(
+  payload: unknown
+): {
+  path: string;
+  list: unknown[];
+} | null {
+  if (Array.isArray(payload)) {
+    return {
+      path: "root",
+      list: payload,
+    };
+  }
+
+  const root = asObject(payload);
+
+  if (!root) {
+    return null;
+  }
+
+  const directKeys = [
+    "data",
+    "Data",
+    "list",
+    "List",
+    "items",
+    "Items",
+    "rows",
+    "Rows",
+    "result",
+    "Result",
+  ];
+
+  for (const key of directKeys) {
+    if (Array.isArray(root[key])) {
+      return {
+        path: key,
+        list: root[key] as unknown[],
+      };
+    }
+  }
+
+  for (
+    const [parentKey, parentValue]
+    of Object.entries(root)
+  ) {
+    const parent =
+      asObject(parentValue);
+
+    if (!parent) {
+      continue;
+    }
+
+    for (const key of directKeys) {
+      if (
+        Array.isArray(parent[key])
+      ) {
+        return {
+          path:
+            `${parentKey}.${key}`,
+          list:
+            parent[key] as unknown[],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function previewRow(
+  value: unknown
 ) {
-  const year =
-    String(
-      date.getFullYear()
-    );
+  const row =
+    asObject(value);
 
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(
-      2,
-      "0"
-    );
+  if (!row) {
+    return {
+      type:
+        Array.isArray(value)
+          ? "array"
+          : typeof value,
+    };
+  }
 
-  const day =
-    String(
-      date.getDate()
-    ).padStart(
-      2,
-      "0"
-    );
+  const wantedKeys = [
+    "Id",
+    "ID",
+    "id",
+    "Kod",
+    "KOD",
+    "kod",
+    "Code",
+    "code",
+    "CariKod",
+    "CariKodu",
+    "PersonelKod",
+    "SaticiKod",
+    "Ad",
+    "ADI",
+    "adi",
+    "Name",
+    "name",
+    "CariAd",
+    "CariAdi",
+    "PersonelAd",
+    "SaticiAd",
+    "Sirket",
+    "Sube",
+    "GorevYeri",
+    "Aktif",
+    "Active",
+    "Status",
+    "Durum",
+    "IstenCikisTarih",
+    "IseGirisTarih",
+  ];
 
-  return `${year}${month}${day}`;
+  const preview:
+    Record<string, unknown> = {};
+
+  for (const key of wantedKeys) {
+    if (
+      Object.prototype
+        .hasOwnProperty.call(
+          row,
+          key
+        )
+    ) {
+      preview[key] =
+        row[key];
+    }
+  }
+
+  return {
+    keys:
+      Object.keys(row),
+    fields:
+      preview,
+  };
 }
 
 export async function GET(
@@ -98,159 +206,102 @@ export async function GET(
   const startedAt =
     Date.now();
 
+  const path =
+    "/b2b/carikart/list/P/20260917/20260917";
+
   try {
-    const tarihN =
-      wingDateNumber();
-
     const payload =
-      await wingSMRequest<WingInitResponse>(
-        "/HttpApiHizliSatis/HizliSatisInitilas",
+      await wingSMRequest<unknown>(
+        path,
         {
-          method:
-            "GET",
-
+          method: "GET",
           query: {
-            TarihN:
-              tarihN,
-
-            // WingSM kendi kaynak kodunda
-            // ilk acilista Sirket:null kullaniyor.
-            // wingSMRequest null degeri query'ye eklemez.
-            Sirket:
-              null,
+            // WingSM desteğinin verdiği değer:
+            // ?filter='*'
+            filter: "'*'",
           },
         }
       );
 
-    const rawList =
-      payload?.settings
-        ?.ListSatici;
+    const found =
+      findArray(payload);
 
-    if (
-      !Array.isArray(
-        rawList
-      )
-    ) {
-      return json(
-        {
-          success:
-            false,
-
-          stage:
-            "LIST_SATICI_NOT_FOUND",
-
-          message:
-            "WingSM cevabi geldi ancak settings.ListSatici bulunamadi.",
-
-          responseKeys:
-            payload &&
-            typeof payload ===
-              "object"
-              ? Object.keys(
-                  payload
-                )
-              : [],
-
-          settingsKeys:
-            payload
-              ?.settings &&
-            typeof payload
-              .settings ===
-              "object"
-              ? Object.keys(
-                  payload
-                    .settings
-                )
-              : [],
-
-          responseTimeMs:
-            Date.now() -
-            startedAt,
-        },
-        502
-      );
-    }
-
-    const personnel =
-      rawList
-        .map(
-          (
-            row
-          ) => ({
-            code:
-              String(
-                row?.Kod ??
-                  ""
-              ).trim(),
-
-            name:
-              String(
-                row?.Ad ??
-                  ""
-              ).trim(),
-
-            sourceId:
-              row?.Id ??
-              null,
-          })
-        )
-        .filter(
-          (
-            row
-          ) =>
-            row.code &&
-            row.name
-        )
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            a.name.localeCompare(
-              b.name,
-              "tr-TR"
-            )
-        );
+    const root =
+      asObject(payload);
 
     return json({
-      success:
-        true,
+      success: true,
 
-      source:
-        "WingSM / HttpApiHizliSatis/HizliSatisInitilas / settings.ListSatici",
+      stage:
+        "WINGSM_CARIKART_PERSONNEL_TEST",
 
-      tarihN,
+      request: {
+        method: "GET",
+        path,
+        filter:
+          "'*'",
+      },
 
-      count:
-        personnel.length,
+      response: {
+        rootType:
+          Array.isArray(payload)
+            ? "array"
+            : typeof payload,
 
-      personnel,
+        rootKeys:
+          root
+            ? Object.keys(root)
+            : [],
+
+        arrayPath:
+          found?.path ||
+          null,
+
+        count:
+          found?.list.length ??
+          (Array.isArray(payload)
+            ? payload.length
+            : null),
+
+        preview:
+          found
+            ? found.list
+                .slice(0, 5)
+                .map(previewRow)
+            : [],
+      },
+
+      note:
+        found
+          ? "Endpoint cevap verdi. İlk 5 kayıt güvenli önizleme olarak döndürüldü."
+          : "Endpoint cevap verdi ancak personel listesinin bulunduğu array otomatik tespit edilemedi. rootKeys değerine bakacağız.",
 
       responseTimeMs:
         Date.now() -
         startedAt,
     });
-  } catch (
-    error
-  ) {
+  } catch (error) {
     return json(
       {
-        success:
-          false,
+        success: false,
 
         stage:
-          "WINGSM_REQUEST",
+          "WINGSM_CARIKART_PERSONNEL_TEST",
+
+        request: {
+          method: "GET",
+          path,
+          filter:
+            "'*'",
+        },
 
         message:
-          error instanceof
-          Error
+          error instanceof Error
             ? error.message
-            : String(
-                error
-              ),
+            : String(error),
 
         note:
-          "Bu hata cikarsa B2B x-access-token, WingSM portal endpointinde kabul edilmiyor olabilir. Bu durumda portal oturum mekanizmasini ayri baglayacagiz.",
+          "Bu route mevcut WingSM B2B authenticate + x-access-token altyapısını kullanır. Mevcut stok entegrasyonuna dokunmaz.",
 
         responseTimeMs:
           Date.now() -
