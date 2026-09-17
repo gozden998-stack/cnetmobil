@@ -113,9 +113,26 @@ type CreateResult = {
 };
 
 const INSTALLMENTS = Array.from(
-  { length: 11 },
-  (_, index) => index + 2
+  { length: 12 },
+  (_, index) => index + 1
 );
+
+// Oranlar personel arayüzünde GÖSTERİLMEZ.
+// Sadece hesaplama amacıyla kullanılır.
+const INSTALLMENT_CALCULATOR = [
+  { month: 1, rate: 4, label: 'Tek Çekim' },
+  { month: 2, rate: 7.83 },
+  { month: 3, rate: 10.05 },
+  { month: 4, rate: 12.36 },
+  { month: 5, rate: 14.76 },
+  { month: 6, rate: 17.55, label: 'Avantajlı' },
+  { month: 7, rate: 20.19 },
+  { month: 8, rate: 22.96 },
+  { month: 9, rate: 25.85 },
+  { month: 10, rate: 28.88 },
+  { month: 11, rate: 32.07 },
+  { month: 12, rate: 35.41, label: 'En Popüler' },
+] as const;
 
 const STATUS_TEXT: Record<PaymentStatus, string> = {
   LINK_CREATED: 'LİNK OLUŞTU',
@@ -368,6 +385,13 @@ export default function Paratika() {
     installmentCount: '2',
   });
 
+  const [calculatorOpen, setCalculatorOpen] =
+    useState(false);
+  const [calculatorAmount, setCalculatorAmount] =
+    useState('');
+  const paymentFormRef =
+    useRef<HTMLElement | null>(null);
+
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] =
     useState('');
@@ -573,6 +597,29 @@ export default function Paratika() {
       window.clearInterval(intervalId);
     };
   }, [loadPayments]);
+
+  function applyCalculatedInstallment(
+    month: number,
+    total: number
+  ) {
+    setForm((current) => ({
+      ...current,
+      amount: total.toFixed(2),
+      installmentCount: String(month),
+    }));
+
+    setCreateError('');
+    setCreated(null);
+    setCalculatorOpen(false);
+    setCalculatorAmount('');
+
+    window.requestAnimationFrame(() => {
+      paymentFormRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }
 
   async function createPayment(
     event: React.FormEvent
@@ -824,6 +871,17 @@ export default function Paratika() {
 
             <button
               type="button"
+              onClick={() => {
+                setCalculatorAmount('');
+                setCalculatorOpen(true);
+              }}
+              className="rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-amber-600"
+            >
+              TAKSİT HESAPLA
+            </button>
+
+            <button
+              type="button"
               onClick={() => void syncAll()}
               disabled={syncingAll}
               className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -835,6 +893,179 @@ export default function Paratika() {
           </div>
         </div>
       </div>
+
+      {/* TAKSİT HESAPLAMA MODALI */}
+      {calculatorOpen ? (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-5">
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">
+                  PARATİKA
+                </div>
+
+                <h3 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                  Taksit Hesapla
+                </h3>
+
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  İşlem tutarını girin, uygun taksiti seçip Paratika formuna aktarın.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCalculatorOpen(false);
+                  setCalculatorAmount('');
+                }}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                aria-label="Taksit hesaplama penceresini kapat"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-6">
+              <FieldLabel>İşlem Tutarı</FieldLabel>
+
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  autoFocus
+                  value={calculatorAmount}
+                  onChange={(event) =>
+                    setCalculatorAmount(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Örn. 45.000"
+                  className="w-full rounded-2xl border-2 border-amber-200 bg-white px-4 py-4 pr-14 text-xl font-black text-slate-950 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+                />
+
+                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-black text-slate-400">
+                  TL
+                </div>
+              </div>
+
+              <div className="mt-2 text-[10px] font-bold text-slate-400">
+                Komisyon oranları personel ekranında gösterilmez.
+              </div>
+            </div>
+
+            <div className="custom-scrollbar flex-1 overflow-y-auto p-4 sm:p-6">
+              {calculatorAmount &&
+              Number(calculatorAmount) > 0 ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {INSTALLMENT_CALCULATOR.map(
+                    (item) => {
+                      const baseAmount =
+                        Number(calculatorAmount);
+
+                      const total =
+                        baseAmount *
+                        (1 + item.rate / 100);
+
+                      const monthly =
+                        total / item.month;
+
+                      return (
+                        <div
+                          key={item.month}
+                          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-900 text-white">
+                                <span className="text-lg font-black leading-none">
+                                  {item.month}
+                                </span>
+                                <span className="mt-0.5 text-[7px] font-black uppercase tracking-wide text-slate-300">
+                                  {item.month === 1
+                                    ? 'Çekim'
+                                    : 'Taksit'}
+                                </span>
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="text-lg font-black text-slate-950">
+                                  {monthly.toLocaleString(
+                                    'tr-TR',
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }
+                                  )}{' '}
+                                  TL
+                                </div>
+
+                                <div className="mt-0.5 text-[10px] font-bold text-slate-400">
+                                  Aylık ödeme
+                                </div>
+
+                                {item.label ? (
+                                  <div className="mt-1 inline-flex rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-700">
+                                    {item.label}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                Toplam
+                              </div>
+
+                              <div className="mt-1 text-sm font-black text-slate-700">
+                                {total.toLocaleString(
+                                  'tr-TR',
+                                  {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  }
+                                )}{' '}
+                                TL
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              applyCalculatedInstallment(
+                                item.month,
+                                total
+                              )
+                            }
+                            className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 text-xs font-black text-white transition hover:bg-blue-700"
+                          >
+                            {item.month === 1
+                              ? 'TEK ÇEKİM YAP'
+                              : `${item.month} TAKSİT YAP`}
+                          </button>
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              ) : (
+                <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center">
+                  <div className="text-3xl">₺</div>
+                  <div className="mt-3 text-sm font-black text-slate-700">
+                    Hesaplama için tutar girin
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-400">
+                    Sonuçlar burada görünecek.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* SUMMARY */}
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -879,7 +1110,10 @@ export default function Paratika() {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         {/* FORM */}
-        <section className="h-fit rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
+        <section
+          ref={paymentFormRef}
+          className="h-fit scroll-mt-5 rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm"
+        >
           <div className="mb-5 border-b border-slate-100 pb-4">
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
               YENİ PARATİKA İŞLEMİ
