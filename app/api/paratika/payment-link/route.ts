@@ -1056,14 +1056,14 @@ export async function POST(
       !Number.isInteger(
         installmentCount
       ) ||
-      installmentCount < 2 ||
+      installmentCount < 1 ||
       installmentCount > 12
     ) {
       return noStoreJson(
         {
           success: false,
           error:
-            'Taksit sayısı 2 ile 12 arasında olmalıdır.',
+            'Taksit sayısı 1 ile 12 arasında olmalıdır.',
         },
         400
       );
