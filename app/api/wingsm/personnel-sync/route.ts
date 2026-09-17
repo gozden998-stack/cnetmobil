@@ -1,36 +1,24 @@
 // app/api/wingsm/personnel-sync/route.ts
 //
-// CNETMOBIL - WingSM PERSONEL SENKRONIZASYONU
+// CNETMOBIL - WingSM B2B PERSONEL -> PostgreSQL SYNC
 //
-// AMAÇ:
-// WingSM WEB PORTAL
-//   -> /HttpApiHizliSatis/HizliSatisInitilas
-//   -> settings.ListSatici
-//   -> PostgreSQL public.wingsm_personnel
+// Kaynak:
+// GET /api/b2b/carikart/list/P/:tarih1/:tarih2?filter=*
 //
-// KURALLAR:
-// - WingSM iş verisine YAZMAZ.
-// - Stok / sipariş / transfer / ürün göndermez.
-// - WingSM tarafında sadece GET yapar.
-// - Authentication için portal session helper kullanılır.
-// - Mevcut B2B WingSM entegrasyonuna DOKUNMAZ.
-// - Kod her zaman STRING tutulur.
-// - "0004" -> "4" OLMAZ.
-// - WingSM'den kaybolan personeller active=false yapılır.
-// - Eski kayıtlar silinmez.
+// Kurallar:
+// - WingSM'e SADECE GET yapılır.
+// - WingSM tarafında hiçbir kayıt oluşturulmaz/değiştirilmez/silinmez.
+// - Kod STRING tutulur. Örn: "0004" baştaki sıfırları korur.
+// - PostgreSQL public.wingsm_personnel cache tablosu güncellenir.
+// - WingSM güncel listesinde olanlar active=true.
+// - Güncel listede olmayan eski cache kayıtları active=false.
+// - Hassas alanlar (TC, telefon, e-posta, adres vb.) raw_data'ya YAZILMAZ.
+// - Route sadece ADMIN oturumu ile çalışır.
 //
-// Kullanım:
-// GET  /api/wingsm/personnel-sync
-// POST /api/wingsm/personnel-sync
-//
-// Manuel kullanım:
-// Panel admin session.
-//
-// Cron kullanım:
-// Authorization: Bearer <WINGSM_PERSONNEL_SYNC_SECRET>
-// veya
-// x-sync-secret: <WINGSM_PERSONNEL_SYNC_SECRET>
-//
+// Mevcut:
+// GET /api/wingsm/personnel
+// endpointine dokunulmaz. Sync bittikten sonra Paratika dropdown'u
+// PostgreSQL cache üzerinden yeni personel listesini otomatik görür.
 
 import {
   NextRequest,
@@ -39,14 +27,13 @@ import {
 
 import {
   Pool,
-  PoolClient,
 } from "pg";
 
 import crypto from "crypto";
 
 import {
-  wingSMPortalRequest,
-} from "@/app/lib/wingsm/portal-server";
+  wingSMRequest,
+} from "@/app/lib/wingsm/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,75 +42,86 @@ export const revalidate = 0;
 const COOKIE_NAME =
   "cnet_auth";
 
+const ISTANBUL_TZ =
+  "Europe/Istanbul";
+
 type SessionPayload = {
   userId: number | null;
-
   role:
     | "admin"
     | "personel";
-
   branch: string;
-
   exp: number;
-
   legacy?: boolean;
 };
 
-type WingSeller = {
+type WingPersonnelRow = {
   Id?: number | string | null;
-
   Kod?: string | number | null;
-
   Ad?: string | null;
-
   Sirket?: string | null;
-
+  CalistigiSube?: string | null;
+  CalistigiSubeAdI?: string | null;
+  Pozisyon?: string | null;
   [key: string]: unknown;
 };
 
-type WingInitResponse = {
+type WingPersonnelResponse = {
   success?: boolean;
-
-  settings?: {
-    ListSatici?: WingSeller[];
-
-    [key: string]: unknown;
-  };
-
-  message?: string;
-
-  error?: string;
-
+  data?: WingPersonnelRow[];
   [key: string]: unknown;
 };
 
-type NormalizedSeller = {
+type NormalizedPersonnel = {
   code: string;
-
   name: string;
-
-  sourceId:
-    | number
-    | string
-    | null;
-
-  company:
-    | string
-    | null;
-
-  raw: WingSeller;
+  rawData: {
+    sourceId: number | string | null;
+    Kod: string;
+    Ad: string;
+    Sirket: string | null;
+    CalistigiSube: string | null;
+    CalistigiSubeAdI: string | null;
+    Pozisyon: string | null;
+  };
 };
 
 declare global {
   // eslint-disable-next-line no-var
-  var cnetWingSMPersonnelSyncPool:
+  var cnetWingSMPersonnelPool:
     | Pool
     | undefined;
 }
 
-/* =========================================================
-   JSON
-========================================================= */
+function getPool() {
+  const connectionString =
+    process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL bulunamadı."
+    );
+  }
+
+  if (
+    !global
+      .cnetWingSMPersonnelPool
+  ) {
+    global
+      .cnetWingSMPersonnelPool =
+      new Pool({
+        connectionString,
+        max: 10,
+        idleTimeoutMillis:
+          30_000,
+        connectionTimeoutMillis:
+          10_000,
+      });
+  }
+
+  return global
+    .cnetWingSMPersonnelPool;
+}
 
 function json(
   body: Record<
@@ -136,62 +134,15 @@ function json(
     body,
     {
       status,
-
       headers: {
         "Cache-Control":
           "no-store, max-age=0",
-
         Pragma:
           "no-cache",
       },
     }
   );
 }
-
-/* =========================================================
-   POSTGRESQL
-========================================================= */
-
-function getPool() {
-  const connectionString =
-    String(
-      process.env
-        .DATABASE_URL ||
-        ""
-    ).trim();
-
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL bulunamadı."
-    );
-  }
-
-  if (
-    !global
-      .cnetWingSMPersonnelSyncPool
-  ) {
-    global
-      .cnetWingSMPersonnelSyncPool =
-      new Pool({
-        connectionString,
-
-        max: 10,
-
-        idleTimeoutMillis:
-          30_000,
-
-        connectionTimeoutMillis:
-          10_000,
-      });
-  }
-
-  return global
-    .cnetWingSMPersonnelSyncPool;
-}
-
-/* =========================================================
-   CNET SESSION
-========================================================= */
 
 function getSessionSecret() {
   const secret =
@@ -233,36 +184,29 @@ function verifySession(
           "sha256",
           getSessionSecret()
         )
-        .update(
-          encoded
-        )
+        .update(encoded)
         .digest(
           "base64url"
         );
 
-    const receivedBuffer =
+    const a =
       Buffer.from(
         signature,
         "utf8"
       );
 
-    const expectedBuffer =
+    const b =
       Buffer.from(
         expectedSignature,
         "utf8"
       );
 
     if (
-      receivedBuffer.length !==
-      expectedBuffer.length
-    ) {
-      return null;
-    }
-
-    if (
+      a.length !==
+        b.length ||
       !crypto.timingSafeEqual(
-        receivedBuffer,
-        expectedBuffer
+        a,
+        b
       )
     ) {
       return null;
@@ -280,38 +224,20 @@ function verifySession(
 
     if (
       !payload ||
-      !payload.exp
-    ) {
-      return null;
-    }
-
-    const now =
-      Math.floor(
-        Date.now() /
-          1000
-      );
-
-    if (
+      !payload.exp ||
       payload.exp <
-      now
-    ) {
-      return null;
-    }
-
-    if (
+        Math.floor(
+          Date.now() /
+            1000
+        ) ||
       ![
         "admin",
         "personel",
       ].includes(
         payload.role
-      )
-    ) {
-      return null;
-    }
-
-    if (
+      ) ||
       typeof payload.branch !==
-      "string"
+        "string"
     ) {
       return null;
     }
@@ -322,141 +248,9 @@ function verifySession(
   }
 }
 
-/* =========================================================
-   CRON SECRET
-========================================================= */
-
-function safeEqual(
-  left: string,
-  right: string
-) {
-  try {
-    const a =
-      Buffer.from(
-        left,
-        "utf8"
-      );
-
-    const b =
-      Buffer.from(
-        right,
-        "utf8"
-      );
-
-    if (
-      a.length !==
-      b.length
-    ) {
-      return false;
-    }
-
-    return crypto
-      .timingSafeEqual(
-        a,
-        b
-      );
-  } catch {
-    return false;
-  }
-}
-
-function hasValidSyncSecret(
+function requireAdmin(
   request: NextRequest
 ) {
-  const expected =
-    String(
-      process.env
-        .WINGSM_PERSONNEL_SYNC_SECRET ||
-        ""
-    ).trim();
-
-  if (!expected) {
-    return false;
-  }
-
-  const authorization =
-    String(
-      request.headers.get(
-        "authorization"
-      ) ||
-        ""
-    ).trim();
-
-  let bearer = "";
-
-  if (
-    authorization
-      .toLowerCase()
-      .startsWith(
-        "bearer "
-      )
-  ) {
-    bearer =
-      authorization
-        .slice(7)
-        .trim();
-  }
-
-  const headerSecret =
-    String(
-      request.headers.get(
-        "x-sync-secret"
-      ) ||
-        ""
-    ).trim();
-
-  if (
-    bearer &&
-    safeEqual(
-      bearer,
-      expected
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    headerSecret &&
-    safeEqual(
-      headerSecret,
-      expected
-    )
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/* =========================================================
-   REQUEST AUTH
-========================================================= */
-
-function authorize(
-  request: NextRequest
-) {
-  /*
-   * Cron / Coolify çağrısı
-   */
-  if (
-    hasValidSyncSecret(
-      request
-    )
-  ) {
-    return {
-      ok: true as const,
-
-      source:
-        "SYNC_SECRET",
-
-      role:
-        "system",
-    };
-  }
-
-  /*
-   * Manuel admin çağrısı
-   */
   const token =
     request.cookies.get(
       COOKIE_NAME
@@ -465,15 +259,12 @@ function authorize(
   if (!token) {
     return {
       ok: false as const,
-
       response:
         json(
           {
-            success:
-              false,
-
+            success: false,
             message:
-              "Yetkisiz işlem.",
+              "Oturum bulunamadı.",
           },
           401
         ),
@@ -481,20 +272,15 @@ function authorize(
   }
 
   const session =
-    verifySession(
-      token
-    );
+    verifySession(token);
 
   if (!session) {
     return {
       ok: false as const,
-
       response:
         json(
           {
-            success:
-              false,
-
+            success: false,
             message:
               "Oturum geçersiz veya süresi dolmuş.",
           },
@@ -503,24 +289,18 @@ function authorize(
     };
   }
 
-  /*
-   * Personel manuel sync yapamasın.
-   */
   if (
     session.role !==
     "admin"
   ) {
     return {
       ok: false as const,
-
       response:
         json(
           {
-            success:
-              false,
-
+            success: false,
             message:
-              "Bu işlem için admin yetkisi gerekli.",
+              "Bu işlem yalnızca admin tarafından yapılabilir.",
           },
           403
         ),
@@ -529,41 +309,22 @@ function authorize(
 
   return {
     ok: true as const,
-
-    source:
-      "ADMIN_SESSION",
-
-    role:
-      session.role,
-
     session,
   };
 }
 
-/* =========================================================
-   WINGSM TARİHİ
-========================================================= */
-
-function wingDateNumber() {
-  /*
-   * Coolify sunucusunun timezone'u ne olursa olsun
-   * WingSM'e Türkiye tarihini gönderiyoruz.
-   */
-
+function getIstanbulDateNumber() {
   const parts =
     new Intl
       .DateTimeFormat(
-        "en-CA",
+        "en-GB",
         {
           timeZone:
-            "Europe/Istanbul",
-
+            ISTANBUL_TZ,
           year:
             "numeric",
-
           month:
             "2-digit",
-
           day:
             "2-digit",
         }
@@ -574,27 +335,21 @@ function wingDateNumber() {
 
   const year =
     parts.find(
-      (
-        part
-      ) =>
+      (part) =>
         part.type ===
         "year"
     )?.value;
 
   const month =
     parts.find(
-      (
-        part
-      ) =>
+      (part) =>
         part.type ===
         "month"
     )?.value;
 
   const day =
     parts.find(
-      (
-        part
-      ) =>
+      (part) =>
         part.type ===
         "day"
     )?.value;
@@ -612,45 +367,43 @@ function wingDateNumber() {
   return `${year}${month}${day}`;
 }
 
-/* =========================================================
-   NORMALIZE
-========================================================= */
+function cleanString(
+  value: unknown
+) {
+  return String(
+    value ?? ""
+  ).trim();
+}
+
+function nullableString(
+  value: unknown
+) {
+  const result =
+    cleanString(value);
+
+  return result ||
+    null;
+}
 
 function normalizePersonnel(
-  rawList: WingSeller[]
+  rows: WingPersonnelRow[]
 ) {
-  const map =
+  const byCode =
     new Map<
       string,
-      NormalizedSeller
+      NormalizedPersonnel
     >();
 
-  for (
-    const row
-    of rawList
-  ) {
-    /*
-     * IMPORTANT:
-     *
-     * WingSM:
-     * "0004"
-     *
-     * PostgreSQL:
-     * "0004"
-     *
-     * Number'a ÇEVİRME.
-     */
+  for (const row of rows) {
     const code =
-      String(
-        row?.Kod ??
-          ""
-      ).trim();
+      cleanString(
+        row?.Kod
+      );
 
     const name =
-      String(
-        row?.Ad ??
-          ""
-      ).trim();
+      cleanString(
+        row?.Ad
+      );
 
     if (
       !code ||
@@ -659,207 +412,52 @@ function normalizePersonnel(
       continue;
     }
 
-    const companyRaw =
-      row?.Sirket;
-
-    const company =
-      companyRaw ===
-        null ||
-      companyRaw ===
-        undefined
-        ? null
-        : String(
-            companyRaw
-          ).trim() ||
-          null;
-
-    map.set(
+    // Kod string kalır.
+    // parseInt / Number YAPILMAZ.
+    byCode.set(
       code,
       {
         code,
-
         name,
-
-        sourceId:
-          row?.Id ??
-          null,
-
-        company,
-
-        raw:
-          row,
+        rawData: {
+          sourceId:
+            row?.Id ??
+            null,
+          Kod:
+            code,
+          Ad:
+            name,
+          Sirket:
+            nullableString(
+              row?.Sirket
+            ),
+          CalistigiSube:
+            nullableString(
+              row
+                ?.CalistigiSube
+            ),
+          CalistigiSubeAdI:
+            nullableString(
+              row
+                ?.CalistigiSubeAdI
+            ),
+          Pozisyon:
+            nullableString(
+              row?.Pozisyon
+            ),
+        },
       }
     );
   }
 
   return Array.from(
-    map.values()
+    byCode.values()
   );
 }
 
-/* =========================================================
-   WINGSM PERSONEL LİSTESİ
-========================================================= */
-
-async function readWingSMPersonnel() {
-  const tarihN =
-    wingDateNumber();
-
-  /*
-   * Bu helper:
-   *
-   * 1) WingSM portal login
-   * 2) session/cookie
-   * 3) cookie ile request
-   *
-   * işlemlerini server-side yapıyor.
-   *
-   * B2B x-access-token kullanılmıyor.
-   */
-  const payload =
-    await wingSMPortalRequest<WingInitResponse>(
-      "/HttpApiHizliSatis/HizliSatisInitilas",
-      {
-        method:
-          "GET",
-
-        query: {
-          TarihN:
-            tarihN,
-
-          /*
-           * WingSM frontend ilk açılışta
-           * Sirket=null gönderiyor.
-           */
-          Sirket:
-            null,
-        },
-      }
-    );
-
-  const rawList =
-    payload?.settings
-      ?.ListSatici;
-
-  if (
-    !Array.isArray(
-      rawList
-    )
-  ) {
-    throw new Error(
-      "WingSM cevabında settings.ListSatici bulunamadı."
-    );
-  }
-
-  const personnel =
-    normalizePersonnel(
-      rawList
-    );
-
-  if (
-    personnel.length ===
-    0
-  ) {
-    throw new Error(
-      "WingSM personel listesi boş döndü. Güvenlik nedeniyle PostgreSQL güncellenmedi."
-    );
-  }
-
-  return {
-    tarihN,
-
-    rawCount:
-      rawList.length,
-
-    personnel,
-  };
-}
-
-/* =========================================================
-   DB SAFETY CHECK
-========================================================= */
-
-async function getCurrentActiveCount(
-  client: PoolClient
-) {
-  const result =
-    await client.query(
-      `
-        SELECT
-          COUNT(*)::int AS count
-        FROM public.wingsm_personnel
-        WHERE active = TRUE
-      `
-    );
-
-  return Number(
-    result.rows[0]
-      ?.count ||
-      0
-  );
-}
-
-function validateIncomingCount(
-  incomingCount: number,
-  previousActiveCount: number
-) {
-  /*
-   * WingSM'de şu an yaklaşık 71 personel var.
-   *
-   * Eğer bir gün portal hata verip
-   * örneğin sadece 2-3 kişi döndürürse,
-   * kalan 68 kişiyi yanlışlıkla
-   * active=false yapmayalım.
-   */
-
-  if (
-    incomingCount <=
-    0
-  ) {
-    throw new Error(
-      "WingSM personel listesi boş."
-    );
-  }
-
-  /*
-   * İlk kurulum ise karşılaştırma yapma.
-   */
-  if (
-    previousActiveCount <
-    10
-  ) {
-    return;
-  }
-
-  const minimumSafeCount =
-    Math.max(
-      10,
-
-      Math.floor(
-        previousActiveCount *
-          0.5
-      )
-    );
-
-  if (
-    incomingCount <
-    minimumSafeCount
-  ) {
-    throw new Error(
-      `WingSM personel sayısı beklenmedik şekilde düştü. ` +
-        `Mevcut aktif: ${previousActiveCount}, ` +
-        `WingSM'den gelen: ${incomingCount}. ` +
-        `Güvenlik nedeniyle senkron iptal edildi.`
-    );
-  }
-}
-
-/* =========================================================
-   DATABASE SYNC
-========================================================= */
-
-async function syncDatabase(
-  personnel: NormalizedSeller[]
+async function syncPersonnel(
+  personnel:
+    NormalizedPersonnel[]
 ) {
   const pool =
     getPool();
@@ -872,209 +470,138 @@ async function syncDatabase(
       "BEGIN"
     );
 
-    const previousActiveCount =
-      await getCurrentActiveCount(
-        client
-      );
-
-    validateIncomingCount(
-      personnel.length,
-      previousActiveCount
-    );
-
-    const syncTime =
-      new Date();
-
-    /*
-     * Gelen kodları topluyoruz.
-     */
-    const activeCodes =
-      personnel.map(
-        (
-          person
-        ) =>
-          person.code
-      );
-
-    let insertedOrUpdated =
-      0;
-
-    /*
-     * Tek tek UPSERT.
-     *
-     * 71 kayıt olduğu için performans açısından
-     * herhangi bir sorun oluşturmaz.
-     *
-     * Avantajı:
-     * Kod okunaklı ve güvenlidir.
-     */
-    for (
-      const person
-      of personnel
-    ) {
-      await client.query(
-        `
-          INSERT INTO public.wingsm_personnel (
-            code,
-            name,
-            active,
-            raw_data,
-            last_seen_at,
-            created_at,
-            updated_at
-          )
-          VALUES (
-            $1,
-            $2,
-            TRUE,
-            $3::jsonb,
-            $4,
-            NOW(),
-            NOW()
-          )
-
-          ON CONFLICT (code)
-          DO UPDATE SET
-            name =
-              EXCLUDED.name,
-
-            active =
-              TRUE,
-
-            raw_data =
-              EXCLUDED.raw_data,
-
-            last_seen_at =
-              EXCLUDED.last_seen_at,
-
-            updated_at =
-              NOW()
-        `,
-        [
-          person.code,
-
-          person.name,
-
-          JSON.stringify(
-            person.raw
-          ),
-
-          syncTime,
-        ]
-      );
-
-      insertedOrUpdated++;
-    }
-
-    /*
-     * WingSM listesinden artık gelmeyenleri
-     * active=false yap.
-     *
-     * SİLME YOK.
-     */
-    let deactivatedCount =
-      0;
-
-    if (
-      activeCodes.length >
-      0
-    ) {
-      const deactivateResult =
-        await client.query(
-          `
-            UPDATE public.wingsm_personnel
-
-            SET
-              active = FALSE,
-              updated_at = NOW()
-
-            WHERE
-              active = TRUE
-
-              AND NOT (
-                code =
-                ANY(
-                  $1::varchar[]
-                )
-              )
-          `,
-          [
-            activeCodes,
-          ]
-        );
-
-      deactivatedCount =
-        deactivateResult.rowCount ??
-        0;
-    }
-
-    const finalCountResult =
+    const beforeResult =
       await client.query(
         `
           SELECT
+            COUNT(*)::int
+              AS total_count,
             COUNT(*) FILTER (
               WHERE active = TRUE
-            )::int AS active_count,
-
-            COUNT(*) FILTER (
-              WHERE active = FALSE
-            )::int AS inactive_count,
-
-            COUNT(*)::int AS total_count
-
+            )::int
+              AS active_count
           FROM public.wingsm_personnel
         `
       );
 
-    const counts =
-      finalCountResult
-        .rows[0] ||
-      {};
+    // Önce mevcut cache kayıtlarının hepsini pasif yap.
+    // Aşağıdaki UPSERT ile WingSM'de halen bulunanlar tekrar active=true olur.
+    await client.query(
+      `
+        UPDATE
+          public.wingsm_personnel
+        SET
+          active = FALSE,
+          updated_at = NOW()
+        WHERE
+          active = TRUE
+      `
+    );
+
+    const params:
+      unknown[] = [];
+
+    const valuesSql =
+      personnel.map(
+        (
+          person,
+          index
+        ) => {
+          const base =
+            index * 3;
+
+          params.push(
+            person.code,
+            person.name,
+            JSON.stringify(
+              person.rawData
+            )
+          );
+
+          return `(
+            $${base + 1}::varchar,
+            $${base + 2}::varchar,
+            TRUE,
+            $${base + 3}::jsonb,
+            NOW(),
+            NOW(),
+            NOW()
+          )`;
+        }
+      ).join(",\n");
+
+    await client.query(
+      `
+        INSERT INTO
+          public.wingsm_personnel
+        (
+          code,
+          name,
+          active,
+          raw_data,
+          last_seen_at,
+          created_at,
+          updated_at
+        )
+        VALUES
+          ${valuesSql}
+        ON CONFLICT (code)
+        DO UPDATE SET
+          name =
+            EXCLUDED.name,
+          active =
+            TRUE,
+          raw_data =
+            EXCLUDED.raw_data,
+          last_seen_at =
+            NOW(),
+          updated_at =
+            NOW()
+      `,
+      params
+    );
+
+    const afterResult =
+      await client.query(
+        `
+          SELECT
+            COUNT(*)::int
+              AS total_count,
+            COUNT(*) FILTER (
+              WHERE active = TRUE
+            )::int
+              AS active_count,
+            COUNT(*) FILTER (
+              WHERE active = FALSE
+            )::int
+              AS inactive_count,
+            MAX(last_seen_at)
+              AS last_sync_at
+          FROM public.wingsm_personnel
+        `
+      );
 
     await client.query(
       "COMMIT"
     );
 
     return {
-      previousActiveCount,
-
-      receivedCount:
-        personnel.length,
-
-      insertedOrUpdated,
-
-      deactivatedCount,
-
-      activeCount:
-        Number(
-          counts.active_count ||
-            0
-        ),
-
-      inactiveCount:
-        Number(
-          counts.inactive_count ||
-            0
-        ),
-
-      totalCount:
-        Number(
-          counts.total_count ||
-            0
-        ),
-
-      syncedAt:
-        syncTime.toISOString(),
+      before:
+        beforeResult
+          .rows[0] ||
+        {},
+      after:
+        afterResult
+          .rows[0] ||
+        {},
     };
-  } catch (
-    error
-  ) {
+  } catch (error) {
     try {
       await client.query(
         "ROLLBACK"
       );
     } catch {
-      // rollback hatasını ayrıca dışarı fırlatmıyoruz
+      // rollback hatası ana hatayı gölgelememeli
     }
 
     throw error;
@@ -1083,135 +610,189 @@ async function syncDatabase(
   }
 }
 
-/* =========================================================
-   MAIN SYNC
-========================================================= */
-
-async function runSync(
+export async function GET(
   request: NextRequest
 ) {
   const startedAt =
     Date.now();
 
-  /*
-   * 1) Panel admin veya cron secret doğrula.
-   */
-  const auth =
-    authorize(
-      request
-    );
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
   try {
-    /*
-     * 2) WingSM portalından personelleri oku.
-     */
-    const wingResult =
-      await readWingSMPersonnel();
-
-    /*
-     * 3) PostgreSQL'e senkronla.
-     */
-    const dbResult =
-      await syncDatabase(
-        wingResult.personnel
+    const auth =
+      requireAdmin(
+        request
       );
 
-    /*
-     * Güvenlik:
-     *
-     * Burada WingSM raw settings,
-     * cookie,
-     * session,
-     * credential,
-     * password,
-     * token DÖNDÜRMÜYORUZ.
-     */
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const tarih =
+      getIstanbulDateNumber();
+
+    const path =
+      `/api/b2b/carikart/list/P/${tarih}/${tarih}`;
+
+    const payload =
+      await wingSMRequest<
+        WingPersonnelResponse
+      >(
+        path,
+        {
+          method: "GET",
+          query: {
+            // ÖNEMLİ:
+            // Tek tırnak YOK.
+            filter: "*",
+          },
+        }
+      );
+
+    if (
+      payload?.success !==
+        true
+    ) {
+      return json(
+        {
+          success: false,
+          stage:
+            "WINGSM_RESPONSE",
+          message:
+            "WingSM personel endpointi success:true dönmedi.",
+          tarih,
+        },
+        502
+      );
+    }
+
+    if (
+      !Array.isArray(
+        payload.data
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          stage:
+            "WINGSM_DATA",
+          message:
+            "WingSM cevabında data array bulunamadı.",
+          tarih,
+        },
+        502
+      );
+    }
+
+    const personnel =
+      normalizePersonnel(
+        payload.data
+      );
+
+    // Güvenlik:
+    // WingSM yanlışlıkla boş/çok küçük bir liste döndürürse
+    // mevcut personelleri topluca pasif yapmayalım.
+    if (
+      personnel.length <
+      10
+    ) {
+      return json(
+        {
+          success: false,
+          stage:
+            "SAFETY_GUARD",
+          message:
+            "WingSM personel listesi beklenenden çok az kayıt döndürdü. PostgreSQL değiştirilmedi.",
+          wingCount:
+            payload.data.length,
+          validPersonnelCount:
+            personnel.length,
+          tarih,
+        },
+        502
+      );
+    }
+
+    const result =
+      await syncPersonnel(
+        personnel
+      );
+
     return json({
-      success:
-        true,
+      success: true,
 
       source:
-        "WINGSM_PORTAL",
+        "WINGSM_B2B_CARIKART_PERSONEL",
 
-      authSource:
-        auth.source,
-
-      wingSM: {
-        tarihN:
-          wingResult.tarihN,
-
-        received:
-          wingResult
-            .personnel
-            .length,
+      request: {
+        path,
+        filter: "*",
+        tarih,
       },
+
+      wingCount:
+        payload.data.length,
+
+      syncedCount:
+        personnel.length,
 
       database: {
-        previousActiveCount:
-          dbResult
-            .previousActiveCount,
-
-        upserted:
-          dbResult
-            .insertedOrUpdated,
-
-        deactivated:
-          dbResult
-            .deactivatedCount,
-
-        active:
-          dbResult
-            .activeCount,
-
-        inactive:
-          dbResult
-            .inactiveCount,
-
+        beforeTotal:
+          Number(
+            result.before
+              .total_count ||
+              0
+          ),
+        beforeActive:
+          Number(
+            result.before
+              .active_count ||
+              0
+          ),
         total:
-          dbResult
-            .totalCount,
-
-        syncedAt:
-          dbResult
-            .syncedAt,
+          Number(
+            result.after
+              .total_count ||
+              0
+          ),
+        active:
+          Number(
+            result.after
+              .active_count ||
+              0
+          ),
+        inactive:
+          Number(
+            result.after
+              .inactive_count ||
+              0
+          ),
+        lastSyncAt:
+          result.after
+            .last_sync_at ||
+          null,
       },
+
+      note:
+        "WingSM'e yalnızca GET yapıldı. PostgreSQL personel cache güncellendi.",
 
       responseTimeMs:
         Date.now() -
         startedAt,
     });
-  } catch (
-    error
-  ) {
-    /*
-     * Hassas login/session bilgilerini
-     * loglamıyoruz.
-     */
+  } catch (error) {
     console.error(
       "WINGSM PERSONNEL SYNC ERROR:",
-      error instanceof Error
-        ? error.message
-        : "Unknown error"
+      error
     );
 
     return json(
       {
-        success:
-          false,
-
+        success: false,
         stage:
           "PERSONNEL_SYNC",
-
         message:
-          error instanceof
-          Error
+          error instanceof Error
             ? error.message
             : "WingSM personel senkronizasyonu başarısız.",
-
         responseTimeMs:
           Date.now() -
           startedAt,
@@ -1219,28 +800,4 @@ async function runSync(
       500
     );
   }
-}
-
-/* =========================================================
-   GET
-========================================================= */
-
-export async function GET(
-  request: NextRequest
-) {
-  return runSync(
-    request
-  );
-}
-
-/* =========================================================
-   POST
-========================================================= */
-
-export async function POST(
-  request: NextRequest
-) {
-  return runSync(
-    request
-  );
 }
