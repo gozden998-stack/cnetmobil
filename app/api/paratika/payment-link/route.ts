@@ -1190,13 +1190,24 @@ export async function POST(
       merchantPaymentId
     );
 
-    // Paratika desteği bu parametrenin encode edilmesini istedi.
-    // İstek application/x-www-form-urlencoded gönderildiği için
-    // URLSearchParams.toString() alanı form-encode eder.
-    // Burada ayrıca encodeURIComponent kullanmıyoruz; double-encode etmiyoruz.
+    // Paratika destek ekibi özellikle INSTALLMENTSUPPORT parametresinin
+    // encode edilmesini istedi. Normal URLSearchParams form-encode işlemine
+    // ek olarak bu alanın DEĞERİNİ önceden encode ediyoruz.
+    //
+    // Wire üzerinde % işaretleri de form tarafından encode edilir.
+    // Paratika form parser'ı ilk katmanı açtıktan sonra INSTALLMENTSUPPORT
+    // değeri halen percent-encoded kalır; Paratika'nın kendi decode adımı
+    // JSON'u elde eder.
+    //
+    // Bu değişiklik sadece INSTALLMENTSUPPORT alanına uygulanır.
+    const encodedInstallmentSupport =
+      encodeURIComponent(
+        installmentSupport
+      );
+
     payByLinkParams.set(
       'INSTALLMENTSUPPORT',
-      installmentSupport
+      encodedInstallmentSupport
     );
 
     const payByLinkResult =
@@ -1264,6 +1275,10 @@ export async function POST(
               'VIOLATORPARAM'
             ) || null,
           merchantPaymentId,
+          installmentSupportEncoding:
+            'ENCODEURIComponent_BEFORE_FORM_ENCODING',
+          selectedInstallment:
+            installmentCount,
           paratikaResponse:
             payByLinkResult.data,
         },
