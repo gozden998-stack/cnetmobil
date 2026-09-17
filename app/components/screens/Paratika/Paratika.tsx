@@ -663,9 +663,13 @@ export default function Paratika() {
     };
   }, []);
 
-  // PARATIKA_AUTO_SYNC_UOT
-  // Açık işlemler ve ONAYLANDI olup ÜÖT henüz gelmemiş kayıtlar
-  // Paratika'dan periyodik doğrulanır.
+  // PARATIKA_CANLI_STATUS_5SN
+  // Açık işlemler + son 24 saatteki FAILED kayıtlar +
+  // ONAYLANDI olup ÜÖT henüz gelmemiş kayıtlar
+  // Paratika'dan canlıya yakın şekilde doğrulanır.
+  //
+  // Personel başarısız denemeden sonra aynı linkte yeniden kart denerse,
+  // başarılı işlem en geç yaklaşık 5 saniye içinde ekrana yansır.
   useEffect(() => {
     if (selectedDate !== todayKey) {
       return;
@@ -713,7 +717,7 @@ export default function Paratika() {
         () => {
           void run();
         },
-        30_000
+        5_000
       );
 
     return () => {
