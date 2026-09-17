@@ -1,17 +1,15 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM B2B carikart PERSONEL endpoint TEST
+// CNETMOBIL - WingSM B2B CariKart PERSONEL endpoint TEST
 //
 // WingSM tarafından verilen endpoint:
-// GET b2b/carikart/list/P/20260917/20260917?filter='*'
+// b2b/carikart/list/P/20260917/20260917?filter='*'
 //
-// NOT:
-// - Mevcut app/lib/wingsm/server.ts değiştirilmez.
-// - Mevcut B2B authenticate + x-access-token akışı kullanılır.
-// - WingSM'e yalnızca GET isteği gider.
-// - Veri yazma / güncelleme / silme YOKTUR.
-// - Test cevabında tüm ham kayıtlar dönülmez.
-//   Sadece response yapısı + ilk birkaç kaydın güvenli önizlemesi döner.
+// Mevcut WingSM B2B servisinde çalışan diğer route'lar
+// /api/b2b/... altında olduğu için burada /api prefix'i kullanılır.
+//
+// SADECE GET.
+// WingSM'e hiçbir veri yazılmaz.
 
 import {
   NextRequest,
@@ -30,16 +28,13 @@ function json(
   body: Record<string, unknown>,
   status = 200
 ) {
-  return NextResponse.json(
-    body,
-    {
-      status,
-      headers: {
-        "Cache-Control":
-          "no-store, max-age=0",
-      },
-    }
-  );
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control":
+        "no-store, max-age=0",
+    },
+  });
 }
 
 function asObject(
@@ -107,14 +102,10 @@ function findArray(
     const parent =
       asObject(parentValue);
 
-    if (!parent) {
-      continue;
-    }
+    if (!parent) continue;
 
     for (const key of directKeys) {
-      if (
-        Array.isArray(parent[key])
-      ) {
+      if (Array.isArray(parent[key])) {
         return {
           path:
             `${parentKey}.${key}`,
@@ -172,8 +163,8 @@ function previewRow(
     "Active",
     "Status",
     "Durum",
-    "IstenCikisTarih",
     "IseGirisTarih",
+    "IstenCikisTarih",
   ];
 
   const preview:
@@ -206,8 +197,11 @@ export async function GET(
   const startedAt =
     Date.now();
 
+  // DÜZELTME:
+  // İlk testte /b2b/... kullanılmıştı.
+  // Mevcut çalışan WingSM B2B route yapısına göre /api/b2b/... olmalı.
   const path =
-    "/b2b/carikart/list/P/20260917/20260917";
+    "/api/b2b/carikart/list/P/20260917/20260917";
 
   try {
     const payload =
@@ -216,8 +210,6 @@ export async function GET(
         {
           method: "GET",
           query: {
-            // WingSM desteğinin verdiği değer:
-            // ?filter='*'
             filter: "'*'",
           },
         }
@@ -259,9 +251,7 @@ export async function GET(
 
         count:
           found?.list.length ??
-          (Array.isArray(payload)
-            ? payload.length
-            : null),
+          null,
 
         preview:
           found
@@ -270,11 +260,6 @@ export async function GET(
                 .map(previewRow)
             : [],
       },
-
-      note:
-        found
-          ? "Endpoint cevap verdi. İlk 5 kayıt güvenli önizleme olarak döndürüldü."
-          : "Endpoint cevap verdi ancak personel listesinin bulunduğu array otomatik tespit edilemedi. rootKeys değerine bakacağız.",
 
       responseTimeMs:
         Date.now() -
@@ -299,9 +284,6 @@ export async function GET(
           error instanceof Error
             ? error.message
             : String(error),
-
-        note:
-          "Bu route mevcut WingSM B2B authenticate + x-access-token altyapısını kullanır. Mevcut stok entegrasyonuna dokunmaz.",
 
         responseTimeMs:
           Date.now() -
