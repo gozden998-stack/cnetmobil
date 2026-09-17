@@ -1,21 +1,23 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM CariKart PERSONEL endpoint testi
+// CNETMOBIL - WingSM PERSONEL KARŞILAŞTIRMA TESTİ
 //
-// DÜZELTME:
-// Önceki çağrıda filter değeri "'*'" olarak gönderildi.
-// WingSM SQL hatası:
-//   Operand data type varchar is invalid for multiply operator.
+// Amaç:
+// - Eski ve doğrulanmış 71 kişilik HizliSatis/ListSatici kümesi ile
+// - yeni B2B CariKart P endpointindeki canlı listeyi karşılaştırmak.
 //
-// Bu hata, tek tırnakların da parametre değerine dahil edilmesiyle
-// '*' ifadesinin SQL tarafında çarpma operatörü gibi yorumlandığını gösteriyor.
+// Bu route SADECE GET yapar.
+// WingSM'e hiçbir veri yazmaz.
+// PostgreSQL'e hiçbir veri yazmaz.
 //
-// Bu testte:
-//   filter=*
-// gönderilir.
+// Özellikle şu alanlara bakıyoruz:
+// - TarihCikis
+// - CalistigiSube / CalistigiSubeAdI
+// - Pozisyon
 //
-// SADECE GET.
-// WingSM'e hiçbir veri yazılmaz.
+// Böylece B2B endpointindeki fazladan kayıtların
+// eski/çıkış yapmış personel mi, yoksa başka bir cari kart türü mü
+// olduğunu netleştireceğiz.
 
 import {
   NextRequest,
@@ -30,6 +32,80 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const OLD_71_CODES = new Set<string>([
+  "0004",
+  "0217",
+  "0211",
+  "0258",
+  "0294",
+  "0315",
+  "0234",
+  "0253",
+  "0273",
+  "0245",
+  "0332",
+  "0262",
+  "0156",
+  "0001",
+  "0242",
+  "0295",
+  "0333",
+  "0265",
+  "0240",
+  "0308",
+  "0327",
+  "0103",
+  "0269",
+  "0162",
+  "0302",
+  "0305",
+  "0126",
+  "0312",
+  "0154",
+  "0270",
+  "0326",
+  "0223",
+  "0316",
+  "0114",
+  "0132",
+  "0206",
+  "0199",
+  "0163",
+  "0045",
+  "0271",
+  "0146",
+  "0261",
+  "0319",
+  "0007",
+  "0296",
+  "0267",
+  "0283",
+  "0167",
+  "0303",
+  "0306",
+  "0300",
+  "0204",
+  "0328",
+  "0279",
+  "0221",
+  "0282",
+  "0311",
+  "0183",
+  "0324",
+  "0277",
+  "0275",
+  "0299",
+  "0250",
+  "0287",
+  "0329",
+  "0313",
+  "0309",
+  "0320",
+  "0330",
+  "0274",
+  "0307"
+]);
 
 function json(
   body: Record<string, unknown>,
@@ -58,10 +134,19 @@ function asObject(
   return null;
 }
 
-function getBaseUrl() {
-  const raw = String(
-    process.env.WINGSM_BASE_URL || ""
+function cleanString(
+  value: unknown
+) {
+  return String(
+    value ?? ""
   ).trim();
+}
+
+function getBaseUrl() {
+  const raw =
+    cleanString(
+      process.env.WINGSM_BASE_URL
+    );
 
   if (!raw) {
     throw new Error(
@@ -75,14 +160,11 @@ function getBaseUrl() {
 async function makeRequest(
   token: string
 ) {
-  const url = new URL(
-    `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
-  );
+  const url =
+    new URL(
+      `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
+    );
 
-  // ÖNEMLİ:
-  // Tek tırnak YOK.
-  // URL sonucu:
-  // ?filter=*
   url.searchParams.set(
     "filter",
     "*"
@@ -109,150 +191,66 @@ async function makeRequest(
   );
 }
 
-function extractList(
-  payload: unknown
-): {
-  path: string | null;
-  list: unknown[];
-} {
-  if (Array.isArray(payload)) {
-    return {
-      path: "root",
-      list: payload,
-    };
-  }
-
-  const root =
-    asObject(payload);
-
-  if (!root) {
-    return {
-      path: null,
-      list: [],
-    };
-  }
-
-  const directCandidates = [
-    ["data", root.data],
-    ["Data", root.Data],
-    ["list", root.list],
-    ["List", root.List],
-    ["items", root.items],
-    ["Items", root.Items],
-    ["rows", root.rows],
-    ["Rows", root.Rows],
-  ] as const;
-
-  for (
-    const [key, value]
-    of directCandidates
-  ) {
-    if (Array.isArray(value)) {
-      return {
-        path: key,
-        list: value,
-      };
-    }
-  }
-
-  const dataObj =
-    asObject(
-      root.data ??
-        root.Data
-    );
-
-  if (dataObj) {
-    const nestedCandidates = [
-      ["data.List", dataObj.List],
-      ["data.list", dataObj.list],
-      ["data.Items", dataObj.Items],
-      ["data.items", dataObj.items],
-      ["data.Rows", dataObj.Rows],
-      ["data.rows", dataObj.rows],
-      ["data.Values", dataObj.Values],
-      ["data.values", dataObj.values],
-    ] as const;
-
-    for (
-      const [key, value]
-      of nestedCandidates
-    ) {
-      if (Array.isArray(value)) {
-        return {
-          path: key,
-          list: value,
-        };
-      }
-    }
-  }
-
-  return {
-    path: null,
-    list: [],
-  };
-}
-
-function safePreview(
+function safePersonnel(
   value: unknown
 ) {
   const row =
     asObject(value);
 
   if (!row) {
-    return value;
+    return null;
   }
 
-  const allowedKeys = [
-    "Id",
-    "ID",
-    "id",
-    "Kod",
-    "KOD",
-    "kod",
-    "Code",
-    "code",
-    "Ad",
-    "ADI",
-    "adi",
-    "Name",
-    "name",
-    "CariKod",
-    "CariKodu",
-    "CariAd",
-    "CariAdi",
-    "PersonelKod",
-    "PersonelAd",
-    "SaticiKod",
-    "SaticiAd",
-    "Sirket",
-    "Sube",
-    "GorevYeri",
-    "Aktif",
-    "Active",
-    "Status",
-    "Durum",
-  ];
+  const code =
+    cleanString(
+      row.Kod ??
+        row.kod ??
+        row.Code ??
+        row.code
+    );
 
-  const fields:
-    Record<string, unknown> = {};
+  const name =
+    cleanString(
+      row.Ad ??
+        row.ad ??
+        row.Name ??
+        row.name
+    );
 
-  for (const key of allowedKeys) {
-    if (
-      Object.prototype
-        .hasOwnProperty.call(
-          row,
-          key
-        )
-    ) {
-      fields[key] =
-        row[key];
-    }
+  if (
+    !code ||
+    !name
+  ) {
+    return null;
   }
 
   return {
-    keys:
-      Object.keys(row),
-    fields,
+    code,
+    name,
+    tarihGiris:
+      cleanString(
+        row.TarihGiris
+      ) || null,
+    tarihCikis:
+      cleanString(
+        row.TarihCikis
+      ) || null,
+    calistigiSube:
+      cleanString(
+        row.CalistigiSube
+      ) || null,
+    calistigiSubeAdi:
+      cleanString(
+        row.CalistigiSubeAdI
+      ) || null,
+    pozisyon:
+      cleanString(
+        row.Pozisyon
+      ) || null,
+    sirket:
+      cleanString(
+        row.Sirket
+      ) || null,
   };
 }
 
@@ -300,101 +298,196 @@ export async function GET(
           ? JSON.parse(raw)
           : null;
     } catch {
-      return json({
-        success: false,
-        stage:
-          "WINGSM_JSON_PARSE",
-        httpStatus:
-          response.status,
-        rawPreview:
-          raw.slice(0, 500),
-        responseTimeMs:
-          Date.now() -
-          startedAt,
-      });
+      return json(
+        {
+          success: false,
+          stage:
+            "JSON_PARSE",
+          httpStatus:
+            response.status,
+          message:
+            "WingSM JSON dönmedi.",
+        },
+        502
+      );
     }
 
     const root =
       asObject(payload);
 
-    const wingSuccess =
-      root?.success ??
-      root?.Success ??
-      null;
-
     if (
-      wingSuccess === false
+      root?.success !== true ||
+      !Array.isArray(
+        root?.data
+      )
     ) {
-      const errorData =
-        asObject(
-          root?.data ??
-            root?.Data
-        );
-
-      return json({
-        success: false,
-        stage:
-          "WINGSM_RETURNED_FALSE",
-        request: {
-          method: "GET",
-          path:
-            "/api/b2b/carikart/list/P/20260917/20260917",
-          filter: "*",
+      return json(
+        {
+          success: false,
+          stage:
+            "WINGSM_RESPONSE",
+          httpStatus:
+            response.status,
+          wingSuccess:
+            root?.success ??
+            null,
+          rootKeys:
+            root
+              ? Object.keys(root)
+              : [],
         },
-        httpStatus:
-          response.status,
-        wingError: errorData
-          ? {
-              Type:
-                errorData.Type ??
-                errorData.type ??
-                null,
-              Number:
-                errorData.Number ??
-                errorData.number ??
-                null,
-              Message:
-                errorData.Message ??
-                errorData.message ??
-                null,
-              Key:
-                errorData.Key ??
-                errorData.key ??
-                null,
-            }
-          : null,
-        responseTimeMs:
-          Date.now() -
-          startedAt,
-      });
+        502
+      );
     }
 
-    const found =
-      extractList(payload);
+    const live =
+      root.data
+        .map(
+          safePersonnel
+        )
+        .filter(
+          (
+            row
+          ): row is NonNullable<
+            ReturnType<
+              typeof safePersonnel
+            >
+          > =>
+            Boolean(row)
+        );
+
+    const liveCodeSet =
+      new Set(
+        live.map(
+          (row) =>
+            row.code
+        )
+      );
+
+    const extraVsOld71 =
+      live
+        .filter(
+          (row) =>
+            !OLD_71_CODES
+              .has(
+                row.code
+              )
+        )
+        .sort(
+          (a, b) =>
+            a.name.localeCompare(
+              b.name,
+              "tr-TR"
+            )
+        );
+
+    const missingFromLive =
+      Array.from(
+        OLD_71_CODES
+      )
+        .filter(
+          (code) =>
+            !liveCodeSet
+              .has(code)
+        )
+        .sort();
+
+    const tarihCikisGroups =
+      new Map<
+        string,
+        number
+      >();
+
+    for (const row of live) {
+      const key =
+        row.tarihCikis ||
+        "(BOŞ)";
+
+      tarihCikisGroups.set(
+        key,
+        (
+          tarihCikisGroups
+            .get(key) ||
+          0
+        ) + 1
+      );
+    }
+
+    const extrasWithExitDate =
+      extraVsOld71.filter(
+        (row) =>
+          Boolean(
+            row.tarihCikis
+          )
+      );
+
+    const extrasWithoutExitDate =
+      extraVsOld71.filter(
+        (row) =>
+          !row.tarihCikis
+      );
 
     return json({
       success: true,
+
       stage:
-        "WINGSM_CARIKART_FILTER_FIXED",
-      request: {
-        method: "GET",
-        path:
-          "/api/b2b/carikart/list/P/20260917/20260917",
-        filter: "*",
+        "WINGSM_PERSONNEL_COMPARE_71_VS_LIVE",
+
+      counts: {
+        oldVerified:
+          OLD_71_CODES.size,
+        live:
+          live.length,
+        extraVsOld71:
+          extraVsOld71.length,
+        missingFromLive:
+          missingFromLive.length,
+        liveWithExitDate:
+          live.filter(
+            (row) =>
+              Boolean(
+                row.tarihCikis
+              )
+          ).length,
+        liveWithoutExitDate:
+          live.filter(
+            (row) =>
+              !row.tarihCikis
+          ).length,
+        extrasWithExitDate:
+          extrasWithExitDate.length,
+        extrasWithoutExitDate:
+          extrasWithoutExitDate.length,
       },
-      wingSuccess,
-      rootKeys:
-        root
-          ? Object.keys(root)
-          : [],
-      arrayPath:
-        found.path,
-      count:
-        found.list.length,
-      preview:
-        found.list
-          .slice(0, 5)
-          .map(safePreview),
+
+      tarihCikisValues:
+        Array.from(
+          tarihCikisGroups
+            .entries()
+        )
+          .map(
+            ([
+              value,
+              count,
+            ]) => ({
+              value,
+              count,
+            })
+          )
+          .sort(
+            (a, b) =>
+              b.count -
+              a.count
+          ),
+
+      extraVsOld71,
+
+      missingOld71Codes:
+        missingFromLive,
+
+      note:
+        "Bu test yalnızca Kod/Ad ve personel durumunu anlamak için gerekli iş alanlarını gösterir; TC, telefon, e-posta ve adres alanları döndürülmez.",
+
       responseTimeMs:
         Date.now() -
         startedAt,
@@ -404,7 +497,7 @@ export async function GET(
       {
         success: false,
         stage:
-          "WINGSM_CARIKART_FILTER_FIXED",
+          "COMPARE",
         message:
           error instanceof Error
             ? error.message
@@ -413,7 +506,7 @@ export async function GET(
           Date.now() -
           startedAt,
       },
-      502
+      500
     );
   }
 }
