@@ -446,10 +446,11 @@ function buildInstallmentSupport(
       result.push({
         commissionKey:
           `CR${installment}`,
-        // Paratika desteğinin verdiği örneği birebir izliyoruz:
-        // Örn. 6 seçildiyse CR1..CR6 = true, CR7..CR24 = false.
+        // Sadece panelde seçilen taksit aktif olur.
+        // Örn. 6 seçildiyse yalnız CR6=true;
+        // CR1-CR5 ve CR7-CR24=false.
         active:
-          installment <=
+          installment ===
           selectedInstallment,
         installmentType,
         encryptable: false,
@@ -1090,9 +1091,9 @@ export async function POST(
     // Paratika desteğinin verdiği format:
     // - CR1..CR24 tamamı gönderilir.
     // - CONSUMER + BUSINESS tamamı gönderilir.
-    // - Paratika destek örneğindeki gibi kümülatif aktiflik kullanılır.
-    // - Örn. 6 seçildiyse CR1..CR6 active=true,
-    //   CR7..CR24 active=false olur.
+    // - Yalnızca panelde seçilen CR active=true olur.
+    // - Diğer tüm CR kayıtları active=false olur.
+    // - Örn. 6 seçildiyse sadece CR6=true olur.
     // - active BOOLEAN'dır.
     // - encryptable=false gönderilir.
     //
