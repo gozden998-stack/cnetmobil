@@ -1,11 +1,18 @@
 // app/api/wingsm/personnel-source-test/route.ts
 //
-// CNETMOBIL - WingSM CariKart PERSONEL hata detay testi
+// CNETMOBIL - WingSM CariKart PERSONEL endpoint testi
 //
-// Amaç:
-// WingSM cevabı HTTP 200 + success:false dönüyor.
-// Hata detayı response.data içinde:
-// Type / Number / Message / Key / Values
+// DÜZELTME:
+// Önceki çağrıda filter değeri "'*'" olarak gönderildi.
+// WingSM SQL hatası:
+//   Operand data type varchar is invalid for multiply operator.
+//
+// Bu hata, tek tırnakların da parametre değerine dahil edilmesiyle
+// '*' ifadesinin SQL tarafında çarpma operatörü gibi yorumlandığını gösteriyor.
+//
+// Bu testte:
+//   filter=*
+// gönderilir.
 //
 // SADECE GET.
 // WingSM'e hiçbir veri yazılmaz.
@@ -51,109 +58,10 @@ function asObject(
   return null;
 }
 
-function safeValues(
-  value: unknown
-): unknown {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
-  }
-
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return {
-      type: "array",
-      count: value.length,
-      preview: value
-        .slice(0, 10)
-        .map((item) => {
-          if (
-            typeof item === "string" ||
-            typeof item === "number" ||
-            typeof item === "boolean"
-          ) {
-            return item;
-          }
-
-          const obj =
-            asObject(item);
-
-          if (!obj) {
-            return typeof item;
-          }
-
-          return {
-            keys:
-              Object.keys(obj),
-            message:
-              obj.Message ??
-              obj.message ??
-              null,
-            key:
-              obj.Key ??
-              obj.key ??
-              null,
-            value:
-              obj.Value ??
-              obj.value ??
-              null,
-          };
-        }),
-    };
-  }
-
-  const obj =
-    asObject(value);
-
-  if (obj) {
-    return {
-      type: "object",
-      keys:
-        Object.keys(obj),
-      preview:
-        Object.fromEntries(
-          Object.entries(obj)
-            .slice(0, 15)
-            .map(
-              ([key, val]) => [
-                key,
-                typeof val ===
-                    "string" ||
-                  typeof val ===
-                    "number" ||
-                  typeof val ===
-                    "boolean" ||
-                  val === null
-                  ? val
-                  : Array.isArray(val)
-                  ? `[array:${val.length}]`
-                  : "[object]",
-              ]
-            )
-        ),
-    };
-  }
-
-  return {
-    type: typeof value,
-  };
-}
-
 function getBaseUrl() {
-  const raw =
-    String(
-      process.env.WINGSM_BASE_URL ||
-        ""
-    ).trim();
+  const raw = String(
+    process.env.WINGSM_BASE_URL || ""
+  ).trim();
 
   if (!raw) {
     throw new Error(
@@ -167,14 +75,17 @@ function getBaseUrl() {
 async function makeRequest(
   token: string
 ) {
-  const url =
-    new URL(
-      `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
-    );
+  const url = new URL(
+    `${getBaseUrl()}/api/b2b/carikart/list/P/20260917/20260917`
+  );
 
+  // ÖNEMLİ:
+  // Tek tırnak YOK.
+  // URL sonucu:
+  // ?filter=*
   url.searchParams.set(
     "filter",
-    "'*'"
+    "*"
   );
 
   return fetch(
@@ -196,6 +107,153 @@ async function makeRequest(
         ),
     }
   );
+}
+
+function extractList(
+  payload: unknown
+): {
+  path: string | null;
+  list: unknown[];
+} {
+  if (Array.isArray(payload)) {
+    return {
+      path: "root",
+      list: payload,
+    };
+  }
+
+  const root =
+    asObject(payload);
+
+  if (!root) {
+    return {
+      path: null,
+      list: [],
+    };
+  }
+
+  const directCandidates = [
+    ["data", root.data],
+    ["Data", root.Data],
+    ["list", root.list],
+    ["List", root.List],
+    ["items", root.items],
+    ["Items", root.Items],
+    ["rows", root.rows],
+    ["Rows", root.Rows],
+  ] as const;
+
+  for (
+    const [key, value]
+    of directCandidates
+  ) {
+    if (Array.isArray(value)) {
+      return {
+        path: key,
+        list: value,
+      };
+    }
+  }
+
+  const dataObj =
+    asObject(
+      root.data ??
+        root.Data
+    );
+
+  if (dataObj) {
+    const nestedCandidates = [
+      ["data.List", dataObj.List],
+      ["data.list", dataObj.list],
+      ["data.Items", dataObj.Items],
+      ["data.items", dataObj.items],
+      ["data.Rows", dataObj.Rows],
+      ["data.rows", dataObj.rows],
+      ["data.Values", dataObj.Values],
+      ["data.values", dataObj.values],
+    ] as const;
+
+    for (
+      const [key, value]
+      of nestedCandidates
+    ) {
+      if (Array.isArray(value)) {
+        return {
+          path: key,
+          list: value,
+        };
+      }
+    }
+  }
+
+  return {
+    path: null,
+    list: [],
+  };
+}
+
+function safePreview(
+  value: unknown
+) {
+  const row =
+    asObject(value);
+
+  if (!row) {
+    return value;
+  }
+
+  const allowedKeys = [
+    "Id",
+    "ID",
+    "id",
+    "Kod",
+    "KOD",
+    "kod",
+    "Code",
+    "code",
+    "Ad",
+    "ADI",
+    "adi",
+    "Name",
+    "name",
+    "CariKod",
+    "CariKodu",
+    "CariAd",
+    "CariAdi",
+    "PersonelKod",
+    "PersonelAd",
+    "SaticiKod",
+    "SaticiAd",
+    "Sirket",
+    "Sube",
+    "GorevYeri",
+    "Aktif",
+    "Active",
+    "Status",
+    "Durum",
+  ];
+
+  const fields:
+    Record<string, unknown> = {};
+
+  for (const key of allowedKeys) {
+    if (
+      Object.prototype
+        .hasOwnProperty.call(
+          row,
+          key
+        )
+    ) {
+      fields[key] =
+        row[key];
+    }
+  }
+
+  return {
+    keys:
+      Object.keys(row),
+    fields,
+  };
 }
 
 export async function GET(
@@ -259,72 +317,84 @@ export async function GET(
     const root =
       asObject(payload);
 
-    const data =
-      asObject(
-        root?.data ??
-          root?.Data
-      );
+    const wingSuccess =
+      root?.success ??
+      root?.Success ??
+      null;
+
+    if (
+      wingSuccess === false
+    ) {
+      const errorData =
+        asObject(
+          root?.data ??
+            root?.Data
+        );
+
+      return json({
+        success: false,
+        stage:
+          "WINGSM_RETURNED_FALSE",
+        request: {
+          method: "GET",
+          path:
+            "/api/b2b/carikart/list/P/20260917/20260917",
+          filter: "*",
+        },
+        httpStatus:
+          response.status,
+        wingError: errorData
+          ? {
+              Type:
+                errorData.Type ??
+                errorData.type ??
+                null,
+              Number:
+                errorData.Number ??
+                errorData.number ??
+                null,
+              Message:
+                errorData.Message ??
+                errorData.message ??
+                null,
+              Key:
+                errorData.Key ??
+                errorData.key ??
+                null,
+            }
+          : null,
+        responseTimeMs:
+          Date.now() -
+          startedAt,
+      });
+    }
+
+    const found =
+      extractList(payload);
 
     return json({
       success: true,
-
       stage:
-        "WINGSM_CARIKART_ERROR_DETAIL",
-
+        "WINGSM_CARIKART_FILTER_FIXED",
       request: {
         method: "GET",
         path:
           "/api/b2b/carikart/list/P/20260917/20260917",
-        filter:
-          "'*'",
+        filter: "*",
       },
-
-      wingResponse: {
-        httpStatus:
-          response.status,
-        httpOk:
-          response.ok,
-        success:
-          root?.success ??
-          root?.Success ??
-          null,
-
-        data: data
-          ? {
-              Type:
-                data.Type ??
-                data.type ??
-                null,
-
-              Number:
-                data.Number ??
-                data.number ??
-                null,
-
-              Message:
-                data.Message ??
-                data.message ??
-                null,
-
-              Key:
-                data.Key ??
-                data.key ??
-                null,
-
-              Values:
-                safeValues(
-                  data.Values ??
-                    data.values
-                ),
-            }
-          : null,
-
-        rootKeys:
-          root
-            ? Object.keys(root)
-            : [],
-      },
-
+      wingSuccess,
+      rootKeys:
+        root
+          ? Object.keys(root)
+          : [],
+      arrayPath:
+        found.path,
+      count:
+        found.list.length,
+      preview:
+        found.list
+          .slice(0, 5)
+          .map(safePreview),
       responseTimeMs:
         Date.now() -
         startedAt,
@@ -334,7 +404,7 @@ export async function GET(
       {
         success: false,
         stage:
-          "WINGSM_CARIKART_ERROR_DETAIL",
+          "WINGSM_CARIKART_FILTER_FIXED",
         message:
           error instanceof Error
             ? error.message
