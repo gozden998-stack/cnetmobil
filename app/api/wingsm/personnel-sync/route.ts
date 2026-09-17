@@ -10,10 +10,14 @@
 // - WingSM tarafında hiçbir kayıt oluşturulmaz/değiştirilmez/silinmez.
 // - Kod STRING tutulur. Örn: "0004" baştaki sıfırları korur.
 // - PostgreSQL public.wingsm_personnel cache tablosu güncellenir.
-// - WingSM güncel listesinde olanlar active=true.
-// - Güncel listede olmayan eski cache kayıtları active=false.
+// - SADECE doğrulanmış HizliSatis/ListSatici Kod'ları active=true yapılır.
+// - CariKart P içindeki doğrulanmamış ek kayıtlar active yapılmaz.
+// - Böylece B2B'nin daha geniş personel/cari kümesi Paratika dropdown'a sızmaz.
+// - Bilinmeyen yeni Kod'lar cevapta unverifiedCandidates olarak raporlanır.
 // - Hassas alanlar (TC, telefon, e-posta, adres vb.) raw_data'ya YAZILMAZ.
-// - Route sadece ADMIN oturumu ile çalışır.
+// - Route iki şekilde çalışır:
+//   1) Panelde admin oturumu ile manuel tetikleme
+//    2) Coolify cron için x-sync-secret header ile otomatik tetikleme
 //
 // Mevcut:
 // GET /api/wingsm/personnel
@@ -85,6 +89,92 @@ type NormalizedPersonnel = {
     Pozisyon: string | null;
   };
 };
+
+// WingSM HizliSatis -> settings.ListSatici kaynağından
+// 17.09.2026 tarihinde doğrulanmış gerçek satıcı/personel Kod listesi.
+//
+// NEDEN:
+// /api/b2b/carikart/list/P endpointi 80 kayıt döndürüyor,
+// ancak gerçek HizliSatis ListSatici listesi 71 kayıt.
+// B2B cevabındaki Izinler / TarihCikis / Pozisyon alanları
+// bu iki kümeyi güvenilir biçimde ayırmıyor.
+//
+// Bu nedenle bilinmeyen yeni B2B Kod'lar otomatik olarak
+// Paratika personel listesine AKTİF edilmez.
+const VERIFIED_SELLER_CODES =
+  new Set<string>([
+  "0004",
+  "0217",
+  "0211",
+  "0258",
+  "0294",
+  "0315",
+  "0234",
+  "0253",
+  "0273",
+  "0245",
+  "0332",
+  "0262",
+  "0156",
+  "0001",
+  "0242",
+  "0295",
+  "0333",
+  "0265",
+  "0240",
+  "0308",
+  "0327",
+  "0103",
+  "0269",
+  "0162",
+  "0302",
+  "0305",
+  "0126",
+  "0312",
+  "0154",
+  "0270",
+  "0326",
+  "0223",
+  "0316",
+  "0114",
+  "0132",
+  "0206",
+  "0199",
+  "0163",
+  "0045",
+  "0271",
+  "0146",
+  "0261",
+  "0319",
+  "0007",
+  "0296",
+  "0267",
+  "0283",
+  "0167",
+  "0303",
+  "0306",
+  "0300",
+  "0204",
+  "0328",
+  "0279",
+  "0221",
+  "0282",
+  "0311",
+  "0183",
+  "0324",
+  "0277",
+  "0275",
+  "0299",
+  "0250",
+  "0287",
+  "0329",
+  "0313",
+  "0309",
+  "0320",
+  "0330",
+  "0274",
+  "0307"
+]);
 
 declare global {
   // eslint-disable-next-line no-var
@@ -248,6 +338,69 @@ function verifySession(
   }
 }
 
+
+function timingSafeStringEqual(
+  a: string,
+  b: string
+) {
+  const aBuffer =
+    Buffer.from(
+      a,
+      "utf8"
+    );
+
+  const bBuffer =
+    Buffer.from(
+      b,
+      "utf8"
+    );
+
+  if (
+    aBuffer.length !==
+    bBuffer.length
+  ) {
+    return false;
+  }
+
+  return crypto
+    .timingSafeEqual(
+      aBuffer,
+      bBuffer
+    );
+}
+
+function hasValidSyncSecret(
+  request: NextRequest
+) {
+  const configured =
+    String(
+      process.env
+        .WINGSM_PERSONNEL_SYNC_SECRET ||
+        ""
+    ).trim();
+
+  if (!configured) {
+    return false;
+  }
+
+  const provided =
+    String(
+      request.headers.get(
+        "x-sync-secret"
+      ) ||
+        ""
+    ).trim();
+
+  if (!provided) {
+    return false;
+  }
+
+  return timingSafeStringEqual(
+    configured,
+    provided
+  );
+}
+
 function requireAdmin(
   request: NextRequest
 ) {
@@ -310,6 +463,42 @@ function requireAdmin(
   return {
     ok: true as const,
     session,
+  };
+}
+
+
+function requireSyncAccess(
+  request: NextRequest
+) {
+  if (
+    hasValidSyncSecret(
+      request
+    )
+  ) {
+    return {
+      ok: true as const,
+      mode:
+        "cron" as const,
+      session:
+        null,
+    };
+  }
+
+  const admin =
+    requireAdmin(
+      request
+    );
+
+  if (!admin.ok) {
+    return admin;
+  }
+
+  return {
+    ok: true as const,
+    mode:
+      "admin" as const,
+    session:
+      admin.session,
   };
 }
 
@@ -618,7 +807,7 @@ export async function GET(
 
   try {
     const auth =
-      requireAdmin(
+      requireSyncAccess(
         request
       );
 
@@ -682,17 +871,49 @@ export async function GET(
       );
     }
 
-    const personnel =
+    const allPersonnel =
       normalizePersonnel(
         payload.data
       );
 
+    const personnel =
+      allPersonnel.filter(
+        (person) =>
+          VERIFIED_SELLER_CODES.has(
+            person.code
+          )
+      );
+
+    const unverifiedCandidates =
+      allPersonnel
+        .filter(
+          (person) =>
+            !VERIFIED_SELLER_CODES.has(
+              person.code
+            )
+        )
+        .map(
+          (person) => ({
+            code:
+              person.code,
+            name:
+              person.name,
+          })
+        )
+        .sort(
+          (a, b) =>
+            a.name.localeCompare(
+              b.name,
+              "tr-TR"
+            )
+        );
+
     // Güvenlik:
-    // WingSM yanlışlıkla boş/çok küçük bir liste döndürürse
-    // mevcut personelleri topluca pasif yapmayalım.
+    // Doğrulanmış 71 satıcının büyük kısmı kaynakta yoksa
+    // mevcut cache'i topluca pasif yapmayalım.
     if (
       personnel.length <
-      10
+      60
     ) {
       return json(
         {
@@ -700,11 +921,15 @@ export async function GET(
           stage:
             "SAFETY_GUARD",
           message:
-            "WingSM personel listesi beklenenden çok az kayıt döndürdü. PostgreSQL değiştirilmedi.",
+            "WingSM doğrulanmış satıcı listesi beklenenden çok az kayıt döndürdü. PostgreSQL değiştirilmedi.",
           wingCount:
             payload.data.length,
-          validPersonnelCount:
+          normalizedCount:
+            allPersonnel.length,
+          verifiedFoundCount:
             personnel.length,
+          unverifiedCount:
+            unverifiedCandidates.length,
           tarih,
         },
         502
@@ -722,6 +947,9 @@ export async function GET(
       source:
         "WINGSM_B2B_CARIKART_PERSONEL",
 
+      triggerMode:
+        auth.mode,
+
       request: {
         path,
         filter: "*",
@@ -731,8 +959,19 @@ export async function GET(
       wingCount:
         payload.data.length,
 
+      normalizedCount:
+        allPersonnel.length,
+
+      verifiedSellerCount:
+        personnel.length,
+
       syncedCount:
         personnel.length,
+
+      unverifiedCount:
+        unverifiedCandidates.length,
+
+      unverifiedCandidates,
 
       database: {
         beforeTotal:
@@ -772,7 +1011,7 @@ export async function GET(
       },
 
       note:
-        "WingSM'e yalnızca GET yapıldı. PostgreSQL personel cache güncellendi.",
+        "WingSM'e yalnızca GET yapıldı. Sadece doğrulanmış HizliSatis/ListSatici Kod'ları aktif edildi; doğrulanmamış B2B kayıtları Paratika listesine alınmadı.",
 
       responseTimeMs:
         Date.now() -
