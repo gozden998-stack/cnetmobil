@@ -1,4 +1,12 @@
 // app/api/paratika/status-sync/route.ts
+//
+// FIX 17.09.2026:
+// - Aynı linkte başarılı AP işlem varsa sonraki/önceki başarısız deneme
+//   başarılı ödemeyi FAILED yapamaz.
+// - AP + 00/0000 + doğru tutar/para birimi önceliklidir.
+// - "İŞLEM BAŞARILI" ve 0000 artık hata nedeni/kodu olarak gösterilmez.
+// - Mevcut SQL cast düzeltmeleri ve ÜÖT/ÖSN mantığı korunur.
+//
 // CNETMOBIL - PARATIKA DURUM SENKRONİZASYONU
 //
 // Amaç:
@@ -571,7 +579,49 @@ function selectPayByLinkItem(data: any) {
   })[0];
 }
 
-function selectRelevantTransaction(data: any) {
+function isSuccessReturnCode(
+  value: unknown
+) {
+  const code = String(
+    value ?? ''
+  ).trim();
+
+  // Paratika/banka tarafında başarılı sonuç çoğunlukla 00.
+  // Bazı cevap katmanlarında 0000 görülebiliyor.
+  return (
+    code === '00' ||
+    code === '0000'
+  );
+}
+
+function transactionTime(
+  item: any
+) {
+  const candidates = [
+    item?.pgTranDate,
+    item?.timePsReceived,
+    item?.timeCreated,
+    item?.timePsSent,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed =
+      parseParatikaDate(
+        candidate
+      );
+
+    if (parsed) {
+      return parsed.getTime();
+    }
+  }
+
+  return 0;
+}
+
+function selectRelevantTransaction(
+  data: any,
+  payment?: PaymentRow
+) {
   const list = Array.isArray(
     data?.transactionList
   )
@@ -599,28 +649,99 @@ function selectRelevantTransaction(data: any) {
       ? saleTransactions
       : list;
 
-  function transactionTime(
-    item: any
-  ) {
-    const candidates = [
-      item?.pgTranDate,
-      item?.timePsReceived,
-      item?.timeCreated,
-      item?.timePsSent,
-    ];
+  // KRİTİK DÜZELTME:
+  // Aynı ödeme/link altında önce başarısız bir deneme, sonra başarılı
+  // bir çekim oluşabiliyor. Eski kod "en yeni terminal kayıt" mantığıyla
+  // yanlış bir FA kaydını seçebiliyordu.
+  //
+  // Paratika'da gerçekten AP + başarılı dönüş kodu + aynı tutar/para
+  // birimi varsa, bu başarılı SALE işlemi önceliklidir.
+  const approved =
+    source.filter((item: any) => {
+      const status = String(
+        item?.transactionStatus || ''
+      ).toUpperCase();
 
-    for (const candidate of candidates) {
-      const parsed =
-        parseParatikaDate(
-          candidate
+      if (
+        status !== 'AP' ||
+        !isSuccessReturnCode(
+          item?.pgTranReturnCode
+        )
+      ) {
+        return false;
+      }
+
+      if (!payment) {
+        return true;
+      }
+
+      const sameAmount =
+        amountMatches(
+          payment.amount,
+          item?.amount
         );
 
-      if (parsed) {
-        return parsed.getTime();
-      }
+      const sameCurrency =
+        String(
+          item?.currency || ''
+        ).toUpperCase() ===
+        String(
+          payment.currency || ''
+        ).toUpperCase();
+
+      return (
+        sameAmount &&
+        sameCurrency
+      );
+    });
+
+  const latestApproved =
+    approved.length
+      ? [...approved].sort(
+          (a: any, b: any) =>
+            transactionTime(b) -
+            transactionTime(a)
+        )[0]
+      : null;
+
+  // Başarılı işlemden SONRA açık bir iptal/void geldiyse onu koru.
+  // Aksi halde sonradan oluşmuş bir FA denemesi başarılı ödemeyi
+  // FAILED'a çeviremez.
+  if (latestApproved) {
+    const cancellations =
+      source.filter((item: any) => {
+        const status = String(
+          item?.transactionStatus || ''
+        ).toUpperCase();
+
+        return (
+          status === 'VD' ||
+          status === 'CA'
+        );
+      });
+
+    const latestCancellation =
+      cancellations.length
+        ? [...cancellations].sort(
+            (a: any, b: any) =>
+              transactionTime(b) -
+              transactionTime(a)
+          )[0]
+        : null;
+
+    if (
+      latestCancellation &&
+      transactionTime(
+        latestCancellation
+      ) >
+        transactionTime(
+          latestApproved
+        )
+    ) {
+      return latestCancellation;
     }
 
-    return 0;
+    return latestApproved;
   }
 
   function isTerminal(
@@ -641,7 +762,9 @@ function selectRelevantTransaction(data: any) {
       ) ||
       (
         returnCode !== '' &&
-        returnCode !== '00'
+        !isSuccessReturnCode(
+          returnCode
+        )
       )
     );
   }
@@ -654,10 +777,7 @@ function selectRelevantTransaction(data: any) {
       ? terminal
       : source;
 
-  // En güncel terminal sonucu esas alınır.
-  // Örnek:
-  // önce IP/MR, ardından FA geldiyse artık IP/MR seçilip
-  // PENDING'de takılı kalmaz; FA seçilir.
+  // Başarılı işlem yoksa en güncel terminal sonuç kullanılır.
   return [...candidates].sort(
     (a: any, b: any) =>
       transactionTime(b) -
@@ -680,7 +800,9 @@ function mapTransactionStatus(
 
   if (
     status === 'AP' &&
-    returnCode === '00'
+    isSuccessReturnCode(
+      returnCode
+    )
   ) {
     return 'APPROVED';
   }
@@ -698,7 +820,9 @@ function mapTransactionStatus(
   // 00 dışındaki gerçek banka sonucu FAILED kabul edilir.
   if (
     returnCode !== '' &&
-    returnCode !== '00'
+    !isSuccessReturnCode(
+      returnCode
+    )
   ) {
     return 'FAILED';
   }
@@ -864,18 +988,27 @@ function getFailureInfo(
       ''
   ).trim();
 
-  const code = String(
+  const rawErrorCode = String(
     transaction?.pgTranErrorCode ??
       transaction?.errorCode ??
       transactionData?.errorCode ??
-      (
-        returnCode &&
-        returnCode !== '00'
-          ? returnCode
-          : ''
-      ) ??
       ''
   ).trim();
+
+  const code =
+    rawErrorCode &&
+    !isSuccessReturnCode(
+      rawErrorCode
+    )
+      ? rawErrorCode
+      : (
+          returnCode &&
+          !isSuccessReturnCode(
+            returnCode
+          )
+            ? returnCode
+            : ''
+        );
 
   const text = String(
     transaction?.pgTranErrorText ??
@@ -891,13 +1024,26 @@ function getFailureInfo(
       ''
   ).trim();
 
+  const normalizedTopLevelMsg =
+    topLevelMsg
+      .toLocaleUpperCase('tr-TR')
+      .replace(/İ/g, 'I')
+      .replace(/Ş/g, 'S')
+      .replace(/Ğ/g, 'G')
+      .replace(/Ç/g, 'C')
+      .replace(/Ö/g, 'O')
+      .replace(/Ü/g, 'U');
+
   const usefulTopLevelMsg =
     topLevelMsg &&
     ![
       'APPROVED',
       'DECLINED',
+      'SUCCESS',
+      'SUCCESSFUL',
+      'ISLEM BASARILI',
     ].includes(
-      topLevelMsg.toUpperCase()
+      normalizedTopLevelMsg
     )
       ? topLevelMsg
       : '';
@@ -949,7 +1095,8 @@ async function syncOnePayment(
 
   let transaction =
     selectRelevantTransaction(
-      primaryTransactionData
+      primaryTransactionData,
+      payment
     );
 
   let merchantNoteTransactionData:
@@ -970,7 +1117,8 @@ async function syncOnePayment(
 
     const merchantNoteTransaction =
       selectRelevantTransaction(
-        merchantNoteTransactionData
+        merchantNoteTransactionData,
+        payment
       );
 
     if (merchantNoteTransaction) {
@@ -1006,7 +1154,9 @@ async function syncOnePayment(
     // APPROVED ancak tutar ve para birimi de doğrulanırsa kabul edilir.
     if (
       transactionStatus === 'AP' &&
-      pgTranReturnCode === '00' &&
+      isSuccessReturnCode(
+        pgTranReturnCode
+      ) &&
       (!sameAmount || !sameCurrency)
     ) {
       // Güvenlik: eşleşmeyen ödeme APPROVED yapılmaz.
@@ -1184,12 +1334,16 @@ async function syncOnePayment(
 
   const responseCode =
     newStatus === 'FAILED'
-      ? failureInfo.code ||
-        pgTranReturnCode ||
-        String(
-          transactionData
-            ?.responseCode ??
-            ''
+      ? (
+          failureInfo.code ||
+          (
+            pgTranReturnCode &&
+            !isSuccessReturnCode(
+              pgTranReturnCode
+            )
+              ? pgTranReturnCode
+              : ''
+          )
         )
       : String(
           transactionData?.responseCode ??
