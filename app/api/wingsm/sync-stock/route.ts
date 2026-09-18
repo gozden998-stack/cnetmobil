@@ -77,6 +77,7 @@ const DETAIL_CONCURRENCY =
   6;
 
 const MANAGED_BRANCHES = [
+  "MERKEZ",
   "CNET",
   "CMR",
   "CADDE",
@@ -1570,6 +1571,7 @@ function branchCounts(
       string,
       number
     > = {
+    MERKEZ: 0,
     CNET: 0,
     CMR: 0,
     CADDE: 0,
