@@ -43,6 +43,12 @@ export default function Depo() {
   const [loading, setLoading] = useState(true);
   const [usingImei, setUsingImei] = useState<string | null>(null);
 
+  // KULLAN butonuna basıldığı anda görünümü server cevabından bağımsız
+  // anlık değiştirmek için ayrı UI override tutulur.
+  const [instantUsed, setInstantUsed] = useState<
+    Record<string, string>
+  >({});
+
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -171,6 +177,48 @@ export default function Depo() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const restored: Record<string, string> = {};
+    const now = Date.now();
+
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+
+      if (!key || !key.startsWith("kullanilan_imei_")) {
+        continue;
+      }
+
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+
+        const parsed = JSON.parse(raw);
+        const timestamp = Number(parsed?.timestamp || 0);
+        const durum = temiz(parsed?.durum);
+
+        // Eski davranıştaki gibi 10 dakika boyunca görünümü koru.
+        if (
+          durum &&
+          timestamp &&
+          now - timestamp < 10 * 60 * 1000
+        ) {
+          const imei = key.replace("kullanilan_imei_", "");
+          restored[imei] = durum;
+        } else {
+          window.localStorage.removeItem(key);
+        }
+      } catch {
+        window.localStorage.removeItem(key);
+      }
+    }
+
+    if (Object.keys(restored).length) {
+      setInstantUsed(restored);
+    }
+  }, []);
+
+  useEffect(() => {
     mountedRef.current = true;
 
     void loadRows();
@@ -245,7 +293,23 @@ export default function Depo() {
     const durumText =
       `KULLANILDI - ${personel}`;
 
-    // Butona basıldığı anda ekranda çiz.
+    // Butona basıldığı anda ayrı UI state üzerinden anında çiz.
+    setInstantUsed((current) => ({
+      ...current,
+      [imei]: durumText,
+    }));
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "kullanilan_imei_" + imei,
+        JSON.stringify({
+          durum: durumText,
+          timestamp: Date.now(),
+        })
+      );
+    }
+
+    // PostgreSQL senkronu gecikirse polling görünümü geri çevirmesin.
     optimisticRef.current.set(
       imei,
       {
@@ -309,6 +373,18 @@ export default function Depo() {
       optimisticRef.current.delete(
         imei
       );
+
+      setInstantUsed((current) => {
+        const next = { ...current };
+        delete next[imei];
+        return next;
+      });
+
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(
+          "kullanilan_imei_" + imei
+        );
+      }
 
       await loadRows();
 
@@ -421,9 +497,13 @@ export default function Depo() {
             ) : (
               filteredRows.map(
                 (row, i) => {
+                  const guncelDurum =
+                    instantUsed[row.imei] ||
+                    row.durum;
+
                   const isUsed =
                     kullanildiMi(
-                      row.durum
+                      guncelDurum
                     );
 
                   const isSaving =
@@ -442,9 +522,14 @@ export default function Depo() {
                       }`}
                     >
                       <div
+                        style={{
+                          textDecoration: isUsed
+                            ? "line-through"
+                            : "none",
+                        }}
                         className={`flex-[3] flex items-center ${
                           isUsed
-                            ? "text-red-700 line-through opacity-70"
+                            ? "text-red-700 opacity-70"
                             : "text-slate-700 group-hover:text-slate-900"
                         } transition-colors pr-4`}
                       >
@@ -453,9 +538,14 @@ export default function Depo() {
                       </div>
 
                       <div
+                        style={{
+                          textDecoration: isUsed
+                            ? "line-through"
+                            : "none",
+                        }}
                         className={`flex-[2] text-center font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${
                           isUsed
-                            ? "text-red-500 line-through opacity-70"
+                            ? "text-red-500 opacity-70"
                             : "text-green-600"
                         }`}
                       >
@@ -467,7 +557,7 @@ export default function Depo() {
                         {isUsed ? (
                           <div className="flex flex-col items-end">
                             <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">
-                              {row.durum}
+                              {guncelDurum}
                             </span>
                           </div>
                         ) : (
