@@ -25,7 +25,6 @@ type DepoRow = {
 };
 
 const POLL_MS = 2000;
-const OPTIMISTIC_MS = 30000;
 
 function temiz(value: unknown) {
   return String(value ?? "").trim();
@@ -43,24 +42,17 @@ export default function Depo() {
   const [loading, setLoading] = useState(true);
   const [usingImei, setUsingImei] = useState<string | null>(null);
 
-  // KULLAN butonuna basıldığı anda görünümü server cevabından bağımsız
-  // anlık değiştirmek için ayrı UI override tutulur.
+  // Bir IMEI bir kez KULLANILDI olduysa ekranda kalıcı tutulur.
+  // Sheet/PostgreSQL de KULLANILDI döndürüyorsa zaten doğrudan çizilir.
+  // Aynı tarayıcıda sayfa yenilense bile localStorage kaydı korunur.
   const [instantUsed, setInstantUsed] = useState<
     Record<string, string>
   >({});
 
+  const instantUsedRef = useRef<Record<string, string>>({});
+
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
-
-  const optimisticRef = useRef<
-    Map<
-      string,
-      {
-        durum: string;
-        expiresAt: number;
-      }
-    >
-  >(new Map());
 
   const loadRows = useCallback(async () => {
     if (busyRef.current) return;
@@ -97,16 +89,7 @@ export default function Depo() {
         ? (result.rows as SheetRow[])
         : [];
 
-      const now = Date.now();
-
-      for (const [
-        imei,
-        optimistic,
-      ] of optimisticRef.current.entries()) {
-        if (optimistic.expiresAt <= now) {
-          optimisticRef.current.delete(imei);
-        }
-      }
+      const confirmedUsed: Record<string, string> = {};
 
       const nextRows = source
         .filter(
@@ -128,22 +111,13 @@ export default function Depo() {
           const imei = temiz(data[1]);
           let durum = temiz(data[2]);
 
-          const optimistic =
-            optimisticRef.current.get(imei);
-
-          if (
-            optimistic &&
-            !kullanildiMi(durum) &&
-            optimistic.expiresAt > now
-          ) {
-            durum = optimistic.durum;
-          }
-
-          if (
-            optimistic &&
-            kullanildiMi(durum)
-          ) {
-            optimisticRef.current.delete(imei);
+          // Server/Sheet "KULLANILDI" diyorsa kalıcı olarak çiz.
+          if (kullanildiMi(durum)) {
+            confirmedUsed[imei] = durum;
+          } else if (instantUsedRef.current[imei]) {
+            // PostgreSQL senkronu gecikse bile daha önce kullanılan IMEI
+            // ekranda tekrar aktif görünmesin.
+            durum = instantUsedRef.current[imei];
           }
 
           return {
@@ -158,6 +132,28 @@ export default function Depo() {
           (row) =>
             row.cihaz || row.imei
         );
+
+      if (Object.keys(confirmedUsed).length) {
+        const merged = {
+          ...instantUsedRef.current,
+          ...confirmedUsed,
+        };
+
+        instantUsedRef.current = merged;
+
+        if (mountedRef.current) {
+          setInstantUsed(merged);
+        }
+
+        if (typeof window !== "undefined") {
+          Object.entries(confirmedUsed).forEach(([imei, durum]) => {
+            window.localStorage.setItem(
+              "kullanilan_imei_" + imei,
+              JSON.stringify({ durum })
+            );
+          });
+        }
+      }
 
       if (mountedRef.current) {
         setRows(nextRows);
@@ -180,7 +176,6 @@ export default function Depo() {
     if (typeof window === "undefined") return;
 
     const restored: Record<string, string> = {};
-    const now = Date.now();
 
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
@@ -194,28 +189,19 @@ export default function Depo() {
         if (!raw) continue;
 
         const parsed = JSON.parse(raw);
-        const timestamp = Number(parsed?.timestamp || 0);
         const durum = temiz(parsed?.durum);
 
-        // Eski davranıştaki gibi 10 dakika boyunca görünümü koru.
-        if (
-          durum &&
-          timestamp &&
-          now - timestamp < 10 * 60 * 1000
-        ) {
+        if (kullanildiMi(durum)) {
           const imei = key.replace("kullanilan_imei_", "");
           restored[imei] = durum;
-        } else {
-          window.localStorage.removeItem(key);
         }
       } catch {
-        window.localStorage.removeItem(key);
+        // Bozuk localStorage kaydı görünümü bozmasın.
       }
     }
 
-    if (Object.keys(restored).length) {
-      setInstantUsed(restored);
-    }
+    instantUsedRef.current = restored;
+    setInstantUsed(restored);
   }, []);
 
   useEffect(() => {
@@ -293,32 +279,23 @@ export default function Depo() {
     const durumText =
       `KULLANILDI - ${personel}`;
 
-    // Butona basıldığı anda ayrı UI state üzerinden anında çiz.
-    setInstantUsed((current) => ({
-      ...current,
+    // Butona basıldığı anda kalıcı olarak kullanıldı kabul et.
+    const nextUsed = {
+      ...instantUsedRef.current,
       [imei]: durumText,
-    }));
+    };
+
+    instantUsedRef.current = nextUsed;
+    setInstantUsed(nextUsed);
 
     if (typeof window !== "undefined") {
       window.localStorage.setItem(
         "kullanilan_imei_" + imei,
         JSON.stringify({
           durum: durumText,
-          timestamp: Date.now(),
         })
       );
     }
-
-    // PostgreSQL senkronu gecikirse polling görünümü geri çevirmesin.
-    optimisticRef.current.set(
-      imei,
-      {
-        durum: durumText,
-        expiresAt:
-          Date.now() +
-          OPTIMISTIC_MS,
-      }
-    );
 
     setRows((current) =>
       current.map((row) =>
@@ -370,15 +347,13 @@ export default function Depo() {
       // Arkada güncel veriyi tekrar çek.
       void loadRows();
     } catch (error) {
-      optimisticRef.current.delete(
-        imei
-      );
+      const next = {
+        ...instantUsedRef.current,
+      };
+      delete next[imei];
 
-      setInstantUsed((current) => {
-        const next = { ...current };
-        delete next[imei];
-        return next;
-      });
+      instantUsedRef.current = next;
+      setInstantUsed(next);
 
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(
