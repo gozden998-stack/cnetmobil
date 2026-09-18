@@ -1878,6 +1878,9 @@ export default function CnetmobilCmrFinalUltimate() {
           label: 'Cihaz Talep',
           visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay,
           branchItems: [
+            ...(isAdmin || isMasterAccess
+              ? [{ code: 'MERKEZ', label: 'MERKEZ', detail: 'WingSM 001' }]
+              : []),
             { code: 'CNET', label: 'CNET', detail: 'Merkez Depo' },
             { code: 'CMR', label: 'CMR', detail: 'CMR Mağaza' },
             { code: 'CADDE', label: 'CADDE', detail: 'Cadde Mağaza' },
