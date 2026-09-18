@@ -842,6 +842,339 @@ export default function CnetmobilCmrFinalUltimate() {
   const prevDbRef = useRef<any[]>([]);
   const prevCepTabletRef = useRef<any[][]>([]);
   const toastIdCounter = useRef(0);
+
+  // ======================================================
+  // MAĞAZAYA GELEN YENİ CİHAZ TALEBİ + BİLDİRİM MERKEZİ
+  // Toast 12 sn görünür, okunmamış sayaç kullanıcı açana kadar kalır.
+  // Son 20 bildirim mağaza bazlı tarayıcıda saklanır.
+  // ======================================================
+  type DeviceRequestNotification = {
+    id: string;
+    requestId: string;
+    requesterBranch: string;
+    ownerBranch: string;
+    deviceName: string;
+    imei: string;
+    status: string;
+    createdAt: string;
+    unread: boolean;
+  };
+
+  const [requestNotifications, setRequestNotifications] = useState<DeviceRequestNotification[]>([]);
+  const [requestNotificationOpen, setRequestNotificationOpen] = useState(false);
+  const seenIncomingRequestIdsRef = useRef<Set<string>>(new Set());
+  const incomingRequestNotificationReadyRef = useRef(false);
+  const requestNotificationBranchRef = useRef('');
+
+  const requestNotificationStorageKey = (branch: string) =>
+    `cnet_device_request_notifications_v1_${branch}`;
+
+  const saveRequestNotifications = (
+    branch: string,
+    items: DeviceRequestNotification[]
+  ) => {
+    if (typeof window === 'undefined' || !branch) return;
+
+    try {
+      localStorage.setItem(
+        requestNotificationStorageKey(branch),
+        JSON.stringify(items.slice(0, 20))
+      );
+    } catch (error) {
+      console.warn('Talep bildirimleri kaydedilemedi:', error);
+    }
+  };
+
+  const unreadRequestNotificationCount =
+    requestNotifications.filter((item) => item.unread).length;
+
+  const openRequestNotificationCenter = () => {
+    setRequestNotificationOpen((current) => {
+      const next = !current;
+
+      if (next) {
+        setRequestNotifications((items) => {
+          const marked = items.map((item) => ({
+            ...item,
+            unread: false,
+          }));
+
+          saveRequestNotifications(
+            requestNotificationBranchRef.current,
+            marked
+          );
+
+          return marked;
+        });
+      }
+
+      return next;
+    });
+  };
+
+  const requestNotificationStatusText = (status: string) => {
+    const value = String(status || '')
+      .trim()
+      .toLocaleUpperCase('tr-TR');
+
+    if (value === 'PENDING') return 'BEKLİYOR';
+    if (value === 'SENT') return 'GÖNDERİLDİ';
+    if (value === 'TRANSFER_WAITING') return 'TRANSFERDE';
+    if (value === 'REJECTED') return 'REDDEDİLDİ';
+    if (value === 'COMPLETED') return 'TAMAMLANDI';
+    if (value === 'CANCELLED') return 'İPTAL';
+
+    return value || 'BEKLİYOR';
+  };
+
+  const requestNotificationTimeText = (value: string) => {
+    const time = new Date(value).getTime();
+
+    if (!Number.isFinite(time)) return '';
+
+    const diffMs = Math.max(0, Date.now() - time);
+    const minute = Math.floor(diffMs / 60_000);
+
+    if (minute < 1) return 'Şimdi';
+    if (minute < 60) return `${minute} dk önce`;
+
+    const hour = Math.floor(minute / 60);
+    if (hour < 24) return `${hour} sa önce`;
+
+    const day = Math.floor(hour / 24);
+    if (day < 7) return `${day} gün önce`;
+
+    return new Date(value).toLocaleString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      seenIncomingRequestIdsRef.current = new Set();
+      incomingRequestNotificationReadyRef.current = false;
+      requestNotificationBranchRef.current = '';
+      setRequestNotifications([]);
+      setRequestNotificationOpen(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkIncomingDeviceRequests = async () => {
+      try {
+        const response = await fetch('/api/stock/requests', {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+
+        const result = await response.json().catch(() => ({}));
+
+        if (
+          cancelled ||
+          !response.ok ||
+          !result?.success
+        ) {
+          return;
+        }
+
+        const myBranch = String(
+          result?.currentUser?.stockBranchCode || ''
+        )
+          .trim()
+          .toLocaleUpperCase('tr-TR');
+
+        if (!myBranch) return;
+
+        if (requestNotificationBranchRef.current !== myBranch) {
+          requestNotificationBranchRef.current = myBranch;
+
+          try {
+            const saved = JSON.parse(
+              localStorage.getItem(
+                requestNotificationStorageKey(myBranch)
+              ) || '[]'
+            );
+
+            setRequestNotifications(
+              Array.isArray(saved)
+                ? saved.slice(0, 20)
+                : []
+            );
+          } catch (error) {
+            console.warn('Talep bildirimleri okunamadı:', error);
+            setRequestNotifications([]);
+          }
+        }
+
+        const requests = Array.isArray(result?.requests)
+          ? result.requests
+          : [];
+
+        const requestStatusMap = new Map<string, string>();
+
+        requests.forEach((request: any) => {
+          const requestId = String(request?.request_id || '');
+          if (!requestId) return;
+
+          requestStatusMap.set(
+            requestId,
+            String(request?.request_status || '')
+          );
+        });
+
+        // Önceden gelen bildirimin durumu değiştiyse merkezde de güncelle.
+        setRequestNotifications((items) => {
+          let changed = false;
+
+          const next = items.map((item) => {
+            const currentStatus = requestStatusMap.get(item.requestId);
+
+            if (!currentStatus || currentStatus === item.status) {
+              return item;
+            }
+
+            changed = true;
+            return {
+              ...item,
+              status: currentStatus,
+            };
+          });
+
+          if (changed) {
+            saveRequestNotifications(myBranch, next);
+          }
+
+          return changed ? next : items;
+        });
+
+        const incomingPending = requests.filter((request: any) => {
+          const status = String(request?.request_status || '')
+            .trim()
+            .toLocaleUpperCase('tr-TR');
+
+          const ownerBranch = String(request?.owner_branch_code || '')
+            .trim()
+            .toLocaleUpperCase('tr-TR');
+
+          return status === 'PENDING' && ownerBranch === myBranch;
+        });
+
+        // İlk sorguda eski talepleri yeni bildirim gibi göstermiyoruz.
+        if (!incomingRequestNotificationReadyRef.current) {
+          seenIncomingRequestIdsRef.current = new Set(
+            incomingPending.map((request: any) =>
+              String(request?.request_id || '')
+            )
+          );
+
+          incomingRequestNotificationReadyRef.current = true;
+          return;
+        }
+
+        for (const request of incomingPending) {
+          const requestId = String(request?.request_id || '');
+
+          if (
+            !requestId ||
+            seenIncomingRequestIdsRef.current.has(requestId)
+          ) {
+            continue;
+          }
+
+          seenIncomingRequestIdsRef.current.add(requestId);
+
+          const requesterBranch = String(
+            request?.requester_branch_code || 'BAŞKA MAĞAZA'
+          ).trim();
+
+          const ownerBranch = String(
+            request?.owner_branch_code || myBranch
+          ).trim();
+
+          const deviceName = [
+            request?.brand,
+            request?.model,
+            request?.memory,
+          ]
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+            .join(' ');
+
+          const imei = String(request?.imei || '').trim();
+
+          const centerItem: DeviceRequestNotification = {
+            id: `request-${requestId}`,
+            requestId,
+            requesterBranch,
+            ownerBranch,
+            deviceName:
+              deviceName || 'Stokunuzdaki cihaz',
+            imei,
+            status: String(
+              request?.request_status || 'PENDING'
+            ),
+            createdAt:
+              String(request?.requested_at || '') ||
+              new Date().toISOString(),
+            unread: true,
+          };
+
+          setRequestNotifications((items) => {
+            const next = [
+              centerItem,
+              ...items.filter(
+                (item) => item.requestId !== requestId
+              ),
+            ].slice(0, 20);
+
+            saveRequestNotifications(myBranch, next);
+            return next;
+          });
+
+          toastIdCounter.current += 1;
+          const notificationId = toastIdCounter.current;
+
+          setToastMessages((prev) => [
+            ...prev,
+            {
+              id: notificationId,
+              type: 'new',
+              text:
+                `🔔 YENİ CİHAZ TALEBİ: ${requesterBranch} mağazası ` +
+                `${deviceName || 'stokunuzdaki bir cihazı'} talep etti.` +
+                `${imei ? ` IMEI: ${imei}` : ''}`,
+            },
+          ]);
+
+          window.setTimeout(() => {
+            setToastMessages((prev) =>
+              prev.filter((item) => item.id !== notificationId)
+            );
+          }, 12000);
+        }
+      } catch (error) {
+        console.error('Cihaz talep bildirim kontrol hatası:', error);
+      }
+    };
+
+    checkIncomingDeviceRequests();
+
+    const intervalId = window.setInterval(
+      checkIncomingDeviceRequests,
+      5000
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isLoggedIn]);
+
   const sheetRowsRef = useRef<SheetRow[]>([]);
 
   const branches = [
@@ -2665,27 +2998,28 @@ export default function CnetmobilCmrFinalUltimate() {
                     Kasko Hesapla
                   </button>
 
-                  <div className="relative hidden sm:block">
+                  <div className="relative">
                     <button
                       type="button"
-                      title="Aktif Talepler"
-                      onClick={() => {
-                        if (isMasterAccess || isAdmin || isSuperAdminUser) {
-                          setAppMode('cihaz_talep');
-                          setStep(1);
-                          setCihazTalepOpenActiveSignal((value) => value + 1);
-                        }
-                      }}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                      title="Bildirimler"
+                      aria-label="Bildirimler"
+                      onClick={openRequestNotificationCenter}
+                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                        requestNotificationOpen
+                          ? 'border-blue-400/50 bg-blue-500/20 text-white'
+                          : 'border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white'
+                      }`}
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m2 0v1a1 1 0 002 0v-1" />
                       </svg>
                     </button>
 
-                    {topActiveRequestCount > 0 && (
+                    {unreadRequestNotificationCount > 0 && (
                       <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[8px] font-black text-white">
-                        {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
+                        {unreadRequestNotificationCount > 99
+                          ? '99+'
+                          : unreadRequestNotificationCount}
                       </span>
                     )}
                   </div>
@@ -4413,6 +4747,136 @@ export default function CnetmobilCmrFinalUltimate() {
       <footer className="mt-auto w-full border-t border-slate-200 bg-transparent py-6 pb-24 text-center print:hidden lg:pb-6">
          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">{isZumay ? 'CNETMOBIL PARTNER • BAYİ PORTALI v6.0.0' : 'CNETMOBIL • CMR ENTERPRISE DASHBOARD v6.0.0 (PARTNER SAAS)'}</p>
       </footer>
+
+      {/* CİHAZ TALEP BİLDİRİM MERKEZİ */}
+      {requestNotificationOpen && !isZumay && (
+        <>
+          <button
+            type="button"
+            aria-label="Bildirim merkezini kapat"
+            onClick={() => setRequestNotificationOpen(false)}
+            className="fixed inset-0 z-[205] cursor-default bg-transparent print:hidden"
+          />
+
+          <div className="fixed left-3 right-3 top-20 z-[210] max-h-[72dvh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl print:hidden sm:left-auto sm:right-6 sm:w-[390px]">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                  BİLDİRİMLER
+                </div>
+                <div className="mt-0.5 text-xs font-bold text-slate-500">
+                  Son 20 cihaz talebi
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setRequestNotificationOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {(isMasterAccess || isAdmin || isSuperAdminUser) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRequestNotificationOpen(false);
+                  setAppMode('cihaz_talep');
+                  setStep(1);
+                  setCihazTalepOpenActiveSignal((value) => value + 1);
+                }}
+                className="flex w-full items-center justify-between border-b border-slate-100 bg-blue-50 px-4 py-3 text-left"
+              >
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-blue-700">
+                    AKTİF TALEPLERİ AÇ
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-semibold text-blue-500">
+                    Mevcut talep yönetim ekranına git
+                  </div>
+                </div>
+
+                {topActiveRequestCount > 0 && (
+                  <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-blue-600 px-2 text-[9px] font-black text-white">
+                    {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            <div className="max-h-[58dvh] overflow-y-auto">
+              {requestNotifications.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m2 0v1a1 1 0 002 0v-1" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-sm font-black text-slate-700">
+                    Yeni bildirim yok
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-slate-400">
+                    Mağazanıza yeni cihaz talebi geldiğinde burada görünecek.
+                  </div>
+                </div>
+              ) : (
+                requestNotifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className="border-b border-slate-100 px-4 py-3 last:border-0"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                        <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-[11px] font-black text-slate-900">
+                            {notification.requesterBranch} → {notification.ownerBranch}
+                          </div>
+
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-black ${
+                            requestNotificationStatusText(notification.status) === 'BEKLİYOR'
+                              ? 'bg-amber-50 text-amber-700'
+                              : requestNotificationStatusText(notification.status) === 'REDDEDİLDİ'
+                              ? 'bg-rose-50 text-rose-700'
+                              : requestNotificationStatusText(notification.status) === 'TAMAMLANDI'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}>
+                            {requestNotificationStatusText(notification.status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-1 text-xs font-bold leading-5 text-slate-700">
+                          {notification.deviceName}
+                        </div>
+
+                        {notification.imei && (
+                          <div className="mt-0.5 font-mono text-[10px] font-bold text-slate-400">
+                            IMEI: {notification.imei}
+                          </div>
+                        )}
+
+                        <div className="mt-1.5 text-[9px] font-bold text-slate-400">
+                          {requestNotificationTimeText(notification.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* TOAST BİLDİRİMLERİ */}
       <div className="pointer-events-none fixed left-3 right-3 top-20 z-[200] flex flex-col gap-3 print:hidden sm:left-auto sm:right-6 sm:top-24">
