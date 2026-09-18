@@ -175,6 +175,7 @@ function getPassword() {
 // ======================================================
 //
 // PANEL       WINGSM DEPO KODU
+// MERKEZ      001
 // CNET        051
 // CMR         003
 // CADDE       009
@@ -186,6 +187,7 @@ function getPassword() {
 // ======================================================
 
 export const WINGSM_DEPOT_MAP = {
+  MERKEZ: "001",
   CNET: "051",
   CMR: "003",
   CADDE: "009",
@@ -226,6 +228,18 @@ export function getWingSMDepotForBranch(
     normalizeBranch(
       branch
     );
+
+  // --------------------------------------
+  // MERKEZ
+  // --------------------------------------
+
+  if (
+    normalized === "MERKEZ" ||
+    normalized === "MERKEZ DEPO" ||
+    normalized === "001"
+  ) {
+    return "001";
+  }
 
   // --------------------------------------
   // CNET
@@ -310,6 +324,13 @@ export function getPanelBranchForWingSMDepot(
     normalizeBranch(
       depot
     );
+
+  if (
+    normalized === "001" ||
+    normalized === "MERKEZ"
+  ) {
+    return "MERKEZ";
+  }
 
   if (
     normalized === "051" ||
@@ -831,6 +852,7 @@ export async function wingSMRequest<
 // GET /api/b2b/stok/list
 //
 // depo:
+// MERKEZ  = 001
 // CNET    = 051
 // CMR     = 003
 // CADDE   = 009
@@ -1027,6 +1049,9 @@ export function getWingSMConfigStatus() {
       "DepoMiktar > 0",
 
     depots: {
+      MERKEZ:
+        "001",
+
       CNET:
         "051",
 
