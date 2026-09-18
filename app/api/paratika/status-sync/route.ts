@@ -1,11 +1,16 @@
 // app/api/paratika/status-sync/route.ts
 //
+// FIX 18.09.2026:
+// - Banka/vPOS başarı varyantları 000 / 0000 / VPB-0000 desteklenir.
+// - "000 ONAY KODU ..." hata olarak gösterilmez.
+// - Başarı için yine AP + doğru tutar + doğru para birimi şartı korunur.
+//
 // FIX 17.09.2026:
 // - Aynı linkte başarılı AP işlem varsa sonraki/önceki başarısız deneme
 //   başarılı ödemeyi FAILED yapamaz.
 // - AP + 00/0000 + doğru tutar/para birimi önceliklidir.
 // - "İŞLEM BAŞARILI" ve 0000 artık hata nedeni/kodu olarak gösterilmez.
-// - İlk FAILED sinyali kullanıcıya hemen gösterilmez; 5 sn sonra teyit edilir.
+// - Gerçek FAILED sonucu anında hata mesajıyla gösterilir.
 // - Mevcut SQL cast düzeltmeleri ve ÜÖT/ÖSN mantığı korunur.
 //
 // CNETMOBIL - PARATIKA DURUM SENKRONİZASYONU
@@ -581,18 +586,103 @@ function selectPayByLinkItem(data: any) {
   })[0];
 }
 
+function normalizeParatikaMessage(
+  value: unknown
+) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ç/g, 'C')
+    .replace(/Ö/g, 'O')
+    .replace(/Ü/g, 'U');
+}
+
+function isApprovalMessage(
+  value: unknown
+) {
+  const message =
+    normalizeParatikaMessage(
+      value
+    );
+
+  return (
+    message === 'APPROVED' ||
+    message === 'SUCCESS' ||
+    message === 'SUCCESSFUL' ||
+    message === 'ISLEM BASARILI' ||
+    /^0{2,4}\s+ONAY\s+KODU\b/.test(
+      message
+    )
+  );
+}
+
 function isSuccessReturnCode(
   value: unknown
 ) {
   const code = String(
     value ?? ''
-  ).trim();
+  )
+    .trim()
+    .toUpperCase();
 
-  // Paratika/banka tarafında başarılı sonuç çoğunlukla 00.
-  // Bazı cevap katmanlarında 0000 görülebiliyor.
+  // Paratika'nın standart başarılı kodu 00'dır.
+  // Bazı banka/vPOS katmanları başarılı sonucu 000, 0000 veya
+  // VPB-0000 şeklinde döndürebiliyor.
   return (
     code === '00' ||
-    code === '0000'
+    code === '000' ||
+    code === '0000' ||
+    code === 'VPB-0000'
+  );
+}
+
+function hasApprovedBankSignal(
+  item: any
+) {
+  if (!item) {
+    return false;
+  }
+
+  if (
+    isSuccessReturnCode(
+      item?.pgTranReturnCode
+    )
+  ) {
+    return true;
+  }
+
+  const approvalCode =
+    String(
+      item?.pgTranApprCode ?? ''
+    ).trim();
+
+  const successText =
+    isApprovalMessage(
+      item?.pgTranReturnText
+    ) ||
+    isApprovalMessage(
+      item?.pgTranErrorText
+    ) ||
+    isApprovalMessage(
+      item?.responseMsg
+    );
+
+  const successMetaCode =
+    isSuccessReturnCode(
+      item?.pgTranErrorCode
+    );
+
+  // Bu ek sinyaller yalnızca AP kaydını doğrulamak için kullanılır.
+  // Tek başına bir FA kaydını başarılı yapmaz.
+  return Boolean(
+    approvalCode &&
+    (
+      successText ||
+      successMetaCode
+    )
   );
 }
 
@@ -666,8 +756,8 @@ function selectRelevantTransaction(
 
       if (
         status !== 'AP' ||
-        !isSuccessReturnCode(
-          item?.pgTranReturnCode
+        !hasApprovedBankSignal(
+          item
         )
       ) {
         return false;
@@ -790,7 +880,8 @@ function selectRelevantTransaction(
 function mapTransactionStatus(
   transactionStatus: string,
   pgTranReturnCode: string,
-  currentStatus: string
+  currentStatus: string,
+  transaction?: any
 ) {
   const status = String(
     transactionStatus || ''
@@ -802,8 +893,13 @@ function mapTransactionStatus(
 
   if (
     status === 'AP' &&
-    isSuccessReturnCode(
-      returnCode
+    (
+      isSuccessReturnCode(
+        returnCode
+      ) ||
+      hasApprovedBankSignal(
+        transaction
+      )
     )
   ) {
     return 'APPROVED';
@@ -1012,7 +1108,7 @@ function getFailureInfo(
             : ''
         );
 
-  const text = String(
+  const rawText = String(
     transaction?.pgTranErrorText ??
       transaction?.pgTranReturnText ??
       transaction?.errorMsg ??
@@ -1021,20 +1117,23 @@ function getFailureInfo(
       ''
   ).trim();
 
+  // "000 ONAY KODU ..." gerçek hata değildir; banka onay mesajıdır.
+  const text =
+    isApprovalMessage(
+      rawText
+    )
+      ? ''
+      : rawText;
+
   const topLevelMsg = String(
     transactionData?.responseMsg ??
       ''
   ).trim();
 
   const normalizedTopLevelMsg =
-    topLevelMsg
-      .toLocaleUpperCase('tr-TR')
-      .replace(/İ/g, 'I')
-      .replace(/Ş/g, 'S')
-      .replace(/Ğ/g, 'G')
-      .replace(/Ç/g, 'C')
-      .replace(/Ö/g, 'O')
-      .replace(/Ü/g, 'U');
+    normalizeParatikaMessage(
+      topLevelMsg
+    );
 
   const usefulTopLevelMsg =
     topLevelMsg &&
@@ -1046,6 +1145,9 @@ function getFailureInfo(
       'ISLEM BASARILI',
     ].includes(
       normalizedTopLevelMsg
+    ) &&
+    !isApprovalMessage(
+      topLevelMsg
     )
       ? topLevelMsg
       : '';
@@ -1156,8 +1258,8 @@ async function syncOnePayment(
     // APPROVED ancak tutar ve para birimi de doğrulanırsa kabul edilir.
     if (
       transactionStatus === 'AP' &&
-      isSuccessReturnCode(
-        pgTranReturnCode
+      hasApprovedBankSignal(
+        transaction
       ) &&
       (!sameAmount || !sameCurrency)
     ) {
@@ -1167,54 +1269,9 @@ async function syncOnePayment(
       newStatus = mapTransactionStatus(
         transactionStatus,
         pgTranReturnCode,
-        String(payment.status || '')
+        String(payment.status || ''),
+        transaction
       );
-    }
-  }
-
-  // YANLIŞ FAILED GÖSTERME KORUMASI
-  //
-  // Paratika bazen başarılı işlem kaydı oluşurken birkaç saniyelik
-  // gecikmeyle önce başarısız/ara sonuç döndürebiliyor.
-  // İlk FAILED sinyalinde kullanıcıya hemen kırmızı hata göstermiyoruz.
-  // paratika_status ilk başarısız sinyali DB'ye teknik olarak kaydeder;
-  // 5 saniye sonraki kontrolde yine başarısızsa FAILED kesinleşir.
-  //
-  // Böylece:
-  // - gerçek başarılı çekim birkaç saniye gecikse bile panel FAILED demez,
-  // - gerçek başarısız işlem ise yaklaşık 5 saniye sonra kesin FAILED olur.
-  const priorParatikaStatus =
-    String(
-      payment.paratika_status || ''
-    ).toUpperCase();
-
-  const priorWasFailureSignal =
-    priorParatikaStatus === 'FA' ||
-    (
-      priorParatikaStatus !== '' &&
-      priorParatikaStatus !== 'AP' &&
-      priorParatikaStatus !== 'IP' &&
-      priorParatikaStatus !== 'MR'
-    );
-
-  let provisionalFailure = false;
-
-  if (
-    newStatus === 'FAILED' &&
-    String(payment.status || '') !== 'FAILED' &&
-    !priorWasFailureSignal
-  ) {
-    provisionalFailure = true;
-
-    if (
-      ['LINK_CREATED', 'SENT', 'PENDING'].includes(
-        String(payment.status || '')
-      )
-    ) {
-      newStatus =
-        String(payment.status || '');
-    } else {
-      newStatus = 'PENDING';
     }
   }
 
@@ -1381,9 +1438,7 @@ async function syncOnePayment(
     );
 
   const responseCode =
-    provisionalFailure
-      ? ''
-      : newStatus === 'FAILED'
+    newStatus === 'FAILED'
       ? (
           failureInfo.code ||
           (
@@ -1402,9 +1457,7 @@ async function syncOnePayment(
         );
 
   const responseMsg =
-    provisionalFailure
-      ? 'Paratika sonucu doğrulanıyor...'
-      : newStatus === 'FAILED'
+    newStatus === 'FAILED'
       ? failureInfo.message
       : String(
           transactionData?.responseMsg ??
@@ -1631,7 +1684,6 @@ async function syncOnePayment(
             newStatus === 'FAILED'
               ? failureInfo.message
               : null,
-          provisionalFailure,
           pgTranId: pgTranId || null,
           transactionLookup:
             merchantNoteTransactionData
@@ -1806,10 +1858,10 @@ export async function POST(request: NextRequest) {
 
       // Bir çağrıda en fazla 50 canlı takip kaydı.
       // LINK_CREATED / SENT / PENDING sürekli doğrulanır.
-      // FAILED kayıtlar yalnızca ilk 2 dakika canlı doğrulamada tutulur:
-      // amaç Paratika tarafındaki kısa gecikmeyi yakalamaktır.
-      // Personel aynı linkte yeniden dener ve ödeme başarılı olursa
-      // panel birkaç saniye içinde APPROVED'a döner.
+      // FAILED sonucu kullanıcıya anında gösterilir.
+      // Ancak personel aynı linkte yeniden kart denerse başarılı sonucu
+      // kaçırmamak için son 15 dakikadaki FAILED kayıtlar da tekrar kontrol edilir.
+      // Frontend 5 saniyede bir sync yaptığı için başarılı yeni çekim hızla APPROVED olur.
       // APPROVED olup ÜÖT bekleyen kayıtlar da kontrol edilmeye devam eder.
       const result = await pool.query(
         `
@@ -1834,7 +1886,7 @@ export async function POST(request: NextRequest) {
             OR (
               status = 'FAILED'
               AND created_at >=
-                NOW() - INTERVAL '2 minutes'
+                NOW() - INTERVAL '15 minutes'
               AND (
                 paratika_due_date IS NULL
                 OR paratika_due_date >= NOW()
