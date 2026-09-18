@@ -17,6 +17,7 @@ import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
 import Paratika from './components/screens/Paratika/Paratika';
+import Depo from './components/screens/Depo';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -122,7 +123,7 @@ const MODE_SHEETS: Record<string, string[]> = {
   dis_kanal: ['DIŞ KANAL SATIN ALMA'],
   ikinci_el_apple: ['2.EL FİYAT LİSTESİ'],
   ikinci_el_android: ['2.EL FİYAT LİSTESİ'],
-  imei_list: ['DEPO'],
+  imei_list: [], // Depo component kendi canlı verisini çeker.
   thh: ['THH'],
   cihaz_talep: ['CihazTalep'],
 };
@@ -729,7 +730,6 @@ export default function CnetmobilCmrFinalUltimate() {
   const [ynaData, setYnaData] = useState<any[][]>([]);
   const [disKanalData, setDisKanalData] = useState<any[][]>([]);
   const [ikinciElData, setIkinciElData] = useState<any[][]>([]); 
-  const [imeiData, setImeiData] = useState<any[][]>([]);
   
   const [magazaGidisatData, setMagazaGidisatData] = useState<any[][]>([]);
   const [personelData, setPersonelData] = useState<any[][]>([]);
@@ -1323,8 +1323,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (allData.THH) setThhData(allData.THH);
       if (allData.CihazTalep) setCihazTalepData(allData.CihazTalep);
       
-      if (allData.Depo) setImeiData(allData.Depo);
-      
       if (allData.MagazaGidisat) setMagazaGidisatData(allData.MagazaGidisat);
       if (allData.PersonelGidisat) setPersonelData(allData.PersonelGidisat);
       if (allData.Hedefler) setHedeflerData(allData.Hedefler);
@@ -1771,42 +1769,6 @@ export default function CnetmobilCmrFinalUltimate() {
       setNewDevice({ brand: 'Apple', name: '', cap: '', base: '', img: '', minPrice: '0' });
       setTimeout(refreshDataCache, 1500);
     } catch (e) { console.error(e); }
-  };
-
-  const handleImeiKullan = async (imei: string) => {
-    const personelName = window.prompt("Lütfen isminizi giriniz:");
-    if (!personelName || personelName.trim() === "") return;
-
-    const durumText = `KULLANILDI - ${personelName.toUpperCase()}`;
-
-    if (typeof window !== 'undefined') {
-      const kayitVerisi = { durum: durumText, timestamp: new Date().getTime() };
-      localStorage.setItem('kullanilan_imei_' + imei, JSON.stringify(kayitVerisi));
-    }
-
-    setImeiData(prev => {
-        const newData = [...prev];
-        const rowIndex = newData.findIndex(r => r[1] === imei);
-        if (rowIndex !== -1) {
-            newData[rowIndex][2] = durumText;
-        }
-        return newData;
-    });
-
-    try {
-      await fetch('/api/panel-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: "USE_IMEI", 
-          imei: imei, 
-          personel: personelName.toUpperCase() 
-        })
-      });
-    } catch (e) {
-      console.error("IMEI kaydedilirken hata:", e);
-      alert("Bağlantı hatası! Lütfen internetinizi kontrol edin.");
-    }
   };
 
   const handleSendInstallmentToWhatsApp = (month: number, totalAmount: number) => {
@@ -4038,80 +4000,8 @@ export default function CnetmobilCmrFinalUltimate() {
           ) : appMode === 'paratika' && step < 99 && !isZumay ? (
             <Paratika />
           ) : appMode === 'imei_list' && step < 99 ? (
-            <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-                  <div>
-                    <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">DEPO LİSTESİ</h2>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">Vodafone Kanalı İmei Kayıtları</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
-                    <svg className="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" placeholder="İmei veya Cihaz Arama..." className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                  </div>
-              </div>
-              
-              <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-                <div className="min-w-[500px]">
-                  <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-                    <div className="flex-[3]">CİHAZ BİLGİSİ</div>
-                    <div className="flex-[2] text-center border-l border-orange-400 pl-2">İMEİ BİLGİSİ</div>
-                    <div className="flex-[1] text-right border-l border-orange-400 pl-2">DURUM</div>
-                  </div>
-                  <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
-                    {imeiData.slice(1).filter(r => (r[0] && r[0].toLowerCase().includes(searchQuery.toLowerCase())) || (r[1] && r[1].toLowerCase().includes(searchQuery.toLowerCase()))).map((row, i) => {
-                        const imeiNo = row[1];
-                        let localDurum = null;
-                        
-                        if (typeof window !== 'undefined') {
-                            const kayitStr = localStorage.getItem('kullanilan_imei_' + imeiNo);
-                            if (kayitStr) {
-                                try {
-                                    const kayit = JSON.parse(kayitStr);
-                                    const onDakika = 10 * 60 * 1000;
-                                    
-                                    if (new Date().getTime() - kayit.timestamp < onDakika) {
-                                        localDurum = kayit.durum;
-                                    } else {
-                                        localStorage.removeItem('kullanilan_imei_' + imeiNo);
-                                    }
-                                } catch (e) {
-                                    localStorage.removeItem('kullanilan_imei_' + imeiNo);
-                                }
-                            }
-                        }
-                        
-                        const guncelDurum = localDurum || row[2]; 
-                        const isUsed = guncelDurum && guncelDurum.toString().toUpperCase().includes('KULLANILDI');
-                        
-                        return (
-                        <div key={i} className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[11px] sm:text-xs font-bold items-center group ${isUsed ? 'bg-red-50' : (i % 2 === 0 ? 'bg-slate-50' : 'bg-white hover:bg-slate-100')}`}>
-                          
-                          <div className={`flex-[3] flex items-center ${isUsed ? 'text-red-700 line-through opacity-70' : 'text-slate-700 group-hover:text-slate-900'} transition-colors pr-4`}>
-                              {row[0] || '-'}
-                          </div>
-                          
-                          <div className={`flex-[2] text-center font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${isUsed ? 'text-red-500 line-through opacity-70' : 'text-green-600'}`}>
-                              {row[1] || '-'}
-                          </div>
+            <Depo />
 
-                          <div className="flex-[1] flex justify-end border-l border-slate-200 pl-4">
-                              {isUsed ? (
-                                  <div className="flex flex-col items-end">
-                                      <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">{guncelDurum}</span>
-                                  </div>
-                              ) : (
-                                  <button onClick={() => handleImeiKullan(row[1])} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm">
-                                      KULLAN
-                                  </button>
-                              )}
-                          </div>
-
-                        </div>
-                    )})}
-                  </div>
-                </div>
-              </div>
-            </div>
           ) :
 
           appMode === 'kampanya_sifir' && step < 99 ? (
