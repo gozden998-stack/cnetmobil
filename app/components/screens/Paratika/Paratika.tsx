@@ -479,8 +479,6 @@ export default function Paratika() {
     number | null
   >(null);
 
-  const [deletingId, setDeletingId] =
-    useState<number | null>(null);
   const [exportingExcel, setExportingExcel] =
     useState(false);
 
@@ -935,58 +933,6 @@ export default function Paratika() {
       );
     } finally {
       setSyncingAll(false);
-    }
-  }
-
-  async function deletePayment(
-    payment: Payment
-  ) {
-    if (
-      permissions?.role !== 'admin' ||
-      deletingId !== null
-    ) {
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        `#${payment.id} numaralı işlem panelden silinsin mi?\n\nBu işlem sadece CNETMOBİL panel/PostgreSQL kaydını siler. Paratika tarafındaki gerçek ödeme veya işlem iptal edilmez.`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingId(payment.id);
-
-    try {
-      const response = await fetch(
-        `/api/paratika/payments?id=${payment.id}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-          cache: 'no-store',
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data?.success) {
-        throw new Error(
-          data?.error ||
-            'İşlem silinemedi.'
-        );
-      }
-
-      await loadPayments(true);
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : 'İşlem silinemedi.'
-      );
-    } finally {
-      setDeletingId(null);
     }
   }
 
@@ -2269,30 +2215,6 @@ export default function Paratika() {
                               className="rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-black text-blue-700 transition hover:bg-blue-100"
                             >
                               LİNKİ KOPYALA
-                            </button>
-                          ) : null}
-
-                          {permissions?.role ===
-                          'admin' ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void deletePayment(
-                                  payment
-                                )
-                              }
-                              disabled={
-                                deletingId ===
-                                payment.id
-                              }
-                              title="İşlemi panel kayıtlarından sil"
-                              aria-label={`#${payment.id} işlemini sil`}
-                              className="flex h-8 w-8 items-center justify-center self-end rounded-lg border border-rose-200 bg-rose-50 text-base font-black leading-none text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {deletingId ===
-                              payment.id
-                                ? '…'
-                                : '×'}
                             </button>
                           ) : null}
                         </div>
