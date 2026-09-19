@@ -667,6 +667,7 @@ export default function CnetmobilCmrFinalUltimate() {
   
   const [isMasterAccess, setIsMasterAccess] = useState(false);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
   const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale'>('ana_sayfa');
@@ -749,6 +750,21 @@ export default function CnetmobilCmrFinalUltimate() {
   const [selectedBranch, setSelectedBranch] = useState('CMR MERKEZ');
   const [selectedColor, setSelectedColor] = useState('Diğer'); 
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isAuctionOnlyUser = accessRole === 'ihale_kullanici';
+
+  // Sadece ihale görüntüleme rolü başka ekrana geçemez.
+  useEffect(() => {
+    if (!isLoggedIn || !isAuctionOnlyUser) return;
+
+    if (appMode !== 'ihale') {
+      setAppMode('ihale');
+    }
+
+    if (step !== 1) {
+      setStep(1);
+    }
+  }, [isLoggedIn, isAuctionOnlyUser, appMode, step]);
   const [mobileSubMenuOpen, setMobileSubMenuOpen] = useState(false);
 
   // MOBİL ANA MENÜ / DRAWER
@@ -1224,6 +1240,7 @@ export default function CnetmobilCmrFinalUltimate() {
           setIsLoggedIn(false);
           setIsMasterAccess(false);
           setIsAdmin(false);
+          setAccessRole('');
           setAuthLoading(false);
           return;
         }
@@ -1234,6 +1251,22 @@ export default function CnetmobilCmrFinalUltimate() {
           setIsLoggedIn(false);
           setIsMasterAccess(false);
           setIsAdmin(false);
+          setAccessRole('');
+          setAuthLoading(false);
+          return;
+        }
+
+        const sessionAccessRole = String(session.accessRole || session.role || '');
+        setAccessRole(sessionAccessRole);
+
+        if (sessionAccessRole === 'ihale_kullanici') {
+          setSelectedBranch(String(session.branch || 'CMR MERKEZ'));
+          setIsMasterAccess(false);
+          setIsAdmin(false);
+          setIsSuperAdminUser(false);
+          setAppMode('ihale');
+          setStep(1);
+          setIsLoggedIn(true);
           setAuthLoading(false);
           return;
         }
@@ -1339,6 +1372,21 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       const matchedBranch = String(data.branch || '');
+      const loginAccessRole = String(data.accessRole || data.role || '');
+      setAccessRole(loginAccessRole);
+
+      if (loginAccessRole === 'ihale_kullanici') {
+        setSelectedBranch(matchedBranch || 'CMR MERKEZ');
+        setIsMasterAccess(false);
+        setIsAdmin(false);
+        setIsSuperAdminUser(false);
+        setAppMode('ihale');
+        setStep(1);
+        setIsLoggedIn(true);
+        setEntryPass('');
+        setLoginLoading(false);
+        return;
+      }
 
       if (data.role === 'yonetici') {
         setIsMasterAccess(true);
@@ -1424,6 +1472,9 @@ export default function CnetmobilCmrFinalUltimate() {
     setIsMasterAccess(false);
     setIsAdmin(false);
     setIsSuperAdminUser(false);
+    setAccessRole('');
+    setAppMode('ana_sayfa');
+    setStep(1);
     setAuthView('login');
   };
 
@@ -2226,6 +2277,21 @@ export default function CnetmobilCmrFinalUltimate() {
     }
   ];
 
+  const visibleMenuGroups: any[] = isAuctionOnlyUser
+    ? [
+        {
+          title: 'İHALE',
+          items: [
+            {
+              id: 'ihale',
+              label: 'Mağazalar Arası İhale',
+              visible: true,
+            },
+          ],
+        },
+      ]
+    : menuGroups;
+
   const topActiveRequestCount = cihazTalepData
     .slice(1)
     .filter((row: any[]) => {
@@ -2902,6 +2968,12 @@ export default function CnetmobilCmrFinalUltimate() {
             <button
               type="button"
               onClick={() => {
+                if (isAuctionOnlyUser) {
+                  setAppMode('ihale');
+                  setStep(1);
+                  return;
+                }
+
                 resetAll();
                 setAppMode('ana_sayfa');
               }}
@@ -2937,7 +3009,7 @@ export default function CnetmobilCmrFinalUltimate() {
             </button>
 
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              {!isZumay && step < 99 && (
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (
                 <>
                   <button
                     type="button"
@@ -2976,7 +3048,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </svg>
               </button>
 
-              {!isZumay && step < 99 && (
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (
                 <>
                   <button
                     onClick={() => setIsInstallmentModalOpen(true)}
@@ -3057,6 +3129,8 @@ export default function CnetmobilCmrFinalUltimate() {
                       ? 'Super Admin'
                       : isMasterAccess
                       ? 'CnetMobil Yönetici'
+                      : isAuctionOnlyUser
+                      ? 'İhale Kullanıcısı'
                       : 'Bayi Personeli'}
                   </div>
                 </div>
@@ -3109,7 +3183,7 @@ export default function CnetmobilCmrFinalUltimate() {
         <div className="hidden border-b border-white/5 bg-black/5 lg:block">
           <div className="mx-auto flex max-w-[1920px] items-stretch justify-center overflow-visible px-5 no-scrollbar">
             {step < 99 &&
-              menuGroups
+              visibleMenuGroups
                 .flatMap((g: any) => g.items)
                 .filter((i: any) => i.visible)
                 .map((item: any) => {
@@ -3904,7 +3978,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {menuGroups.map((group: any) => {
+                  {visibleMenuGroups.map((group: any) => {
                     const visibleItems = group.items.filter((item: any) => item.visible);
                     if (!visibleItems.length) return null;
 
@@ -4110,7 +4184,7 @@ export default function CnetmobilCmrFinalUltimate() {
           MOBİL ALT MENÜ
           Parmakla tek elle erişim için sabit 4/5 ana aksiyon
           ========================================================= */}
-      {step < 99 && !isInstallmentModalOpen && !isKaskoModalOpen && (
+      {!isAuctionOnlyUser && step < 99 && !isInstallmentModalOpen && !isKaskoModalOpen && (
         <nav
           className="cnet-mobile-bottom-safe fixed inset-x-0 bottom-0 z-[9990] border-t border-slate-200 bg-white/95 px-2 pt-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden print:hidden"
         >
@@ -4118,6 +4192,12 @@ export default function CnetmobilCmrFinalUltimate() {
             <button
               type="button"
               onClick={() => {
+                if (isAuctionOnlyUser) {
+                  setAppMode('ihale');
+                  setStep(1);
+                  return;
+                }
+
                 resetAll();
                 setAppMode('ana_sayfa');
               }}
