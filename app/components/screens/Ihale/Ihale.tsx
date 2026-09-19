@@ -354,6 +354,18 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
   ) => {
     if (!selectedAuction) return;
 
+    if (action === "REDUCE") {
+      const minutes = Number(extra?.minutes || 0);
+
+      if (
+        !window.confirm(
+          `İhale süresinden ${minutes} dakika düşürülecek. Onaylıyor musunuz?`
+        )
+      ) {
+        return;
+      }
+    }
+
     if (
       ["END", "CANCEL", "SELECT_WINNER"].includes(action) &&
       !window.confirm("Bu işlemi onaylıyor musunuz?")
@@ -851,7 +863,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                           Super Admin Kontrolü
                         </div>
                         <p className="mt-1 text-xs font-semibold text-slate-500">
-                          Başlat, duraklat, uzat, bitir veya tamamlanan ihaleyi sil.
+                          Başlat, duraklat, süreyi uzat/kısalt, bitir veya tamamlanan ihaleyi sil.
                         </p>
                       </div>
 
@@ -889,6 +901,27 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                           selectedAuction.status
                         ) && (
                           <>
+                            <AdminButton
+                              onClick={() => adminAction("REDUCE", { minutes: 30 })}
+                              disabled={busy}
+                              danger
+                            >
+                              -30 DK
+                            </AdminButton>
+                            <AdminButton
+                              onClick={() => adminAction("REDUCE", { minutes: 60 })}
+                              disabled={busy}
+                              danger
+                            >
+                              -1 SAAT
+                            </AdminButton>
+                            <AdminButton
+                              onClick={() => adminAction("REDUCE", { minutes: 720 })}
+                              disabled={busy}
+                              danger
+                            >
+                              -12 SAAT
+                            </AdminButton>
                             <AdminButton
                               onClick={() => adminAction("EXTEND", { minutes: 30 })}
                               disabled={busy}
