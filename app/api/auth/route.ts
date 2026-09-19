@@ -202,6 +202,7 @@ export async function POST(request: NextRequest) {
             WHEN 'super_admin' THEN 1
             WHEN 'yonetici' THEN 2
             WHEN 'personel' THEN 3
+            WHEN 'ihale_kullanici' THEN 4
             ELSE 9
           END
         LIMIT 1
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
     const sessionRole: 'admin' | 'personel' =
       roleCode === 'super_admin' || roleCode === 'yonetici'
         ? 'admin'
-        : roleCode === 'personel'
+        : roleCode === 'personel' || roleCode === 'ihale_kullanici'
         ? 'personel'
         : user.role === 'admin'
         ? 'admin'
@@ -316,9 +317,46 @@ export async function GET(request: NextRequest) {
         return response;
       }
 
+      const roleResult = await pool.query(
+        `
+          SELECT r.code
+          FROM public.user_roles ur
+          JOIN public.roles r ON r.id = ur.role_id
+          WHERE ur.user_id = $1
+            AND r.active = TRUE
+          ORDER BY
+            CASE r.code
+              WHEN 'super_admin' THEN 1
+              WHEN 'yonetici' THEN 2
+              WHEN 'personel' THEN 3
+              WHEN 'ihale_kullanici' THEN 4
+              ELSE 9
+            END
+          LIMIT 1
+        `,
+        [session.userId]
+      );
+
+      const roleCode =
+        roleResult.rows[0]?.code
+          ? String(roleResult.rows[0].code)
+          : null;
+
+      const sessionRole: 'admin' | 'personel' =
+        roleCode === 'super_admin' || roleCode === 'yonetici'
+          ? 'admin'
+          : roleCode === 'personel' || roleCode === 'ihale_kullanici'
+          ? 'personel'
+          : user.role === 'admin'
+          ? 'admin'
+          : 'personel';
+
       return NextResponse.json({
         success: true,
-        role: user.role === 'admin' ? 'yonetici' : 'personel',
+        role: sessionRole === 'admin' ? 'yonetici' : 'personel',
+        accessRole:
+          roleCode ||
+          (sessionRole === 'admin' ? 'yonetici' : 'personel'),
         branch: user.branch,
       });
     }
@@ -327,6 +365,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       role: session.role === 'admin' ? 'yonetici' : 'personel',
+      accessRole: session.role === 'admin' ? 'yonetici' : 'personel',
       branch: session.branch,
     });
   } catch (error) {
