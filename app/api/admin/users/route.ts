@@ -43,6 +43,7 @@ const ALLOWED_ROLE_CODES = new Set([
   'super_admin',
   'yonetici',
   'personel',
+  'ihale_kullanici',
 ]);
 
 function getPool() {
@@ -250,6 +251,7 @@ async function getUserCurrentRole(
           WHEN 'super_admin' THEN 1
           WHEN 'yonetici' THEN 2
           WHEN 'personel' THEN 3
+          WHEN 'ihale_kullanici' THEN 4
           ELSE 9
         END
       LIMIT 1
@@ -386,6 +388,7 @@ export async function GET(request: NextRequest) {
               WHEN 'super_admin' THEN 1
               WHEN 'yonetici' THEN 2
               WHEN 'personel' THEN 3
+              WHEN 'ihale_kullanici' THEN 4
               ELSE 9
             END,
             name
@@ -479,6 +482,7 @@ export async function GET(request: NextRequest) {
         roles.find((r) => r.code === 'super_admin')?.code ||
         roles.find((r) => r.code === 'yonetici')?.code ||
         roles.find((r) => r.code === 'personel')?.code ||
+        roles.find((r) => r.code === 'ihale_kullanici')?.code ||
         null;
 
       let effectivePermissions = new Set<string>();
@@ -662,7 +666,10 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 12);
     const internalUsername =
       `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
-    const legacyRole = roleCode === 'personel' ? 'personel' : 'admin';
+    const legacyRole =
+      roleCode === 'personel' || roleCode === 'ihale_kullanici'
+        ? 'personel'
+        : 'admin';
     const stockBranchCode = getStockBranchCode(branch);
 
     const insertUser = await client.query(
@@ -966,7 +973,10 @@ export async function PATCH(request: NextRequest) {
       new Set([branch, ...desiredBranches])
     );
 
-    const legacyRole = roleCode === 'personel' ? 'personel' : 'admin';
+    const legacyRole =
+      roleCode === 'personel' || roleCode === 'ihale_kullanici'
+        ? 'personel'
+        : 'admin';
     const stockBranchCode = getStockBranchCode(branch);
 
     await client.query(
