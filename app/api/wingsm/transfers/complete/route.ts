@@ -5,18 +5,25 @@
 // KESIN KURAL:
 // - WingSM'e HICBIR veri YAZMAZ.
 // - Bu endpoint WingSM API'ye transfer POST'u atmaz.
-// - WingSM stok sync tarafindan PostgreSQL'e yazilan
+// - Once WingSM stok sync tarafindan PostgreSQL'e yazilan
 //   GERCEK WingSM konumunu kontrol eder.
+// - Cihaz hedef magazaya gecip cok hizli satildiysa ve anlik
+//   stokta artik yoksa, WingSM IMEI hareket gecmisini SADECE GET
+//   ile ikinci kanit olarak kontrol eder.
 //
 // TRANSFER SADECE SU SARTLARDA TAMAMLANIR:
 //
 // 1) Transfer          = WAITING_WING
 // 2) Talep             = TRANSFER_WAITING
 // 3) Cihaz             = TRANSFER_WAITING
-// 4) WingSM IMEI'yi hedef magazada gosteriyor
-// 5) WingSM konum kaydi "Gonderildi" zamanindan yeni
-// 6) Gonderildi sonrasinda hedef magazaya ait
-//    SUCCESS WingSM sync kaydi var
+// 4) Asagidaki kanitlardan EN AZ BIRI vardir:
+//    A) WingSM anlik stok konumu hedef magazadir ve tazedir.
+//    B) Gonderildi tarihinden sonra hedef depo icin IMEI hareketi vardir.
+//
+// Hareket gecmisi fallback'i cihaz artik anlik stokta olmadigi icin
+// kullanilir. Bu durumda cihaz panelde AVAILABLE yapilmaz; MISSING
+// tutulur. Sonraki stok sync cihaz tekrar stokta gorunurse AVAILABLE
+// durumunu zaten otomatik geri getirir.
 //
 // MANUEL:
 // - Super Admin oturumu ile calisir.
@@ -30,6 +37,8 @@ import { Pool } from "pg";
 
 import {
   getWingSMConfigStatus,
+  getWingSMDepotForBranch,
+  getWingSMProductMovementHistory,
 } from "../../../../lib/wingsm/server";
 
 export const runtime =
@@ -491,6 +500,93 @@ function noStoreHeaders() {
   };
 }
 
+
+// ======================================================
+// WINGSM HAREKET RESPONSE -> SATIRLAR
+// ======================================================
+//
+// B2B servislerinde liste bazen dogrudan data, bazen de
+// data.List / rows / items gibi alanlarda gelebiliyor.
+// Ham hareket verisini loglamiyoruz; sadece satir sayisini
+// transfer kaniti olarak kullaniyoruz.
+// ======================================================
+
+function extractWingSMMovementRows(
+  payload: any
+): any[] {
+  const visit = (
+    value: any,
+    depth: number
+  ): any[] | null => {
+    if (
+      depth > 5 ||
+      value === null ||
+      value === undefined
+    ) {
+      return null;
+    }
+
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value;
+    }
+
+    if (
+      typeof value !==
+      "object"
+    ) {
+      return null;
+    }
+
+    const preferredKeys = [
+      "data",
+      "Data",
+      "list",
+      "List",
+      "rows",
+      "Rows",
+      "items",
+      "Items",
+      "result",
+      "Result",
+    ];
+
+    for (
+      const key of
+      preferredKeys
+    ) {
+      if (
+        Object.prototype.hasOwnProperty.call(
+          value,
+          key
+        )
+      ) {
+        const found =
+          visit(
+            value[key],
+            depth + 1
+          );
+
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return (
+    visit(
+      payload,
+      0
+    ) || []
+  );
+}
+
 // ======================================================
 // GET
 //
@@ -697,10 +793,6 @@ export async function POST(
                 ON sd.id =
                    dt.device_id
 
-              JOIN public.wingsm_device_locations wdl
-                ON wdl.serial_no =
-                   dt.imei
-
               WHERE
                 dt.status =
                   'WAITING_WING'
@@ -712,47 +804,6 @@ export async function POST(
                 AND
                 sd.status =
                   'TRANSFER_WAITING'
-
-                -- WingSM cihazı GERCEKTE
-                -- hedef mağazada gösteriyor.
-                AND
-                wdl.panel_branch =
-                  dt.to_branch_code
-
-                -- WingSM konumu Gonderildi'den
-                -- sonra görülmüş olmalı.
-                AND
-                wdl.updated_at >=
-                  COALESCE(
-                    dt.panel_sent_at,
-                    dt.created_at
-                  )
-
-                -- Gonderildi'den sonra hedef mağaza
-                -- için başarılı WingSM sync olmalı.
-                AND EXISTS (
-                  SELECT 1
-
-                  FROM public.wingsm_sync_runs wsr
-
-                  WHERE
-                    wsr.panel_branch =
-                      dt.to_branch_code
-
-                    AND
-                    wsr.status =
-                      'SUCCESS'
-
-                    AND
-                    COALESCE(
-                      wsr.finished_at,
-                      wsr.started_at
-                    ) >=
-                      COALESCE(
-                        dt.panel_sent_at,
-                        dt.created_at
-                      )
-                )
 
               ORDER BY
                 dt.id ASC
@@ -792,7 +843,7 @@ export async function POST(
                 actor.email,
 
               message:
-                "WingSM tarafından hedef mağazada doğrulanmış bekleyen transfer bulunamadı.",
+                "WingSM doğrulaması bekleyen transfer bulunamadı.",
             },
             {
               headers:
@@ -888,7 +939,7 @@ export async function POST(
                     ON sd.id =
                        dt.device_id
 
-                  JOIN public.wingsm_device_locations wdl
+                  LEFT JOIN public.wingsm_device_locations wdl
                     ON wdl.serial_no =
                        dt.imei
 
@@ -962,15 +1013,28 @@ export async function POST(
             }
 
             // ==========================================
-            // WINGSM HEDEF MAGAZA
+            // WINGSM DOGRULAMA
+            //
+            // 1) Once mevcut hizli yol:
+            //    anlik stok konumu hedef magazada mi?
+            //
+            // 2) Degilse hareket gecmisi fallback:
+            //    cihaz hedef magazaya gecip cok hizli
+            //    satilmis olabilir.
             // ==========================================
 
+            const sentAt =
+              row.panel_sent_at ||
+              row.transfer_created_at;
+
+            const sentAtDate =
+              new Date(
+                sentAt
+              );
+
             if (
-              String(
-                row.wingsm_branch
-              ) !==
-              String(
-                row.to_branch_code
+              Number.isNaN(
+                sentAtDate.getTime()
               )
             ) {
               await client.query(
@@ -984,95 +1048,22 @@ export async function POST(
                   row.imei,
 
                 reason:
-                  "WingSM hedef mağaza ile eşleşmiyor.",
+                  "Gonderildi tarihi gecersiz.",
               });
 
               continue;
             }
 
-            // ==========================================
-            // WINGSM KONUM KAYDI TAZELIK
-            // ==========================================
-
-            const sentAt =
-              row.panel_sent_at ||
-              row.transfer_created_at;
-
-            if (
-              !row
-                .wingsm_updated_at ||
-              new Date(
-                row
-                  .wingsm_updated_at
-              ).getTime() <
-                new Date(
-                  sentAt
-                ).getTime()
-            ) {
-              await client.query(
-                "ROLLBACK"
-              );
-
-              skipped.push({
-                transferId,
-
-                imei:
-                  row.imei,
-
-                reason:
-                  "WingSM konum bilgisi Gönderildi işleminden eski.",
-              });
-
-              continue;
-            }
-
-            // ==========================================
-            // BASARILI TAZE SYNC
-            // ==========================================
-
-            const freshSyncResult =
-              await client.query(
-                `
-                  SELECT id
-
-                  FROM public.wingsm_sync_runs
-
-                  WHERE
-                    panel_branch =
-                      $1
-
-                    AND
-                    status =
-                      'SUCCESS'
-
-                    AND
-                    COALESCE(
-                      finished_at,
-                      started_at
-                    ) >=
-                      COALESCE(
-                        $2::timestamptz,
-                        '-infinity'::timestamptz
-                      )
-
-                  ORDER BY
-                    started_at DESC
-
-                  LIMIT 1
-                `,
-                [
+            const targetDepot =
+              getWingSMDepotForBranch(
+                String(
                   row
-                    .to_branch_code,
-
-                  sentAt,
-                ]
+                    .to_branch_code ||
+                    ""
+                )
               );
 
-            if (
-              freshSyncResult
-                .rowCount ===
-              0
-            ) {
+            if (!targetDepot) {
               await client.query(
                 "ROLLBACK"
               );
@@ -1084,11 +1075,222 @@ export async function POST(
                   row.imei,
 
                 reason:
-                  "Gönderildi işleminden sonra başarılı WingSM senkronizasyonu yok.",
+                  "WingSM hedef depo eslesmesi bulunamadi.",
               });
 
               continue;
             }
+
+            let verificationMode:
+              | "CURRENT_STOCK"
+              | "MOVEMENT_HISTORY"
+              | null =
+                null;
+
+            let verificationAt:
+              Date | null =
+                null;
+
+            let verifiedWingDepot:
+              string | null =
+                null;
+
+            let movementHistoryCount =
+              0;
+
+            // ------------------------------------------
+            // A) ANLIK STOK KANITI
+            // ------------------------------------------
+
+            const currentStockMatches =
+              String(
+                row.wingsm_branch ||
+                  ""
+              ) ===
+                String(
+                  row.to_branch_code ||
+                    ""
+                ) &&
+              Boolean(
+                row.wingsm_updated_at
+              ) &&
+              new Date(
+                row.wingsm_updated_at
+              ).getTime() >=
+                sentAtDate.getTime();
+
+            if (
+              currentStockMatches
+            ) {
+              const freshSyncResult =
+                await client.query(
+                  `
+                    SELECT id
+
+                    FROM public.wingsm_sync_runs
+
+                    WHERE
+                      panel_branch =
+                        $1
+
+                      AND
+                      status =
+                        'SUCCESS'
+
+                      AND
+                      COALESCE(
+                        finished_at,
+                        started_at
+                      ) >=
+                        COALESCE(
+                          $2::timestamptz,
+                          '-infinity'::timestamptz
+                        )
+
+                    ORDER BY
+                      started_at DESC
+
+                    LIMIT 1
+                  `,
+                  [
+                    row
+                      .to_branch_code,
+
+                    sentAt,
+                  ]
+                );
+
+              if (
+                freshSyncResult
+                  .rowCount ===
+                1
+              ) {
+                verificationMode =
+                  "CURRENT_STOCK";
+
+                verificationAt =
+                  new Date(
+                    row
+                      .wingsm_updated_at
+                  );
+
+                verifiedWingDepot =
+                  String(
+                    row.wingsm_depot ||
+                      targetDepot
+                  );
+              }
+            }
+
+            // ------------------------------------------
+            // B) HAREKET GECMISI FALLBACK
+            // ------------------------------------------
+            //
+            // Anlik stokta gorunmuyorsa cihaz hedef
+            // magazada satilmis olabilir. WingSM'in
+            // resmi B2B IMEI hareket endpointini sadece
+            // GET ile sorguluyoruz.
+            // ------------------------------------------
+
+            if (
+              !verificationMode
+            ) {
+              try {
+                const movementPayload =
+                  await getWingSMProductMovementHistory(
+                    {
+                      serialNo:
+                        String(
+                          row.imei ||
+                            ""
+                        ),
+
+                      startDate:
+                        sentAtDate,
+
+                      endDate:
+                        new Date(),
+
+                      depot:
+                        targetDepot,
+                    }
+                  );
+
+                const movementRows =
+                  extractWingSMMovementRows(
+                    movementPayload
+                  );
+
+                movementHistoryCount =
+                  movementRows.length;
+
+                if (
+                  movementHistoryCount >
+                  0
+                ) {
+                  verificationMode =
+                    "MOVEMENT_HISTORY";
+
+                  verificationAt =
+                    new Date();
+
+                  verifiedWingDepot =
+                    targetDepot;
+                }
+              } catch (
+                historyError: any
+              ) {
+                skipped.push({
+                  transferId,
+
+                  imei:
+                    row.imei,
+
+                  reason:
+                    `WingSM hareket gecmisi okunamadi: ${
+                      historyError?.message ||
+                      "Bilinmeyen hata"
+                    }`,
+                });
+              }
+            }
+
+            if (
+              !verificationMode ||
+              !verificationAt
+            ) {
+              await client.query(
+                "ROLLBACK"
+              );
+
+              if (
+                !skipped.some(
+                  (item) =>
+                    Number(
+                      item?.transferId
+                    ) ===
+                    transferId
+                )
+              ) {
+                skipped.push({
+                  transferId,
+
+                  imei:
+                    row.imei,
+
+                  reason:
+                    "WingSM anlik stok veya hedef depo hareket gecmisi ile transfer dogrulanamadi.",
+                });
+              }
+
+              continue;
+            }
+
+            const resultingDeviceStatus =
+              verificationMode ===
+              "CURRENT_STOCK"
+                ? "AVAILABLE"
+                : "MISSING";
 
             // ==========================================
             // 1) CIHAZI HEDEF MAGAZAYA TASI
@@ -1104,10 +1306,14 @@ export async function POST(
                       $2,
 
                     status =
-                      'AVAILABLE',
+                      $4,
 
                     wing_last_seen_at =
-                      $3,
+                      CASE
+                        WHEN $4 = 'AVAILABLE'
+                          THEN $3
+                        ELSE wing_last_seen_at
+                      END,
 
                     updated_at =
                       NOW()
@@ -1131,8 +1337,9 @@ export async function POST(
                   row
                     .to_branch_code,
 
-                  row
-                    .wingsm_updated_at,
+                  verificationAt,
+
+                  resultingDeviceStatus,
                 ]
               );
 
@@ -1197,14 +1404,13 @@ export async function POST(
               [
                 "WINGSM",
 
-                row.wingsm_depot ||
-                  row
-                    .wingsm_branch,
+                verificationMode,
 
-                new Date(
-                  row
-                    .wingsm_updated_at
-                ).toISOString(),
+                verifiedWingDepot ||
+                  targetDepot,
+
+                verificationAt
+                  .toISOString(),
               ].join(":");
 
             const transferResult =
@@ -1240,8 +1446,7 @@ export async function POST(
                 [
                   transferId,
 
-                  row
-                    .wingsm_updated_at,
+                  verificationAt,
 
                   wingReference,
                 ]
@@ -1293,7 +1498,7 @@ export async function POST(
 
                   'TRANSFER_WAITING',
 
-                  'AVAILABLE',
+                  $7,
 
                   $5,
 
@@ -1324,11 +1529,11 @@ export async function POST(
 
                   wingsmBranch:
                     row
-                      .wingsm_branch,
+                      .to_branch_code,
 
                   wingsmDepot:
-                    row
-                      .wingsm_depot,
+                    verifiedWingDepot ||
+                    targetDepot,
 
                   wingsmProductCode:
                     row
@@ -1339,8 +1544,8 @@ export async function POST(
                       .product_name,
 
                   wingsmUpdatedAt:
-                    row
-                      .wingsm_updated_at,
+                    verificationAt
+                      .toISOString(),
 
                   confirmedByWingSM:
                     true,
@@ -1352,7 +1557,29 @@ export async function POST(
                     actor.username ||
                     actor.email ||
                     "WINGSM_AUTO",
+
+                  verificationMode,
+
+                  movementHistoryCount,
+
+                  targetDepot,
+
+                  resultingDeviceStatus,
+
+                  currentStockWingBranch:
+                    row.wingsm_branch ||
+                    null,
+
+                  currentStockWingDepot:
+                    row.wingsm_depot ||
+                    null,
+
+                  currentStockUpdatedAt:
+                    row.wingsm_updated_at ||
+                    null,
                 }),
+
+                resultingDeviceStatus,
               ]
             );
 
@@ -1389,12 +1616,19 @@ export async function POST(
                   .to_branch_code,
 
               wingsmDepot:
-                row
-                  .wingsm_depot,
+                verifiedWingDepot ||
+                targetDepot,
 
               wingsmUpdatedAt:
-                row
-                  .wingsm_updated_at,
+                verificationAt
+                  .toISOString(),
+
+              verificationMode,
+
+              movementHistoryCount,
+
+              deviceStatus:
+                resultingDeviceStatus,
             });
           } catch (
             error: any
