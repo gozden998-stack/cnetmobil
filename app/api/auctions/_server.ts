@@ -462,6 +462,7 @@ export async function getAuctionSession(
               WHEN 'super_admin' THEN 1
               WHEN 'yonetici' THEN 2
               WHEN 'personel' THEN 3
+              WHEN 'ihale_kullanici' THEN 4
               ELSE 99
             END
         `,
@@ -493,7 +494,11 @@ export async function getAuctionSession(
         "admin";
 
     let roleCode =
-      "personel";
+      roleCodes.includes(
+        "ihale_kullanici"
+      )
+        ? "ihale_kullanici"
+        : "personel";
 
     if (isSuperAdmin) {
       roleCode =
@@ -619,6 +624,17 @@ export function ensureAuctionAccess(
   // Super Admin her ihaleye erişebilir.
   if (
     session.isSuperAdmin
+  ) {
+    return;
+  }
+
+  // İhale kullanıcısı normal katılımcıdır.
+  // Yönetici yetkisi yoktur; teklif verebilir.
+  // Hangi ihaleyi göreceği/katılacağı mevcut kanal kapsamı ile belirlenir.
+  if (
+    session.roleCode ===
+      "ihale_kullanici" &&
+    session.channel
   ) {
     return;
   }
