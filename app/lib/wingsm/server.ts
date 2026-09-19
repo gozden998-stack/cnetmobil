@@ -1006,6 +1006,176 @@ export async function getWingSMProductByCode(
 }
 
 // ======================================================
+// URUN / IMEI HAREKET GECMISI - SADECE OKUMA
+// ======================================================
+//
+// WingSM B2B dokumani:
+// GET /b2b/urun/list/hareket/:bastar/:bittar
+// QueryParams:
+// - malKodu
+// - seriNo
+// - depo
+//
+// Bu helper WingSM'e HICBIR veri yazmaz.
+// Transfer tamamlamada, cihaz hedef magazaya gecip cok hizli
+// satildigi icin anlik stokta yakalanamazsa ikinci kanit olarak
+// kullanilir.
+// ======================================================
+
+function toWingSMDateNumber(
+  value: Date | string | number
+) {
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    throw new Error(
+      "WingSM hareket tarihi gecersiz."
+    );
+  }
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "Europe/Istanbul",
+        year:
+          "numeric",
+        month:
+          "2-digit",
+        day:
+          "2-digit",
+      }
+    ).formatToParts(
+      date
+    );
+
+  const year =
+    parts.find(
+      (part) =>
+        part.type ===
+        "year"
+    )?.value;
+
+  const month =
+    parts.find(
+      (part) =>
+        part.type ===
+        "month"
+    )?.value;
+
+  const day =
+    parts.find(
+      (part) =>
+        part.type ===
+        "day"
+    )?.value;
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    throw new Error(
+      "WingSM hareket tarihi olusturulamadi."
+    );
+  }
+
+  return `${year}${month}${day}`;
+}
+
+export async function getWingSMProductMovementHistory(
+  params: {
+    serialNo: string;
+    startDate:
+      | Date
+      | string
+      | number;
+    endDate?:
+      | Date
+      | string
+      | number;
+    depot?:
+      | string
+      | null;
+    productCode?:
+      | string
+      | null;
+  }
+) {
+  const serialNo =
+    String(
+      params.serialNo ||
+        ""
+    )
+      .replace(
+        /\D/g,
+        ""
+      )
+      .trim();
+
+  if (!serialNo) {
+    throw new Error(
+      "WingSM hareket sorgusu icin IMEI gerekli."
+    );
+  }
+
+  const start =
+    toWingSMDateNumber(
+      params.startDate
+    );
+
+  const end =
+    toWingSMDateNumber(
+      params.endDate ||
+        new Date()
+    );
+
+  const depot =
+    String(
+      params.depot ||
+        ""
+    ).trim();
+
+  const productCode =
+    String(
+      params.productCode ||
+        ""
+    ).trim();
+
+  return wingSMRequest(
+    `/b2b/urun/list/hareket/${encodeURIComponent(
+      start
+    )}/${encodeURIComponent(
+      end
+    )}`,
+    {
+      method:
+        "GET",
+
+      query: {
+        seriNo,
+
+        depo:
+          depot ||
+          undefined,
+
+        malKodu:
+          productCode ||
+          undefined,
+      },
+    }
+  );
+}
+
+// ======================================================
 // HEALTH CONFIG
 // ======================================================
 
