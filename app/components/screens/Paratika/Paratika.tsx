@@ -447,7 +447,7 @@ export default function Paratika() {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
-    installmentCount: '2',
+    installmentCount: '',
     personnelCode: '',
   });
 
@@ -782,6 +782,25 @@ export default function Paratika() {
       return;
     }
 
+    const calculatedAmount =
+      Number(form.amount);
+
+    const calculatedInstallment =
+      Number(form.installmentCount);
+
+    if (
+      !Number.isFinite(calculatedAmount) ||
+      calculatedAmount <= 0 ||
+      !Number.isInteger(calculatedInstallment) ||
+      !INSTALLMENTS.includes(calculatedInstallment)
+    ) {
+      setCreateError(
+        'Önce TAKSİT HESAPLA ile tutarı ve taksit sayısını seçin.'
+      );
+      setCreated(null);
+      return;
+    }
+
     setCreating(true);
     setCreateError('');
     setCreated(null);
@@ -828,8 +847,7 @@ export default function Paratika() {
         customerName: '',
         customerEmail: '',
         customerPhone: '',
-        installmentCount:
-          current.installmentCount,
+        installmentCount: '',
         personnelCode: '',
       }));
 
@@ -1521,26 +1539,39 @@ export default function Paratika() {
             </div>
 
             <div>
-              <FieldLabel>Tutar</FieldLabel>
+              <FieldLabel>
+                Tutar • Taksit Hesapla&apos;dan Gelir
+              </FieldLabel>
 
-              <div className="relative">
-                <input
-                  value={form.amount}
-                  onChange={(event) =>
-                    setForm((old) => ({
-                      ...old,
-                      amount: event.target.value,
-                    }))
-                  }
-                  inputMode="decimal"
-                  placeholder="45.000"
-                  required
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 text-base font-black text-slate-950 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                />
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <div className="relative">
+                  <input
+                    value={form.amount}
+                    readOnly
+                    tabIndex={-1}
+                    placeholder="Önce taksit hesaplayın"
+                    className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5 pr-12 text-base font-black text-slate-950 outline-none"
+                  />
 
-                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-black text-slate-400">
-                  TL
+                  <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-black text-slate-400">
+                    TL
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalculatorAmount('');
+                    setCalculatorOpen(true);
+                  }}
+                  className="rounded-2xl bg-amber-500 px-4 py-3.5 text-[10px] font-black text-white shadow-sm transition hover:bg-amber-600"
+                >
+                  TAKSİT HESAPLA
+                </button>
+              </div>
+
+              <div className="mt-1.5 text-[10px] font-bold leading-4 text-amber-700">
+                Bu alan elle değiştirilemez. Tutarı Taksit Hesapla ekranından seçin.
               </div>
             </div>
 
@@ -1608,20 +1639,18 @@ export default function Paratika() {
 
             <div>
               <FieldLabel>
-                Taksit Sayısı
+                Taksit Sayısı • Hesaplayıcıdan Gelir
               </FieldLabel>
 
               <select
                 value={form.installmentCount}
-                onChange={(event) =>
-                  setForm((old) => ({
-                    ...old,
-                    installmentCount:
-                      event.target.value,
-                  }))
-                }
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-black text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                disabled
+                className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5 text-sm font-black text-slate-900 opacity-100 outline-none"
               >
+                <option value="">
+                  ÖNCE TAKSİT HESAPLAYIN
+                </option>
+
                 {INSTALLMENTS.map((count) => (
                   <option
                     key={count}
@@ -1692,7 +1721,9 @@ export default function Paratika() {
               disabled={
                 creating ||
                 personnelLoading ||
-                !form.personnelCode
+                !form.personnelCode ||
+                !form.amount ||
+                !form.installmentCount
               }
               className="w-full rounded-2xl bg-blue-600 px-4 py-4 text-sm font-black tracking-wide text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1702,6 +1733,9 @@ export default function Paratika() {
                 ? 'PERSONELLER YÜKLENİYOR...'
                 : !form.personnelCode
                 ? 'ÖNCE PERSONEL SEÇİN'
+                : !form.amount ||
+                  !form.installmentCount
+                ? 'ÖNCE TAKSİT HESAPLAYIN'
                 : 'LİNK OLUŞTUR VE SMS GÖNDER'}
             </button>
 
