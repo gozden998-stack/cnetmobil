@@ -1150,30 +1150,67 @@ export async function getWingSMProductMovementHistory(
         ""
     ).trim();
 
-  return wingSMRequest(
+  const query = {
+    seriNo:
+      serialNo,
+
+    depo:
+      depot ||
+      undefined,
+
+    malKodu:
+      productCode ||
+      undefined,
+  };
+
+  const documentedPath =
     `/b2b/urun/list/hareket/${encodeURIComponent(
       start
     )}/${encodeURIComponent(
       end
-    )}`,
-    {
-      method:
-        "GET",
+    )}`;
 
-      query: {
-        seriNo:
-          serialNo,
+  try {
+    return await wingSMRequest(
+      documentedPath,
+      {
+        method:
+          "GET",
 
-        depo:
-          depot ||
-          undefined,
+        query,
+      }
+    );
+  } catch (
+    error: any
+  ) {
+    const message =
+      String(
+        error?.message ||
+          ""
+      );
 
-        malKodu:
-          productCode ||
-          undefined,
-      },
+    // WingSM dokümanında bu endpoint /b2b/... olarak yazıyor.
+    // Canlı serviste diğer B2B endpointleri /api/b2b/... altında.
+    // Dokümandaki yol 404 dönerse aynı GET isteğini /api önekiyle
+    // bir kez daha deneriz. WingSM'e hiçbir veri yazılmaz.
+    if (
+      !/HTTP\s*404/i.test(
+        message
+      )
+    ) {
+      throw error;
     }
-  );
+
+    return wingSMRequest(
+      `/api${documentedPath}`,
+      {
+        method:
+          "GET",
+
+        query,
+      }
+    );
+  }
 }
 
 // ======================================================
