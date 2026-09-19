@@ -377,6 +377,7 @@ export async function GET(
 // PAUSE
 // RESUME
 // EXTEND
+// REDUCE
 // END
 // CANCEL
 // SELECT_WINNER
@@ -719,6 +720,160 @@ export async function PATCH(
                 ends_at,
                 NOW()
               ) +
+              (
+                $2::int *
+                INTERVAL '1 minute'
+              ),
+
+            updated_at = NOW()
+
+          WHERE id = $1
+
+          RETURNING *
+        `;
+
+        updateParams.push(
+          minutes
+        );
+      }
+
+      // ==================================================
+      // REDUCE
+      // ==================================================
+
+      else if (
+        action ===
+        "REDUCE"
+      ) {
+        if (
+          ![
+            "LIVE",
+            "PAUSED",
+          ].includes(
+            auction.status
+          )
+        ) {
+          throw Object.assign(
+            new Error(
+              "Bu ihalenin süresi kısaltılamaz."
+            ),
+            {
+              status: 409,
+            }
+          );
+        }
+
+        const minutes =
+          Math.floor(
+            numberValue(
+              body?.minutes
+            )
+          );
+
+        if (
+          !Number.isFinite(
+            minutes
+          ) ||
+          minutes < 1 ||
+          minutes > 4320
+        ) {
+          throw Object.assign(
+            new Error(
+              "Kısaltma süresi 1 dakika ile 72 saat arasında olmalıdır."
+            ),
+            {
+              status: 400,
+            }
+          );
+        }
+
+        if (!auction.ends_at) {
+          throw Object.assign(
+            new Error(
+              "İhalenin bitiş zamanı bulunamadı."
+            ),
+            {
+              status: 409,
+            }
+          );
+        }
+
+        const endsAtMs =
+          new Date(
+            auction.ends_at
+          ).getTime();
+
+        const referenceMs =
+          auction.status === "PAUSED" &&
+          auction.paused_at
+            ? new Date(
+                auction.paused_at
+              ).getTime()
+            : Date.now();
+
+        const remainingMs =
+          endsAtMs -
+          referenceMs;
+
+        const reduceMs =
+          minutes *
+          60_000;
+
+        // Kısaltma sonrası en az 1 dakika bırak.
+        // İhaleyi hemen kapatmak için mevcut BİTİR aksiyonu kullanılmalı.
+        if (
+          !Number.isFinite(
+            remainingMs
+          ) ||
+          remainingMs <= 0
+        ) {
+          throw Object.assign(
+            new Error(
+              "İhalenin kalan süresi bulunmuyor."
+            ),
+            {
+              status: 409,
+            }
+          );
+        }
+
+        if (
+          remainingMs -
+          reduceMs <
+          60_000
+        ) {
+          const remainingMinutes =
+            Math.max(
+              1,
+              Math.ceil(
+                remainingMs /
+                60_000
+              )
+            );
+
+          throw Object.assign(
+            new Error(
+              `Kalan süre ${remainingMinutes} dakika. Kısaltma sonrası en az 1 dakika kalmalıdır. İhaleyi kapatmak için BİTİR kullanın.`
+            ),
+            {
+              status: 409,
+            }
+          );
+        }
+
+        eventType =
+          "SHORTENED";
+
+        newValue = {
+          minutes,
+        };
+
+        updateSql = `
+          UPDATE public.auctions
+
+          SET
+            ends_at =
+              ends_at -
               (
                 $2::int *
                 INTERVAL '1 minute'
