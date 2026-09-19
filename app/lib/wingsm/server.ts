@@ -1161,7 +1161,8 @@ export async function getWingSMProductMovementHistory(
         "GET",
 
       query: {
-        seriNo,
+        seriNo:
+          serialNo,
 
         depo:
           depot ||
