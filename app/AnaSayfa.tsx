@@ -854,6 +854,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // Puan kuralları sayfada "HEDEF PUANI" diye bir başlıkla değil, doğrudan
     // "PUAN" ve "MAX PUAN" etiketli satırlarla tutuluyor; kategori isimleri
     // de ana tablonun (personelData[0]) başlık satırıyla aynı sütun sırasında.
+    //
+    // Önemli fark: ana tabloda 2 etiket sütunu var (MAĞAZA, HEDEF), kategoriler
+    // index 2'den başlıyor. PUAN/MAX PUAN satırlarında ise tek etiket hücresi
+    // var (satırın kendi adı: "PUAN"/"MAX PUAN"), kategoriler index 1'den
+    // başlıyor — yani bu satırlar ana tabloya göre 1 sütun kaymış. Bu yüzden
+    // değerler puanSatiri[idx - 1] / maxPuanSatiri[idx - 1] ile okunuyor.
     const dinamikPuanKurallari: Record<number, any> = {};
     const puanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "PUAN");
     const maxPuanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "MAX PUAN");
@@ -868,10 +874,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (idx >= 1) {
                 const bKey = cleanKey(cell);
                 if (bKey && !bKey.includes("TOPLAM")) {
+                    const kaymisIdx = idx - 1;
                     dinamikPuanKurallari[idx] = {
-                        hedefPuan: parseNum(puanSatiri[idx]),
-                        maxPuan: parseNum(maxPuanSatiri[idx]),
-                        kural70: kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"))
+                        hedefPuan: parseNum(puanSatiri[kaymisIdx]),
+                        maxPuan: parseNum(maxPuanSatiri[kaymisIdx]),
+                        kural70: kuralSatirlari.some((row: any) => String(row[kaymisIdx] || "").includes("%70"))
                     };
                 }
             }
