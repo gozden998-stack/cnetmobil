@@ -59,16 +59,23 @@ function getRange(
 // ======================================================
 
 async function getAllSheetRows(): Promise<SheetRow[]> {
-  const result = await pool.query<SheetRow>(`
+  // Bu endpoint kimlik doğrulaması olmayan herkese açık cihaz-sat
+  // sayfası tarafından çağrılıyor; sadece "CİHAZ SAT" verisi kullanılıyor.
+  // Diğer iç sheet'leri (Alimlar, Hedefler, PersonelGidisat vb.) burada
+  // sorgulamıyoruz ki dışarı hiç sızmasın.
+  const result = await pool.query<SheetRow>(
+    `
     SELECT
       sheet_name,
       row_number,
       data
     FROM public.sheet_rows
+    WHERE sheet_name = $1
     ORDER BY
-      sheet_name ASC,
       row_number ASC
-  `);
+  `,
+    ['CİHAZ SAT']
+  );
 
   return result.rows;
 }
@@ -97,156 +104,6 @@ export async function GET() {
     // ------------------------------------------
 
     const results: Record<string, any[][]> = {
-
-      // Google Sheets ile Kurumsal Alım Sistemi!A2:F1000
-      Devices: getRange(
-        rows,
-        "Google Sheets ile Kurumsal Alım Sistemi",
-        2,
-        1000,
-        1,
-        6
-      ),
-
-      // Ayarlar!A1:B25
-      Ayarlar: getRange(
-        rows,
-        "Ayarlar",
-        1,
-        25,
-        1,
-        2
-      ),
-
-      // Alimlar!A2:H500
-      Alimlar: getRange(
-        rows,
-        "Alimlar",
-        2,
-        500,
-        1,
-        8
-      ),
-
-      // Markalar!A2:B50
-      Markalar: getRange(
-        rows,
-        "Markalar",
-        2,
-        50,
-        1,
-        2
-      ),
-
-      // CEP + TABLET+IOT SAAT LIST!A1:L1000
-      CepTablet: getRange(
-        rows,
-        "CEP + TABLET+IOT SAAT LIST",
-        1,
-        1000,
-        1,
-        12
-      ),
-
-      // YNA LİST!A1:F1000
-      YNA: getRange(
-        rows,
-        "YNA LİST",
-        1,
-        1000,
-        1,
-        6
-      ),
-
-      // DIŞ KANAL SATIN ALMA!A1:C1000
-      DisKanal: getRange(
-        rows,
-        "DIŞ KANAL SATIN ALMA",
-        1,
-        1000,
-        1,
-        3
-      ),
-
-      // Servis_Fiyatlari!A2:G1000
-      Servis: getRange(
-        rows,
-        "Servis_Fiyatlari",
-        2,
-        1000,
-        1,
-        7
-      ),
-
-      // 2.EL FİYAT LİSTESİ!A1:J1000
-      IkinciEl: getRange(
-        rows,
-        "2.EL FİYAT LİSTESİ",
-        1,
-        1000,
-        1,
-        10
-      ),
-
-      // DEPO!A1:C1000
-      Depo: getRange(
-        rows,
-        "DEPO",
-        1,
-        1000,
-        1,
-        3
-      ),
-
-      // HEDEFLER!A3:M100
-      Hedefler: getRange(
-        rows,
-        "HEDEFLER",
-        3,
-        100,
-        1,
-        13
-      ),
-
-      // MagazaGidisat!A1:E100
-      MagazaGidisat: getRange(
-        rows,
-        "MagazaGidisat",
-        1,
-        100,
-        1,
-        5
-      ),
-
-      // PersonelGidisat!A2:L100
-      PersonelGidisat: getRange(
-        rows,
-        "PersonelGidisat",
-        2,
-        100,
-        1,
-        12
-      ),
-
-      // THH!A1:R1000
-      THH: getRange(
-        rows,
-        "THH",
-        1,
-        1000,
-        1,
-        18
-      ),
-
-      // CihazTalep!A1:I1000
-      CihazTalep: getRange(
-        rows,
-        "CihazTalep",
-        1,
-        1000,
-        1,
-        9
-      ),
 
       // CİHAZ SAT!A2:F1000
       CustomerDevices: getRange(
