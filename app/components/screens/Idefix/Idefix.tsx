@@ -84,7 +84,30 @@ type OrdersResponse = {
 
 type OrderFilter = "all" | "new" | "preparing" | "cargo" | "delivered";
 
-type TabKey = "orders" | "open" | "closed";
+type TabKey = "orders" | "open" | "closed" | "n11migrate";
+
+type N11MigrationCandidate = {
+  listingId?: number;
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  title?: string;
+  n11SalePrice?: number | null;
+  n11ListPrice?: number | null;
+  updatedAt?: string | null;
+};
+
+type N11CandidatesResponse = {
+  success?: boolean;
+  totalCount?: number;
+  candidates?: N11MigrationCandidate[];
+  checkedAt?: string;
+  error?: string;
+};
 
 type IdefixDraftForm = {
   imei: string;
@@ -200,6 +223,20 @@ export default function Idefix() {
   const [idefixDraftSaving, setIdefixDraftSaving] = useState(false);
   const [idefixDraftError, setIdefixDraftError] = useState("");
   const [idefixDraftSuccess, setIdefixDraftSuccess] = useState("");
+
+  // N11 -> IDEFIX TASIMA (Feature 1: "N11'deki aktif ürünleri İdefix'e taşı")
+  const [n11Candidates, setN11Candidates] = useState<N11MigrationCandidate[]>([]);
+  const [n11CandidatesLoading, setN11CandidatesLoading] = useState(false);
+  const [n11CandidatesError, setN11CandidatesError] = useState("");
+  const [n11CandidatesLoaded, setN11CandidatesLoaded] = useState(false);
+  const [n11PriceDrafts, setN11PriceDrafts] = useState<
+    Record<string, { salePrice: string; listPrice: string }>
+  >({});
+  const [n11RowState, setN11RowState] = useState<
+    Record<string, { loading: boolean; error: string; success: string }>
+  >({});
+  const [n11Selected, setN11Selected] = useState<Record<string, boolean>>({});
+  const [n11BulkTransferring, setN11BulkTransferring] = useState(false);
 
   const loadOrders = async () => {
     setOrdersLoading(true);
@@ -525,10 +562,181 @@ export default function Idefix() {
     }
   };
 
+  const loadN11Candidates = async () => {
+    setN11CandidatesLoading(true);
+    setN11CandidatesError("");
+
+    try {
+      const response = await fetch("/api/online/idefix/n11-candidates", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+
+      const payload: N11CandidatesResponse = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "N11 taşıma adayları alınamadı.");
+      }
+
+      const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+
+      setN11Candidates(candidates);
+
+      // Fiyat taslaklarını yalnızca henüz taslağı olmayan IMEI'ler için
+      // N11 fiyatıyla ön doldur; kullanıcı zaten düzenlediği bir değeri
+      // yeniden yüklemede kaybetmesin.
+      setN11PriceDrafts((current) => {
+        const next = { ...current };
+
+        for (const candidate of candidates) {
+          if (!next[candidate.imei]) {
+            next[candidate.imei] = {
+              salePrice:
+                candidate.n11SalePrice !== null && candidate.n11SalePrice !== undefined
+                  ? String(candidate.n11SalePrice)
+                  : "",
+              listPrice:
+                candidate.n11ListPrice !== null && candidate.n11ListPrice !== undefined
+                  ? String(candidate.n11ListPrice)
+                  : "",
+            };
+          }
+        }
+
+        return next;
+      });
+    } catch (e: any) {
+      setN11CandidatesError(e?.message || "N11 taşıma adayları alınamadı.");
+    } finally {
+      setN11CandidatesLoading(false);
+      setN11CandidatesLoaded(true);
+    }
+  };
+
+  const setN11Price = (imei: string, field: "salePrice" | "listPrice", value: string) => {
+    setN11PriceDrafts((current) => ({
+      ...current,
+      [imei]: {
+        salePrice: current[imei]?.salePrice ?? "",
+        listPrice: current[imei]?.listPrice ?? "",
+        [field]: value,
+      },
+    }));
+  };
+
+  const transferN11Candidate = async (candidate: N11MigrationCandidate) => {
+    const draft = n11PriceDrafts[candidate.imei] || { salePrice: "", listPrice: "" };
+
+    if (!draft.salePrice.trim() || !draft.listPrice.trim()) {
+      setN11RowState((current) => ({
+        ...current,
+        [candidate.imei]: {
+          loading: false,
+          error: "İdefix satış ve liste fiyatı zorunludur.",
+          success: "",
+        },
+      }));
+      return;
+    }
+
+    setN11RowState((current) => ({
+      ...current,
+      [candidate.imei]: { loading: true, error: "", success: "" },
+    }));
+
+    try {
+      const response = await fetch("/api/online/idefix/create-device", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imei: candidate.imei,
+          brand: candidate.brand,
+          model: candidate.model,
+          memory: candidate.memory,
+          color: candidate.color,
+          grade: candidate.grade,
+          warranty: candidate.warranty,
+          salePrice: draft.salePrice,
+          listPrice: draft.listPrice,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "İdefix ürünü oluşturulamadı.");
+      }
+
+      setN11RowState((current) => ({
+        ...current,
+        [candidate.imei]: {
+          loading: false,
+          error: "",
+          success: payload?.message || "İdefix'e aktarıldı.",
+        },
+      }));
+
+      // Başarılı aktarımdan sonra tekrar denenmesin diye aday listesinden çıkar.
+      setN11Candidates((current) => current.filter((item) => item.imei !== candidate.imei));
+      setN11Selected((current) => {
+        const next = { ...current };
+        delete next[candidate.imei];
+        return next;
+      });
+
+      // Sol taraftaki katalog/stok tablosu da güncellensin.
+      load();
+    } catch (e: any) {
+      setN11RowState((current) => ({
+        ...current,
+        [candidate.imei]: {
+          loading: false,
+          error: e?.message || "İdefix ürünü oluşturulamadı.",
+          success: "",
+        },
+      }));
+    }
+  };
+
+  const transferSelectedN11Candidates = async () => {
+    const selectedImeis = Object.keys(n11Selected).filter((imei) => n11Selected[imei]);
+
+    if (selectedImeis.length === 0) return;
+
+    setN11BulkTransferring(true);
+
+    try {
+      // Bilerek SIRALI (paralel değil): İdefix tarafı tek bir advisory lock
+      // üzerinden çalışıyor ve bu canlı bir üretim sistemi. Toplu aktarımda
+      // bile her cihaz kendi başına, denetlenebilir bir işlem olarak kalsın.
+      for (const imei of selectedImeis) {
+        const candidate = n11Candidates.find((item) => item.imei === imei);
+        if (!candidate) continue;
+        await transferN11Candidate(candidate);
+      }
+    } finally {
+      setN11BulkTransferring(false);
+    }
+  };
+
   useEffect(() => {
     load();
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    if (tab === "n11migrate" && !n11CandidatesLoaded && !n11CandidatesLoading) {
+      loadN11Candidates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data!.products! : []),
@@ -807,9 +1015,21 @@ export default function Idefix() {
             >
               Satışa Kapalı ({closedProducts.length})
             </button>
+
+            <button
+              type="button"
+              onClick={() => setTab("n11migrate")}
+              className={`rounded-xl px-4 py-2 text-[9px] font-black transition ${
+                tab === "n11migrate"
+                  ? "border border-violet-200 bg-violet-50 text-violet-700"
+                  : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              N11 → İdefix Taşı {n11Candidates.length > 0 ? `(${n11Candidates.length})` : ""}
+            </button>
           </div>
 
-          {tab !== "orders" && (
+          {tab !== "orders" && tab !== "n11migrate" && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative">
                 <input
@@ -1012,6 +1232,206 @@ export default function Idefix() {
                       <tr>
                         <td colSpan={7} className="px-5 py-16 text-center text-[10px] font-bold text-slate-400">
                           Bu filtrede İdefix siparişi bulunamadı.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : tab === "n11migrate" ? (
+          <div>
+            <div className="flex flex-col gap-3 border-b border-slate-100 bg-violet-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-[10px] font-semibold leading-5 text-slate-500">
+                N11'de satışta olan, tekil IMEI'li ve henüz İdefix'te karşılığı
+                olmayan ürünler listelenir. Havuz/toplu N11 ilanları burada
+                gösterilmez. Her satır için İdefix fiyatlarını siz belirlersiniz
+                — aktarım N11 fiyatını otomatik kopyalamaz.
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void transferSelectedN11Candidates()}
+                  disabled={
+                    n11BulkTransferring ||
+                    Object.values(n11Selected).filter(Boolean).length === 0
+                  }
+                  className="h-9 whitespace-nowrap rounded-xl bg-violet-700 px-4 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {n11BulkTransferring
+                    ? "AKTARILIYOR..."
+                    : `SEÇİLENLERİ AKTAR (${Object.values(n11Selected).filter(Boolean).length})`}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void loadN11Candidates()}
+                  disabled={n11CandidatesLoading || n11BulkTransferring}
+                  className="h-9 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {n11CandidatesLoading ? "Yenileniyor..." : "Yenile"}
+                </button>
+              </div>
+            </div>
+
+            {n11CandidatesError && (
+              <div className="m-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-black text-rose-700">
+                {n11CandidatesError}
+              </div>
+            )}
+
+            {n11CandidatesLoading ? (
+              <div className="flex min-h-[300px] items-center justify-center text-[11px] font-black text-slate-400">
+                N11 taşıma adayları yükleniyor...
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1200px] text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={
+                            n11Candidates.length > 0 &&
+                            n11Candidates.every((item) => n11Selected[item.imei])
+                          }
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setN11Selected(() => {
+                              if (!checked) return {};
+                              const next: Record<string, boolean> = {};
+                              for (const item of n11Candidates) {
+                                next[item.imei] = true;
+                              }
+                              return next;
+                            });
+                          }}
+                        />
+                      </th>
+                      <th className="px-4 py-3">Ürün</th>
+                      <th className="px-4 py-3">IMEI</th>
+                      <th className="px-4 py-3">N11 Fiyatı</th>
+                      <th className="px-4 py-3">İdefix Satış Fiyatı</th>
+                      <th className="px-4 py-3">İdefix Liste Fiyatı</th>
+                      <th className="px-4 py-3">İşlem</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {n11Candidates.map((candidate) => {
+                      const draft = n11PriceDrafts[candidate.imei] || {
+                        salePrice: "",
+                        listPrice: "",
+                      };
+                      const rowState = n11RowState[candidate.imei];
+
+                      return (
+                        <tr key={candidate.imei} className="align-top hover:bg-slate-50/60">
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(n11Selected[candidate.imei])}
+                              onChange={(event) =>
+                                setN11Selected((current) => ({
+                                  ...current,
+                                  [candidate.imei]: event.target.checked,
+                                }))
+                              }
+                              disabled={rowState?.loading || n11BulkTransferring}
+                            />
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="max-w-[280px] truncate text-[10px] font-black text-slate-950">
+                              {candidate.title ||
+                                `${candidate.brand} ${candidate.model}`.trim()}
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                {candidate.memory || "-"}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                {candidate.color || "-"}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                {candidate.grade || "-"}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                {candidate.warranty || "-"}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 font-mono text-[10px] font-black text-slate-700">
+                            {candidate.imei}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="text-[10px] font-black text-slate-950">
+                              {money(candidate.n11SalePrice)}
+                            </div>
+                            <div className="text-[7px] font-semibold text-slate-400">
+                              Liste: {money(candidate.n11ListPrice)}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <input
+                              value={draft.salePrice}
+                              onChange={(event) =>
+                                setN11Price(candidate.imei, "salePrice", event.target.value)
+                              }
+                              disabled={rowState?.loading || n11BulkTransferring}
+                              placeholder="Örn. 42999,00"
+                              className="h-9 w-32 rounded-lg border border-slate-200 px-2.5 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                            />
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <input
+                              value={draft.listPrice}
+                              onChange={(event) =>
+                                setN11Price(candidate.imei, "listPrice", event.target.value)
+                              }
+                              disabled={rowState?.loading || n11BulkTransferring}
+                              placeholder="Örn. 44999,00"
+                              className="h-9 w-32 rounded-lg border border-slate-200 px-2.5 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                            />
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <button
+                              type="button"
+                              onClick={() => void transferN11Candidate(candidate)}
+                              disabled={rowState?.loading || n11BulkTransferring}
+                              className="h-8 whitespace-nowrap rounded-lg bg-violet-700 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {rowState?.loading ? "AKTARILIYOR..." : "İDEFİX'E AKTAR"}
+                            </button>
+
+                            {rowState?.error && (
+                              <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-rose-600">
+                                {rowState.error}
+                              </div>
+                            )}
+
+                            {rowState?.success && (
+                              <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-emerald-600">
+                                {rowState.success}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {n11Candidates.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-14 text-center text-[10px] font-bold text-slate-400">
+                          Taşınacak yeni N11 ürünü bulunamadı.
                         </td>
                       </tr>
                     )}

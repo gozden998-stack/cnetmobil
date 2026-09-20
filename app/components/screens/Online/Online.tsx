@@ -394,6 +394,13 @@ export default function Online() {
   const [draftError, setDraftError] = useState("");
   const [draftSuccess, setDraftSuccess] = useState("");
   const [draftForm, setDraftForm] = useState<ListingDraftForm>(EMPTY_DRAFT_FORM);
+  // N11 "Yeni Ürün Aç" modalinde opsiyonel "İdefix'e de aç" (Feature 2).
+  // Kasıtlı olarak draftForm'dan AYRI: N11 akışının davranışına dokunmadan
+  // (checkbox işaretlenmezse %100 aynı davranış) İdefix'e bağımsız bir
+  // ikinci istek olarak eklenir.
+  const [openIdefixToo, setOpenIdefixToo] = useState(false);
+  const [idefixSalePrice, setIdefixSalePrice] = useState("");
+  const [idefixListPrice, setIdefixListPrice] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [actionSaving, setActionSaving] = useState(false);
@@ -1039,6 +1046,9 @@ export default function Online() {
     setDraftError("");
     setDraftSuccess("");
     setDraftForm(EMPTY_DRAFT_FORM);
+    setOpenIdefixToo(false);
+    setIdefixSalePrice("");
+    setIdefixListPrice("");
   }, []);
 
   const closeCreateModal = useCallback(() => {
@@ -1047,6 +1057,9 @@ export default function Online() {
     setDraftError("");
     setDraftSuccess("");
     setDraftForm(EMPTY_DRAFT_FORM);
+    setOpenIdefixToo(false);
+    setIdefixSalePrice("");
+    setIdefixListPrice("");
   }, [draftSaving]);
 
   const saveDraft = useCallback(async () => {
@@ -1076,6 +1089,13 @@ export default function Online() {
 
     if (!draftForm.salePrice.trim() || !draftForm.listPrice.trim()) {
       setDraftError("N11 satış fiyatı ve N11 liste fiyatı zorunludur.");
+      return;
+    }
+
+    if (openIdefixToo && (!idefixSalePrice.trim() || !idefixListPrice.trim())) {
+      setDraftError(
+        "\"İdefix'e de aç\" işaretliyken İdefix satış fiyatı ve İdefix liste fiyatı zorunludur."
+      );
       return;
     }
 
@@ -1111,32 +1131,83 @@ export default function Online() {
         );
       }
 
-      if (
-        payload?.created === true &&
-        payload?.listing
-          ?.external_product_id
-      ) {
-        setDraftSuccess(
-          payload?.message ||
+      const n11Message =
+        payload?.created === true && payload?.listing?.external_product_id
+          ? payload?.message ||
             `N11 ürünü açıldı. N11 ID: ${payload.listing.external_product_id}`
-        );
-      } else {
-        setDraftSuccess(
-          payload?.message ||
-            "N11'e gönderildi. İşlem arka planda tamamlanıyor."
-        );
+          : payload?.message ||
+            "N11'e gönderildi. İşlem arka planda tamamlanıyor.";
+
+      // N11 tarafı burada zaten BAŞARILI oldu ve geri alınmaz. İdefix'e de
+      // açma isteği (varsa) TAMAMEN bağımsız bir ikinci istek olarak
+      // gönderilir: başarısız olsa bile N11 sonucu etkilenmez/gizlenmez,
+      // kullanıcıya sadece birleşik bir bilgi mesajı gösterilir.
+      let combinedMessage = n11Message;
+      let idefixFailed = false;
+
+      if (openIdefixToo) {
+        try {
+          const idefixResponse = await fetch("/api/online/idefix/create-device", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imei,
+              brand: draftForm.brand,
+              model: draftForm.model,
+              memory: draftForm.memory,
+              color: draftForm.color,
+              grade: draftForm.grade,
+              warranty: draftForm.warranty,
+              salePrice: idefixSalePrice,
+              listPrice: idefixListPrice,
+            }),
+          });
+
+          const idefixPayload = await idefixResponse.json().catch(() => null);
+
+          if (!idefixResponse.ok || !idefixPayload?.success) {
+            idefixFailed = true;
+            combinedMessage = `${n11Message} Ancak İdefix'e gönderilemedi: ${
+              idefixPayload?.error || "Bilinmeyen hata."
+            }`;
+          } else {
+            combinedMessage = `${n11Message} İdefix'e de gönderildi: ${
+              idefixPayload?.message || "İşlem tamamlandı."
+            }`;
+          }
+        } catch (idefixErr) {
+          idefixFailed = true;
+          combinedMessage = `${n11Message} Ancak İdefix'e gönderilemedi: ${
+            idefixErr instanceof Error ? idefixErr.message : "Bilinmeyen hata."
+          }`;
+        }
       }
+
+      setDraftSuccess(combinedMessage);
 
       // Kullanıcı N11 kuyruğunu beklemez.
       // Kayıt panele hemen düşer; N11 ID oluşana kadar
       // "N11 Bekleniyor" olarak kalır ve arka planda doğrulanır.
       await loadData(true);
 
-      window.setTimeout(() => {
-        setShowCreateModal(false);
-        setDraftForm(EMPTY_DRAFT_FORM);
-        setDraftSuccess("");
-      }, 500);
+      // İdefix tarafı başarısız olduysa modalı otomatik kapatıp mesajı
+      // kullanıcının gözünden kaçırmayalım; N11 açıldığı için modal kendi
+      // başına kapatılabilir ama hata mesajı okunana kadar ekranda kalsın.
+      if (!idefixFailed) {
+        window.setTimeout(() => {
+          setShowCreateModal(false);
+          setDraftForm(EMPTY_DRAFT_FORM);
+          setDraftSuccess("");
+          setOpenIdefixToo(false);
+          setIdefixSalePrice("");
+          setIdefixListPrice("");
+        }, 500);
+      }
     } catch (err) {
       setDraftError(
         err instanceof Error ? err.message : "N11 ürün oluşturulamadı."
@@ -1144,7 +1215,7 @@ export default function Online() {
     } finally {
       setDraftSaving(false);
     }
-  }, [draftForm, loadData]);
+  }, [draftForm, loadData, openIdefixToo, idefixSalePrice, idefixListPrice]);
 
 
   const openEditModal = useCallback((item: OnlineListing) => {
@@ -3649,6 +3720,54 @@ export default function Online() {
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
                   </label>
+
+                  <div className="md:col-span-2 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+                    <label className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={openIdefixToo}
+                        onChange={(event) => setOpenIdefixToo(event.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-400"
+                      />
+                      <span className="text-[11px] font-black text-violet-700">
+                        İdefix'e de aç
+                      </span>
+                    </label>
+
+                    <p className="mt-1.5 text-[9px] font-semibold leading-4 text-violet-500">
+                      İşaretlerseniz N11 açıldıktan hemen sonra aynı cihaz için
+                      İdefix'e de gönderilir. İdefix fiyatları N11 fiyatından
+                      bağımsızdır, aşağıya kendiniz girin.
+                    </p>
+
+                    {openIdefixToo && (
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label>
+                          <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-violet-600">
+                            İdefix Satış Fiyatı
+                          </div>
+                          <input
+                            value={idefixSalePrice}
+                            onChange={(event) => setIdefixSalePrice(event.target.value)}
+                            placeholder="42999,00"
+                            className="h-11 w-full rounded-xl border border-violet-200 bg-white px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                          />
+                        </label>
+
+                        <label>
+                          <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-violet-600">
+                            İdefix Liste Fiyatı
+                          </div>
+                          <input
+                            value={idefixListPrice}
+                            onChange={(event) => setIdefixListPrice(event.target.value)}
+                            placeholder="44999,00"
+                            className="h-11 w-full rounded-xl border border-violet-200 bg-white px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-blue-700">
