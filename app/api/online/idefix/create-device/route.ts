@@ -1244,12 +1244,27 @@ async function liveInventoryItems() {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function liveInventoryByBarcode(barcode: string) {
-  const rows = await liveInventoryItems();
-  return rows.find((row: any) => text(row?.barcode) === barcode) || null;
+function inventoryRowMatches(row: any, barcode: string, vendorStockCode: string) {
+  // İdefix'in inventory-list dokümantasyonundaki örnek cevapta "barcode"
+  // ile birlikte ayrı bir "stockCode" alanı da var (developer.idefix.com,
+  // "Stok ve Fiyat Güncel Durum Sorgulama"). Bazı ürünlerde bu listede
+  // barcode boş/farklı dönüp yalnızca stockCode güvenilir olabiliyor; bu
+  // yüzden ikisine de, ayrıca kendi vendorStockCode'umuza karşı da bakılır.
+  const candidates = [text(row?.barcode), text(row?.stockCode), text(row?.vendorStockCode)];
+  return candidates.includes(barcode) || (Boolean(vendorStockCode) && candidates.includes(vendorStockCode));
 }
 
-async function waitLiveInventory(barcode: string, expectedStock: number, expectedPrice: number) {
+async function liveInventoryByBarcode(barcode: string, vendorStockCode = "") {
+  const rows = await liveInventoryItems();
+  return rows.find((row: any) => inventoryRowMatches(row, barcode, vendorStockCode)) || null;
+}
+
+async function waitLiveInventory(
+  barcode: string,
+  expectedStock: number,
+  expectedPrice: number,
+  vendorStockCode = ""
+) {
   let lastItem: any = null;
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -1257,7 +1272,7 @@ async function waitLiveInventory(barcode: string, expectedStock: number, expecte
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
 
-    lastItem = await liveInventoryByBarcode(barcode);
+    lastItem = await liveInventoryByBarcode(barcode, vendorStockCode);
 
     if (!lastItem) {
       continue;
@@ -1920,7 +1935,12 @@ async function processDevice(client: PoolClient, prepared: PreparedDevice) {
         );
       }
 
-      const liveVerification = await waitLiveInventory(prepared.barcode, prepared.targetAfterStock, prepared.salePrice);
+      const liveVerification = await waitLiveInventory(
+        prepared.barcode,
+        prepared.targetAfterStock,
+        prepared.salePrice,
+        prepared.vendorStockCode
+      );
 
       if (!liveVerification.success) {
         throw new Error(
