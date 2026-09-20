@@ -35,6 +35,53 @@ export default function SuperAdminDashboardPage() {
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
 
+  // GEÇİCİ TEST WIDGET'I: WingSM Değer Puan raporu Aşama 1 doğrulaması.
+  // Kalıcı ekran değil, sadece /api/wingsm/value-report'un doğru
+  // veriyi çekip çekmediğini görmek için. İş bitince kaldırılabilir.
+  const [wsBastar, setWsBastar] = useState("01.06.2026");
+  const [wsBittar, setWsBittar] = useState("30.06.2026");
+  const [wsSirket, setWsSirket] = useState("CMR");
+  const [wsSiniflar, setWsSiniflar] = useState("6,1el,2el,8el,6el");
+  const [wsLoading, setWsLoading] = useState(false);
+  const [wsError, setWsError] = useState("");
+  const [wsResult, setWsResult] = useState<string>("");
+
+  const runWingsmValueReportTest = async () => {
+    setWsLoading(true);
+    setWsError("");
+    setWsResult("");
+
+    try {
+      const response = await fetch("/api/wingsm/value-report", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bastar: wsBastar,
+          bittar: wsBittar,
+          sirket: wsSirket,
+          siniflar: wsSiniflar
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${response.status}`);
+      }
+
+      setWsResult(JSON.stringify(payload, null, 2));
+    } catch (err) {
+      setWsError(err instanceof Error ? err.message : "Test isteği başarısız.");
+    } finally {
+      setWsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const boot = async () => {
       try {
@@ -188,6 +235,71 @@ export default function SuperAdminDashboardPage() {
               </div>
             </button>
           ))}
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-violet-200 bg-violet-50/40 p-5">
+          <h2 className="text-sm font-black text-violet-800">
+            GEÇİCİ TEST: WingSM Değer Puan Raporu (Aşama 1)
+          </h2>
+          <p className="mt-1 text-xs font-semibold text-violet-600">
+            Sadece WingSM'den doğru satış verisinin gelip gelmediğini doğrulamak için. Hiçbir yere yazmaz.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <label>
+              <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Başlangıç (GG.AA.YYYY)</div>
+              <input
+                value={wsBastar}
+                onChange={(e) => setWsBastar(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label>
+              <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Bitiş (GG.AA.YYYY)</div>
+              <input
+                value={wsBittar}
+                onChange={(e) => setWsBittar(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label>
+              <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Mağaza (sirket)</div>
+              <input
+                value={wsSirket}
+                onChange={(e) => setWsSirket(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label>
+              <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Sınıflar (virgülle)</div>
+              <input
+                value={wsSiniflar}
+                onChange={(e) => setWsSiniflar(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={runWingsmValueReportTest}
+            disabled={wsLoading}
+            className="mt-4 h-10 rounded-lg bg-violet-700 px-5 text-sm font-black text-white hover:bg-violet-800 disabled:opacity-50"
+          >
+            {wsLoading ? "Çalıştırılıyor..." : "ÇALIŞTIR"}
+          </button>
+
+          {wsError && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
+              {wsError}
+            </div>
+          )}
+
+          {wsResult && (
+            <pre className="mt-4 max-h-[500px] overflow-auto rounded-lg border border-slate-200 bg-slate-900 p-4 text-[11px] text-emerald-300">
+              {wsResult}
+            </pre>
+          )}
         </section>
       </main>
     </div>
