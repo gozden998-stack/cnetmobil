@@ -871,10 +871,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (idx >= 1) {
                 const bKey = cleanKey(cell);
                 if (bKey && !bKey.includes("TOPLAM")) {
+                    // Eşik yüzdesi kategoriye göre değişebiliyor (ör. çoğu
+                    // kategori "%70 ALTI PUAN ALAMAZ" iken bazıları "%50 ALTI
+                    // PUAN ALAMAZ" olabiliyor) — sabit %70 yerine, kural
+                    // metnindeki sayı doğrudan okunuyor.
+                    let esikYuzde: number | null = null;
+                    for (const row of kuralSatirlari) {
+                        const match = String(row?.[idx] || "").match(/%(\d+(?:[.,]\d+)?)/);
+                        if (match) {
+                            esikYuzde = parseNum(match[1]);
+                            break;
+                        }
+                    }
                     dinamikPuanKurallari[idx] = {
                         hedefPuan: parseNum(puanSatiri[idx]),
                         maxPuan: parseNum(maxPuanSatiri[idx]),
-                        kural70: kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"))
+                        esikYuzde
                     };
                 }
             }
@@ -887,7 +899,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         const rule = dinamikPuanKurallari[baremKey];
         if (!rule) return 0;
         const perf = val / target;
-        if (rule.kural70 && perf < 0.7) return 0;
+        if (rule.esikYuzde !== null && perf < rule.esikYuzde / 100) return 0;
         return Math.min(rule.maxPuan, perf * rule.hedefPuan);
     };
     
@@ -1085,7 +1097,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         ? (aktifPersoneller.reduce((acc, p) => acc + (Number(p.puanTahmin) || 0), 0) / aktifPersoneller.length).toFixed(1)
         : "0.0";
 
-    const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, kural70, isRiskli }: any) => {
+    const DepartmanProgressBar = ({ title, data, colorClass, puan, tahminiPuan, esikYuzde, isRiskli }: any) => {
         if (!data || data.hedef === 0) return null;
         const projeksiyon = Math.round((data.satilan / currentDay) * daysInMonth);
         const tahminYuzde = data.hedef > 0 ? Math.min(100, Math.round((projeksiyon / data.hedef) * 100)) : 0;
@@ -1097,9 +1109,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <div className="flex justify-between items-start mb-3 mt-1">
                     <div className="flex flex-col gap-1.5">
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{title}</h4>
-                        {kural70 && (
-                            isRiskli ? 
-                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded w-max border border-rose-200">%70 Altı (Riskli)</span> :
+                        {esikYuzde != null && (
+                            isRiskli ?
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded w-max border border-rose-200">%{esikYuzde} Altı (Riskli)</span> :
                             <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded w-max border border-emerald-200">Baraj Geçildi</span>
                         )}
                     </div>
@@ -2260,11 +2272,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         const hedef = selectedPersonel.hedefler[barem.orijinalIndex] || 0;
                                         const satilan = selectedPersonel.gerceklesen[barem.orijinalIndex] || 0;
                                         const baremRule = dinamikPuanKurallari[barem.orijinalIndex];
-                                        const isRiskli = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
+                                        const esikYuzde = baremRule?.esikYuzde ?? null;
+                                        const isRiskli = esikYuzde !== null && (hedef > 0 ? (satilan / hedef < esikYuzde / 100) : false);
                                         const baremPuanVal = calculatePoint(satilan, hedef, barem.orijinalIndex, false);
                                         const tahminiBaremPuan = calculatePoint(satilan, hedef, barem.orijinalIndex, true);
                                         if (hedef === 0 && satilan === 0) return null;
-                                        return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} tahminiPuan={tahminiBaremPuan.toFixed(1)} kural70={baremRule?.kural70} isRiskli={isRiskli} />;
+                                        return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} tahminiPuan={tahminiBaremPuan.toFixed(1)} esikYuzde={esikYuzde} isRiskli={isRiskli} />;
                                     })}
                                 </div>
                             </div>
