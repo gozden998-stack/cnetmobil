@@ -846,20 +846,29 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const currentDay = getTargetDay(); 
     const daysInMonth = getDaysInMonth();
 
-    const dinamikPuanKurallari: Record<string, any> = {};
-    const hedefPuaniBaslikIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").toUpperCase().includes("HEDEF PUANI"));
+    // NOT: Bu tabloda ayni isimli (örn. "2. EL CİHAZ KAZANÇ") birden fazla
+    // sütun bilerek ayrı ayrı puanlanabiliyor. Bu yüzden kurallar/hedefler
+    // isme göre değil, sütunun tablodaki konumuna (index) göre eşleştirilir
+    // — aksi halde aynı isimli sütunlar birbirinin üzerine yazar/toplanır.
+    //
+    // Puan kuralları sayfada "HEDEF PUANI" diye bir başlıkla değil, doğrudan
+    // "PUAN" ve "MAX PUAN" etiketli satırlarla tutuluyor; kategori isimleri
+    // de ana tablonun (personelData[0]) başlık satırıyla aynı sütun sırasında.
+    const dinamikPuanKurallari: Record<number, any> = {};
+    const puanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "PUAN");
+    const maxPuanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "MAX PUAN");
 
-    if (hedefPuaniBaslikIdx !== -1) {
-        const baslikSatiri = personelData[hedefPuaniBaslikIdx];
-        const puanSatiri = personelData[hedefPuaniBaslikIdx + 1];
-        const maxPuanSatiri = personelData[hedefPuaniBaslikIdx + 2];
-        const kuralSatirlari = personelData.slice(hedefPuaniBaslikIdx + 3, hedefPuaniBaslikIdx + 7);
+    if (puanRowIdx !== -1 && maxPuanRowIdx !== -1) {
+        const baslikSatiri = personelData[0] || [];
+        const puanSatiri = personelData[puanRowIdx];
+        const maxPuanSatiri = personelData[maxPuanRowIdx];
+        const kuralSatirlari = personelData.slice(maxPuanRowIdx + 1, maxPuanRowIdx + 5);
 
         baslikSatiri.forEach((cell: any, idx: number) => {
             if (idx >= 1) {
                 const bKey = cleanKey(cell);
                 if (bKey && !bKey.includes("TOPLAM")) {
-                    dinamikPuanKurallari[bKey] = {
+                    dinamikPuanKurallari[idx] = {
                         hedefPuan: parseNum(puanSatiri[idx]),
                         maxPuan: parseNum(maxPuanSatiri[idx]),
                         kural70: kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"))
@@ -869,11 +878,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
     }
 
-    const calculatePoint = (actual: number, target: number, baremName: string, isProj = false) => {
+    const calculatePoint = (actual: number, target: number, baremKey: number, isProj = false) => {
         if (!target || target === 0) return 0;
         const val = isProj ? (actual / currentDay) * daysInMonth : actual;
-        const cleanedBaremName = cleanKey(baremName);
-        const rule = dinamikPuanKurallari[cleanedBaremName];
+        const rule = dinamikPuanKurallari[baremKey];
         if (!rule) return 0;
         const perf = val / target;
         if (rule.kural70 && perf < 0.7) return 0;
@@ -1016,7 +1024,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         });
 
         const hedefRows = gerceklesenIndex > -1 ? personelData.slice(1, gerceklesenIndex) : personelData.slice(1);
-        const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1, hedefPuaniBaslikIdx) : [];
+        const gerceklesenRows = gerceklesenIndex > -1 ? personelData.slice(gerceklesenIndex + 1, puanRowIdx !== -1 ? puanRowIdx : undefined) : [];
 
         const personelDict: Record<string, any> = {};
         
@@ -1028,7 +1036,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 if (!personelDict[isim]) personelDict[isim] = { isim: isim, magaza: magaza.toUpperCase(), hedefler: {}, gerceklesen: {}, anaHedef: 0, anaSatilan: 0 };
                 dinamikBaremler.forEach(b => {
                     const d = parseNum(row[b.orijinalIndex]);
-                    personelDict[isim].hedefler[b.name] = (personelDict[isim].hedefler[b.name] || 0) + d;
+                    personelDict[isim].hedefler[b.orijinalIndex] = d;
                     if (b.indexOffset === 0) personelDict[isim].anaHedef += d;
                 });
             }
@@ -1044,7 +1052,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (matchedName) {
                 dinamikBaremler.forEach(b => {
                     const d = parseNum(row[offset + b.indexOffset]);
-                    personelDict[matchedName].gerceklesen[b.name] = (personelDict[matchedName].gerceklesen[b.name] || 0) + d;
+                    personelDict[matchedName].gerceklesen[b.orijinalIndex] = d;
                     if (b.indexOffset === 0) personelDict[matchedName].anaSatilan += d;
                 });
             }
@@ -1054,8 +1062,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             .map((p: any) => {
                 let pAnlik = 0, pTahmin = 0;
                 dinamikBaremler.forEach(b => {
-                    pAnlik += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, false);
-                    pTahmin += calculatePoint(p.gerceklesen[b.name] || 0, p.hedefler[b.name] || 0, b.name, true);
+                    pAnlik += calculatePoint(p.gerceklesen[b.orijinalIndex] || 0, p.hedefler[b.orijinalIndex] || 0, b.orijinalIndex, false);
+                    pTahmin += calculatePoint(p.gerceklesen[b.orijinalIndex] || 0, p.hedefler[b.orijinalIndex] || 0, b.orijinalIndex, true);
                 });
                 const projeksiyon = Math.round((p.anaSatilan / currentDay) * daysInMonth);
                 const basariYuzdesi = p.anaHedef > 0 ? Math.min(100, Math.round((projeksiyon / p.anaHedef) * 100)) : 0;
@@ -2246,12 +2254,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="p-6 overflow-y-auto custom-scrollbar bg-slate-50/50">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {dinamikBaremler.map((barem, i) => {
-                                        const hedef = selectedPersonel.hedefler[barem.name] || 0; 
-                                        const satilan = selectedPersonel.gerceklesen[barem.name] || 0;
-                                        const baremRule = dinamikPuanKurallari[cleanKey(barem.name)];
+                                        const hedef = selectedPersonel.hedefler[barem.orijinalIndex] || 0;
+                                        const satilan = selectedPersonel.gerceklesen[barem.orijinalIndex] || 0;
+                                        const baremRule = dinamikPuanKurallari[barem.orijinalIndex];
                                         const isRiskli = baremRule?.kural70 && (hedef > 0 ? (satilan / hedef < 0.7) : false);
-                                        const baremPuanVal = calculatePoint(satilan, hedef, barem.name, false);
-                                        const tahminiBaremPuan = calculatePoint(satilan, hedef, barem.name, true);
+                                        const baremPuanVal = calculatePoint(satilan, hedef, barem.orijinalIndex, false);
+                                        const tahminiBaremPuan = calculatePoint(satilan, hedef, barem.orijinalIndex, true);
                                         if (hedef === 0 && satilan === 0) return null;
                                         return <DepartmanProgressBar key={i} title={barem.name} data={{ hedef, satilan, isCurrency: barem.isCurrency }} colorClass={barem.color} puan={baremPuanVal.toFixed(1)} tahminiPuan={tahminiBaremPuan.toFixed(1)} kural70={baremRule?.kural70} isRiskli={isRiskli} />;
                                     })}
