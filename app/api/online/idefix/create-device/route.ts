@@ -1943,8 +1943,19 @@ async function processDevice(client: PoolClient, prepared: PreparedDevice) {
       );
 
       if (!liveVerification.success) {
+        // Teşhis amaçlı: yükleme öncesi İdefix'in bize verdiği ürünün TAM
+        // halini de mesaja ekle. "READY FOR SALE" durumu geçse bile
+        // stok/fiyat gönderiminin sessizce reddedildiği görüldü — hangi
+        // alanın (ör. kalite puanı, ayrı bir onay bayrağı) buna sebep
+        // olduğunu canlı veri olmadan tahmin edemiyoruz.
+        let liveProductSnapshot = "-";
+
+        try {
+          liveProductSnapshot = JSON.stringify(liveBeforeSend).slice(0, 2000);
+        } catch {}
+
         throw new Error(
-          `${prepared.title}: inventory item COMPLETED oldu fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel kayıt yazılmadı. Barkod: ${prepared.barcode}. Batch: ${upload.batchRequestId}. Canlı inventory: ${idefixFailureDetail(liveVerification.item)}`
+          `${prepared.title}: inventory item COMPLETED oldu fakat İdefix inventory-list üzerinde gerçek stok/fiyat görünmedi. Yerel kayıt yazılmadı. Barkod: ${prepared.barcode}. Batch: ${upload.batchRequestId}. Canlı inventory: ${idefixFailureDetail(liveVerification.item)}. Yükleme öncesi ürün verisi: ${liveProductSnapshot}`
         );
       }
 
