@@ -802,10 +802,21 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const parseNum = (val: any) => {
         if (val === null || val === undefined || val === "") return 0;
         if (typeof val === 'number') return val;
-        let strVal = String(val).trim();
-        if (strVal.includes('.') && strVal.includes(',')) strVal = strVal.replace(/\./g, '').replace(',', '.');
-        else if (strVal.includes(',')) strVal = strVal.replace(',', '.');
-        else if (strVal.includes('.')) strVal = strVal.replace(/\./g, '');
+        // ₺, TL gibi para birimi simgelerini ve boşlukları at, sadece
+        // rakam/nokta/virgül/eksi kalsın.
+        let strVal = String(val).trim().replace(/[^0-9.,-]/g, '');
+        if (!strVal) return 0;
+
+        // Virgül son ayraçsa ve tam 1-2 basamakla bitiyorsa (876.141,00 gibi)
+        // TR ondalık formatıdır: noktalar binlik, virgül ondalık ayracıdır.
+        // Aksi halde (₺1,500,000 gibi) virgül de nokta da sadece binlik
+        // ayracı sayılır, ondalık kısım yoktur.
+        if (strVal.lastIndexOf(',') > strVal.lastIndexOf('.') && /,\d{1,2}$/.test(strVal)) {
+            strVal = strVal.replace(/\./g, '').replace(',', '.');
+        } else {
+            strVal = strVal.replace(/[.,]/g, '');
+        }
+
         const parsed = parseFloat(strVal);
         return isNaN(parsed) ? 0 : parsed;
     };

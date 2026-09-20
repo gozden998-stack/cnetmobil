@@ -88,7 +88,7 @@ function buildPanelData(rows: SheetRow[]) {
     IkinciEl: getRangeFromSheetRows(sheets['2.EL FİYAT LİSTESİ'] || [], 1, 1000, 0, 10),
     Depo: getRangeFromSheetRows(sheets['DEPO'] || [], 1, 1000, 0, 3),
     Hedefler: getRangeFromSheetRows(sheets['HEDEFLER'] || [], 3, 100, 0, 13),
-    MagazaGidisat: getRangeFromSheetRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 5),
+    MagazaGidisat: getRangeFromSheetRows(sheets['MagazaGidisat'] || [], 1, 100, 0, 7),
     PersonelGidisat: getRangeFromSheetRows(sheets['PersonelGidisat'] || [], 2, 100, 0, 12),
     THH: getRangeFromSheetRows(sheets['THH'] || [], 1, 1000, 0, 18),
     CihazTalep: getRangeFromSheetRows(sheets['CihazTalep'] || [], 1, 1000, 0, 15),
