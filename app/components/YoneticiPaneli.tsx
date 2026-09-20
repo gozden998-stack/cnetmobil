@@ -1,7 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-// YENİ: Senin klasör yapına (app/teknik-takip/page.tsx) uygun import yolu
-import TeknikTakipTablosu from '../teknik-takip/page';
+import React from 'react';
 
 interface YoneticiPaneliProps {
   isAdmin: boolean;
@@ -32,40 +30,6 @@ export default function YoneticiPaneli({
   deleteAlim,
   setEkspertizModalData
 }: YoneticiPaneliProps) {
-  
-  // Yönetici panelindeki aktif sekmeyi takip eden state
-  const [activeTab, setActiveTab] = useState<'buyback' | 'teknik'>('buyback');
-
-  // --- YENİ: TEKNİK SERVİS MERKEZİ ANALİZ STATELERİ ---
-  const [teknikVeriler, setTeknikVeriler] = useState<any[]>([]);
-  const [tLoading, setTLoading] = useState(false);
-
-  useEffect(() => {
-    // Teknik servis sekmesine geçildiğinde merkezi verileri çek
-    if (isAdmin && activeTab === 'teknik') {
-      const getTeknikStats = async () => {
-        setTLoading(true);
-        try {
-          const res = await fetch("https://script.google.com/macros/s/AKfycbzcxFQ66zQc2jYse7fLpCvPqQDZ7NHxY0liU6T7MxwAzov_UxTYGogD4P_YcgJjxuOcoA/exec");
-          const data = await res.json();
-          setTeknikVeriler(data);
-        } catch (e) {
-          console.error("Teknik veri çekme hatası:", e);
-        } finally {
-          setTLoading(false);
-        }
-      };
-      getTeknikStats();
-    }
-  }, [isAdmin, activeTab]);
-
-  // TEKNİK İSTATİSTİK HESAPLAMALARI
-  const tToplam = teknikVeriler.length;
-  const tBasarili = teknikVeriler.filter(s => s.tamirDurumu === 'Evet').length;
-  const tBekleyen = teknikVeriler.filter(s => !s.islemTamam).length;
-  const tIade = teknikVeriler.filter(s => s.tamirDurumu === 'İade').length;
-  const tTamamlanan = teknikVeriler.filter(s => s.islemTamam).length;
-  const tBasariOrani = tTamamlanan > 0 ? Math.round((tBasarili / tTamamlanan) * 100) : 0;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 font-sans">
@@ -98,35 +62,7 @@ export default function YoneticiPaneli({
       ) : (
         <div className="w-full min-w-0">
 
-          {/* MERKEZİ SEKME (TAB) MENÜSÜ */}
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-10 bg-slate-900/50 p-2.5 rounded-2xl border border-slate-800/80 w-fit mx-auto shadow-2xl backdrop-blur-md">
-            <button
-              onClick={() => setActiveTab('buyback')}
-              className={`px-8 py-3.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-                activeTab === 'buyback'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-              BUYBACK (CİHAZ ALIM) PANELİ
-            </button>
-            <button
-              onClick={() => setActiveTab('teknik')}
-              className={`px-8 py-3.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-                activeTab === 'teknik'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              TEKNİK SERVİS PANELİ
-            </button>
-          </div>
-
-          {/* İÇERİK ALANI: SEÇİLİ SEKMEYE GÖRE GÖSTERİM */}
-          {activeTab === 'buyback' ? (
-            <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8 animate-in fade-in duration-500">
               {/* BAŞLIK VE FİLTRE BİLGİSİ */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-800 pb-4">
                 <div>
@@ -330,29 +266,6 @@ export default function YoneticiPaneli({
                 )}
               </div>
             </div>
-          ) : (
-            /* --- YENİ: TEKNİK SERVİS YÖNETİCİ PANELİ --- */
-            <div className="animate-in fade-in zoom-in-95 duration-500 space-y-8">
-              {/* TEKNİK ANALİZ BAŞLIĞI */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-indigo-900/50 pb-4">
-                <div>
-                  <h2 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-                    <div className="w-2 h-8 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
-                    TEKNİK SERVİS PERFORMANS MERKEZİ
-                  </h2>
-                  <p className="text-sm text-slate-400 mt-2 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
-                    Merkezi Veri Senkronizasyonu Aktif
-                  </p>
-                </div>
-              </div>
-
-              {/* TEKNİK TAKİP BİLEŞENİ (Filtreler ve İstatistikler zaten bu bileşenin içindedir) */}
-              <div className="rounded-[2.5rem] overflow-hidden border border-slate-800 shadow-2xl bg-slate-950/50 backdrop-blur-xl">
-                <TeknikTakipTablosu isAdmin={true} />
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
