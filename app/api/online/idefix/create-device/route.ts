@@ -1788,6 +1788,18 @@ async function prepareDevice(
       throw new Error(`${productTitle(group)}: mevcut İdefix ürününde barkod yok. Otomatik stok eklenemedi.`);
     }
 
+    // İdefix'te "fastlist" (hızlı listeleme) ile eklenmiş ve henüz kendi
+    // otomatik eşleştirmesini tamamlamamış (needAutoMatch: true) ürünler
+    // "ready_for_sale" görünse bile inventory-upload'ı sessizce yok
+    // sayabiliyor: batch COMPLETED döner ama gerçek stok hiç değişmez.
+    // 45 saniyelik boşuna doğrulama beklemesi yerine bunu en baştan
+    // yakalayıp net bir mesajla durduruyoruz.
+    if (exactProduct.needAutoMatch === true) {
+      throw new Error(
+        `${productTitle(group)}: bu İdefix ürünü (barkod: ${barcode}) hâlâ İdefix'in kendi otomatik eşleştirme sürecini bekliyor ("fastlist" kaydı, needAutoMatch=true). Bu durumdaki ürünlere API üzerinden stok/fiyat gönderilemiyor; İdefix satıcı panelinizden bu ürünü elle güncelleyin ya da İdefix destek ekibine barkodu bildirip eşleştirmeyi tamamlatın.`
+      );
+    }
+
     const vendorStockCode = text(exactProduct.vendorStockCode) || makeVendorStockCode(imei);
 
     const liveInventory = await liveInventoryByBarcode(barcode);
