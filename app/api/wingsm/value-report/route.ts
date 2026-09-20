@@ -249,6 +249,13 @@ export async function POST(request: NextRequest) {
       filteredRowCount: filteredRows.length,
       sampleRows: filteredRows.slice(0, 20),
       wingsmResultShape: Array.isArray(wingsmResult) ? "array" : typeof wingsmResult,
+      // Teşhis amaçlı: satır sayısı 0 çıkarsa gerçek cevabın tam yapısını
+      // (üst seviye alan adlarını ve ilk 4000 karakterini) görebilelim.
+      wingsmResultTopLevelKeys:
+        wingsmResult && typeof wingsmResult === "object" && !Array.isArray(wingsmResult)
+          ? Object.keys(wingsmResult)
+          : null,
+      wingsmResultRawPreview: JSON.stringify(wingsmResult).slice(0, 4000),
       durationMs,
       note: "AŞAMA 1 test yanıtı — henüz puan hesaplanmadı, hiçbir yere yazılmadı.",
     });
