@@ -851,18 +851,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // isme göre değil, sütunun tablodaki konumuna (index) göre eşleştirilir
     // — aksi halde aynı isimli sütunlar birbirinin üzerine yazar/toplanır.
     //
-    // Puan kuralları sayfada "HEDEF PUANI" diye bir başlıkla değil, doğrudan
-    // "PUAN" ve "MAX PUAN" etiketli satırlarla tutuluyor; kategori isimleri
-    // de ana tablonun (personelData[0]) başlık satırıyla aynı sütun sırasında.
-    //
-    // Önemli fark: ana tabloda 2 etiket sütunu var (MAĞAZA, HEDEF), kategoriler
-    // index 2'den başlıyor. PUAN/MAX PUAN satırlarında ise tek etiket hücresi
-    // var (satırın kendi adı: "PUAN"/"MAX PUAN"), kategoriler index 1'den
-    // başlıyor — yani bu satırlar ana tabloya göre 1 sütun kaymış. Bu yüzden
-    // değerler puanSatiri[idx - 1] / maxPuanSatiri[idx - 1] ile okunuyor.
+    // Puan kuralları "PUAN" ve "MAX PUAN" etiketli satırlarda tutuluyor.
+    // Bu etiketler satırın İLK hücresinde değil, İKİNCİ hücresinde yazıyor
+    // (ör. ["", "PUAN", 25, 25, ...]), bu yüzden etiketi ararken satırın
+    // tamamına bakılıyor. Kategori değerleri ise bu satırlarda da ana
+    // tablonun (personelData[0]) başlık satırıyla AYNI sütun sırasında
+    // (index 2'den itibaren) duruyor — kaydırma gerekmiyor.
     const dinamikPuanKurallari: Record<number, any> = {};
-    const puanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "PUAN");
-    const maxPuanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && String(row[0] || "").trim().toUpperCase() === "MAX PUAN");
+    const puanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && row.some((cell: any) => String(cell || "").trim().toUpperCase() === "PUAN"));
+    const maxPuanRowIdx = (personelData as any[]).findIndex(row => Array.isArray(row) && row.some((cell: any) => String(cell || "").trim().toUpperCase() === "MAX PUAN"));
 
     if (puanRowIdx !== -1 && maxPuanRowIdx !== -1) {
         const baslikSatiri = personelData[0] || [];
@@ -874,11 +871,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
             if (idx >= 1) {
                 const bKey = cleanKey(cell);
                 if (bKey && !bKey.includes("TOPLAM")) {
-                    const kaymisIdx = idx - 1;
                     dinamikPuanKurallari[idx] = {
-                        hedefPuan: parseNum(puanSatiri[kaymisIdx]),
-                        maxPuan: parseNum(maxPuanSatiri[kaymisIdx]),
-                        kural70: kuralSatirlari.some((row: any) => String(row[kaymisIdx] || "").includes("%70"))
+                        hedefPuan: parseNum(puanSatiri[idx]),
+                        maxPuan: parseNum(maxPuanSatiri[idx]),
+                        kural70: kuralSatirlari.some((row: any) => String(row[idx] || "").includes("%70"))
                     };
                 }
             }
