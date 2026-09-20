@@ -128,6 +128,11 @@ type PreparedDevice = {
     attributeValueId: number | string | null;
     customAttributeValue: string | null;
   }>;
+  // İdefix'in "EŞLEŞEN ÜRÜNLER" kuyruğunda bekleyen (needAutoMatch: true)
+  // ürünler "status" alanı ready_for_sale görünse bile onaylanmadan
+  // stok/fiyat kabul etmiyor. Bu, approve-item çağrısının yapılması
+  // gerektiğini processDevice'a bildirir.
+  needsMatchApproval: boolean;
 };
 
 const idefixCategoryAttributeCache = new Map<string, Promise<CategoryAttribute[]>>();
@@ -1788,17 +1793,13 @@ async function prepareDevice(
       throw new Error(`${productTitle(group)}: mevcut İdefix ürününde barkod yok. Otomatik stok eklenemedi.`);
     }
 
-    // İdefix'te "fastlist" (hızlı listeleme) ile eklenmiş ve henüz kendi
-    // otomatik eşleştirmesini tamamlamamış (needAutoMatch: true) ürünler
-    // "ready_for_sale" görünse bile inventory-upload'ı sessizce yok
-    // sayabiliyor: batch COMPLETED döner ama gerçek stok hiç değişmez.
-    // 45 saniyelik boşuna doğrulama beklemesi yerine bunu en baştan
-    // yakalayıp net bir mesajla durduruyoruz.
-    if (exactProduct.needAutoMatch === true) {
-      throw new Error(
-        `${productTitle(group)}: bu İdefix ürünü (barkod: ${barcode}) hâlâ İdefix'in kendi otomatik eşleştirme sürecini bekliyor ("fastlist" kaydı, needAutoMatch=true). Bu durumdaki ürünlere API üzerinden stok/fiyat gönderilemiyor; İdefix satıcı panelinizden bu ürünü elle güncelleyin ya da İdefix destek ekibine barkodu bildirip eşleştirmeyi tamamlatın.`
-      );
-    }
+    // İdefix'te "fastlist" (hızlı listeleme) ile eklenmiş ürünler,
+    // "status" alanı ready_for_sale görünse bile İdefix'in kendi
+    // "EŞLEŞEN ÜRÜNLER" kuyruğunda onay bekleyebiliyor (needAutoMatch:
+    // true). Onaylanmadan inventory-upload sessizce hiçbir şey
+    // değiştirmiyor. processDevice bu bayrağı görünce approve-item
+    // çağırıp tekrar kontrol edecek.
+    const needsMatchApproval = exactProduct.needAutoMatch === true;
 
     const vendorStockCode = text(exactProduct.vendorStockCode) || makeVendorStockCode(imei);
 
@@ -1838,6 +1839,7 @@ async function prepareDevice(
             }))
             .filter((attribute: any) => attribute.attributeId !== null && attribute.attributeId !== undefined)
         : [],
+      needsMatchApproval,
     };
   }
 
@@ -1894,6 +1896,7 @@ async function prepareDevice(
     vatRate,
     imageUrl: colorTemplate.imageUrl,
     attributes,
+    needsMatchApproval: false,
   };
 }
 
@@ -1907,7 +1910,15 @@ async function processDevice(client: PoolClient, prepared: PreparedDevice) {
     let liveBeforeSend = prepared.exactProduct;
     let liveState = idefixProductState(liveBeforeSend);
 
-    if (liveState === "WAITING VENDOR APPROVE") {
+    // İdefix'in "EŞLEŞEN ÜRÜNLER" kuyruğundaki ürünler "status" alanı
+    // ready_for_sale görünse bile needAutoMatch=true kaldığı sürece
+    // stok/fiyat kabul etmiyor — panelde elle "Onayla" tıklanana kadar.
+    // approve-item API'si bu tıklamanın karşılığı; hem klasik "WAITING
+    // VENDOR APPROVE" durumunda hem de needAutoMatch=true iken çağrılır.
+    const needsApprovalCall =
+      liveState === "WAITING VENDOR APPROVE" || prepared.needsMatchApproval;
+
+    if (needsApprovalCall) {
       await approveProduct(prepared.barcode);
 
       for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -1922,18 +1933,18 @@ async function processDevice(client: PoolClient, prepared: PreparedDevice) {
           liveBeforeSend = candidate;
           liveState = idefixProductState(candidate);
 
-          if (isIdefixReadyForSale(candidate)) {
+          if (isIdefixReadyForSale(candidate) && candidate.needAutoMatch !== true) {
             break;
           }
         }
       }
     }
 
-    if (!isIdefixReadyForSale(liveBeforeSend)) {
+    if (!isIdefixReadyForSale(liveBeforeSend) || liveBeforeSend?.needAutoMatch === true) {
       throw new Error(
-        `${prepared.title}: ürün İdefix ürün listende mevcut fakat satışa hazır değil. Gerçek İdefix statüsü: ${
+        `${prepared.title}: ürün İdefix ürün listende mevcut fakat satışa hazır değil (ya da hâlâ İdefix'in eşleştirme onayını bekliyor). Gerçek İdefix statüsü: ${
           liveState || "BILINMIYOR"
-        }. Stok gönderilmedi. Önce İdefix ürün durumunu düzelt/onayla.`
+        }${liveBeforeSend?.needAutoMatch === true ? " (needAutoMatch=true)" : ""}. Stok gönderilmedi. Önce İdefix ürün durumunu düzelt/onayla.`
       );
     }
 
