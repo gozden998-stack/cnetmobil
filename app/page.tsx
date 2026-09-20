@@ -100,11 +100,11 @@ function buildPanelData(rows: SheetRow[]) {
 // ======================================================
 // V6 - EKRAN BAZLI CACHE + SEÇİLİ EKRANLARDA REALTIME
 // Anlık: Cihaz Talep, Cep + Tablet / Kampanyalı, YNA, Dış Kanal
-// Diğer ekranlar: 20 dakika cache
+// Diğer ekranlar: 1 dakika cache
 // ======================================================
 const SHEET_CACHE_KEY = 'cnet_pg_sheet_rows_cache_v7';
 const SHEET_CACHE_META_KEY = 'cnet_pg_sheet_rows_cache_meta_v7';
-const NORMAL_SCREEN_CACHE_MS = 20 * 60 * 1000;
+const NORMAL_SCREEN_CACHE_MS = 1 * 60 * 1000;
 
 const REALTIME_SHEETS = [
   'CihazTalep',
