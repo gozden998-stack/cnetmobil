@@ -12,16 +12,18 @@
 // GÜVENLİK / KAPSAM:
 // - WingSM'e HİÇBİR veri yazılmaz (skorapply / UpdateSkor KULLANILMAZ).
 // - Sadece POST /HttpApiRapor/RaporSatisList okunur.
-// - Mevcut B2B stok entegrasyonuna (app/lib/wingsm/server.ts) DOKUNULMADI.
-// - Portal session/cookie mekanizması app/lib/wingsm/portal-server.ts
-//   üzerinden (mevcut, değiştirilmeyen) wingSMPortalRequest ile kullanılır.
+// - Mevcut B2B stok entegrasyonuna (app/lib/wingsm/server.ts) DOKUNULMADI —
+//   sadece oradan zaten export edilen, token tabanlı (x-access-token)
+//   wingSMRequest() fonksiyonu OKUNARAK kullanılıyor. Portal login/cookie
+//   ile HTML form scraping YAPILMIYOR (bu yöntem HTTP 500 ile başarısız
+//   oldu; WingSM'in kendi bot/WAF koruması muhtemel sebep).
 // - Bu endpoint kâr/ciro gibi hassas veri döndürdüğü için sadece admin
 //   oturumuna açık.
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
-import { wingSMPortalRequest } from "@/app/lib/wingsm/portal-server";
+import { wingSMRequest } from "@/app/lib/wingsm/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -211,7 +213,7 @@ export async function POST(request: NextRequest) {
 
     const startedAt = Date.now();
 
-    const wingsmResult = await wingSMPortalRequest<unknown>("/HttpApiRapor/RaporSatisList", {
+    const wingsmResult = await wingSMRequest<unknown>("/HttpApiRapor/RaporSatisList", {
       method: "POST",
       body: wingsmPayload,
     });
