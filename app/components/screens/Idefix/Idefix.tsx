@@ -86,6 +86,30 @@ type OrderFilter = "all" | "new" | "preparing" | "cargo" | "delivered";
 
 type TabKey = "orders" | "open" | "closed";
 
+type IdefixDraftForm = {
+  imei: string;
+  brand: string;
+  model: string;
+  memory: string;
+  color: string;
+  grade: string;
+  warranty: string;
+  salePrice: string;
+  listPrice: string;
+};
+
+const EMPTY_IDEFIX_DRAFT_FORM: IdefixDraftForm = {
+  imei: "",
+  brand: "",
+  model: "",
+  memory: "",
+  color: "",
+  grade: "",
+  warranty: "",
+  salePrice: "",
+  listPrice: "",
+};
+
 function money(value: unknown) {
   const n = Number(value || 0);
   return new Intl.NumberFormat("tr-TR", {
@@ -169,6 +193,13 @@ export default function Idefix() {
   const [newComparePrice, setNewComparePrice] = useState("");
   const [priceSaving, setPriceSaving] = useState(false);
   const [priceError, setPriceError] = useState("");
+
+  // IDEFIX YENI URUN AC (N11 create modalinin idefix karsiligi, kendi state'i)
+  const [showIdefixCreateModal, setShowIdefixCreateModal] = useState(false);
+  const [idefixDraftForm, setIdefixDraftForm] = useState<IdefixDraftForm>(EMPTY_IDEFIX_DRAFT_FORM);
+  const [idefixDraftSaving, setIdefixDraftSaving] = useState(false);
+  const [idefixDraftError, setIdefixDraftError] = useState("");
+  const [idefixDraftSuccess, setIdefixDraftSuccess] = useState("");
 
   const loadOrders = async () => {
     setOrdersLoading(true);
@@ -397,6 +428,103 @@ export default function Idefix() {
     }
   };
 
+  // IDEFIX YENI URUN AC
+  const openIdefixCreateModal = () => {
+    setShowIdefixCreateModal(true);
+    setIdefixDraftError("");
+    setIdefixDraftSuccess("");
+    setIdefixDraftForm(EMPTY_IDEFIX_DRAFT_FORM);
+  };
+
+  const closeIdefixCreateModal = () => {
+    if (idefixDraftSaving) return;
+    setShowIdefixCreateModal(false);
+    setIdefixDraftError("");
+    setIdefixDraftSuccess("");
+    setIdefixDraftForm(EMPTY_IDEFIX_DRAFT_FORM);
+  };
+
+  const saveIdefixDraft = async () => {
+    setIdefixDraftError("");
+    setIdefixDraftSuccess("");
+
+    const imei = idefixDraftForm.imei.replace(/\s+/g, "").trim();
+
+    if (!/^[0-9]{15}$/.test(imei)) {
+      setIdefixDraftError("IMEI tam 15 haneli ve yalnızca rakamlardan oluşmalıdır.");
+      return;
+    }
+
+    if (
+      !idefixDraftForm.brand.trim() ||
+      !idefixDraftForm.model.trim() ||
+      !idefixDraftForm.memory.trim() ||
+      !idefixDraftForm.color.trim() ||
+      !idefixDraftForm.grade.trim() ||
+      !idefixDraftForm.warranty.trim()
+    ) {
+      setIdefixDraftError(
+        "Marka, model, hafıza, renk, grade ve garanti alanları zorunludur."
+      );
+      return;
+    }
+
+    if (!idefixDraftForm.salePrice.trim() || !idefixDraftForm.listPrice.trim()) {
+      setIdefixDraftError("İdefix satış fiyatı ve İdefix liste fiyatı zorunludur.");
+      return;
+    }
+
+    setIdefixDraftSaving(true);
+
+    try {
+      const response = await fetch("/api/online/idefix/create-device", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imei,
+          brand: idefixDraftForm.brand,
+          model: idefixDraftForm.model,
+          memory: idefixDraftForm.memory,
+          color: idefixDraftForm.color,
+          grade: idefixDraftForm.grade,
+          warranty: idefixDraftForm.warranty,
+          salePrice: idefixDraftForm.salePrice,
+          listPrice: idefixDraftForm.listPrice,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "İdefix ürünü oluşturulamadı.");
+      }
+
+      setIdefixDraftSuccess(
+        payload?.message ||
+          (payload?.created
+            ? `İdefix ürünü açıldı. Barkod: ${payload?.barcode || "-"}`
+            : "İdefix'e gönderildi. İşlem arka planda tamamlanıyor.")
+      );
+
+      await load();
+
+      window.setTimeout(() => {
+        setShowIdefixCreateModal(false);
+        setIdefixDraftForm(EMPTY_IDEFIX_DRAFT_FORM);
+        setIdefixDraftSuccess("");
+      }, 800);
+    } catch (e: any) {
+      setIdefixDraftError(e?.message || "İdefix ürünü oluşturulamadı.");
+    } finally {
+      setIdefixDraftSaving(false);
+    }
+  };
+
   useEffect(() => {
     load();
     loadOrders();
@@ -536,6 +664,14 @@ export default function Idefix() {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={openIdefixCreateModal}
+                className="h-10 rounded-xl bg-violet-700 px-5 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800"
+              >
+                + Yeni Ürün Aç
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1014,6 +1150,256 @@ export default function Idefix() {
           </div>
         )}
       </section>
+
+      {showIdefixCreateModal ? (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
+          <div className="flex max-h-[94vh] w-full max-w-[1150px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">
+                  ONLINE · İDEFİX
+                </div>
+                <h3 className="mt-1 text-2xl font-black text-slate-900">
+                  Yeni Ürün Aç
+                </h3>
+                <p className="mt-1 text-[12px] font-semibold text-slate-500">
+                  Cihaz bilgilerini ve İdefix fiyatlarını girin. Sistem önce
+                  aynı marka/model/hafıza/renk/kalite için mevcut bir İdefix
+                  ürünü arar; bulamazsa aynı model/hafıza/kalitede farklı
+                  renkteki kardeş ürünü referans alarak yeni bir katalog
+                  kaydı açar. Güvenli bir referans/görsel bulunamazsa ürün
+                  otomatik açılmaz.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeIdefixCreateModal}
+                disabled={idefixDraftSaving}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Ürün Durumu
+                  </div>
+                  <div className="flex h-12 w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4">
+                    <span className="text-[13px] font-black text-emerald-700">
+                      YENİLENMİŞ
+                    </span>
+                    <span className="rounded-lg bg-white px-2.5 py-1 text-[10px] font-black text-slate-500 ring-1 ring-emerald-100">
+                      SABİT
+                    </span>
+                  </div>
+                </div>
+
+                <label className="md:col-span-2">
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    IMEI
+                  </div>
+                  <input
+                    value={idefixDraftForm.imei}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        imei: event.target.value.replace(/\D/g, "").slice(0, 15),
+                      }))
+                    }
+                    inputMode="numeric"
+                    maxLength={15}
+                    placeholder="15 haneli IMEI"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 font-mono text-[13px] font-black outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Marka
+                  </div>
+                  <input
+                    value={idefixDraftForm.brand}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        brand: event.target.value,
+                      }))
+                    }
+                    placeholder="Apple"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Model
+                  </div>
+                  <input
+                    value={idefixDraftForm.model}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        model: event.target.value,
+                      }))
+                    }
+                    placeholder="iPhone 15 Pro"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Hafıza
+                  </div>
+                  <input
+                    value={idefixDraftForm.memory}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        memory: event.target.value,
+                      }))
+                    }
+                    placeholder="256 GB"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Renk
+                  </div>
+                  <input
+                    value={idefixDraftForm.color}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        color: event.target.value,
+                      }))
+                    }
+                    placeholder="Siyah"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Grade
+                  </div>
+                  <input
+                    value={idefixDraftForm.grade}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        grade: event.target.value,
+                      }))
+                    }
+                    placeholder="A"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                  <div className="mt-1 text-[9px] font-bold text-slate-400">
+                    A → A Kalite · B → B Kalite · C → C Kalite otomatik çevrilir.
+                  </div>
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Garanti
+                  </div>
+                  <input
+                    value={idefixDraftForm.warranty}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        warranty: event.target.value,
+                      }))
+                    }
+                    placeholder="12 Ay"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    İdefix Satış Fiyatı
+                  </div>
+                  <input
+                    value={idefixDraftForm.salePrice}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        salePrice: event.target.value,
+                      }))
+                    }
+                    placeholder="42999,00"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+
+                <label>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    İdefix Liste Fiyatı
+                  </div>
+                  <input
+                    value={idefixDraftForm.listPrice}
+                    onChange={(event) =>
+                      setIdefixDraftForm((current) => ({
+                        ...current,
+                        listPrice: event.target.value,
+                      }))
+                    }
+                    placeholder="44999,00"
+                    className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-3 text-[11px] font-semibold leading-5 text-violet-700">
+                Ürün durumu daima YENİLENMİŞ'tir. Bu cihaz için Merkez/stok
+                kaydı aranmaz; her gönderim yeni bir mantıksal birim olarak
+                işlenir. Mevcut kataloğa eklenemez ve güvenli bir referans
+                bulunamazsa işlem net bir hata mesajıyla durur (tahmini ürün
+                açılmaz).
+              </div>
+
+              {idefixDraftError ? (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-black text-red-700">
+                  {idefixDraftError}
+                </div>
+              ) : null}
+
+              {idefixDraftSuccess ? (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-black text-emerald-700">
+                  {idefixDraftSuccess}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+              <button
+                type="button"
+                onClick={closeIdefixCreateModal}
+                disabled={idefixDraftSaving}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600 disabled:opacity-50"
+              >
+                İPTAL
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void saveIdefixDraft()}
+                disabled={idefixDraftSaving}
+                className="h-11 rounded-xl bg-violet-700 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {idefixDraftSaving ? "İDEFİX'E GÖNDERİLİYOR..." : "İDEFİX'E ÜRÜN AÇ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {priceProduct && (
         <div
