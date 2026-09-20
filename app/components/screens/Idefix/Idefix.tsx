@@ -230,7 +230,7 @@ export default function Idefix() {
   const [n11CandidatesError, setN11CandidatesError] = useState("");
   const [n11CandidatesLoaded, setN11CandidatesLoaded] = useState(false);
   const [n11PriceDrafts, setN11PriceDrafts] = useState<
-    Record<string, { salePrice: string; listPrice: string }>
+    Record<string, { salePrice: string; listPrice: string; warranty: string }>
   >({});
   const [n11RowState, setN11RowState] = useState<
     Record<string, { loading: boolean; error: string; success: string }>
@@ -601,6 +601,7 @@ export default function Idefix() {
                 candidate.n11ListPrice !== null && candidate.n11ListPrice !== undefined
                   ? String(candidate.n11ListPrice)
                   : "",
+              warranty: candidate.warranty || "",
             };
           }
         }
@@ -615,19 +616,20 @@ export default function Idefix() {
     }
   };
 
-  const setN11Price = (imei: string, field: "salePrice" | "listPrice", value: string) => {
+  const setN11Price = (imei: string, field: "salePrice" | "listPrice" | "warranty", value: string) => {
     setN11PriceDrafts((current) => ({
       ...current,
       [imei]: {
         salePrice: current[imei]?.salePrice ?? "",
         listPrice: current[imei]?.listPrice ?? "",
+        warranty: current[imei]?.warranty ?? "",
         [field]: value,
       },
     }));
   };
 
   const transferN11Candidate = async (candidate: N11MigrationCandidate) => {
-    const draft = n11PriceDrafts[candidate.imei] || { salePrice: "", listPrice: "" };
+    const draft = n11PriceDrafts[candidate.imei] || { salePrice: "", listPrice: "", warranty: "" };
 
     if (!draft.salePrice.trim() || !draft.listPrice.trim()) {
       setN11RowState((current) => ({
@@ -635,6 +637,18 @@ export default function Idefix() {
         [candidate.imei]: {
           loading: false,
           error: "İdefix satış ve liste fiyatı zorunludur.",
+          success: "",
+        },
+      }));
+      return;
+    }
+
+    if (!draft.warranty.trim()) {
+      setN11RowState((current) => ({
+        ...current,
+        [candidate.imei]: {
+          loading: false,
+          error: "N11 ilanında garanti bilgisi eksik — aşağıdaki Garanti alanını doldurun (ör. 12 Ay).",
           success: "",
         },
       }));
@@ -662,7 +676,7 @@ export default function Idefix() {
           memory: candidate.memory,
           color: candidate.color,
           grade: candidate.grade,
-          warranty: candidate.warranty,
+          warranty: draft.warranty,
           salePrice: draft.salePrice,
           listPrice: draft.listPrice,
         }),
@@ -1314,6 +1328,7 @@ export default function Idefix() {
                       <th className="px-4 py-3">Ürün</th>
                       <th className="px-4 py-3">IMEI</th>
                       <th className="px-4 py-3">N11 Fiyatı</th>
+                      <th className="px-4 py-3">Garanti</th>
                       <th className="px-4 py-3">İdefix Satış Fiyatı</th>
                       <th className="px-4 py-3">İdefix Liste Fiyatı</th>
                       <th className="px-4 py-3">İşlem</th>
@@ -1325,6 +1340,7 @@ export default function Idefix() {
                       const draft = n11PriceDrafts[candidate.imei] || {
                         salePrice: "",
                         listPrice: "",
+                        warranty: "",
                       };
                       const rowState = n11RowState[candidate.imei];
 
@@ -1376,6 +1392,18 @@ export default function Idefix() {
                             <div className="text-[7px] font-semibold text-slate-400">
                               Liste: {money(candidate.n11ListPrice)}
                             </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <input
+                              value={draft.warranty}
+                              onChange={(event) =>
+                                setN11Price(candidate.imei, "warranty", event.target.value)
+                              }
+                              disabled={rowState?.loading || n11BulkTransferring}
+                              placeholder="Örn. 12 Ay"
+                              className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                            />
                           </td>
 
                           <td className="px-4 py-4">
