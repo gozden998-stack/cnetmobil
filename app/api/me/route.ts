@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
-import crypto from 'crypto';
+import { COOKIE_NAME, getVerifiedPayload } from '@/app/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,16 +15,6 @@ declare global {
   // eslint-disable-next-line no-var
   var cnetMePool: Pool | undefined;
 }
-
-const COOKIE_NAME = 'cnet_auth';
-
-type SessionPayload = {
-  userId: number | null;
-  role: 'admin' | 'personel';
-  branch: string;
-  exp: number;
-  legacy?: boolean;
-};
 
 function getPool() {
   const connectionString = process.env.DATABASE_URL;
@@ -43,60 +33,6 @@ function getPool() {
   }
 
   return global.cnetMePool;
-}
-
-function getSessionSecret() {
-  const secret = process.env.SESSION_SECRET;
-
-  if (!secret) {
-    throw new Error('SESSION_SECRET bulunamadı.');
-  }
-
-  return secret;
-}
-
-function verifySession(token: string): SessionPayload | null {
-  try {
-    const [encoded, signature] = token.split('.');
-
-    if (!encoded || !signature) {
-      return null;
-    }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', getSessionSecret())
-      .update(encoded)
-      .digest('base64url');
-
-    const signatureBuffer = Buffer.from(signature, 'utf8');
-    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
-
-    if (signatureBuffer.length !== expectedBuffer.length) {
-      return null;
-    }
-
-    if (!crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
-      return null;
-    }
-
-    const payload = JSON.parse(
-      Buffer.from(encoded, 'base64url').toString('utf8')
-    ) as SessionPayload;
-
-    if (
-      !payload ||
-      !payload.exp ||
-      payload.exp < Math.floor(Date.now() / 1000) ||
-      !['admin', 'personel'].includes(payload.role) ||
-      typeof payload.branch !== 'string'
-    ) {
-      return null;
-    }
-
-    return payload;
-  } catch {
-    return null;
-  }
 }
 
 function noStoreJson(body: unknown, status = 200) {
@@ -121,9 +57,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const session = verifySession(token);
+    const session = getVerifiedPayload(token);
 
-    if (!session) {
+    // NOT: bu iki ek kontrol (role / branch) bilerek bu dosyada kaldı —
+    // app/lib/auth.ts sadece imza+süre doğrular, aşağıdaki kural bu
+    // route'a özel ve orijinal davranışla birebir aynı.
+    if (
+      !session ||
+      !['admin', 'personel'].includes(session.role) ||
+      typeof session.branch !== 'string'
+    ) {
       return noStoreJson(
         { success: false, error: 'Geçersiz veya süresi dolmuş oturum.' },
         401
