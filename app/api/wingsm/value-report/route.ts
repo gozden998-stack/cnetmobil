@@ -5,25 +5,32 @@
 // AMAÇ:
 // Şu anda WingSM'den elle rapor alınıp Excel makrosuyla yapılan
 // "Değer Puan" hesabını panele taşımanın İLK adımı. Bu adımda SADECE
-// WingSM web portalının RaporSatisList servisinden doğru satış
-// verisinin gelip gelmediği doğrulanıyor. Puan motoru, kural tablosu
-// ve rapor ekranı SONRAKİ aşamalar.
+// doğru satış verisinin gelip gelmediği doğrulanıyor. Puan motoru,
+// kural tablosu ve rapor ekranı SONRAKİ aşamalar.
+//
+// KAYNAK: WingSM'in resmi B2B servis dokümanındaki (wingsmonlineB2BServisi)
+//   GET /api/b2b/satis/list/:sirket
+//   QueryParams: tarih (başlangıç), tarih2 (bitiş), temlik=1, aktivasyon=1, alis=1
+// Bu, RaporSatisList (portal web ekranının kendi servisi, HTML login
+// gerektiriyordu ve HTTP 500 ile başarısız oldu) YERİNE kullanılıyor —
+// aynı token tabanlı (x-access-token) B2B API'nin belgelenmiş bir ucu.
 //
 // GÜVENLİK / KAPSAM:
-// - WingSM'e HİÇBİR veri yazılmaz (skorapply / UpdateSkor KULLANILMAZ).
-// - Sadece POST /HttpApiRapor/RaporSatisList okunur.
+// - WingSM'e HİÇBİR veri yazılmaz.
+// - Sadece GET /api/b2b/satis/list/:sirket okunur.
 // - Mevcut B2B stok entegrasyonuna (app/lib/wingsm/server.ts) DOKUNULMADI —
-//   sadece oradan zaten export edilen, token tabanlı (x-access-token)
-//   wingSMRequest() fonksiyonu OKUNARAK kullanılıyor. Portal login/cookie
-//   ile HTML form scraping YAPILMIYOR (bu yöntem HTTP 500 ile başarısız
-//   oldu; WingSM'in kendi bot/WAF koruması muhtemel sebep).
+//   sadece oradan zaten export edilen wingSMRequest() ve
+//   getWingSMDepotForBranch() fonksiyonları OKUNARAK kullanılıyor.
 // - Bu endpoint kâr/ciro gibi hassas veri döndürdüğü için sadece admin
 //   oturumuna açık.
+// - Sınıf filtresi bu B2B ucunda query param olarak belgelenmedi; dönen
+//   satırlar varsa MalSinifAdI/MalSinifI alanına göre BURADA (sunucuda)
+//   süzülüyor, WingSM'e gönderilmiyor.
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
-import { wingSMRequest } from "@/app/lib/wingsm/server";
+import { getWingSMDepotForBranch, wingSMRequest } from "@/app/lib/wingsm/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,29 +125,34 @@ function requireAdminSession(request: NextRequest) {
   return { ok: true as const, session };
 }
 
-// "01.06.2026" veya "2026-06-01" -> "20260601". Zaten "20260601" ise aynen döner.
+// "01.06.2026" veya "2026-06-01" -> "01/06/2026" (WingSM'in diğer
+// belgelenmiş alanlarında görülen "gg/aa/yil" biçimi). Zaten DD/MM/YYYY
+// ise aynen döner.
 function toWingsmDate(value: unknown): string {
   const raw = String(value ?? "").trim();
 
-  if (/^\d{8}$/.test(raw)) {
-    return raw;
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (slashMatch) {
+    const [, gun, ay, yil] = slashMatch;
+    return `${gun.padStart(2, "0")}/${ay.padStart(2, "0")}/${yil}`;
   }
 
   const dotMatch = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
 
   if (dotMatch) {
     const [, gun, ay, yil] = dotMatch;
-    return `${yil}${ay.padStart(2, "0")}${gun.padStart(2, "0")}`;
+    return `${gun.padStart(2, "0")}/${ay.padStart(2, "0")}/${yil}`;
   }
 
   const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
 
   if (isoMatch) {
     const [, yil, ay, gun] = isoMatch;
-    return `${yil}${ay.padStart(2, "0")}${gun.padStart(2, "0")}`;
+    return `${gun.padStart(2, "0")}/${ay.padStart(2, "0")}/${yil}`;
   }
 
-  throw new Error(`Geçersiz tarih formatı: "${raw}". Beklenen: GG.AA.YYYY, YYYY-AA-GG ya da YYYYAAGG.`);
+  throw new Error(`Geçersiz tarih formatı: "${raw}". Beklenen: GG.AA.YYYY, YYYY-AA-GG ya da GG/AA/YYYY.`);
 }
 
 function toStringArray(value: unknown): string[] {
@@ -153,6 +165,12 @@ function toStringArray(value: unknown): string[] {
   }
 
   return [];
+}
+
+// Satır içindeki sınıf bilgisini olabildiğince esnek yakala: WingSM'in
+// döndüreceği tam alan adı doğrulanana kadar birkaç olası isim denenir.
+function rowClassCode(row: any): string {
+  return String(row?.MalSinifI ?? row?.MalSinifKodu ?? row?.MalSinifAdI ?? row?.Sinif ?? "").trim();
 }
 
 export async function POST(request: NextRequest) {
@@ -175,55 +193,62 @@ export async function POST(request: NextRequest) {
       return json({ success: false, error: "bastar (başlangıç tarihi) ve bittar (bitiş tarihi) zorunludur." }, 400);
     }
 
-    const bastar = toWingsmDate(data.bastar);
-    const bittar = toWingsmDate(data.bittar);
+    if (!data.sirket) {
+      return json({ success: false, error: "sirket (mağaza) zorunludur." }, 400);
+    }
 
-    const sirket = String(data.sirket ?? "").trim();
+    const tarih = toWingsmDate(data.bastar);
+    const tarih2 = toWingsmDate(data.bittar);
+
+    const sirketInput = String(data.sirket ?? "").trim();
+    const depotCode = getWingSMDepotForBranch(sirketInput);
+
+    if (!depotCode) {
+      return json(
+        {
+          success: false,
+          error: `"${sirketInput}" için bilinen bir WingSM şirket/depo kodu bulunamadı. Bilinenler: MERKEZ, CNET, CMR, CADDE, SARAY, KAPAKLI.`,
+        },
+        400
+      );
+    }
+
     const siniflar = toStringArray(data.siniflar);
-    const saticilar = toStringArray(data.saticilar);
-    const cinsler = toStringArray(data.cinsler);
-    const gruplar = toStringArray(data.gruplar);
-    const odemeler = toStringArray(data.odemeler);
-    const tarifeler = toStringArray(data.tarifeler);
-    const dagiticilar = toStringArray(data.dagiticilar);
 
-    // Bu alanların WingSM tarafındaki kesin beklenen değerleri
-    // dokümante değil; aşama 1'in amacı tam da bunu canlı denemek.
-    // Test sonucuna göre bu varsayılanlar bir sonraki iterasyonda
-    // netleştirilecek.
-    const wingsmPayload = {
-      sirket: sirket || null,
-      bastar,
-      bittar,
-      hesapTur: data.hesapTur ?? "",
-      satisTuru: data.satisTuru ?? "",
-      isToplam: data.isToplam ?? false,
-      kirilim: data.kirilim ?? "",
-      withNot: data.withNot ?? false,
-      withKaynak: data.withKaynak ?? false,
-      saticilar,
-      siniflar,
-      cinsler,
-      gruplar,
-      odemeler,
-      tarifeler,
-      dagiticilar,
-      filter: data.filter ?? "",
-    };
+    const query: Record<string, string | number | boolean> = { tarih, tarih2 };
+
+    if (data.temlik) query.temlik = 1;
+    if (data.aktivasyon) query.aktivasyon = 1;
+    if (data.alis) query.alis = 1;
 
     const startedAt = Date.now();
 
-    const wingsmResult = await wingSMRequest<unknown>("/HttpApiRapor/RaporSatisList", {
-      method: "POST",
-      body: wingsmPayload,
+    const wingsmResult = await wingSMRequest<any>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
+      method: "GET",
+      query,
     });
 
     const durationMs = Date.now() - startedAt;
 
+    const rawRows: any[] = Array.isArray(wingsmResult)
+      ? wingsmResult
+      : Array.isArray(wingsmResult?.data)
+      ? wingsmResult.data
+      : Array.isArray(wingsmResult?.List)
+      ? wingsmResult.List
+      : [];
+
+    const filteredRows =
+      siniflar.length > 0 ? rawRows.filter((row) => siniflar.includes(rowClassCode(row))) : rawRows;
+
     return json({
       success: true,
-      requestSentToWingsm: wingsmPayload,
-      wingsmResult,
+      depotCode,
+      requestSentToWingsm: { path: `/api/b2b/satis/list/${depotCode}`, query },
+      rawRowCount: rawRows.length,
+      filteredRowCount: filteredRows.length,
+      sampleRows: filteredRows.slice(0, 20),
+      wingsmResultShape: Array.isArray(wingsmResult) ? "array" : typeof wingsmResult,
       durationMs,
       note: "AŞAMA 1 test yanıtı — henüz puan hesaplanmadı, hiçbir yere yazılmadı.",
     });
