@@ -100,6 +100,39 @@ export default function WingsmScoreRulesPage() {
   const [newClassDraft, setNewClassDraft] = useState<NewClassDraft>(EMPTY_NEW_CLASS);
   const [newClassState, setNewClassState] = useState<RowState>({ loading: false, error: "", success: "" });
 
+  // TEK SEFERLİK KURULUM: tablo henüz yoksa/boşsa admin tek tıkla
+  // oluşturup Excel'deki seed verisini yükleyebilsin.
+  const [migrating, setMigrating] = useState(false);
+  const [migrateMessage, setMigrateMessage] = useState("");
+
+  const runMigration = async () => {
+    setMigrating(true);
+    setMigrateMessage("");
+
+    try {
+      const res = await fetch("/api/wingsm/score-rules/migrate", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      setMigrateMessage(payload.message || "Kurulum tamamlandı.");
+      await loadRules();
+    } catch (err) {
+      setMigrateMessage(
+        `Kurulum başarısız: ${err instanceof Error ? err.message : "Bilinmeyen hata."}`
+      );
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   // ==================================================
   // AUTH BOOT (app/admin/page.tsx ile aynı desen)
   // ==================================================
@@ -496,7 +529,24 @@ export default function WingsmScoreRulesPage() {
 
         {loadError && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-            {loadError}
+            <div>{loadError}</div>
+            <div className="mt-2 text-xs font-semibold text-red-600">
+              Tablo henüz oluşturulmamış olabilir. Aşağıdaki butonla bir kerelik kurulumu çalıştırabilirsiniz.
+            </div>
+            <button
+              type="button"
+              onClick={runMigration}
+              disabled={migrating}
+              className="mt-3 h-9 rounded-lg bg-red-700 px-4 text-xs font-black text-white hover:bg-red-800 disabled:opacity-50"
+            >
+              {migrating ? "Kuruluyor..." : "Kurulumu Çalıştır (tablo oluştur + seed verisi)"}
+            </button>
+          </div>
+        )}
+
+        {migrateMessage && (
+          <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+            {migrateMessage}
           </div>
         )}
 
