@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import crypto from "crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,8 +39,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const receivedSecret = req.headers.get("x-sync-secret");
-    if (receivedSecret !== expectedSecret) {
+    const receivedSecret = req.headers.get("x-sync-secret") || "";
+    const receivedBuffer = Buffer.from(receivedSecret, "utf8");
+    const expectedBuffer = Buffer.from(expectedSecret, "utf8");
+    const isValidSecret =
+      receivedBuffer.length === expectedBuffer.length &&
+      crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
+
+    if (!isValidSecret) {
       return NextResponse.json(
         { ok: false, error: "Yetkisiz istek." },
         { status: 401 }
