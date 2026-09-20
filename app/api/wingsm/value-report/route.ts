@@ -167,10 +167,12 @@ function toStringArray(value: unknown): string[] {
   return [];
 }
 
-// Satır içindeki sınıf bilgisini olabildiğince esnek yakala: WingSM'in
-// döndüreceği tam alan adı doğrulanana kadar birkaç olası isim denenir.
+// Gerçek WingSM cevabında sınıf kodu "MalSinif" alanında ("0006" gibi
+// sıfırla dolgulu). Excel'deki kısa kodlarla ("6", "1el"...) eşleşsin
+// diye baştaki sıfırlar (yalnızca sayısal ise) atılır.
 function rowClassCode(row: any): string {
-  return String(row?.MalSinifI ?? row?.MalSinifKodu ?? row?.MalSinifAdI ?? row?.Sinif ?? "").trim();
+  const raw = String(row?.MalSinif ?? "").trim();
+  return /^\d+$/.test(raw) ? String(Number(raw)) : raw;
 }
 
 export async function POST(request: NextRequest) {
@@ -232,6 +234,8 @@ export async function POST(request: NextRequest) {
 
     const rawRows: any[] = Array.isArray(wingsmResult)
       ? wingsmResult
+      : Array.isArray(wingsmResult?.data?.list)
+      ? wingsmResult.data.list
       : Array.isArray(wingsmResult?.data)
       ? wingsmResult.data
       : Array.isArray(wingsmResult?.List)
