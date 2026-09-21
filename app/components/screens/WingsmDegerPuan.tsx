@@ -131,6 +131,7 @@ type DegerPuanReport = {
   unmatchedCount: number;
   unmatchedSample: UnmatchedReportRow[];
   excludedOutOfScopeCount: number;
+  excludedReturnCount: number;
   totalSaleCount: number;
   totalScore: number;
   totalCarpanliPuan: number;
@@ -1206,6 +1207,9 @@ export default function WingsmDegerPuan() {
                     {formatNumber(String(report.totalCarpanliPuan))} çarpanlı puan
                     {report.excludedOutOfScopeCount > 0 && (
                       <> · {report.excludedOutOfScopeCount} satış Değer Puan kapsamı dışında (kayıtlı sınıf değil) hariç tutuldu</>
+                    )}
+                    {report.excludedReturnCount > 0 && (
+                      <> · {report.excludedReturnCount} iade satışı (miktar negatif) hariç tutuldu</>
                     )}
                   </div>
                 </div>

@@ -231,9 +231,22 @@ export async function POST(request: NextRequest) {
 
     const taggedRows: TaggedRow[] = [];
     let excludedOutOfScopeCount = 0;
+    let excludedReturnCount = 0;
 
     for (const depotResult of depotResults) {
       for (const row of depotResult.rows) {
+        // İADE: WingSM'in kendi satış ekranında bu satırlar miktarı (-1 gibi)
+        // negatif olarak gösteriyor (kullanıcının paylaştığı örnekte diğer
+        // tüm alanlar dolu ama Miktar/Tutar eksi). Daha önce bu satırlar
+        // Excel'e elle silinerek hariç tutuluyordu — burada aynı işi
+        // MalMiktarI < 0 kontrolüyle yapıyoruz. Not: kârlılığı negatif ama
+        // miktarı pozitif olan normal (zararına) satışlar İADE DEĞİLDİR ve
+        // dışlanmaz — sadece miktar negatifliği iade işaretidir.
+        if (Number(row?.MalMiktarI ?? 0) < 0) {
+          excludedReturnCount += 1;
+          continue;
+        }
+
         if (!knownClassCodes.has(rowClassCode(row))) {
           excludedOutOfScopeCount += 1;
           continue;
@@ -348,6 +361,7 @@ export async function POST(request: NextRequest) {
       unmatchedCount: unmatched.length,
       unmatchedSample: unmatched.slice(0, 20),
       excludedOutOfScopeCount,
+      excludedReturnCount,
       totalSaleCount,
       totalScore,
       totalCarpanliPuan,
