@@ -20,6 +20,7 @@
 // admin olarak doğrulanmış olur.
 
 import React, { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 
 type ScoreRule = {
   id: number;
@@ -67,6 +68,76 @@ const EMPTY_NEW_CLASS: NewClassDraft = {
   score: "",
 };
 
+// ==================================================
+// RAPOR SEKMESİ (Aşama 3+4) — /api/wingsm/deger-puan-report
+// ==================================================
+
+type StoreReportRow = {
+  branchLabel: string;
+  depotCode: string;
+  saleCount: number;
+  totalScore: number;
+};
+
+type PersonnelReportRow = {
+  branchLabel: string;
+  saticiKod: string;
+  saticiAdi: string;
+  saleCount: number;
+  totalScore: number;
+};
+
+type DetailReportRow = {
+  branchLabel: string;
+  saticiKod: string;
+  saticiAdi: string;
+  malAd: string;
+  malSinif: string;
+  malSinifAdi: string;
+  karlilik: number;
+  score: number;
+  tarih: string;
+  faturaNo: string;
+};
+
+type UnmatchedReportRow = {
+  branchLabel: string;
+  saticiAdi: string;
+  malSinif: string;
+  malSinifAdi: string;
+  karlilik: number;
+};
+
+type DegerPuanReport = {
+  period: { tarih: string; tarih2: string };
+  stores: StoreReportRow[];
+  personnel: PersonnelReportRow[];
+  detailRows: DetailReportRow[];
+  unmatchedCount: number;
+  unmatchedSample: UnmatchedReportRow[];
+  excludedOutOfScopeCount: number;
+  totalSaleCount: number;
+  totalScore: number;
+};
+
+// Bugünün ayının 1'i -> bugün, "GG.AA.YYYY" biçiminde (admin/page.tsx'teki
+// GEÇİCİ TEST widget'ıyla aynı, WingSM'in kabul ettiği biçimlerden biri).
+function formatDateInput(date: Date) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+function defaultBastar() {
+  const now = new Date();
+  return formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function defaultBittar() {
+  return formatDateInput(new Date());
+}
+
 function ruleToDraft(rule: ScoreRule): Draft {
   return {
     profit_min: rule.profit_min,
@@ -95,6 +166,94 @@ export default function WingsmDegerPuan() {
 
   const [newClassDraft, setNewClassDraft] = useState<NewClassDraft>(EMPTY_NEW_CLASS);
   const [newClassState, setNewClassState] = useState<RowState>({ loading: false, error: "", success: "" });
+
+  // ==================================================
+  // SEKMELER: "kurallar" (yukarıdaki mevcut ekran, VARSAYILAN — davranış
+  // değişmiyor) / "rapor" (yeni, Aşama 3+4)
+  // ==================================================
+
+  const [activeTab, setActiveTab] = useState<"kurallar" | "rapor">("kurallar");
+
+  const [reportBastar, setReportBastar] = useState(defaultBastar);
+  const [reportBittar, setReportBittar] = useState(defaultBittar);
+  const [reportState, setReportState] = useState<RowState>({ loading: false, error: "", success: "" });
+  const [report, setReport] = useState<DegerPuanReport | null>(null);
+
+  const runReport = async () => {
+    setReportState({ loading: true, error: "", success: "" });
+
+    try {
+      const res = await fetch("/api/wingsm/deger-puan-report", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bastar: reportBastar, bittar: reportBittar }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      setReport(payload as DegerPuanReport);
+      setReportState({ loading: false, error: "", success: "Hesaplandı." });
+
+      window.setTimeout(() => setReportState((current) => ({ ...current, success: "" })), 2500);
+    } catch (err) {
+      setReport(null);
+      setReportState({
+        loading: false,
+        error: err instanceof Error ? err.message : "Rapor hesaplanamadı.",
+        success: "",
+      });
+    }
+  };
+
+  const exportReportToExcel = () => {
+    if (!report) return;
+
+    const storeSheet = XLSX.utils.json_to_sheet(
+      report.stores.map((s) => ({
+        Mağaza: s.branchLabel,
+        "Satış Adedi": s.saleCount,
+        "Toplam Puan": s.totalScore,
+      }))
+    );
+
+    const personnelSheet = XLSX.utils.json_to_sheet(
+      report.personnel.map((p) => ({
+        Mağaza: p.branchLabel,
+        "Satıcı Kodu": p.saticiKod,
+        Satıcı: p.saticiAdi,
+        "Satış Adedi": p.saleCount,
+        "Toplam Puan": p.totalScore,
+      }))
+    );
+
+    const detailSheet = XLSX.utils.json_to_sheet(
+      report.detailRows.map((d) => ({
+        Mağaza: d.branchLabel,
+        "Satıcı Kodu": d.saticiKod,
+        Satıcı: d.saticiAdi,
+        Ürün: d.malAd,
+        Sınıf: d.malSinif,
+        "Sınıf Adı": d.malSinifAdi,
+        Kârlılık: d.karlilik,
+        Puan: d.score,
+        Tarih: d.tarih,
+        "Fatura No": d.faturaNo,
+      }))
+    );
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, storeSheet, "Mağaza Özet");
+    XLSX.utils.book_append_sheet(workbook, personnelSheet, "Personel Özet");
+    XLSX.utils.book_append_sheet(workbook, detailSheet, "Detay");
+
+    const today = formatDateInput(new Date()).replace(/\./g, "-");
+    XLSX.writeFile(workbook, `WINGSM_DEGER_PUAN_${today}.xlsx`);
+  };
 
   // TEK SEFERLİK KURULUM: tablo henüz yoksa/boşsa admin tek tıkla
   // oluşturup Excel'deki seed verisini yükleyebilsin.
@@ -449,6 +608,33 @@ export default function WingsmDegerPuan() {
 
   return (
     <div className="animate-in fade-in duration-500">
+      <div className="mb-6 flex items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab("kurallar")}
+          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "kurallar"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Kurallar
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("rapor")}
+          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "rapor"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Rapor
+        </button>
+      </div>
+
+      {activeTab === "kurallar" && (
+      <>
       <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black">Değer Puan Kuralları</h1>
@@ -738,6 +924,220 @@ export default function WingsmDegerPuan() {
               <div className="mt-3 text-xs font-bold text-emerald-600">{newClassState.success}</div>
             )}
           </section>
+        </div>
+      )}
+      </>
+      )}
+
+      {activeTab === "rapor" && (
+        <div>
+          <div className="mb-6">
+            <h1 className="text-2xl font-black">Değer Puan Raporu</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Seçilen tarih aralığında CMR&apos;nin 4 mağazası (Merkez, Cadde, Saray, Kapaklı) için WingSM
+              satışları yukarıdaki kurallara göre puanlanır. Hesaplama anlıktır — hiçbir yere kaydedilmez,
+              her seferinde yeniden hesaplanır.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-end gap-3">
+              <label>
+                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Başlangıç (GG.AA.YYYY)</div>
+                <input
+                  value={reportBastar}
+                  onChange={(e) => setReportBastar(e.target.value)}
+                  disabled={reportState.loading}
+                  className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+                />
+              </label>
+              <label>
+                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Bitiş (GG.AA.YYYY)</div>
+                <input
+                  value={reportBittar}
+                  onChange={(e) => setReportBittar(e.target.value)}
+                  disabled={reportState.loading}
+                  className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={runReport}
+                disabled={reportState.loading}
+                className="h-10 rounded-lg bg-blue-700 px-5 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                {reportState.loading ? "HESAPLANIYOR..." : "HESAPLA"}
+              </button>
+
+              {report && (
+                <button
+                  type="button"
+                  onClick={exportReportToExcel}
+                  className="h-10 rounded-lg bg-emerald-700 px-5 text-sm font-black text-white hover:bg-emerald-800"
+                >
+                  EXCEL&apos;E AKTAR
+                </button>
+              )}
+            </div>
+
+            {reportState.error && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
+                {reportState.error}
+              </div>
+            )}
+            {reportState.success && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
+                {reportState.success}
+              </div>
+            )}
+          </div>
+
+          {report && (
+            <div className="mt-6 space-y-6">
+              {report.unmatchedCount > 0 && (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+                  <div className="text-sm font-black text-amber-800">
+                    {report.unmatchedCount} satışta eşleşen puan kuralı bulunamadı (puanı 0 sayıldı)
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-amber-700">
+                    Aşağıdakiler ilk 20 örnek — eksik kural varsa &quot;Kurallar&quot; sekmesinden ekleyebilirsin.
+                  </p>
+                  <div className="mt-3 max-h-[240px] overflow-auto rounded-lg border border-amber-200 bg-white">
+                    <table className="w-full min-w-[560px] text-left">
+                      <thead>
+                        <tr className="border-b border-amber-100 bg-amber-50 text-[8px] font-black uppercase tracking-wide text-amber-700">
+                          <th className="px-3 py-2">Mağaza</th>
+                          <th className="px-3 py-2">Satıcı</th>
+                          <th className="px-3 py-2">Sınıf</th>
+                          <th className="px-3 py-2">Sınıf Adı</th>
+                          <th className="px-3 py-2">Kârlılık</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-50">
+                        {report.unmatchedSample.map((u, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 text-[11px] font-semibold">{u.branchLabel}</td>
+                            <td className="px-3 py-2 text-[11px] font-semibold">{u.saticiAdi}</td>
+                            <td className="px-3 py-2 text-[11px] font-semibold">{u.malSinif}</td>
+                            <td className="px-3 py-2 text-[11px] font-semibold">{u.malSinifAdi}</td>
+                            <td className="px-3 py-2 text-[11px] font-semibold">{formatNumber(String(u.karlilik))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                  <div className="text-lg font-black">Mağaza Bazlı</div>
+                  <div className="text-xs font-bold text-slate-400">
+                    Toplam {report.totalSaleCount} satış / {formatNumber(String(report.totalScore))} puan
+                    {report.excludedOutOfScopeCount > 0 && (
+                      <> · {report.excludedOutOfScopeCount} satış Değer Puan kapsamı dışında (kayıtlı sınıf değil) hariç tutuldu</>
+                    )}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Mağaza</th>
+                        <th className="px-4 py-3">Satış Adedi</th>
+                        <th className="px-4 py-3">Toplam Puan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {report.stores.map((s) => (
+                        <tr key={s.depotCode}>
+                          <td className="px-4 py-3 text-[11px] font-bold">{s.branchLabel}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{s.saleCount}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.totalScore))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">Personel Bazlı</div>
+                <div className="max-h-[420px] overflow-auto">
+                  <table className="w-full min-w-[560px] text-left">
+                    <thead>
+                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Mağaza</th>
+                        <th className="px-4 py-3">Satıcı</th>
+                        <th className="px-4 py-3">Satış Adedi</th>
+                        <th className="px-4 py-3">Toplam Puan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {report.personnel.map((p, i) => (
+                        <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`}>
+                          <td className="px-4 py-3 text-[11px] font-bold">{p.branchLabel}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{p.saticiAdi || p.saticiKod}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{p.saleCount}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(p.totalScore))}</td>
+                        </tr>
+                      ))}
+                      {report.personnel.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                            Bu aralıkta satış bulunamadı.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">Detay</div>
+                <div className="max-h-[480px] overflow-auto">
+                  <table className="w-full min-w-[920px] text-left">
+                    <thead>
+                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Mağaza</th>
+                        <th className="px-4 py-3">Satıcı</th>
+                        <th className="px-4 py-3">Ürün</th>
+                        <th className="px-4 py-3">Sınıf</th>
+                        <th className="px-4 py-3">Kârlılık</th>
+                        <th className="px-4 py-3">Puan</th>
+                        <th className="px-4 py-3">Tarih</th>
+                        <th className="px-4 py-3">Fatura No</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {report.detailRows.map((d, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-3 text-[11px] font-bold">{d.branchLabel}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{d.saticiAdi || d.saticiKod}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{d.malAd}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">
+                            {d.malSinif} — {d.malSinifAdi}
+                          </td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(d.karlilik))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(d.score))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{d.tarih}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{d.faturaNo}</td>
+                        </tr>
+                      ))}
+                      {report.detailRows.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                            Bu aralıkta satış bulunamadı.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       )}
     </div>
