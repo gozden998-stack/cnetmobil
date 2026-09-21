@@ -191,7 +191,7 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  const [activeTab, setActiveTab] = useState<"kurallar" | "rapor">("kurallar");
+  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor">("kurallar");
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -436,6 +436,259 @@ export default function WingsmDegerPuan() {
   useEffect(() => {
     loadMultipliers();
   }, []);
+
+  // ==================================================
+  // HEDEFLER (Excel'deki personel/mağaza HEDEF sütunları) — bu sekme
+  // SADECE hedef sayısını girip saklıyor. Projeksiyon/sıralama/bonus puan
+  // motoru henüz BAĞLANMADI — hangi metriğin (Değer Puan mı, kârlılık/ciro
+  // mu) hedeflendiği netleşince Rapor sekmesine eklenecek.
+  // ==================================================
+
+  type StoreTarget = { id: number; branch_label: string; period: string; target_value: string };
+  type PersonnelTarget = {
+    id: number;
+    branch_label: string;
+    satici_adi: string;
+    period: string;
+    target_value: string;
+    is_manager: boolean;
+    active: boolean;
+  };
+
+  function currentPeriod() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const [targetPeriod, setTargetPeriod] = useState(currentPeriod());
+
+  const [storeTargets, setStoreTargets] = useState<StoreTarget[]>([]);
+  const [storeTargetDrafts, setStoreTargetDrafts] = useState<Record<string, string>>({});
+  const [storeTargetState, setStoreTargetState] = useState<Record<string, RowState>>({});
+
+  const [personnelTargets, setPersonnelTargets] = useState<PersonnelTarget[]>([]);
+  const [personnelTargetDrafts, setPersonnelTargetDrafts] = useState<Record<number, string>>({});
+  const [personnelTargetState, setPersonnelTargetState] = useState<Record<number, RowState>>({});
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [targetsError, setTargetsError] = useState("");
+
+  const [newPersonnelDraft, setNewPersonnelDraft] = useState({
+    branchLabel: "CMR MERKEZ",
+    saticiAdi: "",
+    targetValue: "",
+    isManager: false,
+  });
+  const [newPersonnelState, setNewPersonnelState] = useState<RowState>({ loading: false, error: "", success: "" });
+
+  const loadTargets = async (period: string) => {
+    setTargetsLoading(true);
+    setTargetsError("");
+
+    try {
+      const [storeRes, personnelRes] = await Promise.all([
+        fetch(`/api/wingsm/store-targets?period=${encodeURIComponent(period)}`, {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }),
+        fetch(`/api/wingsm/personnel-targets?period=${encodeURIComponent(period)}`, {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }),
+      ]);
+
+      const storePayload = await storeRes.json().catch(() => null);
+      const personnelPayload = await personnelRes.json().catch(() => null);
+
+      if (!storeRes.ok || !storePayload?.success) {
+        throw new Error(storePayload?.error || `HTTP ${storeRes.status}`);
+      }
+      if (!personnelRes.ok || !personnelPayload?.success) {
+        throw new Error(personnelPayload?.error || `HTTP ${personnelRes.status}`);
+      }
+
+      const loadedStoreTargets: StoreTarget[] = storePayload.targets || [];
+      setStoreTargets(loadedStoreTargets);
+      setStoreTargetDrafts(
+        Object.fromEntries(loadedStoreTargets.map((t) => [t.branch_label, t.target_value]))
+      );
+
+      const loadedPersonnelTargets: PersonnelTarget[] = personnelPayload.targets || [];
+      setPersonnelTargets(loadedPersonnelTargets);
+      setPersonnelTargetDrafts(
+        Object.fromEntries(loadedPersonnelTargets.map((t) => [t.id, t.target_value]))
+      );
+    } catch (err) {
+      setTargetsError(err instanceof Error ? err.message : "Hedefler yüklenemedi.");
+    } finally {
+      setTargetsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTargets(targetPeriod);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPeriod]);
+
+  const saveStoreTarget = async (branchLabel: string) => {
+    setStoreTargetState((current) => ({ ...current, [branchLabel]: { loading: true, error: "", success: "" } }));
+
+    try {
+      const res = await fetch("/api/wingsm/store-targets", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchLabel,
+          period: targetPeriod,
+          targetValue: storeTargetDrafts[branchLabel],
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+      setStoreTargetState((current) => ({ ...current, [branchLabel]: { loading: false, error: "", success: "Kaydedildi." } }));
+
+      window.setTimeout(
+        () => setStoreTargetState((current) => ({ ...current, [branchLabel]: { ...current[branchLabel], success: "" } })),
+        2500
+      );
+    } catch (err) {
+      setStoreTargetState((current) => ({
+        ...current,
+        [branchLabel]: { loading: false, error: err instanceof Error ? err.message : "Kaydedilemedi.", success: "" },
+      }));
+    }
+  };
+
+  const savePersonnelTarget = async (target: PersonnelTarget) => {
+    setPersonnelTargetState((current) => ({ ...current, [target.id]: { loading: true, error: "", success: "" } }));
+
+    try {
+      const res = await fetch(`/api/wingsm/personnel-targets/${target.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetValue: personnelTargetDrafts[target.id] }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+      setPersonnelTargetState((current) => ({ ...current, [target.id]: { loading: false, error: "", success: "Kaydedildi." } }));
+
+      window.setTimeout(
+        () => setPersonnelTargetState((current) => ({ ...current, [target.id]: { ...current[target.id], success: "" } })),
+        2500
+      );
+    } catch (err) {
+      setPersonnelTargetState((current) => ({
+        ...current,
+        [target.id]: { loading: false, error: err instanceof Error ? err.message : "Kaydedilemedi.", success: "" },
+      }));
+    }
+  };
+
+  const togglePersonnelManager = async (target: PersonnelTarget) => {
+    setPersonnelTargetState((current) => ({ ...current, [target.id]: { loading: true, error: "", success: "" } }));
+
+    try {
+      const res = await fetch(`/api/wingsm/personnel-targets/${target.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isManager: !target.is_manager }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+    } catch (err) {
+      setPersonnelTargetState((current) => ({
+        ...current,
+        [target.id]: { loading: false, error: err instanceof Error ? err.message : "Güncellenemedi.", success: "" },
+      }));
+    }
+  };
+
+  const deletePersonnelTarget = async (target: PersonnelTarget) => {
+    const confirmed = window.confirm(`${target.satici_adi} için ${targetPeriod} hedefini pasif hale getirmek istediğine emin misin?`);
+    if (!confirmed) return;
+
+    setPersonnelTargetState((current) => ({ ...current, [target.id]: { loading: true, error: "", success: "" } }));
+
+    try {
+      const res = await fetch(`/api/wingsm/personnel-targets/${target.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+    } catch (err) {
+      setPersonnelTargetState((current) => ({
+        ...current,
+        [target.id]: { loading: false, error: err instanceof Error ? err.message : "Silinemedi.", success: "" },
+      }));
+    }
+  };
+
+  const addPersonnelTarget = async () => {
+    if (!newPersonnelDraft.saticiAdi.trim()) {
+      setNewPersonnelState({ loading: false, error: "Satıcı adı zorunludur.", success: "" });
+      return;
+    }
+
+    setNewPersonnelState({ loading: true, error: "", success: "" });
+
+    try {
+      const res = await fetch("/api/wingsm/personnel-targets", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchLabel: newPersonnelDraft.branchLabel,
+          saticiAdi: newPersonnelDraft.saticiAdi.trim(),
+          period: targetPeriod,
+          targetValue: newPersonnelDraft.targetValue || 0,
+          isManager: newPersonnelDraft.isManager,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+      setNewPersonnelDraft({ branchLabel: newPersonnelDraft.branchLabel, saticiAdi: "", targetValue: "", isManager: false });
+      setNewPersonnelState({ loading: false, error: "", success: "Eklendi." });
+
+      window.setTimeout(() => setNewPersonnelState((current) => ({ ...current, success: "" })), 2500);
+    } catch (err) {
+      setNewPersonnelState({ loading: false, error: err instanceof Error ? err.message : "Eklenemedi.", success: "" });
+    }
+  };
 
   // ==================================================
   // VERİ YÜKLE
@@ -806,6 +1059,17 @@ export default function WingsmDegerPuan() {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("hedefler")}
+          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "hedefler"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Hedefler
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("rapor")}
           className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
             activeTab === "rapor"
@@ -1097,6 +1361,230 @@ export default function WingsmDegerPuan() {
         </div>
       )}
       </>
+      )}
+
+      {activeTab === "hedefler" && (
+        <div>
+          <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-black">Hedefler</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Personel ve mağaza hedefleri, dönem bazında. Bu ekran şimdilik sadece hedef sayısını
+                saklıyor — projeksiyon/sıralama/bonus puan hesabı bir sonraki adımda buraya bağlanacak.
+              </p>
+            </div>
+
+            <label>
+              <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Dönem (YYYY-AA)</div>
+              <input
+                value={targetPeriod}
+                onChange={(e) => setTargetPeriod(e.target.value)}
+                placeholder="2026-09"
+                className="h-10 w-32 rounded-lg border border-slate-200 px-3 text-sm"
+              />
+            </label>
+          </div>
+
+          {targetsError && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+              {targetsError}
+            </div>
+          )}
+
+          {targetsLoading ? (
+            <div className="flex min-h-[150px] items-center justify-center text-sm font-bold text-slate-400">
+              Hedefler yükleniyor...
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <div className="text-lg font-black">Mağaza Hedefi</div>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{targetPeriod} dönemi için.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+                  {storeTargets.map((t) => {
+                    const ts = storeTargetState[t.branch_label] || { loading: false, error: "", success: "" };
+                    return (
+                      <div key={t.branch_label} className="rounded-xl border border-slate-200 p-3">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                          {t.branch_label}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <input
+                            value={storeTargetDrafts[t.branch_label] ?? t.target_value}
+                            onChange={(e) =>
+                              setStoreTargetDrafts((current) => ({ ...current, [t.branch_label]: e.target.value }))
+                            }
+                            disabled={ts.loading}
+                            className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveStoreTarget(t.branch_label)}
+                            disabled={ts.loading}
+                            className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {ts.loading ? "..." : "KAYDET"}
+                          </button>
+                        </div>
+                        {ts.error && <div className="mt-2 text-[8px] font-bold text-rose-600">{ts.error}</div>}
+                        {ts.success && <div className="mt-2 text-[8px] font-bold text-emerald-600">{ts.success}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <div className="text-lg font-black">Personel Hedefi</div>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {targetPeriod} dönemi için. Mağaza müdürü işaretlenen personel sıralamaya girmeyecek.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Mağaza</th>
+                        <th className="px-4 py-3">Satıcı</th>
+                        <th className="px-4 py-3">Hedef</th>
+                        <th className="px-4 py-3">Mağaza Müdürü</th>
+                        <th className="px-4 py-3">İşlemler</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {personnelTargets.map((t) => {
+                        const ps = personnelTargetState[t.id] || { loading: false, error: "", success: "" };
+                        return (
+                          <tr key={t.id} className={t.active ? "" : "opacity-50"}>
+                            <td className="px-4 py-3 text-[11px] font-bold">{t.branch_label}</td>
+                            <td className="px-4 py-3 text-[11px] font-semibold">{t.satici_adi}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                value={personnelTargetDrafts[t.id] ?? t.target_value}
+                                onChange={(e) =>
+                                  setPersonnelTargetDrafts((current) => ({ ...current, [t.id]: e.target.value }))
+                                }
+                                disabled={ps.loading}
+                                className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => togglePersonnelManager(t)}
+                                disabled={ps.loading}
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black transition disabled:opacity-50 ${
+                                  t.is_manager
+                                    ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                }`}
+                              >
+                                {t.is_manager ? "MÜDÜR" : "PERSONEL"}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => savePersonnelTarget(t)}
+                                  disabled={ps.loading}
+                                  className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {ps.loading ? "..." : "KAYDET"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deletePersonnelTarget(t)}
+                                  disabled={ps.loading || !t.active}
+                                  className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  SİL
+                                </button>
+                              </div>
+                              {ps.error && <div className="mt-1 text-[8px] font-bold text-rose-600">{ps.error}</div>}
+                              {ps.success && <div className="mt-1 text-[8px] font-bold text-emerald-600">{ps.success}</div>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {personnelTargets.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                            {targetPeriod} için henüz personel hedefi eklenmedi.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+                  <div className="mb-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    Yeni Personel Hedefi Ekle
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label>
+                      <div className="mb-1 text-[9px] font-bold text-slate-400">Mağaza</div>
+                      <select
+                        value={newPersonnelDraft.branchLabel}
+                        onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, branchLabel: e.target.value }))}
+                        className="h-9 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold"
+                      >
+                        <option value="CMR MERKEZ">CMR MERKEZ</option>
+                        <option value="CMR CADDE">CMR CADDE</option>
+                        <option value="CMR SARAY">CMR SARAY</option>
+                        <option value="CMR KAPAKLI">CMR KAPAKLI</option>
+                      </select>
+                    </label>
+                    <label>
+                      <div className="mb-1 text-[9px] font-bold text-slate-400">Satıcı Adı</div>
+                      <input
+                        value={newPersonnelDraft.saticiAdi}
+                        onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, saticiAdi: e.target.value }))}
+                        placeholder="ör. AHMET MERT GÖKÇE"
+                        className="h-9 w-52 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label>
+                      <div className="mb-1 text-[9px] font-bold text-slate-400">Hedef</div>
+                      <input
+                        value={newPersonnelDraft.targetValue}
+                        onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, targetValue: e.target.value }))}
+                        placeholder="0"
+                        className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 pb-2 text-[9px] font-bold text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked={newPersonnelDraft.isManager}
+                        onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, isManager: e.target.checked }))}
+                      />
+                      Mağaza Müdürü
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addPersonnelTarget}
+                      disabled={newPersonnelState.loading}
+                      className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {newPersonnelState.loading ? "EKLENİYOR..." : "EKLE"}
+                    </button>
+                  </div>
+                  {newPersonnelState.error && (
+                    <div className="mt-2 text-[9px] font-bold text-rose-600">{newPersonnelState.error}</div>
+                  )}
+                  {newPersonnelState.success && (
+                    <div className="mt-2 text-[9px] font-bold text-emerald-600">{newPersonnelState.success}</div>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === "rapor" && (
