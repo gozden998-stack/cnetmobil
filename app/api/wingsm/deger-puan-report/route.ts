@@ -84,6 +84,18 @@ function rowClassCode(row: any): string {
   return /^\d+$/.test(raw) ? String(Number(raw)) : raw;
 }
 
+// "DD/MM/YYYY" (toWingsmDate'in çıktısı) -> { day, month (1-12), year }.
+function parseWingsmDate(value: string): { day: number; month: number; year: number } {
+  const [gun, ay, yil] = value.split("/").map(Number);
+  return { day: gun, month: ay, year: yil };
+}
+
+// Kişi/mağaza adlarını hedef tablosuyla eşleştirirken büyük/küçük harf ve
+// baştaki/sondaki boşluk farkları yüzünden kaçırmamak için normalize eder.
+function normalizeName(value: string): string {
+  return value.trim().toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+}
+
 // ======================================================
 // TİPLER
 // ======================================================
@@ -108,6 +120,10 @@ type StoreAgg = {
   totalScore: number;
   multiplier: number;
   carpanliPuan: number;
+  hedef: number | null;
+  projeksiyon: number;
+  hedefYuzdesi: number | null;
+  siralamaPuani: number;
 };
 
 type PersonnelAgg = {
@@ -117,6 +133,10 @@ type PersonnelAgg = {
   saleCount: number;
   totalScore: number;
   carpanliPuan: number;
+  hedef: number | null;
+  isManager: boolean;
+  hedefYuzdesi: number | null;
+  siralamaPuani: number;
 };
 
 // Bir satış satırı için (normalize edilmiş sınıf kodu, kârlılık) ikilisine
@@ -268,6 +288,10 @@ export async function POST(request: NextRequest) {
         totalScore: 0,
         multiplier: multiplierByBranch.get(depot.branchLabel) ?? 1,
         carpanliPuan: 0,
+        hedef: null,
+        projeksiyon: 0,
+        hedefYuzdesi: null,
+        siralamaPuani: 0,
       });
     }
 
@@ -305,6 +329,10 @@ export async function POST(request: NextRequest) {
           saleCount: 1,
           totalScore: score,
           carpanliPuan: 0,
+          hedef: null,
+          isManager: false,
+          hedefYuzdesi: null,
+          siralamaPuani: 0,
         });
       }
 
@@ -344,9 +372,113 @@ export async function POST(request: NextRequest) {
       person.carpanliPuan = person.totalScore * multiplier;
     }
 
+    // --------------------------------------------------
+    // 4) HEDEF / PROJEKSİYON / SIRALAMA — Excel'deki HEDEF sütunlarının
+    // karşılığı. HEDEF DEĞER PUAN'a (Çarpanlı Puan) göredir (kullanıcı
+    // onayı). Dönem, rapor aralığının başlangıç ayından (tarih) türetilir
+    // — admin ay başından bugüne kadar bir aralık seçtiğinde bu, Hedefler
+    // sekmesinde girilen dönemle örtüşür.
+    // --------------------------------------------------
+
+    const { day: bastarGun, month: bastarAy, year: bastarYil } = parseWingsmDate(tarih);
+    const { day: bittarGun, month: bittarAy, year: bittarYil } = parseWingsmDate(tarih2);
+
+    const period = `${bastarYil}-${String(bastarAy).padStart(2, "0")}`;
+
+    // Ay içi ilerleme: rapor aralığı genelde "ayın 1'i -> bugün" seçilir.
+    // bittar farklı bir aydaysa (nadir, ör. ay sonu-başı geçişi) yine de
+    // makul bir sonuç için bittar'ın ayını esas alıp o ayın gün sayısını
+    // kullanıyoruz.
+    const daysInMonth = new Date(bittarYil, bittarAy, 0).getDate();
+    const bastarAsBittarAy = bittarAy === bastarAy && bittarYil === bastarYil ? bastarGun : 1;
+    const daysElapsed = Math.max(1, bittarGun - bastarAsBittarAy + 1);
+    const projectionFactor = daysInMonth / daysElapsed;
+
+    let storeTargetByBranch = new Map<string, number>();
+    let personnelTargetByKey = new Map<string, { hedef: number; isManager: boolean }>();
+
+    try {
+      const storeTargetsResult = await pool.query(
+        `SELECT branch_label, target_value FROM public.wingsm_store_targets WHERE period = $1`,
+        [period]
+      );
+      storeTargetByBranch = new Map(
+        storeTargetsResult.rows.map((r: any) => [String(r.branch_label), Number(r.target_value)])
+      );
+    } catch {
+      // Tablo yok — hedefsiz kabul edilir, rapor yine de döner.
+    }
+
+    try {
+      const personnelTargetsResult = await pool.query(
+        `
+          SELECT branch_label, satici_adi, target_value, is_manager
+          FROM public.wingsm_personnel_targets
+          WHERE period = $1 AND active = true
+        `,
+        [period]
+      );
+      personnelTargetByKey = new Map(
+        personnelTargetsResult.rows.map((r: any) => [
+          `${String(r.branch_label)}::${normalizeName(String(r.satici_adi))}`,
+          { hedef: Number(r.target_value), isManager: Boolean(r.is_manager) },
+        ])
+      );
+    } catch {
+      // Tablo yok — hedefsiz kabul edilir, rapor yine de döner.
+    }
+
+    for (const store of storeMap.values()) {
+      const hedef = storeTargetByBranch.get(store.branchLabel);
+      store.hedef = hedef !== undefined ? hedef : null;
+      store.projeksiyon = store.carpanliPuan * projectionFactor;
+      store.hedefYuzdesi = hedef && hedef > 0 ? (store.projeksiyon / hedef) * 100 : null;
+    }
+
+    // Mağaza bonus puanı: sadece hedefi olan mağazalar arasında, hedef
+    // yüzdesine göre ilk 2'ye 10/5 (bkz. kullanıcının paylaştığı ekran
+    // görüntüsü — sadece ilk 2 mağazada PUAN sütunu doluydu).
+    const storesWithTarget = Array.from(storeMap.values())
+      .filter((s) => s.hedefYuzdesi !== null)
+      .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
+    const STORE_BONUS = [10, 5];
+    storesWithTarget.forEach((s, i) => {
+      s.siralamaPuani = STORE_BONUS[i] ?? 0;
+    });
+
+    for (const person of personnelMap.values()) {
+      const key = `${person.branchLabel}::${normalizeName(person.saticiAdi)}`;
+      const match = personnelTargetByKey.get(key);
+
+      person.hedef = match ? match.hedef : null;
+      person.isManager = match ? match.isManager : false;
+      person.hedefYuzdesi =
+        match && !match.isManager && match.hedef > 0 ? (person.carpanliPuan / match.hedef) * 100 : null;
+    }
+
+    // Personel bonus puanı: mağaza müdürleri sıralamaya HİÇ girmez; hedefi
+    // olmayan/0 olan personel 0 puan alır ve sıralamanın altında kalır
+    // (kullanıcının açık talimatı). İlk 3'e 10/5/3.
+    const rankablePersonnel = Array.from(personnelMap.values())
+      .filter((p) => !p.isManager && p.hedefYuzdesi !== null)
+      .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
+    const PERSONNEL_BONUS = [10, 5, 3];
+    rankablePersonnel.forEach((p, i) => {
+      p.siralamaPuani = PERSONNEL_BONUS[i] ?? 0;
+    });
+
     const stores = CMR_DEPOTS.map((depot) => storeMap.get(depot.depotCode)!);
 
-    const personnel = Array.from(personnelMap.values()).sort((a, b) => b.carpanliPuan - a.carpanliPuan);
+    // Sıralama: önce hedefi olanlar (yüzdeye göre azalan), sonra
+    // hedefsizler/müdürler (Çarpanlı Puan'a göre azalan, sadece görünürlük
+    // için) — "hedefsiz en altta" kuralı budur.
+    const personnel = Array.from(personnelMap.values()).sort((a, b) => {
+      const aRanked = !a.isManager && a.hedefYuzdesi !== null;
+      const bRanked = !b.isManager && b.hedefYuzdesi !== null;
+      if (aRanked && bRanked) return (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0);
+      if (aRanked !== bRanked) return aRanked ? -1 : 1;
+      return b.carpanliPuan - a.carpanliPuan;
+    });
 
     const totalSaleCount = stores.reduce((sum, s) => sum + s.saleCount, 0);
     const totalScore = stores.reduce((sum, s) => sum + s.totalScore, 0);
@@ -354,6 +486,8 @@ export async function POST(request: NextRequest) {
 
     return json({
       success: true,
+      hedefPeriodu: period,
+      gunBilgisi: { gecenGun: daysElapsed, ayToplamGun: daysInMonth, kalanGun: Math.max(0, daysInMonth - daysElapsed) },
       period: { tarih, tarih2 },
       stores,
       personnel,

@@ -91,6 +91,10 @@ type StoreReportRow = {
   totalScore: number;
   multiplier: number;
   carpanliPuan: number;
+  hedef: number | null;
+  projeksiyon: number;
+  hedefYuzdesi: number | null;
+  siralamaPuani: number;
 };
 
 type PersonnelReportRow = {
@@ -100,6 +104,10 @@ type PersonnelReportRow = {
   saleCount: number;
   totalScore: number;
   carpanliPuan: number;
+  hedef: number | null;
+  isManager: boolean;
+  hedefYuzdesi: number | null;
+  siralamaPuani: number;
 };
 
 type DetailReportRow = {
@@ -125,6 +133,8 @@ type UnmatchedReportRow = {
 
 type DegerPuanReport = {
   period: { tarih: string; tarih2: string };
+  hedefPeriodu: string;
+  gunBilgisi: { gecenGun: number; ayToplamGun: number; kalanGun: number };
   stores: StoreReportRow[];
   personnel: PersonnelReportRow[];
   detailRows: DetailReportRow[];
@@ -239,6 +249,10 @@ export default function WingsmDegerPuan() {
         "Toplam Puan": s.totalScore,
         Çarpan: s.multiplier,
         "Çarpanlı Puan": s.carpanliPuan,
+        Projeksiyon: Math.round(s.projeksiyon),
+        Hedef: s.hedef ?? "",
+        "Hedef %": s.hedefYuzdesi !== null ? Number(s.hedefYuzdesi.toFixed(2)) : "",
+        Puan: s.siralamaPuani || "",
       }))
     );
 
@@ -247,9 +261,13 @@ export default function WingsmDegerPuan() {
         Mağaza: p.branchLabel,
         "Satıcı Kodu": p.saticiKod,
         Satıcı: p.saticiAdi,
+        Rol: p.isManager ? "MÜDÜR" : "PERSONEL",
         "Satış Adedi": p.saleCount,
         "Toplam Puan": p.totalScore,
         "Çarpanlı Puan": p.carpanliPuan,
+        Hedef: p.hedef ?? "",
+        "Hedef %": p.hedefYuzdesi !== null ? Number(p.hedefYuzdesi.toFixed(2)) : "",
+        Puan: p.siralamaPuani || "",
       }))
     );
 
@@ -1689,7 +1707,12 @@ export default function WingsmDegerPuan() {
 
               <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                  <div className="text-lg font-black">Mağaza Bazlı</div>
+                  <div>
+                    <div className="text-lg font-black">Mağaza Bazlı</div>
+                    <div className="text-[10px] font-bold text-slate-400">
+                      Hedef dönemi {report.hedefPeriodu} · {report.gunBilgisi.gecenGun}/{report.gunBilgisi.ayToplamGun} gün geçti
+                    </div>
+                  </div>
                   <div className="text-xs font-bold text-slate-400">
                     Toplam {report.totalSaleCount} satış / {formatNumber(String(report.totalScore))} puan /{" "}
                     {formatNumber(String(report.totalCarpanliPuan))} çarpanlı puan
@@ -1702,7 +1725,7 @@ export default function WingsmDegerPuan() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[560px] text-left">
+                  <table className="w-full min-w-[820px] text-left">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
@@ -1710,6 +1733,10 @@ export default function WingsmDegerPuan() {
                         <th className="px-4 py-3">Toplam Puan</th>
                         <th className="px-4 py-3">Çarpan</th>
                         <th className="px-4 py-3">Çarpanlı Puan</th>
+                        <th className="px-4 py-3">Projeksiyon</th>
+                        <th className="px-4 py-3">Hedef</th>
+                        <th className="px-4 py-3">Hedef %</th>
+                        <th className="px-4 py-3">Puan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1720,6 +1747,14 @@ export default function WingsmDegerPuan() {
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.totalScore))}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.multiplier))}</td>
                           <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(s.carpanliPuan))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(Math.round(s.projeksiyon)))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{s.hedef !== null ? formatNumber(String(s.hedef)) : "-"}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">
+                            {s.hedefYuzdesi !== null ? `${formatNumber(String(s.hedefYuzdesi.toFixed(2)))}%` : "-"}
+                          </td>
+                          <td className="px-4 py-3 text-[11px] font-black text-emerald-600">
+                            {s.siralamaPuani > 0 ? s.siralamaPuani : ""}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1729,8 +1764,8 @@ export default function WingsmDegerPuan() {
 
               <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">Personel Bazlı</div>
-                <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[640px] text-left">
+                <div className="max-h-[460px] overflow-auto">
+                  <table className="w-full min-w-[880px] text-left">
                     <thead>
                       <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
@@ -1738,21 +1773,38 @@ export default function WingsmDegerPuan() {
                         <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
                         <th className="px-4 py-3">Çarpanlı Puan</th>
+                        <th className="px-4 py-3">Hedef</th>
+                        <th className="px-4 py-3">Hedef %</th>
+                        <th className="px-4 py-3">Puan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {report.personnel.map((p, i) => (
-                        <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`}>
+                        <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`} className={p.isManager ? "opacity-60" : ""}>
                           <td className="px-4 py-3 text-[11px] font-bold">{p.branchLabel}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{p.saticiAdi || p.saticiKod}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">
+                            {p.saticiAdi || p.saticiKod}
+                            {p.isManager && (
+                              <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black text-violet-700">
+                                MÜDÜR
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{p.saleCount}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(p.totalScore))}</td>
                           <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(p.carpanliPuan))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{p.hedef !== null ? formatNumber(String(p.hedef)) : "-"}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">
+                            {p.hedefYuzdesi !== null ? `${formatNumber(String(p.hedefYuzdesi.toFixed(2)))}%` : "-"}
+                          </td>
+                          <td className="px-4 py-3 text-[11px] font-black text-emerald-600">
+                            {p.siralamaPuani > 0 ? p.siralamaPuani : ""}
+                          </td>
                         </tr>
                       ))}
                       {report.personnel.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
                             Bu aralıkta satış bulunamadı.
                           </td>
                         </tr>
