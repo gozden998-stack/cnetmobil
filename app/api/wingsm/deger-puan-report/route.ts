@@ -120,12 +120,16 @@ type PersonnelAgg = {
 };
 
 // Bir satış satırı için (normalize edilmiş sınıf kodu, kârlılık) ikilisine
-// göre kuralı bulur. Kurallar zaten aktif=true filtresiyle çekildi ve
-// aralıklar (Aşama 2'nin garantisiyle) çakışmıyor — ilk eşleşen kural
-// kullanılır.
+// göre kuralı bulur. ARALIK YARI-AÇIK [profit_min, profit_max) — Excel'deki
+// her sütun başlığı o aralığın ALT sınırıdır: kârlılık TAM profit_max'a
+// ulaşınca bir sonraki (üst) kurala geçilir, altındaki her değer hâlâ bu
+// kuralda kalır (bkz. score-rules/resync/route.ts'teki ayrıntılı açıklama
+// ve kullanıcıdan gelen somut örnek: kârlılık 645, "750" kuralının değil
+// "300" kuralının puanını alır). Kurallar zaten aktif=true filtresiyle
+// çekildi ve aralıklar çakışmıyor — ilk eşleşen kural kullanılır.
 function findScore(rules: ScoreRuleForLookup[], classCode: string, karlilik: number): number | null {
   for (const rule of rules) {
-    if (rule.class_code === classCode && karlilik >= rule.profit_min && karlilik <= rule.profit_max) {
+    if (rule.class_code === classCode && karlilik >= rule.profit_min && karlilik < rule.profit_max) {
       return rule.score;
     }
   }

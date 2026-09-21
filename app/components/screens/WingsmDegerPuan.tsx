@@ -60,19 +60,24 @@ const EMPTY_NEW_CLASS: NewClassDraft = {
 // aralığı ve sütun başlıkları — SINIF satırları x bu 12 sütun, Excel'deki
 // GÖRSEL DÜZENLE BİREBİR AYNI (dikey liste değil, yatay ızgara).
 // migrate/route.ts ve score-rules/resync/route.ts'teki BRACKETS ile AYNI.
+//
+// ARALIK YÖNÜ: her sütun başlığı o aralığın ALT sınırı — kârlılık TAM o
+// sayıya ulaşınca o sütuna geçilir, altındaki her değer BİR ÖNCEKİ sütunda
+// kalır (örn. kârlılık 645 "300" sütununda kalır, "750"ye geçmez; TAM 750
+// olunca "750" sütununa geçer). bkz. score-rules/resync/route.ts.
 const CANON_BRACKETS: Array<{ min: number; max: number; label: string }> = [
-  { min: -999999999, max: -3000, label: "-3000" },
-  { min: -2999.99, max: -100, label: "-100" },
-  { min: -99.99, max: 0, label: "0" },
-  { min: 0.01, max: 100, label: "100" },
-  { min: 100.01, max: 300, label: "300" },
-  { min: 300.01, max: 750, label: "750" },
-  { min: 750.01, max: 1500, label: "1500" },
-  { min: 1500.01, max: 3000, label: "3000" },
-  { min: 3000.01, max: 5000, label: "5000" },
-  { min: 5000.01, max: 8000, label: "8000" },
-  { min: 8000.01, max: 12000, label: "12000" },
-  { min: 12000.01, max: 999999999, label: "12001" },
+  { min: -999999999, max: -100, label: "-3000" },
+  { min: -100, max: 0, label: "-100" },
+  { min: 0, max: 100, label: "0" },
+  { min: 100, max: 300, label: "100" },
+  { min: 300, max: 750, label: "300" },
+  { min: 750, max: 1500, label: "750" },
+  { min: 1500, max: 3000, label: "1500" },
+  { min: 3000, max: 5000, label: "3000" },
+  { min: 5000, max: 8000, label: "5000" },
+  { min: 8000, max: 12000, label: "8000" },
+  { min: 12000, max: 12001, label: "12000" },
+  { min: 12001, max: 999999999, label: "12001" },
 ];
 
 // ==================================================

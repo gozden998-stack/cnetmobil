@@ -18,21 +18,29 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // Excel kaynağıyla (cmr değer puan HAZİRAN2026 (2).xlsm) birebir
-// doğrulanmış 5 sınıf x 12 kâr aralığı. scripts/wingsm_score_rules.sql
-// ile AYNI değerler — bkz. o dosyanın başlığındaki ayrıntılı açıklama.
+// doğrulanmış 5 sınıf x 12 kâr aralığı.
+//
+// ARALIK YÖNÜ (v2 düzeltmesi): Excel'deki her sütun başlığı (100, 300,
+// 750, ...) o aralığın ÜST değil ALT sınırıdır — kârlılık 180/190/250
+// gibi 100-300 arası bir değer "100" sütununun puanını alır, TAM 300
+// olunca "300" sütununa geçer, 645 gibi 300-750 arası bir değer HÂLÂ
+// "300"ün puanını alır (750'ye SADECE tam 750'de geçilir). Yani her
+// bracket [min, max) yarı-açık — ilk bracket alt sınırsız, son bracket
+// üst sınırsız. score-rules/resync/route.ts'teki BRACKETS ile BİREBİR
+// AYNI olmalı (o dosyada bu düzeltmenin nedeni daha ayrıntılı anlatılıyor).
 const BRACKETS: Array<{ min: number; max: number }> = [
-  { min: -999999999, max: -3000 },
-  { min: -2999.99, max: -100 },
-  { min: -99.99, max: 0 },
-  { min: 0.01, max: 100 },
-  { min: 100.01, max: 300 },
-  { min: 300.01, max: 750 },
-  { min: 750.01, max: 1500 },
-  { min: 1500.01, max: 3000 },
-  { min: 3000.01, max: 5000 },
-  { min: 5000.01, max: 8000 },
-  { min: 8000.01, max: 12000 },
-  { min: 12000.01, max: 999999999 },
+  { min: -999999999, max: -100 },
+  { min: -100, max: 0 },
+  { min: 0, max: 100 },
+  { min: 100, max: 300 },
+  { min: 300, max: 750 },
+  { min: 750, max: 1500 },
+  { min: 1500, max: 3000 },
+  { min: 3000, max: 5000 },
+  { min: 5000, max: 8000 },
+  { min: 8000, max: 12000 },
+  { min: 12000, max: 12001 },
+  { min: 12001, max: 999999999 },
 ];
 
 const SEED_CLASSES: Array<{ code: string; label: string; scores: number[] }> = [
