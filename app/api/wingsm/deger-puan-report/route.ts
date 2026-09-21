@@ -503,7 +503,7 @@ export async function POST(request: NextRequest) {
     const totalScore = stores.reduce((sum, s) => sum + s.totalScore, 0);
     const totalCarpanliPuan = stores.reduce((sum, s) => sum + s.carpanliPuan, 0);
 
-    return json({
+    const responsePayload = {
       success: true,
       hedefPeriodu: period,
       gunBilgisi: { gecenGun: daysElapsed, ayToplamGun: daysInMonth, kalanGun: Math.max(0, daysInMonth - daysElapsed) },
@@ -518,7 +518,38 @@ export async function POST(request: NextRequest) {
       totalSaleCount,
       totalScore,
       totalCarpanliPuan,
-    });
+    };
+
+    // --------------------------------------------------
+    // SNAPSHOT KAYDI: personel-facing deger-puanim uç noktası artık canlı
+    // hesaplama yapmıyor, admin'in EN SON hesapladığı bu raporu okuyor (bkz.
+    // app/api/wingsm/deger-puanim/route.ts). TAM cevap (detailRows dahil)
+    // saklanır — personel'e özel filtreleme OKUMA anında yapılır, burada
+    // değil. Bu kayıt admin'in kendi cevabını ASLA bozmamalı, bu yüzden
+    // ayrı try/catch'te ve sadece console.error ile başarısız olur.
+    // --------------------------------------------------
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.wingsm_deger_puan_snapshots (
+          period TEXT PRIMARY KEY,
+          payload JSONB NOT NULL,
+          computed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+
+      await pool.query(
+        `
+          INSERT INTO public.wingsm_deger_puan_snapshots (period, payload, computed_at)
+          VALUES ($1, $2, now())
+          ON CONFLICT (period) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()
+        `,
+        [period, JSON.stringify(responsePayload)]
+      );
+    } catch (snapshotError) {
+      console.error("WINGSM_DEGER_PUAN_SNAPSHOT_SAVE_ERROR:", snapshotError);
+    }
+
+    return json(responsePayload);
   } catch (error) {
     console.error("WINGSM_DEGER_PUAN_REPORT_ERROR:", error);
 
