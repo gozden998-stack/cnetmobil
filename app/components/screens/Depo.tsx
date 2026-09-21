@@ -36,7 +36,104 @@ function kullanildiMi(value: unknown) {
     .includes("KULLANILDI");
 }
 
+function SearchIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.1}
+        d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
+    </svg>
+  );
+}
+
+function BoxIcon({ className = "h-6 w-6" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.3}
+        d="M5 13l4 4L19 7"
+      />
+    </svg>
+  );
+}
+
+function SignalIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"
+      />
+    </svg>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  footer,
+  tone = "orange",
+  icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  footer: string;
+  tone?: "orange" | "red" | "emerald" | "slate";
+  icon: React.ReactNode;
+}) {
+  const toneMap = {
+    orange: "bg-orange-50 text-orange-600",
+    red: "bg-red-50 text-red-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    slate: "bg-slate-100 text-slate-500",
+  };
+
+  return (
+    <div className="flex min-h-[74px] items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 shadow-[0_3px_10px_rgba(15,23,42,0.07)]">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${toneMap[tone]}`}
+      >
+        {icon}
+      </div>
+
+      <div className="min-w-0">
+        <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+          {label}
+        </p>
+        <p className="mt-0.5 truncate text-[18px] font-black leading-none tracking-[-0.03em] text-slate-950">
+          {value}
+        </p>
+        <p className="mt-1 truncate text-[8px] font-semibold text-slate-400">
+          {footer}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Depo() {
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
   const [rows, setRows] = useState<DepoRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -410,72 +507,164 @@ export default function Depo() {
     );
   }, [rows, searchQuery]);
 
+  const usedCount = useMemo(
+    () =>
+      rows.filter((row) =>
+        kullanildiMi(instantUsed[row.imei] || row.durum)
+      ).length,
+    [rows, instantUsed]
+  );
+
+  const availableCount = rows.length - usedCount;
+
+  function clearSearch() {
+    setSearchQuery("");
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
   return (
-    <div className="bg-white p-6 sm:p-10 rounded-[48px] shadow-sm border border-slate-200 text-slate-900 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-slate-100 pb-6 gap-4">
-        <div>
-          <h2 className="text-3xl font-black italic tracking-tighter text-orange-600">
+    <div className="animate-in fade-in duration-300">
+      {/* ÜST HERO */}
+      <section className="overflow-hidden rounded-[26px] border border-orange-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]">
+        <div className="flex min-h-[122px] flex-col justify-center px-7 py-5 sm:px-8">
+          <div className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-600">
+            CNETMOBİL V2
+          </div>
+
+          <h2 className="mt-2 text-[28px] font-black tracking-[-0.045em] text-slate-950 sm:text-[31px]">
             DEPO LİSTESİ
           </h2>
 
-          <p className="text-[10px] text-slate-500 font-bold tracking-widest mt-1 uppercase">
+          <p className="mt-2 text-[10px] font-semibold text-slate-400">
             Vodafone Kanalı İmei Kayıtları
           </p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center w-full md:w-80 focus-within:border-orange-400 focus-within:bg-white transition-all shadow-sm">
-          <svg
-            className="w-5 h-5 text-slate-400 mr-2 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+        <div className="grid gap-2 border-t border-orange-100 bg-slate-50/60 p-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Toplam İmei"
+            value={rows.length}
+            footer="Depo listesindeki kayıt"
+            tone="orange"
+            icon={<BoxIcon className="h-5 w-5" />}
+          />
 
-          <input
-            type="text"
-            placeholder="İmei veya Cihaz Arama..."
-            className="bg-transparent border-none outline-none text-sm text-slate-900 w-full placeholder-slate-400"
-            value={searchQuery}
-            onChange={(event) =>
-              setSearchQuery(
-                event.target.value
-              )
-            }
+          <StatCard
+            label="Kullanılan"
+            value={usedCount}
+            footer="KULLANILDI işaretli"
+            tone="red"
+            icon={<CheckIcon className="h-5 w-5" />}
+          />
+
+          <StatCard
+            label="Kullanılabilir"
+            value={availableCount}
+            footer="Stokta bekleyen"
+            tone="emerald"
+            icon={<BoxIcon className="h-5 w-5" />}
+          />
+
+          <StatCard
+            label="Canlı Takip"
+            value="CANLI"
+            footer="2 sn'de bir otomatik güncelleme"
+            tone="slate"
+            icon={<SignalIcon className="h-5 w-5" />}
           />
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-5xl mx-auto overflow-x-auto custom-scrollbar pb-2">
-        <div className="min-w-[500px]">
-          <div className="bg-orange-500 px-4 py-3 rounded-t-2xl flex font-black text-[10px] tracking-widest text-white items-center shadow-md">
-            <div className="flex-[3]">
-              CİHAZ BİLGİSİ
+      {/* ARAMA */}
+      <section className="sticky top-[104px] z-30 mt-4 rounded-[22px] border border-slate-200 bg-white/95 p-3 shadow-[0_9px_26px_rgba(15,23,42,0.07)] backdrop-blur">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="relative min-w-0 flex-1">
+            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-orange-600">
+              <SearchIcon />
             </div>
 
-            <div className="flex-[2] text-center border-l border-orange-400 pl-2">
-              İMEİ BİLGİSİ
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="İmei veya cihaz ara..."
+              className="h-[49px] w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-[11px] font-bold text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-50"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={clearSearch}
+            className="inline-flex h-[49px] min-w-[110px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[10px] font-black text-slate-500 transition hover:bg-slate-100"
+          >
+            Temizle
+          </button>
+        </div>
+      </section>
+
+      {/* LİSTE */}
+      <section className="mt-4 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_8px_26px_rgba(15,23,42,0.05)]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+              <BoxIcon />
             </div>
 
-            <div className="flex-[1] text-right border-l border-orange-400 pl-2">
-              DURUM
+            <div className="min-w-0">
+              <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
+                Depo Ürün Listesi
+              </h3>
+              <p className="truncate text-[9px] font-semibold text-slate-400">
+                IMEI stoklarını görüntüleyin ve kullanılan cihazları işaretleyin.
+              </p>
             </div>
           </div>
 
-          <div className="bg-white rounded-b-2xl overflow-hidden border-x border-b border-slate-200">
+          <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1.5 text-[8px] font-black text-orange-600">
+            {filteredRows.length} Ürün
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[560px]">
+            <div className="flex border-y border-slate-200 bg-slate-50/90 px-4 py-3 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500">
+              <div className="flex-[3]">CİHAZ BİLGİSİ</div>
+              <div className="flex-[2] border-l border-slate-200 pl-4 text-center">
+                İMEİ BİLGİSİ
+              </div>
+              <div className="flex-[1] border-l border-slate-200 pl-4 text-right">
+                DURUM
+              </div>
+            </div>
+
             {loading ? (
-              <div className="py-16 text-center text-xs font-black tracking-widest text-slate-400">
-                DEPO YÜKLENİYOR...
+              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+                <div>
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                    <BoxIcon className="h-5 w-5" />
+                  </div>
+                  <p className="text-[11px] font-black text-slate-700">
+                    DEPO YÜKLENİYOR...
+                  </p>
+                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                    Kayıtlar sunucudan getiriliyor.
+                  </p>
+                </div>
               </div>
             ) : filteredRows.length === 0 ? (
-              <div className="py-16 text-center text-xs font-black tracking-widest text-slate-400">
-                KAYIT BULUNAMADI
+              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+                <div>
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                    <SearchIcon />
+                  </div>
+                  <p className="text-[11px] font-black text-slate-700">
+                    KAYIT BULUNAMADI
+                  </p>
+                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                    Arama kelimesini değiştirerek tekrar deneyin.
+                  </p>
+                </div>
               </div>
             ) : (
               filteredRows.map(
@@ -496,13 +685,13 @@ export default function Depo() {
                   return (
                     <div
                       key={`${row.rowNumber}-${row.imei}`}
-                      className={`flex px-4 py-3 border-b border-slate-200 transition-colors text-[11px] sm:text-xs font-bold items-center group ${
+                      className={`flex items-center border-b border-slate-100 px-4 py-3 text-[11px] font-bold transition last:border-b-0 ${
                         isUsed
-                          ? "bg-red-50"
+                          ? "bg-red-50/70"
                           : i % 2 === 0
-                          ? "bg-slate-50"
-                          : "bg-white hover:bg-slate-100"
-                      }`}
+                          ? "bg-white"
+                          : "bg-slate-50/40"
+                      } hover:bg-slate-50`}
                     >
                       <div
                         style={{
@@ -510,11 +699,11 @@ export default function Depo() {
                             ? "line-through"
                             : "none",
                         }}
-                        className={`flex-[3] flex items-center ${
+                        className={`flex-[3] truncate pr-4 text-[10px] font-black ${
                           isUsed
                             ? "text-red-700 opacity-70"
-                            : "text-slate-700 group-hover:text-slate-900"
-                        } transition-colors pr-4`}
+                            : "text-slate-900"
+                        }`}
                       >
                         {row.cihaz ||
                           "-"}
@@ -526,23 +715,21 @@ export default function Depo() {
                             ? "line-through"
                             : "none",
                         }}
-                        className={`flex-[2] text-center font-black text-sm whitespace-nowrap border-l border-slate-200 pl-4 ${
+                        className={`flex-[2] whitespace-nowrap border-l border-slate-100 pl-4 text-center text-[11px] font-black ${
                           isUsed
                             ? "text-red-500 opacity-70"
-                            : "text-green-600"
+                            : "text-emerald-600"
                         }`}
                       >
                         {row.imei ||
                           "-"}
                       </div>
 
-                      <div className="flex-[1] flex justify-end border-l border-slate-200 pl-4">
+                      <div className="flex flex-[1] justify-end border-l border-slate-100 pl-4">
                         {isUsed ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-[9px] text-red-600 font-black tracking-widest bg-red-100 px-2 py-1 rounded-md">
-                              {guncelDurum}
-                            </span>
-                          </div>
+                          <span className="rounded-lg bg-red-100 px-2.5 py-1 text-[9px] font-black tracking-widest text-red-600">
+                            {guncelDurum}
+                          </span>
                         ) : pendingImei === row.imei ? (
                           <div className="flex items-center gap-1.5">
                             <input
@@ -561,7 +748,7 @@ export default function Depo() {
                                 }
                               }}
                               placeholder="Ad Soyad"
-                              className="w-24 sm:w-28 rounded-lg border border-orange-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none focus:border-orange-500"
+                              className="h-8 w-24 rounded-lg border border-orange-300 bg-white px-2 text-[10px] font-bold text-slate-800 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100 sm:w-28"
                             />
                             <button
                               type="button"
@@ -570,11 +757,9 @@ export default function Depo() {
                               }
                               disabled={!nameInput.trim() || Boolean(usingImei)}
                               title="Onayla"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white transition-all hover:bg-emerald-600 disabled:opacity-50"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white transition hover:bg-emerald-600 disabled:opacity-50"
                             >
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                              </svg>
+                              <CheckIcon className="h-3.5 w-3.5" />
                             </button>
                             <button
                               type="button"
@@ -583,7 +768,7 @@ export default function Depo() {
                                 setNameInput("");
                               }}
                               title="Vazgeç"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-all hover:bg-slate-200"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200"
                             >
                               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -602,7 +787,7 @@ export default function Depo() {
                                 usingImei
                               )
                             }
-                            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50"
+                            className="rounded-xl bg-orange-500 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
                           >
                             {isSaving
                               ? "KAYDEDİLİYOR..."
@@ -617,7 +802,29 @@ export default function Depo() {
             )}
           </div>
         </div>
-      </div>
+
+        <div className="flex items-center justify-end gap-3 px-5 py-3">
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+            {filteredRows.length} kayıt listeleniyor
+          </span>
+        </div>
+      </section>
+
+      {/* HIZLI ARA */}
+      <button
+        type="button"
+        title="Hızlı Ara"
+        onClick={() => {
+          searchRef.current?.focus();
+          searchRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }}
+        className="fixed bottom-[88px] right-[74px] z-40 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-orange-500 text-white shadow-[0_13px_30px_rgba(234,88,12,0.35)] transition hover:scale-105 hover:bg-orange-600 max-sm:right-5"
+      >
+        <SearchIcon className="h-6 w-6" />
+      </button>
     </div>
   );
 }
