@@ -163,12 +163,14 @@ export async function GET(request: NextRequest) {
     const allPersonnel = Array.isArray(snapshot.personnel) ? snapshot.personnel : [];
     const stores = Array.isArray(snapshot.stores) ? snapshot.stores : [];
 
-    // --------------------------------------------------
-    // GÜVENLİK: NİHAİ CEVABIN personnel dizisi SADECE myBranch'e ait —
-    // diğer mağazaların personel listesi burada FİLTRELENİR, client'a hiç
-    // ulaşmaz. detailRows/unmatched* zaten bu tipte YOK (asla kopyalanmadı).
-    // --------------------------------------------------
-    const personnel = allPersonnel.filter((p) => p.branchLabel === myBranch);
+    // KAPSAM: kullanıcının açık talimatı — ekip tablosu SADECE kendi
+    // mağazasını değil, CMR'nin 4 mağazasındaki TÜM personeli göstersin
+    // (Genel Lider'deki gibi şirket geneli bir liste). Burada dönen alanlar
+    // zaten sadece aggregate puan/hedef/sıralama — satış başına kâr detayı
+    // (detailRows/unmatched*) bu tipte hiç yok, o admin-only kalmaya devam
+    // ediyor. myBranch hâlâ kişinin KENDİ profil kartını (metrikler, hedef
+    // çubuğu) hangi mağazadan doldurulacağını belirlemek için kullanılıyor.
+    const personnel = allPersonnel;
 
     // Genel Lider: TÜM 4 mağaza arasında, sıralanabilir (müdür değil, hedef
     // yüzdesi null değil) personelin en yüksek hedef yüzdesine sahip olanı —

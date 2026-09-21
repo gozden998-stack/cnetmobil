@@ -840,20 +840,20 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-2">
               <UsersGroupIcon className="h-4 w-4 text-blue-500" />
-              <div className="text-sm font-black text-slate-800">Mağazamdaki Ekip</div>
+              <div className="text-sm font-black text-slate-800">Tüm Ekip</div>
             </div>
             <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-              Sıra, tüm CMR mağazaları arasındaki genel sıralamandır — sadece bu listede senin mağazandaki
-              isimler gösteriliyor, bu yüzden sıra numaraları art arda gelmeyebilir.
+              CMR'nin 4 mağazasındaki tüm personel, hedef gerçekleşme yüzdesine göre şirket geneli sırayla.
             </p>
           </div>
           {pickedName ? (
             <div className="max-h-[360px] overflow-auto">
-              <table className="w-full min-w-[520px] text-left">
+              <table className="w-full min-w-[600px] text-left">
                 <thead>
                   <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2">Sıra</th>
                     <th className="px-3 py-2">Çalışan</th>
+                    <th className="px-3 py-2">Mağaza</th>
                     <th className="px-3 py-2">Toplam Puan</th>
                     <th className="px-3 py-2">Hedef</th>
                     <th className="px-3 py-2">Gerçekleşme</th>
@@ -881,6 +881,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                             </span>
                           )}
                         </td>
+                        <td className="px-3 py-2 text-[11px] font-semibold text-slate-500">{p.branchLabel}</td>
                         <td className="px-3 py-2 text-[11px] font-semibold">{formatNumber(p.totalScore)}</td>
                         <td className="px-3 py-2 text-[11px] font-semibold">{p.hedef !== null ? formatNumber(p.hedef) : "-"}</td>
                         <td className="px-3 py-2 text-[11px] font-semibold">{formatPercent(p.hedefYuzdesi)}</td>
@@ -892,8 +893,8 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                   })}
                   {report.personnel.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-xs font-bold text-slate-400">
-                        Bu dönemde mağazanda kayıt bulunamadı.
+                      <td colSpan={7} className="px-3 py-6 text-center text-xs font-bold text-slate-400">
+                        Bu dönemde hiçbir mağazada kayıt bulunamadı.
                       </td>
                     </tr>
                   )}
@@ -901,7 +902,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
               </table>
             </div>
           ) : (
-            <PersonalPlaceholder label="Adını seçince mağazandaki ekip sıralaması burada görünecek." className="rounded-none border-0 border-t border-dashed border-slate-200" />
+            <PersonalPlaceholder label="Adını seçince kendi satırın vurgulanacak." className="rounded-none border-0 border-t border-dashed border-slate-200" />
           )}
         </section>
 
