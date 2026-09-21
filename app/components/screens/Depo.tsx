@@ -26,6 +26,20 @@ type DepoRow = {
 
 const POLL_MS = 2000;
 
+// Yerel (optimistik) "kullanıldı" önbelleğinin ne kadar süre backend'in
+// "kullanılmadı" cevabına baskın çıkacağı — Sheet -> PostgreSQL senkron
+// gecikmesini karşılamak için. Bu sürenin sonunda, backend hâlâ
+// "kullanılmadı" diyorsa (ör. Sheet'ten satır silinip/durum sıfırlanıp
+// sıfırlanmışsa) artık BACKEND'e güvenilir — yerel kayıt sonsuza kadar
+// "kullanıldı" göstermeye devam ETMEZ.
+const INSTANT_OVERRIDE_TTL_MS = 10 * 60 * 1000; // 10 dakika
+
+type InstantUsedEntry = { durum: string; setAt: number };
+
+function overrideGecerliMi(entry: InstantUsedEntry | undefined): entry is InstantUsedEntry {
+  return Boolean(entry) && Date.now() - (entry as InstantUsedEntry).setAt < INSTANT_OVERRIDE_TTL_MS;
+}
+
 function temiz(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -145,14 +159,16 @@ export default function Depo() {
   const [pendingImei, setPendingImei] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
 
-  // Bir IMEI bir kez KULLANILDI olduysa ekranda kalıcı tutulur.
-  // Sheet/PostgreSQL de KULLANILDI döndürüyorsa zaten doğrudan çizilir.
-  // Aynı tarayıcıda sayfa yenilense bile localStorage kaydı korunur.
+  // Bir IMEI KULLANILDI olarak işaretlendiğinde, backend (Sheet -> Postgres
+  // senkronu) yetişene kadar ekranda GEÇİCİ olarak (bkz. INSTANT_OVERRIDE_TTL_MS)
+  // kalıcı tutulur. Süresi dolunca backend'in o an döndürdüğü gerçek duruma
+  // (tekrar "kullanılmadı" olsa bile) güvenilir. Aynı tarayıcıda sayfa
+  // yenilense bile localStorage kaydı (süresi dolana kadar) korunur.
   const [instantUsed, setInstantUsed] = useState<
-    Record<string, string>
+    Record<string, InstantUsedEntry>
   >({});
 
-  const instantUsedRef = useRef<Record<string, string>>({});
+  const instantUsedRef = useRef<Record<string, InstantUsedEntry>>({});
 
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
@@ -214,13 +230,20 @@ export default function Depo() {
           const imei = temiz(data[1]);
           let durum = temiz(data[2]);
 
-          // Server/Sheet "KULLANILDI" diyorsa kalıcı olarak çiz.
+          // Server/Sheet "KULLANILDI" diyorsa doğrudan çiz.
           if (kullanildiMi(durum)) {
             confirmedUsed[imei] = durum;
-          } else if (instantUsedRef.current[imei]) {
-            // PostgreSQL senkronu gecikse bile daha önce kullanılan IMEI
-            // ekranda tekrar aktif görünmesin.
-            durum = instantUsedRef.current[imei];
+          } else {
+            // Backend "kullanılmadı" diyor — ama az önce (TTL içinde) bu
+            // tarayıcıdan kullanıldı işaretlendiyse, senkron gecikmesi
+            // olabilir diye ona güveniriz. TTL geçtiyse backend'in
+            // "kullanılmadı" cevabını OLDUĞU GİBİ kabul ederiz (ör. Sheet'ten
+            // satır silinip sıfırlanmış olabilir) — sonsuza kadar eski
+            // "kullanıldı" göstermeye devam ETMEYİZ.
+            const override = instantUsedRef.current[imei];
+            if (overrideGecerliMi(override)) {
+              durum = override.durum;
+            }
           }
 
           return {
@@ -236,24 +259,44 @@ export default function Depo() {
             row.cihaz || row.imei
         );
 
-      if (Object.keys(confirmedUsed).length) {
-        const merged = {
-          ...instantUsedRef.current,
-          ...confirmedUsed,
-        };
+      // instantUsedRef'i bu turun sonucuna göre yeniden kur: backend'in
+      // "kullanıldı" dediği her IMEI taze bir zaman damgasıyla korunur;
+      // backend "kullanılmadı" diyorsa ve TTL'i geçmiş bir optimistik kayıt
+      // varsa o artık ATILIR (aşağıdaki expiredImeis).
+      const now = Date.now();
+      const nextInstantUsed: Record<string, InstantUsedEntry> = {};
+      const expiredImeis: string[] = [];
 
-        instantUsedRef.current = merged;
+      for (const [imei, entry] of Object.entries(instantUsedRef.current)) {
+        if (confirmedUsed[imei]) continue; // aşağıda taze damgayla yeniden eklenecek
+        if (overrideGecerliMi(entry)) {
+          nextInstantUsed[imei] = entry;
+        } else {
+          expiredImeis.push(imei);
+        }
+      }
+
+      for (const [imei, durum] of Object.entries(confirmedUsed)) {
+        nextInstantUsed[imei] = { durum, setAt: now };
+      }
+
+      if (Object.keys(confirmedUsed).length || expiredImeis.length) {
+        instantUsedRef.current = nextInstantUsed;
 
         if (mountedRef.current) {
-          setInstantUsed(merged);
+          setInstantUsed(nextInstantUsed);
         }
 
         if (typeof window !== "undefined") {
           Object.entries(confirmedUsed).forEach(([imei, durum]) => {
             window.localStorage.setItem(
               "kullanilan_imei_" + imei,
-              JSON.stringify({ durum })
+              JSON.stringify({ durum, setAt: now })
             );
+          });
+
+          expiredImeis.forEach((imei) => {
+            window.localStorage.removeItem("kullanilan_imei_" + imei);
           });
         }
       }
@@ -278,7 +321,8 @@ export default function Depo() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const restored: Record<string, string> = {};
+    const now = Date.now();
+    const restored: Record<string, InstantUsedEntry> = {};
 
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
@@ -293,10 +337,19 @@ export default function Depo() {
 
         const parsed = JSON.parse(raw);
         const durum = temiz(parsed?.durum);
+        // Eski format (bu düzeltmeden önce) setAt taşımıyordu — o kayıtları
+        // "şimdi" set edilmiş kabul ediyoruz, ilk loadRows() çağrısı zaten
+        // backend'e göre doğrulayıp gerekirse hemen düzeltecek.
+        const setAt = Number(parsed?.setAt) || now;
 
-        if (kullanildiMi(durum)) {
+        if (!kullanildiMi(durum)) continue;
+
+        if (now - setAt < INSTANT_OVERRIDE_TTL_MS) {
           const imei = key.replace("kullanilan_imei_", "");
-          restored[imei] = durum;
+          restored[imei] = { durum, setAt };
+        } else {
+          // TTL'i çoktan geçmiş, tarayıcıda gereksiz yere taşınmasın.
+          window.localStorage.removeItem(key);
         }
       } catch {
         // Bozuk localStorage kaydı görünümü bozmasın.
@@ -384,10 +437,12 @@ export default function Depo() {
     const durumText =
       `KULLANILDI - ${personel}`;
 
-    // Butona basıldığı anda kalıcı olarak kullanıldı kabul et.
+    // Butona basıldığı anda GEÇİCİ olarak (bkz. INSTANT_OVERRIDE_TTL_MS)
+    // kullanıldı kabul et — sonsuza kadar değil.
+    const setAt = Date.now();
     const nextUsed = {
       ...instantUsedRef.current,
-      [imei]: durumText,
+      [imei]: { durum: durumText, setAt },
     };
 
     instantUsedRef.current = nextUsed;
@@ -398,6 +453,7 @@ export default function Depo() {
         "kullanilan_imei_" + imei,
         JSON.stringify({
           durum: durumText,
+          setAt,
         })
       );
     }
@@ -510,7 +566,7 @@ export default function Depo() {
   const usedCount = useMemo(
     () =>
       rows.filter((row) =>
-        kullanildiMi(instantUsed[row.imei] || row.durum)
+        kullanildiMi(instantUsed[row.imei]?.durum || row.durum)
       ).length,
     [rows, instantUsed]
   );
@@ -670,7 +726,7 @@ export default function Depo() {
               filteredRows.map(
                 (row, i) => {
                   const guncelDurum =
-                    instantUsed[row.imei] ||
+                    instantUsed[row.imei]?.durum ||
                     row.durum;
 
                   const isUsed =
