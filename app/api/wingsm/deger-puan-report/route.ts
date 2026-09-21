@@ -461,36 +461,32 @@ export async function POST(request: NextRequest) {
       person.projeksiyon = person.carpanliPuan * projectionFactor;
     }
 
-    // Personel sıralaması/bonus puanı KENDİ MAĞAZASI İÇİNDEDİR (Excel'de her
-    // mağazanın kendi sekmesi/listesi var, sıralama mağazalar arası değil —
-    // kullanıcının paylaştığı "Mağazamdaki Sıralamam" ekranı bunu doğruluyor).
+    // Personel sıralaması/bonus puanı ŞİRKET GENELİNDEDİR — mağaza fark
+    // etmez, hedef gerçekleşme yüzdesine göre CMR'nin 4 mağazasındaki TÜM
+    // personel birlikte sıralanır (kullanıcının açık talimatı: "hedef
+    // gerçekleşene göre sıralama olucak mağaza fark etmez"). Mağaza
+    // karşılaştırması (stores[]) bundan AYRI, kendi başına bir şeydir.
     // Mağaza müdürleri sıralamaya HİÇ girmez; hedefi olmayan/0 olan personel
     // 0 puan alır ve sıralamanın altında kalır (kullanıcının açık talimatı).
-    // Her mağazada ilk 3'e 10/5/3.
+    // İlk 3'e 10/5/3.
     const PERSONNEL_BONUS = [10, 5, 3];
 
-    for (const branchLabel of new Set(Array.from(personnelMap.values()).map((p) => p.branchLabel))) {
-      const rankableInBranch = Array.from(personnelMap.values())
-        .filter((p) => p.branchLabel === branchLabel && !p.isManager && p.hedefYuzdesi !== null)
-        .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
+    const rankablePersonnel = Array.from(personnelMap.values())
+      .filter((p) => !p.isManager && p.hedefYuzdesi !== null)
+      .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
 
-      rankableInBranch.forEach((p, i) => {
-        p.siralama = i + 1;
-        p.siralamaPuani = PERSONNEL_BONUS[i] ?? 0;
-      });
-    }
+    rankablePersonnel.forEach((p, i) => {
+      p.siralama = i + 1;
+      p.siralamaPuani = PERSONNEL_BONUS[i] ?? 0;
+    });
 
     const stores = CMR_DEPOTS.map((depot) => storeMap.get(depot.depotCode)!);
 
-    // Sıralama: önce mağazaya göre (CMR_DEPOTS sırasıyla), her mağaza
-    // içinde önce hedefi olanlar (yüzdeye göre azalan — siralama alanıyla
-    // birebir), sonra hedefsizler/müdürler (Çarpanlı Puan'a göre azalan,
-    // sadece görünürlük için) — "hedefsiz en altta" kuralı budur.
-    const branchOrder = new Map(CMR_DEPOTS.map((d, i) => [d.branchLabel, i]));
+    // Sıralama: önce hedefi olanlar (yüzdeye göre azalan, siralama alanıyla
+    // birebir — mağaza fark etmez, şirket geneli), sonra hedefsizler/
+    // müdürler (Çarpanlı Puan'a göre azalan, sadece görünürlük için) —
+    // "hedefsiz en altta" kuralı budur.
     const personnel = Array.from(personnelMap.values()).sort((a, b) => {
-      const branchDiff = (branchOrder.get(a.branchLabel) ?? 99) - (branchOrder.get(b.branchLabel) ?? 99);
-      if (branchDiff !== 0) return branchDiff;
-
       const aRanked = !a.isManager && a.hedefYuzdesi !== null;
       const bRanked = !b.isManager && b.hedefYuzdesi !== null;
       if (aRanked && bRanked) return (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0);
