@@ -49,18 +49,31 @@ type RowState = {
 type NewClassDraft = {
   class_code: string;
   class_label: string;
-  profit_min: string;
-  profit_max: string;
-  score: string;
 };
 
 const EMPTY_NEW_CLASS: NewClassDraft = {
   class_code: "",
   class_label: "",
-  profit_min: "",
-  profit_max: "",
-  score: "",
 };
+
+// Excel kaynağındaki ("cmr değer puan HAZİRAN2026 (2).xlsm") 12 sabit kâr
+// aralığı ve sütun başlıkları — SINIF satırları x bu 12 sütun, Excel'deki
+// GÖRSEL DÜZENLE BİREBİR AYNI (dikey liste değil, yatay ızgara).
+// migrate/route.ts ve score-rules/resync/route.ts'teki BRACKETS ile AYNI.
+const CANON_BRACKETS: Array<{ min: number; max: number; label: string }> = [
+  { min: -999999999, max: -3000, label: "-3000" },
+  { min: -2999.99, max: -100, label: "-100" },
+  { min: -99.99, max: 0, label: "0" },
+  { min: 0.01, max: 100, label: "100" },
+  { min: 100.01, max: 300, label: "300" },
+  { min: 300.01, max: 750, label: "750" },
+  { min: 750.01, max: 1500, label: "1500" },
+  { min: 1500.01, max: 3000, label: "3000" },
+  { min: 3000.01, max: 5000, label: "5000" },
+  { min: 5000.01, max: 8000, label: "8000" },
+  { min: 8000.01, max: 12000, label: "12000" },
+  { min: 12000.01, max: 999999999, label: "12001" },
+];
 
 // ==================================================
 // RAPOR SEKMESİ (Aşama 3+4) — /api/wingsm/deger-puan-report
@@ -157,7 +170,12 @@ export default function WingsmDegerPuan() {
   const [showInactive, setShowInactive] = useState(true);
 
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
-  const [rowState, setRowState] = useState<Record<number, RowState>>({});
+
+  // Izgarada henüz karşılığı olmayan (o sınıfta o aralık için satır hiç
+  // oluşturulmamış) hücrelere yazılan değer — "sınıfı kaydet" tıklanınca
+  // bunlar için yeni kural OLUŞTURULUR, var olanlar için PATCH yapılır.
+  const [newCellDrafts, setNewCellDrafts] = useState<Record<string, string>>({});
+  const [classRowState, setClassRowState] = useState<Record<string, RowState>>({});
 
   const [newClassDraft, setNewClassDraft] = useState<NewClassDraft>(EMPTY_NEW_CLASS);
   const [newClassState, setNewClassState] = useState<RowState>({ loading: false, error: "", success: "" });
@@ -455,25 +473,48 @@ export default function WingsmDegerPuan() {
   }, []);
 
   // ==================================================
-  // TEK DÜZ LİSTE (Excel'deki gibi — sınıf, sonra kâr aralığına göre sıralı)
+  // IZGARA (Excel'deki gibi — SINIF satırları x 12 sabit kâr aralığı sütunu)
   // ==================================================
 
-  const visibleRules = useMemo(() => {
-    const visible = showInactive ? rules : rules.filter((r) => r.active);
-
-    return [...visible].sort((a, b) => {
-      const classCompare = a.class_code.localeCompare(b.class_code, "tr");
-      if (classCompare !== 0) return classCompare;
-      return Number(a.profit_min) - Number(b.profit_min);
-    });
-  }, [rules, showInactive]);
-
-  const setRowFeedback = (id: number, patch: Partial<RowState>) => {
-    setRowState((current) => {
-      const base: RowState = current[id] || { loading: false, error: "", success: "" };
-      return { ...current, [id]: { ...base, ...patch } };
-    });
+  type ClassGroup = {
+    classCode: string;
+    label: string;
+    active: boolean;
+    cellByBracketIndex: Map<number, ScoreRule>;
   };
+
+  const classGroups = useMemo<ClassGroup[]>(() => {
+    const map = new Map<string, ClassGroup>();
+
+    for (const rule of rules) {
+      let group = map.get(rule.class_code);
+      if (!group) {
+        group = { classCode: rule.class_code, label: rule.class_label, active: true, cellByBracketIndex: new Map() };
+        map.set(rule.class_code, group);
+      }
+
+      const bracketIndex = CANON_BRACKETS.findIndex(
+        (b) => b.min === Number(rule.profit_min) && b.max === Number(rule.profit_max)
+      );
+
+      if (bracketIndex >= 0) {
+        group.cellByBracketIndex.set(bracketIndex, rule);
+      }
+    }
+
+    for (const group of map.values()) {
+      const cells = Array.from(group.cellByBracketIndex.values());
+      group.active = cells.length === 0 || cells.some((r) => r.active);
+    }
+
+    let groups = Array.from(map.values()).sort((a, b) => a.classCode.localeCompare(b.classCode, "tr"));
+
+    if (!showInactive) {
+      groups = groups.filter((g) => g.active);
+    }
+
+    return groups;
+  }, [rules, showInactive]);
 
   const updateDraft = (id: number, field: keyof Draft, value: string) => {
     setDrafts((current) => ({
@@ -483,161 +524,255 @@ export default function WingsmDegerPuan() {
   };
 
   // ==================================================
-  // SATIR KAYDET (profit_min / profit_max / score)
+  // SINIF SATIRI KAYDET — ızgaradaki bir sınıf satırının 12 hücresini
+  // TEK "KAYDET" ile toplu işler: var olan hücre -> PATCH (saveRow ile
+  // AYNI), henüz kural satırı olmayan (yeni doldurulmuş) hücre -> POST.
   // ==================================================
 
-  const saveRow = async (rule: ScoreRule) => {
-    const draft = drafts[rule.id];
-    if (!draft) return;
-
-    setRowFeedback(rule.id, { loading: true, error: "", success: "" });
+  const saveClassRow = async (group: ClassGroup) => {
+    setClassRowState((current) => ({ ...current, [group.classCode]: { loading: true, error: "", success: "" } }));
 
     try {
-      const res = await fetch(`/api/wingsm/score-rules/${rule.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profit_min: draft.profit_min,
-          profit_max: draft.profit_max,
-          score: draft.score,
-        }),
-      });
+      const results = await Promise.all(
+        CANON_BRACKETS.map(async (bracket, index) => {
+          const existingRule = group.cellByBracketIndex.get(index);
 
-      const payload = await res.json().catch(() => null);
+          if (existingRule) {
+            const draft = drafts[existingRule.id];
+            if (!draft || Number(draft.score) === Number(existingRule.score)) {
+              return null;
+            }
 
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
+            const res = await fetch(`/api/wingsm/score-rules/${existingRule.id}`, {
+              method: "PATCH",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ score: draft.score }),
+            });
+            const payload = await res.json().catch(() => null);
+            if (!res.ok || !payload?.success) {
+              throw new Error(payload?.error || `HTTP ${res.status}`);
+            }
+            return payload.rule as ScoreRule;
+          }
+
+          const cellKey = `${group.classCode}::${index}`;
+          const newValue = newCellDrafts[cellKey];
+          if (newValue === undefined || newValue.trim() === "") {
+            return null;
+          }
+
+          const res = await fetch("/api/wingsm/score-rules", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              class_code: group.classCode,
+              class_label: group.label,
+              profit_min: bracket.min,
+              profit_max: bracket.max,
+              score: newValue,
+              active: true,
+            }),
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok || !payload?.success) {
+            throw new Error(payload?.error || `HTTP ${res.status}`);
+          }
+          return payload.rule as ScoreRule;
+        })
+      );
+
+      const changed = results.filter((r): r is ScoreRule => r !== null);
+
+      if (changed.length > 0) {
+        setRules((current) => {
+          const byId = new Map(current.map((r) => [r.id, r]));
+          for (const rule of changed) byId.set(rule.id, rule);
+          return Array.from(byId.values());
+        });
+        setDrafts((current) => {
+          const next = { ...current };
+          for (const rule of changed) next[rule.id] = ruleToDraft(rule);
+          return next;
+        });
+        setNewCellDrafts((current) => {
+          const next = { ...current };
+          for (let i = 0; i < CANON_BRACKETS.length; i += 1) delete next[`${group.classCode}::${i}`];
+          return next;
+        });
       }
 
-      const updated: ScoreRule = payload.rule;
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: "", success: changed.length > 0 ? "Kaydedildi." : "Değişiklik yok." },
+      }));
 
-      setRules((current) => current.map((r) => (r.id === updated.id ? updated : r)));
-      setDrafts((current) => ({ ...current, [updated.id]: ruleToDraft(updated) }));
-      setRowFeedback(rule.id, { loading: false, success: "Kaydedildi." });
-
-      window.setTimeout(() => setRowFeedback(rule.id, { success: "" }), 2500);
+      window.setTimeout(
+        () =>
+          setClassRowState((current) => ({ ...current, [group.classCode]: { ...current[group.classCode], success: "" } })),
+        2500
+      );
     } catch (err) {
-      setRowFeedback(rule.id, {
-        loading: false,
-        error: err instanceof Error ? err.message : "Kaydedilemedi.",
-      });
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: err instanceof Error ? err.message : "Kaydedilemedi.", success: "" },
+      }));
     }
   };
 
   // ==================================================
-  // AKTİF / PASİF ANAHTARI
+  // SINIFI AKTİF/PASİF YAP (o sınıfın TÜM aralıklarını birlikte)
   // ==================================================
 
-  const toggleActive = async (rule: ScoreRule) => {
-    setRowFeedback(rule.id, { loading: true, error: "", success: "" });
+  const toggleClassActive = async (group: ClassGroup) => {
+    const nextActive = !group.active;
+
+    setClassRowState((current) => ({ ...current, [group.classCode]: { loading: true, error: "", success: "" } }));
 
     try {
-      const res = await fetch(`/api/wingsm/score-rules/${rule.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !rule.active }),
+      const rows = Array.from(group.cellByBracketIndex.values());
+
+      const updated = await Promise.all(
+        rows.map(async (rule) => {
+          const res = await fetch(`/api/wingsm/score-rules/${rule.id}`, {
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: nextActive }),
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok || !payload?.success) {
+            throw new Error(payload?.error || `HTTP ${res.status}`);
+          }
+          return payload.rule as ScoreRule;
+        })
+      );
+
+      setRules((current) => {
+        const byId = new Map(current.map((r) => [r.id, r]));
+        for (const rule of updated) byId.set(rule.id, rule);
+        return Array.from(byId.values());
       });
 
-      const payload = await res.json().catch(() => null);
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: "", success: nextActive ? "Aktif edildi." : "Pasif edildi." },
+      }));
 
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
-
-      const updated: ScoreRule = payload.rule;
-      setRules((current) => current.map((r) => (r.id === updated.id ? updated : r)));
-      setRowFeedback(rule.id, {
-        loading: false,
-        success: updated.active ? "Aktif edildi." : "Pasif edildi.",
-      });
-
-      window.setTimeout(() => setRowFeedback(rule.id, { success: "" }), 2500);
+      window.setTimeout(
+        () =>
+          setClassRowState((current) => ({ ...current, [group.classCode]: { ...current[group.classCode], success: "" } })),
+        2500
+      );
     } catch (err) {
-      setRowFeedback(rule.id, {
-        loading: false,
-        error: err instanceof Error ? err.message : "Durum güncellenemedi.",
-      });
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: err instanceof Error ? err.message : "Durum güncellenemedi.", success: "" },
+      }));
     }
   };
 
   // ==================================================
-  // SATIR SİL (soft delete — bkz. API route yorumu)
+  // SINIFI SİL (soft delete — o sınıfın TÜM aralıkları)
   // ==================================================
 
-  const deleteRow = async (rule: ScoreRule) => {
+  const deleteClassRows = async (group: ClassGroup) => {
     const confirmed = window.confirm(
-      `${rule.class_label} sınıfının ${formatNumber(rule.profit_min)} - ${formatNumber(
-        rule.profit_max
-      )} aralığını pasif hale getirmek istediğine emin misin? (Kalıcı olarak silinmez, denetim için saklanır ve Aktif anahtarıyla geri açılabilir.)`
+      `${group.label} sınıfının tüm kâr aralıklarını pasif hale getirmek istediğine emin misin? (Kalıcı olarak silinmez, Aktif anahtarıyla geri açılabilir.)`
     );
-
     if (!confirmed) return;
 
-    setRowFeedback(rule.id, { loading: true, error: "", success: "" });
+    setClassRowState((current) => ({ ...current, [group.classCode]: { loading: true, error: "", success: "" } }));
 
     try {
-      const res = await fetch(`/api/wingsm/score-rules/${rule.id}`, {
-        method: "DELETE",
-        credentials: "same-origin",
+      const rows = Array.from(group.cellByBracketIndex.values());
+
+      const updated = await Promise.all(
+        rows.map(async (rule) => {
+          const res = await fetch(`/api/wingsm/score-rules/${rule.id}`, {
+            method: "DELETE",
+            credentials: "same-origin",
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok || !payload?.success) {
+            throw new Error(payload?.error || `HTTP ${res.status}`);
+          }
+          return payload.rule as ScoreRule;
+        })
+      );
+
+      setRules((current) => {
+        const byId = new Map(current.map((r) => [r.id, r]));
+        for (const rule of updated) byId.set(rule.id, rule);
+        return Array.from(byId.values());
       });
 
-      const payload = await res.json().catch(() => null);
-
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
-
-      const updated: ScoreRule = payload.rule;
-      setRules((current) => current.map((r) => (r.id === updated.id ? updated : r)));
-      setRowFeedback(rule.id, { loading: false, success: "Pasif hale getirildi." });
-
-      window.setTimeout(() => setRowFeedback(rule.id, { success: "" }), 2500);
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: "", success: "Pasif hale getirildi." },
+      }));
     } catch (err) {
-      setRowFeedback(rule.id, {
-        loading: false,
-        error: err instanceof Error ? err.message : "Silinemedi.",
-      });
+      setClassRowState((current) => ({
+        ...current,
+        [group.classCode]: { loading: false, error: err instanceof Error ? err.message : "Silinemedi.", success: "" },
+      }));
     }
   };
 
   // ==================================================
-  // YENİ KURAL EKLE (yeni sınıf ya da mevcut sınıfa yeni aralık — TEK form,
-  // Excel'deki gibi düz bir satır ekleme mantığı. class_code zaten var olan
-  // bir sınıfla aynıysa bu, o sınıfa yeni bir aralık eklemiş olur; DB'de
-  // class_code üzerinde bir benzersizlik kısıtı yok.)
+  // YENİ SINIF EKLE — 12 sabit aralığın tamamını (skor 0) tek seferde
+  // oluşturur, ızgarada hemen dolu bir satır olarak belirir.
   // ==================================================
 
-  const addClass = async () => {
+  const addNewClassRow = async () => {
+    const classCode = newClassDraft.class_code.trim();
+    const classLabel = newClassDraft.class_label.trim();
+
+    if (!classCode || !classLabel) {
+      setNewClassState({ loading: false, error: "Sınıf Kodu ve Sınıf Adı zorunludur.", success: "" });
+      return;
+    }
+
+    if (rules.some((r) => r.class_code === classCode)) {
+      setNewClassState({ loading: false, error: `"${classCode}" sınıfı zaten var — mevcut satırdan düzenle.`, success: "" });
+      return;
+    }
+
     setNewClassState({ loading: true, error: "", success: "" });
 
     try {
-      const res = await fetch("/api/wingsm/score-rules", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_code: newClassDraft.class_code,
-          class_label: newClassDraft.class_label,
-          profit_min: newClassDraft.profit_min,
-          profit_max: newClassDraft.profit_max,
-          score: newClassDraft.score,
-          active: true,
-        }),
+      const created = await Promise.all(
+        CANON_BRACKETS.map(async (bracket) => {
+          const res = await fetch("/api/wingsm/score-rules", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              class_code: classCode,
+              class_label: classLabel,
+              profit_min: bracket.min,
+              profit_max: bracket.max,
+              score: 0,
+              active: true,
+            }),
+          });
+          const payload = await res.json().catch(() => null);
+          if (!res.ok || !payload?.success) {
+            throw new Error(payload?.error || `HTTP ${res.status}`);
+          }
+          return payload.rule as ScoreRule;
+        })
+      );
+
+      setRules((current) => [...current, ...created]);
+      setDrafts((current) => {
+        const next = { ...current };
+        for (const rule of created) next[rule.id] = ruleToDraft(rule);
+        return next;
       });
-
-      const payload = await res.json().catch(() => null);
-
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
-
-      const created: ScoreRule = payload.rule;
-      setRules((current) => [...current, created]);
-      setDrafts((current) => ({ ...current, [created.id]: ruleToDraft(created) }));
       setNewClassDraft(EMPTY_NEW_CLASS);
-      setNewClassState({ loading: false, error: "", success: "Yeni sınıf eklendi." });
+      setNewClassState({ loading: false, error: "", success: "Yeni sınıf eklendi (12 aralık, puan 0 ile)." });
 
       window.setTimeout(() => setNewClassState((current) => ({ ...current, success: "" })), 3000);
     } catch (err) {
@@ -747,94 +882,104 @@ export default function WingsmDegerPuan() {
         <div className="space-y-6">
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left">
+              <table className="w-full min-w-[1400px] text-left">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-3">Sınıf Kodu</th>
-                    <th className="px-4 py-3">Sınıf Adı</th>
-                    <th className="px-4 py-3">Kâr Alt Sınır</th>
-                    <th className="px-4 py-3">Kâr Üst Sınır</th>
-                    <th className="px-4 py-3">Puan</th>
-                    <th className="px-4 py-3">Durum</th>
-                    <th className="px-4 py-3">İşlemler</th>
+                  <tr className="border-b border-slate-200 bg-yellow-100 text-[8px] font-black uppercase tracking-wide text-slate-600">
+                    <th className="px-3 py-3">Sınıf</th>
+                    <th className="px-3 py-3">Sınıf Kodu</th>
+                    {CANON_BRACKETS.map((b) => (
+                      <th key={b.label} className="px-2 py-3 text-center">
+                        {b.label}
+                      </th>
+                    ))}
+                    <th className="px-3 py-3">İşlemler</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {visibleRules.map((rule) => {
-                    const rowDraft = drafts[rule.id] || ruleToDraft(rule);
-                    const rs = rowState[rule.id] || { loading: false, error: "", success: "" };
+                  {classGroups.map((group) => {
+                    const crs = classRowState[group.classCode] || { loading: false, error: "", success: "" };
 
                     return (
-                      <tr key={rule.id} className={rule.active ? "" : "opacity-60"}>
-                        <td className="px-4 py-3 text-[11px] font-black text-slate-500">{rule.class_code}</td>
-                        <td className="px-4 py-3 text-[11px] font-bold">{rule.class_label}</td>
-                        <td className="px-4 py-3">
-                          <input
-                            value={rowDraft.profit_min}
-                            onChange={(e) => updateDraft(rule.id, "profit_min", e.target.value)}
-                            disabled={rs.loading}
-                            className="h-9 w-28 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
-                          />
+                      <tr key={group.classCode} className={group.active ? "" : "opacity-50"}>
+                        <td className="px-3 py-2 text-[11px] font-bold whitespace-nowrap">{group.label}</td>
+                        <td className="px-3 py-2 text-[11px] font-black text-slate-500 whitespace-nowrap">
+                          {group.classCode}
                         </td>
-                        <td className="px-4 py-3">
-                          <input
-                            value={rowDraft.profit_max}
-                            onChange={(e) => updateDraft(rule.id, "profit_max", e.target.value)}
-                            disabled={rs.loading}
-                            className="h-9 w-28 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            value={rowDraft.score}
-                            onChange={(e) => updateDraft(rule.id, "score", e.target.value)}
-                            disabled={rs.loading}
-                            className="h-9 w-20 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => toggleActive(rule)}
-                            disabled={rs.loading}
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black transition disabled:opacity-50 ${
-                              rule.active
-                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            }`}
-                          >
-                            {rule.active ? "AKTİF" : "PASİF"}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => saveRow(rule)}
-                              disabled={rs.loading}
-                              className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {rs.loading ? "KAYDEDİLİYOR..." : "KAYDET"}
-                            </button>
 
+                        {CANON_BRACKETS.map((bracket, index) => {
+                          const rule = group.cellByBracketIndex.get(index);
+
+                          if (rule) {
+                            const rowDraft = drafts[rule.id] || ruleToDraft(rule);
+                            return (
+                              <td key={bracket.label} className="px-1 py-2">
+                                <input
+                                  value={rowDraft.score}
+                                  onChange={(e) => updateDraft(rule.id, "score", e.target.value)}
+                                  disabled={crs.loading}
+                                  className={`h-9 w-16 rounded-lg border px-1.5 text-center text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50 ${
+                                    rule.active ? "border-slate-200" : "border-rose-200 bg-rose-50/40"
+                                  }`}
+                                />
+                              </td>
+                            );
+                          }
+
+                          const cellKey = `${group.classCode}::${index}`;
+                          return (
+                            <td key={bracket.label} className="px-1 py-2">
+                              <input
+                                value={newCellDrafts[cellKey] ?? ""}
+                                onChange={(e) =>
+                                  setNewCellDrafts((current) => ({ ...current, [cellKey]: e.target.value }))
+                                }
+                                disabled={crs.loading}
+                                placeholder="-"
+                                className="h-9 w-16 rounded-lg border border-dashed border-slate-300 px-1.5 text-center text-[11px] font-semibold text-slate-400 outline-none focus:border-blue-400 disabled:bg-slate-50"
+                              />
+                            </td>
+                          );
+                        })}
+
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => deleteRow(rule)}
-                              disabled={rs.loading || !rule.active}
-                              className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                              onClick={() => saveClassRow(group)}
+                              disabled={crs.loading}
+                              className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-2.5 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {crs.loading ? "..." : "KAYDET"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleClassActive(group)}
+                              disabled={crs.loading}
+                              className={`h-8 whitespace-nowrap rounded-full px-2.5 text-[8px] font-black transition disabled:opacity-50 ${
+                                group.active
+                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {group.active ? "AKTİF" : "PASİF"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteClassRows(group)}
+                              disabled={crs.loading || !group.active}
+                              className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-2.5 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               SİL
                             </button>
                           </div>
-
-                          {rs.error && (
-                            <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-rose-600">
-                              {rs.error}
+                          {crs.error && (
+                            <div className="mt-1 max-w-[180px] text-[8px] font-bold leading-4 text-rose-600">
+                              {crs.error}
                             </div>
                           )}
-                          {rs.success && (
-                            <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-emerald-600">
-                              {rs.success}
+                          {crs.success && (
+                            <div className="mt-1 max-w-[180px] text-[8px] font-bold leading-4 text-emerald-600">
+                              {crs.success}
                             </div>
                           )}
                         </td>
@@ -845,7 +990,7 @@ export default function WingsmDegerPuan() {
               </table>
             </div>
 
-            {visibleRules.length === 0 && (
+            {classGroups.length === 0 && (
               <div className="p-8 text-center text-sm font-bold text-slate-400">Henüz kural yok.</div>
             )}
           </section>
@@ -900,13 +1045,13 @@ export default function WingsmDegerPuan() {
           </section>
 
           <section className="rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-5">
-            <h2 className="text-sm font-black text-blue-800">Yeni Kural Ekle</h2>
+            <h2 className="text-sm font-black text-blue-800">Yeni Sınıf Ekle</h2>
             <p className="mt-1 text-xs font-semibold text-blue-600">
-              Yeni bir sınıf ya da var olan bir sınıfa yeni bir kâr aralığı eklemek için aynı sınıf kodunu
-              kullan — Excel'deki gibi tek bir satır ekleme.
+              Yukarıdaki ızgaraya, 12 kâr aralığının tamamı puan 0 ile hazır olan yeni bir satır ekler —
+              sonrasında hücrelere yazıp o satırın KAYDET&apos;ine basarsın.
             </p>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               <label>
                 <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Sınıf Kodu</div>
                 <input
@@ -925,42 +1070,15 @@ export default function WingsmDegerPuan() {
                   className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
                 />
               </label>
-              <label>
-                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Alt Sınır</div>
-                <input
-                  value={newClassDraft.profit_min}
-                  onChange={(e) => setNewClassDraft((c) => ({ ...c, profit_min: e.target.value }))}
-                  placeholder="-999999999"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                />
-              </label>
-              <label>
-                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Üst Sınır</div>
-                <input
-                  value={newClassDraft.profit_max}
-                  onChange={(e) => setNewClassDraft((c) => ({ ...c, profit_max: e.target.value }))}
-                  placeholder="999999999"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                />
-              </label>
-              <label>
-                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Puan</div>
-                <input
-                  value={newClassDraft.score}
-                  onChange={(e) => setNewClassDraft((c) => ({ ...c, score: e.target.value }))}
-                  placeholder="0"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                />
-              </label>
             </div>
 
             <button
               type="button"
-              onClick={addClass}
+              onClick={addNewClassRow}
               disabled={newClassState.loading}
               className="mt-4 h-10 rounded-lg bg-blue-700 px-5 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-50"
             >
-              {newClassState.loading ? "EKLENİYOR..." : "KURAL EKLE"}
+              {newClassState.loading ? "EKLENİYOR..." : "SINIF EKLE"}
             </button>
 
             {newClassState.error && (
