@@ -19,6 +19,7 @@ import Ihale from './components/screens/Ihale/Ihale';
 import Paratika from './components/screens/Paratika/Paratika';
 import Depo from './components/screens/Depo';
 import WingsmDegerPuan from './components/screens/WingsmDegerPuan';
+import WingsmDegerPuanim from './components/screens/WingsmDegerPuanim';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -4808,16 +4809,7 @@ export default function CnetmobilCmrFinalUltimate() {
             isAdmin ? (
               <WingsmDegerPuan />
             ) : (
-              <div className="animate-in fade-in duration-500 flex flex-col items-center justify-center gap-3 py-24 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="8" strokeWidth="2" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7v5l3.5 2" />
-                  </svg>
-                </div>
-                <div className="text-lg font-black text-slate-800">WingSM Değer Puan</div>
-                <div className="text-sm font-bold text-blue-600 uppercase tracking-widest">Çok Yakında</div>
-              </div>
+              <WingsmDegerPuanim selectedBranch={selectedBranch} />
             )
           ) :
 

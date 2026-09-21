@@ -149,6 +149,28 @@ export function requireAdminSession(request: NextRequest) {
   return { ok: true as const, session };
 }
 
+// requireAdminSession'ın AYNI HMAC doğrulama/expiry mantığı — sadece
+// "role !== admin" reddi YOK. WingSM Değer Puanım (personel-facing) gibi
+// hem admin hem personel oturumuna açık olması gereken uçlar için (bkz.
+// app/api/wingsm/deger-puanim/route.ts). Katı mağaza sınırı (personel
+// SADECE kendi şubesini görebilir) bu fonksiyonda DEĞİL, onu çağıran
+// route'un içinde uygulanır.
+export function requireValidSession(request: NextRequest) {
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+
+  if (!token) {
+    return { ok: false as const, response: json({ success: false, error: "Oturum bulunamadı." }, 401) };
+  }
+
+  const session = verifySession(token);
+
+  if (!session) {
+    return { ok: false as const, response: json({ success: false, error: "Oturum geçersiz." }, 401) };
+  }
+
+  return { ok: true as const, session };
+}
+
 // ======================================================
 // VALIDATION (POST + PATCH ortak — client'a güvenilmez)
 // ======================================================
