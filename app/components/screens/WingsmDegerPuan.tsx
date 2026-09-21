@@ -71,6 +71,8 @@ type StoreReportRow = {
   depotCode: string;
   saleCount: number;
   totalScore: number;
+  multiplier: number;
+  carpanliPuan: number;
 };
 
 type PersonnelReportRow = {
@@ -79,6 +81,7 @@ type PersonnelReportRow = {
   saticiAdi: string;
   saleCount: number;
   totalScore: number;
+  carpanliPuan: number;
 };
 
 type DetailReportRow = {
@@ -112,6 +115,7 @@ type DegerPuanReport = {
   excludedOutOfScopeCount: number;
   totalSaleCount: number;
   totalScore: number;
+  totalCarpanliPuan: number;
 };
 
 // Bugünün ayının 1'i -> bugün, "GG.AA.YYYY" biçiminde (admin/page.tsx'teki
@@ -209,6 +213,8 @@ export default function WingsmDegerPuan() {
         Mağaza: s.branchLabel,
         "Satış Adedi": s.saleCount,
         "Toplam Puan": s.totalScore,
+        Çarpan: s.multiplier,
+        "Çarpanlı Puan": s.carpanliPuan,
       }))
     );
 
@@ -219,6 +225,7 @@ export default function WingsmDegerPuan() {
         Satıcı: p.saticiAdi,
         "Satış Adedi": p.saleCount,
         "Toplam Puan": p.totalScore,
+        "Çarpanlı Puan": p.carpanliPuan,
       }))
     );
 
@@ -278,6 +285,133 @@ export default function WingsmDegerPuan() {
       setMigrating(false);
     }
   };
+
+  // ==================================================
+  // EXCEL İLE EŞİTLE (bkz. app/api/wingsm/score-rules/resync/route.ts —
+  // migrate idempotent olduğu için, kurulum düzeltmeden önce bir kez
+  // çalıştıysa DB'de eski/yanlış değerler kalmış olabilir; bu buton
+  // bilinen 5 sınıf x 12 aralığı Excel kaynağıyla yeniden eşitler)
+  // ==================================================
+
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncMessage, setResyncMessage] = useState("");
+
+  const runResync = async () => {
+    setResyncing(true);
+    setResyncMessage("");
+
+    try {
+      const res = await fetch("/api/wingsm/score-rules/resync", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      setResyncMessage(payload.message || "Eşitlendi.");
+      await loadRules();
+    } catch (err) {
+      setResyncMessage(`Eşitleme başarısız: ${err instanceof Error ? err.message : "Bilinmeyen hata."}`);
+    } finally {
+      setResyncing(false);
+    }
+  };
+
+  // ==================================================
+  // MAĞAZA ÇARPANI (Excel'deki "MAĞAZA ÇARPANI" tablosu)
+  // ==================================================
+
+  type StoreMultiplier = { branch_label: string; multiplier: string };
+
+  const [multipliers, setMultipliers] = useState<StoreMultiplier[]>([]);
+  const [multiplierDrafts, setMultiplierDrafts] = useState<Record<string, string>>({});
+  const [multiplierState, setMultiplierState] = useState<Record<string, RowState>>({});
+
+  const loadMultipliers = async () => {
+    try {
+      const res = await fetch("/api/wingsm/store-multipliers", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      const loaded: StoreMultiplier[] = payload.multipliers || [];
+      setMultipliers(loaded);
+
+      const nextDrafts: Record<string, string> = {};
+      for (const m of loaded) {
+        nextDrafts[m.branch_label] = m.multiplier;
+      }
+      setMultiplierDrafts(nextDrafts);
+    } catch {
+      // Sessiz geç — mağaza çarpanı henüz kurulmamışsa (tablo yok) rapor
+      // motoru zaten hepsini 1 kabul ediyor, bu ekranda ayrıca hata
+      // banner'ı göstermeye gerek yok.
+    }
+  };
+
+  const saveMultiplier = async (branchLabel: string) => {
+    const value = multiplierDrafts[branchLabel];
+
+    setMultiplierState((current) => ({
+      ...current,
+      [branchLabel]: { loading: true, error: "", success: "" },
+    }));
+
+    try {
+      const res = await fetch("/api/wingsm/store-multipliers", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchLabel, multiplier: value }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadMultipliers();
+      setMultiplierState((current) => ({
+        ...current,
+        [branchLabel]: { loading: false, error: "", success: "Kaydedildi." },
+      }));
+
+      window.setTimeout(
+        () =>
+          setMultiplierState((current) => ({
+            ...current,
+            [branchLabel]: { ...current[branchLabel], success: "" },
+          })),
+        2500
+      );
+    } catch (err) {
+      setMultiplierState((current) => ({
+        ...current,
+        [branchLabel]: {
+          loading: false,
+          error: err instanceof Error ? err.message : "Kaydedilemedi.",
+          success: "",
+        },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    loadMultipliers();
+  }, []);
 
   // ==================================================
   // VERİ YÜKLE
@@ -554,15 +688,33 @@ export default function WingsmDegerPuan() {
           </p>
         </div>
 
-        <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-          />
-          Pasif kuralları da göster
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Pasif kuralları da göster
+          </label>
+
+          <button
+            type="button"
+            onClick={runResync}
+            disabled={resyncing}
+            title="Bilinen 5 sınıf x 12 aralığın puanını Excel kaynağıyla yeniden eşitler. Sonradan eklediğin başka sınıf/aralıklara dokunmaz."
+            className="h-9 whitespace-nowrap rounded-lg bg-amber-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resyncing ? "EŞİTLENİYOR..." : "EXCEL İLE EŞİTLE"}
+          </button>
+        </div>
       </div>
+
+      {resyncMessage && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+          {resyncMessage}
+        </div>
+      )}
 
       {loadError && (
         <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
@@ -696,6 +848,55 @@ export default function WingsmDegerPuan() {
             {visibleRules.length === 0 && (
               <div className="p-8 text-center text-sm font-bold text-slate-400">Henüz kural yok.</div>
             )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="text-lg font-black">Mağaza Çarpanı</div>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Her mağazanın Toplam Puanını Çarpanlı Puana çeviren katsayı (Excel&apos;deki &quot;MAĞAZA
+                ÇARPANI&quot; tablosu — varsayılan 1).
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+              {multipliers.map((m) => {
+                const ms = multiplierState[m.branch_label] || { loading: false, error: "", success: "" };
+                return (
+                  <div key={m.branch_label} className="rounded-xl border border-slate-200 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                      {m.branch_label}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={multiplierDrafts[m.branch_label] ?? m.multiplier}
+                        onChange={(e) =>
+                          setMultiplierDrafts((current) => ({ ...current, [m.branch_label]: e.target.value }))
+                        }
+                        disabled={ms.loading}
+                        className="h-9 w-20 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400 disabled:bg-slate-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveMultiplier(m.branch_label)}
+                        disabled={ms.loading}
+                        className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {ms.loading ? "..." : "KAYDET"}
+                      </button>
+                    </div>
+                    {ms.error && <div className="mt-2 text-[8px] font-bold text-rose-600">{ms.error}</div>}
+                    {ms.success && <div className="mt-2 text-[8px] font-bold text-emerald-600">{ms.success}</div>}
+                  </div>
+                );
+              })}
+
+              {multipliers.length === 0 && (
+                <div className="col-span-full text-xs font-bold text-slate-400">
+                  Mağaza çarpanı tablosu henüz kurulmadı — yukarıdaki bir kaydet işlemiyle otomatik oluşturulacak,
+                  şimdilik hepsi 1 kabul ediliyor.
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-5">
@@ -878,19 +1079,22 @@ export default function WingsmDegerPuan() {
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                   <div className="text-lg font-black">Mağaza Bazlı</div>
                   <div className="text-xs font-bold text-slate-400">
-                    Toplam {report.totalSaleCount} satış / {formatNumber(String(report.totalScore))} puan
+                    Toplam {report.totalSaleCount} satış / {formatNumber(String(report.totalScore))} puan /{" "}
+                    {formatNumber(String(report.totalCarpanliPuan))} çarpanlı puan
                     {report.excludedOutOfScopeCount > 0 && (
                       <> · {report.excludedOutOfScopeCount} satış Değer Puan kapsamı dışında (kayıtlı sınıf değil) hariç tutuldu</>
                     )}
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] text-left">
+                  <table className="w-full min-w-[560px] text-left">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
+                        <th className="px-4 py-3">Çarpan</th>
+                        <th className="px-4 py-3">Çarpanlı Puan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -899,6 +1103,8 @@ export default function WingsmDegerPuan() {
                           <td className="px-4 py-3 text-[11px] font-bold">{s.branchLabel}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{s.saleCount}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.totalScore))}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.multiplier))}</td>
+                          <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(s.carpanliPuan))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -909,13 +1115,14 @@ export default function WingsmDegerPuan() {
               <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">Personel Bazlı</div>
                 <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[560px] text-left">
+                  <table className="w-full min-w-[640px] text-left">
                     <thead>
                       <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Satıcı</th>
                         <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
+                        <th className="px-4 py-3">Çarpanlı Puan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -925,11 +1132,12 @@ export default function WingsmDegerPuan() {
                           <td className="px-4 py-3 text-[11px] font-semibold">{p.saticiAdi || p.saticiKod}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{p.saleCount}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(p.totalScore))}</td>
+                          <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(p.carpanliPuan))}</td>
                         </tr>
                       ))}
                       {report.personnel.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
                             Bu aralıkta satış bulunamadı.
                           </td>
                         </tr>

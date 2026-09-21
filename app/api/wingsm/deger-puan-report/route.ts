@@ -106,6 +106,8 @@ type StoreAgg = {
   depotCode: string;
   saleCount: number;
   totalScore: number;
+  multiplier: number;
+  carpanliPuan: number;
 };
 
 type PersonnelAgg = {
@@ -114,6 +116,7 @@ type PersonnelAgg = {
   saticiAdi: string;
   saleCount: number;
   totalScore: number;
+  carpanliPuan: number;
 };
 
 // Bir satış satırı için (normalize edilmiş sınıf kodu, kârlılık) ikilisine
@@ -168,6 +171,25 @@ export async function POST(request: NextRequest) {
       profit_max: Number(r.profit_max),
       score: Number(r.score),
     }));
+
+    // Mağaza çarpanı (Excel'deki "MAĞAZA ÇARPANI" tablosu — bkz.
+    // app/api/wingsm/store-multipliers/route.ts). Tablo henüz
+    // oluşturulmamışsa (admin hiç "Mağaza Çarpanı" ekranını açmadıysa)
+    // raporu ÇÖKERTMEDEN hepsi 1 kabul edilir.
+    const multiplierByBranch = new Map<string, number>(
+      CMR_DEPOTS.map((depot) => [depot.branchLabel, 1])
+    );
+
+    try {
+      const multiplierResult = await pool.query(
+        `SELECT branch_label, multiplier FROM public.wingsm_store_multipliers`
+      );
+      for (const row of multiplierResult.rows) {
+        multiplierByBranch.set(String(row.branch_label), Number(row.multiplier));
+      }
+    } catch {
+      // Tablo yok — varsayılan (hepsi 1) ile devam.
+    }
 
     // --------------------------------------------------
     // 2) 4 CMR DEPOSUNU PARALEL SORGULA (sıralı await YOK — server.ts'teki
@@ -227,6 +249,8 @@ export async function POST(request: NextRequest) {
         depotCode: depot.depotCode,
         saleCount: 0,
         totalScore: 0,
+        multiplier: multiplierByBranch.get(depot.branchLabel) ?? 1,
+        carpanliPuan: 0,
       });
     }
 
@@ -263,6 +287,7 @@ export async function POST(request: NextRequest) {
           saticiAdi,
           saleCount: 1,
           totalScore: score,
+          carpanliPuan: 0,
         });
       }
 
@@ -293,12 +318,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    for (const store of storeMap.values()) {
+      store.carpanliPuan = store.totalScore * store.multiplier;
+    }
+
+    for (const person of personnelMap.values()) {
+      const multiplier = multiplierByBranch.get(person.branchLabel) ?? 1;
+      person.carpanliPuan = person.totalScore * multiplier;
+    }
+
     const stores = CMR_DEPOTS.map((depot) => storeMap.get(depot.depotCode)!);
 
-    const personnel = Array.from(personnelMap.values()).sort((a, b) => b.totalScore - a.totalScore);
+    const personnel = Array.from(personnelMap.values()).sort((a, b) => b.carpanliPuan - a.carpanliPuan);
 
     const totalSaleCount = stores.reduce((sum, s) => sum + s.saleCount, 0);
     const totalScore = stores.reduce((sum, s) => sum + s.totalScore, 0);
+    const totalCarpanliPuan = stores.reduce((sum, s) => sum + s.carpanliPuan, 0);
 
     return json({
       success: true,
@@ -311,6 +346,7 @@ export async function POST(request: NextRequest) {
       excludedOutOfScopeCount,
       totalSaleCount,
       totalScore,
+      totalCarpanliPuan,
     });
   } catch (error) {
     console.error("WINGSM_DEGER_PUAN_REPORT_ERROR:", error);
