@@ -436,7 +436,12 @@ export async function POST(request: NextRequest) {
       const hedef = storeTargetByBranch.get(store.branchLabel);
       store.hedef = hedef !== undefined ? hedef : null;
       store.projeksiyon = store.carpanliPuan * projectionFactor;
-      store.hedefYuzdesi = hedef && hedef > 0 ? (store.projeksiyon / hedef) * 100 : null;
+      // Hedef % ve mağaza sıralaması GERÇEKLEŞENE göredir (projeksiyona göre
+      // DEĞİL) — kullanıcının açık talimatı: "hedef gerçekleşen yüzdesine
+      // göre sıralama olsun". Personel tarafında da AYNI mantık (carpanliPuan
+      // / hedef) kullanılıyor, tutarlılık için. Projeksiyon ayrı, sadece
+      // bilgi amaçlı "ay sonu tahmini" olarak gösteriliyor.
+      store.hedefYuzdesi = hedef && hedef > 0 ? (store.carpanliPuan / hedef) * 100 : null;
     }
 
     // Mağaza bonus puanı: sadece hedefi olan mağazalar arasında, hedef
