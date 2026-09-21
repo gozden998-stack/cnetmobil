@@ -204,6 +204,9 @@ function isManagerUser(user: ActiveUser) {
   return !user.isSuperAdmin && String(user.role || '').trim().toLowerCase() === 'admin';
 }
 
+// Yönetici mail oturumu CNET ve MERKEZ depolarını yönetebilir.
+const MANAGER_BRANCHES = ['CNET', 'MERKEZ'];
+
 function parsePositiveId(value: unknown) {
   const id = Number(value);
 
@@ -415,9 +418,15 @@ export async function GET(request: NextRequest) {
     const managerAccess = isManagerUser(user);
 
     if (!user.isSuperAdmin) {
-      const effectiveBranch = managerAccess ? 'CNET' : user.stockBranchCode;
+      // Yönetici mail hem CNET hem MERKEZ depolarının taleplerini görür.
+      // Normal kullanıcı yalnızca kendi mağazasının taleplerini görür.
+      const effectiveBranches = managerAccess
+        ? MANAGER_BRANCHES
+        : user.stockBranchCode
+          ? [user.stockBranchCode]
+          : [];
 
-      if (!effectiveBranch) {
+      if (effectiveBranches.length === 0) {
         return json(
           {
             success: false,
@@ -427,11 +436,11 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      params.push(effectiveBranch);
+      params.push(effectiveBranches);
       whereSql = `
         WHERE
-          dr.requester_branch_code = $1
-          OR dr.owner_branch_code = $1
+          dr.requester_branch_code = ANY($1::text[])
+          OR dr.owner_branch_code = ANY($1::text[])
       `;
     }
 
@@ -485,7 +494,9 @@ export async function GET(request: NextRequest) {
         stockBranchCode: user.stockBranchCode,
         isSuperAdmin: user.isSuperAdmin,
         isManager: managerAccess,
-        effectiveRequestBranch: managerAccess ? 'CNET' : user.stockBranchCode,
+        effectiveRequestBranch: managerAccess
+          ? MANAGER_BRANCHES.join(',')
+          : user.stockBranchCode,
       },
       requests: result.rows,
       count: result.rows.length,
@@ -549,10 +560,12 @@ export async function POST(request: NextRequest) {
     if (user.isSuperAdmin && requestedRequesterBranch) {
       requesterBranch = requestedRequesterBranch;
     } else if (managerAccess) {
-      // Yönetici mail CNET deposunu temsil eder.
-      // CMR / CADDE / KAPAKLI / SARAY cihazlarına yaptığı talepler CNET adına açılır.
-      // Body'den farklı requesterBranchCode göndererek bu kural aşılamaz.
-      requesterBranch = 'CNET';
+      // Yönetici mail CNET veya MERKEZ deposunu temsil edebilir.
+      // Body'de açıkça CNET/MERKEZ dışında bir requesterBranchCode gönderilirse
+      // aşağıdaki kontrol isteği reddeder; boş bırakılırsa varsayılan CNET'tir.
+      requesterBranch = MANAGER_BRANCHES.includes(requestedRequesterBranch)
+        ? requestedRequesterBranch
+        : 'CNET';
     } else {
       if (!user.stockBranchCode) {
         return json(
@@ -570,12 +583,12 @@ export async function POST(request: NextRequest) {
     if (
       managerAccess &&
       requestedRequesterBranch &&
-      requestedRequesterBranch !== 'CNET'
+      !MANAGER_BRANCHES.includes(requestedRequesterBranch)
     ) {
       return json(
         {
           success: false,
-          error: 'Yönetici talepleri yalnızca CNET deposu adına oluşturabilir.',
+          error: 'Yönetici talepleri yalnızca CNET veya MERKEZ deposu adına oluşturabilir.',
         },
         403
       );
@@ -922,7 +935,7 @@ export async function PATCH(request: NextRequest) {
     const canManageRequest =
       user.isSuperAdmin ||
       (managerAccess
-        ? ownerBranch === 'CNET'
+        ? MANAGER_BRANCHES.includes(ownerBranch)
         : user.stockBranchCode === ownerBranch);
 
     if (!canManageRequest) {
@@ -931,7 +944,7 @@ export async function PATCH(request: NextRequest) {
         {
           success: false,
           error: managerAccess
-            ? 'Yönetici yalnızca CNET deposuna gelen talepleri yönetebilir.'
+            ? 'Yönetici yalnızca CNET veya MERKEZ deposuna gelen talepleri yönetebilir.'
             : 'Başka mağazanın talebini yönetemezsiniz.',
         },
         403

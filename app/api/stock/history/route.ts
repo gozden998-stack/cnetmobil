@@ -16,7 +16,7 @@ declare global {
 }
 
 const COOKIE_NAME = 'cnet_auth';
-const BRANCHES = new Set(['CNET', 'CMR', 'CADDE', 'KAPAKLI', 'SARAY']);
+const BRANCHES = new Set(['CNET', 'MERKEZ', 'CMR', 'CADDE', 'KAPAKLI', 'SARAY']);
 const MAX_ROWS = 500;
 
 type SessionPayload = {

@@ -227,6 +227,10 @@ function isManagerUser(user: ActiveUser) {
   return !user.isSuperAdmin && String(user.role || '').trim().toLowerCase() === 'admin';
 }
 
+// Yönetici mail oturumu CNET ve MERKEZ depolarını yönetebilir.
+// Diğer mağazalar (CMR/CADDE/KAPAKLI/SARAY) bu yetkinin dışında kalır.
+const MANAGER_BRANCHES = ['CNET', 'MERKEZ'];
+
 function normalizeImei(value: unknown) {
   return String(value ?? '').replace(/\s+/g, '').trim();
 }
@@ -332,7 +336,7 @@ export async function GET(request: NextRequest) {
     const canManage =
       user.isSuperAdmin ||
       (managerAccess
-        ? requestedBranch === 'CNET'
+        ? MANAGER_BRANCHES.includes(requestedBranch)
         : user.stockBranchCode === requestedBranch);
 
     const pool = getPool();
@@ -407,7 +411,7 @@ export async function GET(request: NextRequest) {
     // - Daha önce talep edilmiş REQUESTED / TRANSFER_WAITING cihazlar,
     //   talep takibinin kaybolmaması için görünmeye devam eder.
     const visibleDevices =
-      requestedBranch === 'CNET' && !canManage
+      (requestedBranch === 'CNET' || requestedBranch === 'MERKEZ') && !canManage
         ? rawDevices.filter((device: Record<string, any>) => {
             const status = String(device.status ?? '')
               .trim()
@@ -503,18 +507,19 @@ export async function POST(request: NextRequest) {
     if (user.isSuperAdmin && requestedBranch) {
       targetBranch = requestedBranch;
     } else if (managerAccess) {
-      // Yönetici mail yalnızca CNET deposunu yönetir.
-      if (requestedBranch && requestedBranch !== 'CNET') {
+      // Yönetici mail yalnızca CNET veya MERKEZ deposunu yönetir.
+      if (requestedBranch && !MANAGER_BRANCHES.includes(requestedBranch)) {
         return json(
           {
             success: false,
-            error: 'Yönetici yalnızca CNET deposunda stok işlemi yapabilir.',
+            error: 'Yönetici yalnızca CNET veya MERKEZ deposunda stok işlemi yapabilir.',
           },
           403
         );
       }
 
-      targetBranch = 'CNET';
+      // Depo belirtilmediyse mevcut varsayılan davranış korunur: CNET.
+      targetBranch = requestedBranch || 'CNET';
     } else {
       if (!user.stockBranchCode) {
         return json(
@@ -859,7 +864,7 @@ export async function PATCH(request: NextRequest) {
     const canEditDevice =
       user.isSuperAdmin ||
       (managerAccess
-        ? ownerBranch === 'CNET'
+        ? MANAGER_BRANCHES.includes(ownerBranch)
         : user.stockBranchCode === ownerBranch);
 
     if (!canEditDevice) {
@@ -868,7 +873,7 @@ export async function PATCH(request: NextRequest) {
         {
           success: false,
           error: managerAccess
-            ? 'Yönetici yalnızca CNET deposundaki cihazları düzenleyebilir.'
+            ? 'Yönetici yalnızca CNET veya MERKEZ deposundaki cihazları düzenleyebilir.'
             : 'Başka mağazanın cihazını düzenleyemezsiniz.',
         },
         403
