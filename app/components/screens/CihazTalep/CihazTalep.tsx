@@ -17,7 +17,7 @@ type CihazTalepProps = {
   setCihazTalepPage: React.Dispatch<React.SetStateAction<number>>;
   openActiveRequestsSignal: number;
   selectedBranch: string;
-  stockSourceBranch?: 'CNET' | 'CMR' | 'CADDE' | 'KAPAKLI' | 'SARAY';
+  stockSourceBranch?: 'CNET' | 'MERKEZ' | 'CMR' | 'CADDE' | 'KAPAKLI' | 'SARAY';
   isAdmin: boolean;
   isMasterAccess: boolean;
   isSuperAdminUser: boolean;
@@ -48,6 +48,8 @@ const [gonderildiLoadingIndex, setGonderildiLoadingIndex] = useState<number | nu
 const [redLoadingIndex, setRedLoadingIndex] = useState<number | null>(null);
 const [deleteTalepLoadingIndex, setDeleteTalepLoadingIndex] = useState<number | null>(null);
 const [aktifTaleplerModalOpen, setAktifTaleplerModalOpen] = useState(false);
+const [selectedTalepRowIndexes, setSelectedTalepRowIndexes] = useState<Set<number>>(new Set());
+const [topluGonderLoading, setTopluGonderLoading] = useState(false);
 const [transferBekleyenModalOpen, setTransferBekleyenModalOpen] = useState(false);
 const [hareketGecmisiModalOpen, setHareketGecmisiModalOpen] = useState(false);
 const [hareketGecmisiLoading, setHareketGecmisiLoading] = useState(false);
@@ -334,6 +336,7 @@ type CihazTalepDialog =
   | null
   | { type: 'adet'; rowIndex: number; modelName: string; stokAdedi: number }
   | { type: 'gonder'; rowIndex: number; cihazAdi: string; magaza: string }
+  | { type: 'toplu_gonder'; rowIndexes: number[]; count: number }
   | { type: 'red'; rowIndex: number; cihazAdi: string; magaza: string }
   | { type: 'cihaz_ekle' }
   | { type: 'cihaz_toplu_ekle' }
@@ -364,6 +367,7 @@ const showTalepMessage = (title: string, message: string, tone: 'success' | 'err
 };
 
 const isCnetStockSource = stockSourceBranch === 'CNET';
+const isCnetOrMerkezStockSource = stockSourceBranch === 'CNET' || stockSourceBranch === 'MERKEZ';
 
 // Excel detay işlemi SADECE yönetici mail + CNET depo ekranında görünür.
 // Diğer mağazalarda ve normal personelde bu butonlar hiç render edilmez.
@@ -373,7 +377,7 @@ const canUseCnetDetailExcel = Boolean(isMasterAccess && isCnetStockSource);
 // ------------------------------------------------------
 // 1) Super Admin: seçili tüm mağaza stoklarını yönetebilir.
 // 2) Yönetici mail / master access:
-//    - CNET seçiliyse kendi depo gibi DÜZENLE görür.
+//    - CNET veya MERKEZ seçiliyse kendi depo gibi DÜZENLE görür.
 //    - CMR / CADDE / KAPAKLI / SARAY seçiliyse DÜZENLE görmez,
 //      cihaz uygun durumdaysa TALEP OL görür.
 // 3) Normal mağaza kullanıcısı:
@@ -383,7 +387,7 @@ const canUseCnetDetailExcel = Boolean(isMasterAccess && isCnetStockSource);
 const canManageCihazStock = stockSourceBranch
   ? Boolean(
       isSuperAdminUser ||
-      (isMasterAccess ? isCnetStockSource : postgresCanManage)
+      (isMasterAccess ? isCnetOrMerkezStockSource : postgresCanManage)
     )
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
 
@@ -1431,6 +1435,124 @@ const submitGonderildi = async () => {
     showTalepMessage('İŞLEM HATASI', 'Gönderildi işlemi sırasında bir hata oluştu.', 'error');
   } finally {
     setGonderildiLoadingIndex(null);
+  }
+};
+
+// Aktif Talepler modalındaki, o an ekranda görünen (bekleyen) taleplerin
+// satır numaralarını döner. Hem tablo render'ında hem toplu seçim/gönderim
+// akışında aynı filtre mantığının tek kaynağı olsun diye buraya alındı.
+const getAktifTalepRowIndexes = () => {
+  const indexes: number[] = [];
+  effectiveCihazTalepData.forEach((row, originalIndex) => {
+    if (originalIndex === 0) return; // Header atla
+    const magazaAdi = (row[9] || '').toString().trim();
+    const talepDurumu = (row[11] || '').toString().trim().toUpperCase();
+    const isRejected = talepDurumu === 'RED EDİLDİ' || talepDurumu === 'REDDEDİLDİ';
+    const isSent = talepDurumu === 'GÖNDERİLDİ' || talepDurumu === 'GONDERILDI';
+    if (!magazaAdi || isRejected || isSent) return;
+    indexes.push(originalIndex + 1);
+  });
+  return indexes;
+};
+
+const toggleTalepRowSelection = (rowIndex: number) => {
+  setSelectedTalepRowIndexes((prev) => {
+    const next = new Set(prev);
+    if (next.has(rowIndex)) {
+      next.delete(rowIndex);
+    } else {
+      next.add(rowIndex);
+    }
+    return next;
+  });
+};
+
+const toggleSelectAllTalepRows = () => {
+  const visibleRowIndexes = getAktifTalepRowIndexes();
+  setSelectedTalepRowIndexes((prev) => {
+    const allSelected = visibleRowIndexes.length > 0 && visibleRowIndexes.every((idx) => prev.has(idx));
+    return allSelected ? new Set() : new Set(visibleRowIndexes);
+  });
+};
+
+const handleTopluGonder = () => {
+  if (!canManageActiveRequests) {
+    showTalepMessage(
+      'YETKİ GEREKLİ',
+      stockSourceBranch
+        ? 'Yalnızca kendi mağazanıza gelen taleplerde bu işlemi yapabilirsiniz.'
+        : 'Bu işlemi yalnızca yöneticiler gerçekleştirebilir.',
+      'error'
+    );
+    return;
+  }
+
+  const rowIndexes = Array.from(selectedTalepRowIndexes);
+  if (rowIndexes.length === 0) return;
+
+  setCihazTalepDialog({ type: 'toplu_gonder', rowIndexes, count: rowIndexes.length });
+};
+
+const submitTopluGonder = async () => {
+  if (!cihazTalepDialog || cihazTalepDialog.type !== 'toplu_gonder') return;
+
+  const { rowIndexes } = cihazTalepDialog;
+  setTopluGonderLoading(true);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  try {
+    // Sıralı (sequential) gönderim tercih edildi: aynı anda birden fazla
+    // PATCH isteği depo stok/talep durumunu güncellerken yarış durumuna
+    // (race condition) yol açabilir; tek tek göndermek biraz daha yavaş
+    // ama güvenli.
+    for (const rowIndex of rowIndexes) {
+      try {
+        const row = effectiveCihazTalepData[rowIndex - 1];
+        const requestId = Number(row?.[17]);
+
+        if (!requestId) {
+          failCount += 1;
+          continue;
+        }
+
+        const response = await fetch('/api/stock/requests', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            requestId,
+            action: 'SEND',
+          }),
+        });
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || !result?.success) {
+          failCount += 1;
+        } else {
+          successCount += 1;
+        }
+      } catch (err) {
+        console.error(err);
+        failCount += 1;
+      }
+    }
+
+    await loadPostgresStock();
+    setSelectedTalepRowIndexes(new Set());
+    setCihazTalepDialog(null);
+
+    if (failCount === 0) {
+      showTalepMessage('GÖNDERİLDİ', `${successCount} talep gönderildi.`, 'success');
+    } else if (successCount === 0) {
+      showTalepMessage('İŞLEM BAŞARISIZ', `${failCount} talep gönderilemedi.`, 'error');
+    } else {
+      showTalepMessage('KISMEN TAMAMLANDI', `${successCount} talep gönderildi, ${failCount} talep başarısız oldu.`, 'info');
+    }
+  } finally {
+    setTopluGonderLoading(false);
   }
 };
 
@@ -3124,6 +3246,29 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
         </>
       )}
 
+      {cihazTalepDialog.type === 'toplu_gonder' && (
+        <>
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-7 py-6 text-white">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <div><h3 className="text-xl font-black">TOPLU GÖNDERİM ONAYI</h3><p className="mt-1 text-xs font-bold text-emerald-100">İşlemi onaylamadan önce kontrol edin</p></div>
+            </div>
+          </div>
+          <div className="p-7">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="flex justify-between gap-4"><span className="text-xs font-bold text-slate-400">SEÇİLEN TALEP</span><span className="text-right text-sm font-black text-slate-900">{cihazTalepDialog.count} adet</span></div>
+            </div>
+            <p className="mt-4 text-sm font-semibold leading-relaxed text-slate-600">Seçili <b>{cihazTalepDialog.count}</b> talebi göndermek istediğinize emin misiniz? Talepler <b>GÖNDERİLDİ</b> olarak işaretlenecek ve mağazalar bu durumu anlık görecek.</p>
+            <div className="mt-6 flex gap-3">
+              <button onClick={() => setCihazTalepDialog(null)} disabled={topluGonderLoading} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
+              <button onClick={submitTopluGonder} disabled={topluGonderLoading} className="flex-[1.4] rounded-2xl bg-emerald-600 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 disabled:opacity-50">{topluGonderLoading ? 'İŞLENİYOR...' : 'SEÇİLENLERİ GÖNDER'}</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {cihazTalepDialog.type === 'red' && (
         <>
           <div className="bg-gradient-to-r from-red-600 to-rose-600 px-7 py-6 text-white">
@@ -3546,7 +3691,16 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 )}
 
 {/* AKTİF TALEPLER DETAY MODALI (YÖNETİCİYE ÖZEL - GÖNDERİLDİ İŞLEMLİ) */}
-{aktifTaleplerModalOpen && (
+{aktifTaleplerModalOpen && (() => {
+  const isBulkSendEnabled = isCnetOrMerkezStockSource && canManageActiveRequests;
+  const visibleTalepRowIndexes = getAktifTalepRowIndexes();
+  const selectedVisibleCount = visibleTalepRowIndexes.filter((idx) => selectedTalepRowIndexes.has(idx)).length;
+  const allVisibleSelected = visibleTalepRowIndexes.length > 0 && selectedVisibleCount === visibleTalepRowIndexes.length;
+  const talepGridCols = isBulkSendEnabled
+    ? 'grid-cols-[32px_150px_110px_155px_190px_90px_110px_80px_100px_80px_190px]'
+    : 'grid-cols-[150px_110px_155px_190px_90px_110px_80px_100px_80px_190px]';
+
+  return (
   <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 print:hidden">
     <div className="bg-white rounded-[40px] shadow-2xl p-8 w-full max-w-7xl relative animate-in fade-in zoom-in duration-300 border border-slate-100 flex flex-col max-h-[85vh]">
       <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-5 shrink-0">
@@ -3561,15 +3715,39 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
         </div>
         <div className="flex items-center gap-2">
           <button onClick={aktifTalepleriExcelIndir} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">EXCEL İNDİR</button>
-          <button onClick={() => setAktifTaleplerModalOpen(false)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-2xl transition-all btn-click">
+          <button onClick={() => { setAktifTaleplerModalOpen(false); setSelectedTalepRowIndexes(new Set()); }} className="text-slate-400 hover:text-red-500 hover:bg-red-50 bg-slate-50 border border-slate-200 p-3 rounded-2xl transition-all btn-click">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
       </div>
 
+      {isBulkSendEnabled && selectedVisibleCount > 0 && (
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3.5">
+          <span className="text-xs font-black uppercase tracking-widest text-emerald-700">{selectedVisibleCount} talep seçildi</span>
+          <button
+            type="button"
+            onClick={handleTopluGonder}
+            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm shadow-emerald-200 transition-all btn-click hover:bg-emerald-700"
+          >
+            SEÇİLENLERİ GÖNDER
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto custom-scrollbar flex-1 pb-2">
         <div className="min-w-[1320px]">
-          <div className="grid grid-cols-[150px_110px_155px_190px_90px_110px_80px_100px_80px_190px] items-center rounded-2xl bg-emerald-600 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-md">
+          <div className={`grid ${talepGridCols} items-center rounded-2xl bg-emerald-600 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-md`}>
+            {isBulkSendEnabled && (
+              <div className="flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllTalepRows}
+                  aria-label="Hepsini seç"
+                  className="h-4 w-4 cursor-pointer rounded border-white/40 accent-emerald-900"
+                />
+              </div>
+            )}
             <div>TARİH / SAAT</div>
             <div>MAĞAZA</div>
             <div>IMEI</div>
@@ -3603,7 +3781,18 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               const isProcessing = gonderildiLoadingIndex === rowIndex || redLoadingIndex === rowIndex;
 
               return (
-                <div key={originalIndex} className="grid grid-cols-[150px_110px_155px_190px_90px_110px_80px_100px_80px_190px] items-center border-b border-slate-100 px-5 py-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                <div key={originalIndex} className={`grid ${talepGridCols} items-center border-b border-slate-100 px-5 py-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50`}>
+                  {isBulkSendEnabled && (
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedTalepRowIndexes.has(rowIndex)}
+                        onChange={() => toggleTalepRowSelection(rowIndex)}
+                        aria-label={`${magazaAdi} talebini seç`}
+                        className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-emerald-600"
+                      />
+                    </div>
+                  )}
                   <div className="pr-3 text-[11px] font-medium text-slate-500">{tarihSaat}</div>
                   <div className="pr-3 font-black text-slate-900">{magazaAdi}</div>
                   <div className="pr-3">
@@ -3659,7 +3848,8 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       </div>
     </div>
   </div>
-)}
+  );
+})()}
 
 
 {/* TRANSFER BEKLEYEN MODALI - WINGSM SONRADAN TAMAMLAYACAK */}
