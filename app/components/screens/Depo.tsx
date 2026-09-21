@@ -42,6 +42,12 @@ export default function Depo() {
   const [loading, setLoading] = useState(true);
   const [usingImei, setUsingImei] = useState<string | null>(null);
 
+  // KULLAN'a basınca window.prompt() yerine satırın kendi içinde açılan
+  // küçük "Ad Soyad" kutusu — hangi satırda açık olduğunu ve o anki
+  // yazılan ismi tutar.
+  const [pendingImei, setPendingImei] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState("");
+
   // Bir IMEI bir kez KULLANILDI olduysa ekranda kalıcı tutulur.
   // Sheet/PostgreSQL de KULLANILDI döndürüyorsa zaten doğrudan çizilir.
   // Aynı tarayıcıda sayfa yenilense bile localStorage kaydı korunur.
@@ -247,8 +253,12 @@ export default function Depo() {
     };
   }, [loadRows]);
 
+  // KULLAN butonuna basınca artık window.prompt() açmıyor — satırda inline
+  // bir "Ad Soyad" kutusu açılıyor (bkz. render kısmı), oradaki Onayla
+  // butonu bu fonksiyonu ismi doğrudan parametre olarak vererek çağırıyor.
   const handleImeiKullan = async (
-    imei: string
+    imei: string,
+    personelName: string
   ) => {
     if (
       !imei ||
@@ -256,11 +266,6 @@ export default function Depo() {
     ) {
       return;
     }
-
-    const personelName =
-      window.prompt(
-        "Lütfen isminizi giriniz:"
-      );
 
     if (
       !personelName ||
@@ -275,6 +280,9 @@ export default function Depo() {
         .toLocaleUpperCase(
           "tr-TR"
         );
+
+    setPendingImei(null);
+    setNameInput("");
 
     const durumText =
       `KULLANILDI - ${personel}`;
@@ -535,14 +543,60 @@ export default function Depo() {
                               {guncelDurum}
                             </span>
                           </div>
+                        ) : pendingImei === row.imei ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={nameInput}
+                              onChange={(event) =>
+                                setNameInput(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  void handleImeiKullan(row.imei, nameInput);
+                                } else if (event.key === "Escape") {
+                                  setPendingImei(null);
+                                  setNameInput("");
+                                }
+                              }}
+                              placeholder="Ad Soyad"
+                              className="w-24 sm:w-28 rounded-lg border border-orange-300 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-800 outline-none focus:border-orange-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleImeiKullan(row.imei, nameInput)
+                              }
+                              disabled={!nameInput.trim() || Boolean(usingImei)}
+                              title="Onayla"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white transition-all hover:bg-emerald-600 disabled:opacity-50"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingImei(null);
+                                setNameInput("");
+                              }}
+                              title="Vazgeç"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-all hover:bg-slate-200"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
                         ) : (
                           <button
                             type="button"
-                            onClick={() =>
-                              void handleImeiKullan(
-                                row.imei
-                              )
-                            }
+                            onClick={() => {
+                              setPendingImei(row.imei);
+                              setNameInput("");
+                            }}
                             disabled={
                               Boolean(
                                 usingImei
