@@ -804,6 +804,15 @@ export default function CnetmobilCmrFinalUltimate() {
     width: 220,
   });
 
+  // FİYAT LİSTELERİ DROPDOWN (2. El Listesi'nden bağımsız, kendi ref/state'i)
+  const fiyatListeleriMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [fiyatListeleriMenuPos, setFiyatListeleriMenuPos] = useState({
+    left: 0,
+    top: 0,
+    width: 220,
+  });
+  const [fiyatSubMenuOpen, setFiyatSubMenuOpen] = useState(false);
+
   // ENTEGRASYONLAR DROPDOWN
   // N11 mevcut çalışan Online component'ini kullanmaya devam eder.
   // N11, İkas ve İdefix ayrı entegrasyon ekranlarıdır; Hepsiburada şimdilik pasif.
@@ -2237,9 +2246,19 @@ export default function CnetmobilCmrFinalUltimate() {
     {
       title: "FİYAT LİSTELERİ",
       items: [
-        { id: 'cep_tablet', label: 'Cep + Tablet', visible: !isZumay },
-        { id: 'yna_list', label: 'YNA List', visible: !isZumay },
-        { id: 'dis_kanal', label: 'Dış Kanal', visible: true },
+        {
+          id: 'fiyat_listeleri',
+          label: 'Fiyat Listeleri',
+          dropdownTitle: 'Fiyat Listeleri',
+          visible: true,
+          subItems: [
+            ...(!isZumay ? [
+              { id: 'cep_tablet', label: 'Cep + Tablet' },
+              { id: 'yna_list', label: 'YNA List' },
+            ] : []),
+            { id: 'dis_kanal', label: 'Dış Kanal' },
+          ],
+        },
         { 
           id: 'kampanya_sifir', 
           label: (
@@ -2250,9 +2269,10 @@ export default function CnetmobilCmrFinalUltimate() {
           ), 
           visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
         },
-        { 
-          id: 'ikinci_el', 
-          label: '2. El Listesi', 
+        {
+          id: 'ikinci_el',
+          label: '2. El Listesi',
+          dropdownTitle: '2. El Fiyat Listesi',
           visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay,
           subItems: [
             { id: 'ikinci_el_apple', label: 'Apple Liste' },
@@ -2392,6 +2412,13 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18l-2 12H5L3 7zM8 7V5a4 4 0 018 0v2" />
+          </svg>
+        );
+      case 'fiyat_listeleri':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h8.586a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7.172 7.172a2 2 0 01-2.828 0l-7-7A2 2 0 013 11.586V3z" />
+            <circle cx="7.5" cy="7.5" r="1.5" strokeWidth="2" />
           </svg>
         );
       case 'kampanya_sifir':
@@ -3251,6 +3278,50 @@ export default function CnetmobilCmrFinalUltimate() {
                     setMobileSubMenuOpen(true);
                   };
 
+                  const openFiyatListeleriMenu = () => {
+                    const rect =
+                      fiyatListeleriMenuButtonRef.current?.getBoundingClientRect();
+
+                    if (rect) {
+                      const width = 220;
+
+                      setFiyatListeleriMenuPos({
+                        left: Math.max(
+                          12,
+                          Math.min(
+                            window.innerWidth - width - 12,
+                            rect.left + rect.width / 2 - width / 2
+                          )
+                        ),
+                        top: rect.bottom - 1,
+                        width,
+                      });
+                    }
+
+                    setFiyatSubMenuOpen(true);
+                  };
+
+                  // item.subItems'a sahip menü öğesi birden fazla olabildiği için
+                  // (2. El Listesi + Fiyat Listeleri), her biri kendi ref/state/aç-kapa
+                  // fonksiyonlarını item.id'ye göre seçer; state/ref paylaşılmaz.
+                  const subMenuConfig = item.subItems
+                    ? item.id === 'fiyat_listeleri'
+                      ? {
+                          buttonRef: fiyatListeleriMenuButtonRef,
+                          pos: fiyatListeleriMenuPos,
+                          open: fiyatSubMenuOpen,
+                          setOpen: setFiyatSubMenuOpen,
+                          openMenu: openFiyatListeleriMenu,
+                        }
+                      : {
+                          buttonRef: secondHandMenuButtonRef,
+                          pos: secondHandMenuPos,
+                          open: mobileSubMenuOpen,
+                          setOpen: setMobileSubMenuOpen,
+                          openMenu: openSecondHandMenu,
+                        }
+                    : null;
+
                   const openCihazTalepMenu = () => {
                     const rect =
                       cihazTalepMenuButtonRef.current?.getBoundingClientRect();
@@ -3287,8 +3358,8 @@ export default function CnetmobilCmrFinalUltimate() {
                           openIntegrationsMenu();
                         }
 
-                        if (item.subItems) {
-                          openSecondHandMenu();
+                        if (subMenuConfig) {
+                          subMenuConfig.openMenu();
                         }
 
                         if (item.branchItems) {
@@ -3304,8 +3375,8 @@ export default function CnetmobilCmrFinalUltimate() {
                           setIntegrationsMenuOpen(false);
                         }
 
-                        if (item.subItems) {
-                          setMobileSubMenuOpen(false);
+                        if (subMenuConfig) {
+                          subMenuConfig.setOpen(false);
                         }
 
                         if (item.branchItems) {
@@ -3697,18 +3768,18 @@ export default function CnetmobilCmrFinalUltimate() {
                             </div>
                           )}
                         </>
-                      ) : item.subItems ? (
+                      ) : item.subItems && subMenuConfig ? (
                         <>
                           <button
-                            ref={secondHandMenuButtonRef}
+                            ref={subMenuConfig.buttonRef}
                             type="button"
                             onClick={() => {
                               if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                setMobileSubMenuOpen((open) => !open);
+                                subMenuConfig.setOpen((open: boolean) => !open);
                                 return;
                               }
 
-                              openSecondHandMenu();
+                              subMenuConfig.openMenu();
                             }}
                             className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
@@ -3725,10 +3796,10 @@ export default function CnetmobilCmrFinalUltimate() {
                             </span>
 
                             <span className="flex items-center gap-1 whitespace-nowrap">
-                              2. El Listesi
+                              {item.label}
                               <svg
                                 className={`h-2.5 w-2.5 opacity-60 transition-transform ${
-                                  mobileSubMenuOpen ? 'rotate-180' : ''
+                                  subMenuConfig.open ? 'rotate-180' : ''
                                 }`}
                                 fill="none"
                                 stroke="currentColor"
@@ -3748,18 +3819,18 @@ export default function CnetmobilCmrFinalUltimate() {
                             )}
                           </button>
 
-                          {mobileSubMenuOpen && (
+                          {subMenuConfig.open && (
                             <div
                               className="fixed z-[99999] hidden overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-[0_14px_35px_rgba(15,23,42,0.18)] ring-1 ring-black/5 lg:flex lg:flex-col"
                               style={{
-                                left: secondHandMenuPos.left,
-                                top: secondHandMenuPos.top,
-                                width: secondHandMenuPos.width,
+                                left: subMenuConfig.pos.left,
+                                top: subMenuConfig.pos.top,
+                                width: subMenuConfig.pos.width,
                               }}
                             >
                               <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
                                 <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
-                                  2. El Fiyat Listesi
+                                  {item.dropdownTitle || item.label}
                                 </div>
                                 <div className="mt-0.5 text-[11px] font-black text-slate-900">
                                   Liste Seç
@@ -3774,7 +3845,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                     setAppMode(sub.id as any);
                                     setStep(1);
                                     resetSelection();
-                                    setMobileSubMenuOpen(false);
+                                    subMenuConfig.setOpen(false);
                                   }}
                                   className={`group/sub flex items-center justify-between border-b border-slate-100 px-4 py-3 text-left text-[10px] font-black uppercase tracking-wide transition last:border-b-0 ${
                                     appMode === sub.id
@@ -3797,7 +3868,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             </div>
                           )}
 
-                          {mobileSubMenuOpen && (
+                          {subMenuConfig.open && (
                             <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
                               {item.subItems.map((sub: any) => (
                                 <button
@@ -3806,7 +3877,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                     setAppMode(sub.id as any);
                                     setStep(1);
                                     resetSelection();
-                                    setMobileSubMenuOpen(false);
+                                    subMenuConfig.setOpen(false);
                                   }}
                                   className={`border-b border-slate-100 px-5 py-4 text-left text-[11px] font-black uppercase tracking-wider last:border-0 ${
                                     appMode === sub.id
@@ -4093,7 +4164,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                                       {navIcon(item.id)}
                                     </span>
-                                    <span>2. El Listesi</span>
+                                    <span>{item.label}</span>
                                   </div>
 
                                   {item.subItems.map((sub: any) => (
