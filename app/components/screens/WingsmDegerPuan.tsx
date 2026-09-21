@@ -107,6 +107,8 @@ type PersonnelReportRow = {
   hedef: number | null;
   isManager: boolean;
   hedefYuzdesi: number | null;
+  projeksiyon: number;
+  siralama: number | null;
   siralamaPuani: number;
 };
 
@@ -1769,6 +1771,7 @@ export default function WingsmDegerPuan() {
                     <thead>
                       <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
+                        <th className="px-4 py-3">Sıra</th>
                         <th className="px-4 py-3">Satıcı</th>
                         <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
@@ -1782,6 +1785,7 @@ export default function WingsmDegerPuan() {
                       {report.personnel.map((p, i) => (
                         <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`} className={p.isManager ? "opacity-60" : ""}>
                           <td className="px-4 py-3 text-[11px] font-bold">{p.branchLabel}</td>
+                          <td className="px-4 py-3 text-[11px] font-semibold">{p.siralama ?? "-"}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">
                             {p.saticiAdi || p.saticiKod}
                             {p.isManager && (
@@ -1804,7 +1808,7 @@ export default function WingsmDegerPuan() {
                       ))}
                       {report.personnel.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={9} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
                             Bu aralıkta satış bulunamadı.
                           </td>
                         </tr>

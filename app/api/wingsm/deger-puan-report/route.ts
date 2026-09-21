@@ -136,6 +136,8 @@ type PersonnelAgg = {
   hedef: number | null;
   isManager: boolean;
   hedefYuzdesi: number | null;
+  projeksiyon: number;
+  siralama: number | null;
   siralamaPuani: number;
 };
 
@@ -332,6 +334,8 @@ export async function POST(request: NextRequest) {
           hedef: null,
           isManager: false,
           hedefYuzdesi: null,
+          projeksiyon: 0,
+          siralama: null,
           siralamaPuani: 0,
         });
       }
@@ -454,25 +458,39 @@ export async function POST(request: NextRequest) {
       person.isManager = match ? match.isManager : false;
       person.hedefYuzdesi =
         match && !match.isManager && match.hedef > 0 ? (person.carpanliPuan / match.hedef) * 100 : null;
+      person.projeksiyon = person.carpanliPuan * projectionFactor;
     }
 
-    // Personel bonus puanı: mağaza müdürleri sıralamaya HİÇ girmez; hedefi
-    // olmayan/0 olan personel 0 puan alır ve sıralamanın altında kalır
-    // (kullanıcının açık talimatı). İlk 3'e 10/5/3.
-    const rankablePersonnel = Array.from(personnelMap.values())
-      .filter((p) => !p.isManager && p.hedefYuzdesi !== null)
-      .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
+    // Personel sıralaması/bonus puanı KENDİ MAĞAZASI İÇİNDEDİR (Excel'de her
+    // mağazanın kendi sekmesi/listesi var, sıralama mağazalar arası değil —
+    // kullanıcının paylaştığı "Mağazamdaki Sıralamam" ekranı bunu doğruluyor).
+    // Mağaza müdürleri sıralamaya HİÇ girmez; hedefi olmayan/0 olan personel
+    // 0 puan alır ve sıralamanın altında kalır (kullanıcının açık talimatı).
+    // Her mağazada ilk 3'e 10/5/3.
     const PERSONNEL_BONUS = [10, 5, 3];
-    rankablePersonnel.forEach((p, i) => {
-      p.siralamaPuani = PERSONNEL_BONUS[i] ?? 0;
-    });
+
+    for (const branchLabel of new Set(Array.from(personnelMap.values()).map((p) => p.branchLabel))) {
+      const rankableInBranch = Array.from(personnelMap.values())
+        .filter((p) => p.branchLabel === branchLabel && !p.isManager && p.hedefYuzdesi !== null)
+        .sort((a, b) => (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0));
+
+      rankableInBranch.forEach((p, i) => {
+        p.siralama = i + 1;
+        p.siralamaPuani = PERSONNEL_BONUS[i] ?? 0;
+      });
+    }
 
     const stores = CMR_DEPOTS.map((depot) => storeMap.get(depot.depotCode)!);
 
-    // Sıralama: önce hedefi olanlar (yüzdeye göre azalan), sonra
-    // hedefsizler/müdürler (Çarpanlı Puan'a göre azalan, sadece görünürlük
-    // için) — "hedefsiz en altta" kuralı budur.
+    // Sıralama: önce mağazaya göre (CMR_DEPOTS sırasıyla), her mağaza
+    // içinde önce hedefi olanlar (yüzdeye göre azalan — siralama alanıyla
+    // birebir), sonra hedefsizler/müdürler (Çarpanlı Puan'a göre azalan,
+    // sadece görünürlük için) — "hedefsiz en altta" kuralı budur.
+    const branchOrder = new Map(CMR_DEPOTS.map((d, i) => [d.branchLabel, i]));
     const personnel = Array.from(personnelMap.values()).sort((a, b) => {
+      const branchDiff = (branchOrder.get(a.branchLabel) ?? 99) - (branchOrder.get(b.branchLabel) ?? 99);
+      if (branchDiff !== 0) return branchDiff;
+
       const aRanked = !a.isManager && a.hedefYuzdesi !== null;
       const bRanked = !b.isManager && b.hedefYuzdesi !== null;
       if (aRanked && bRanked) return (b.hedefYuzdesi ?? 0) - (a.hedefYuzdesi ?? 0);
