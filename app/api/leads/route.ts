@@ -1,10 +1,19 @@
 
 import { NextResponse } from 'next/server';
+import { isRateLimited, getClientIp } from '@/app/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    if (isRateLimited(`leads:${ip}`, 6, 5 * 60_000)) {
+      return NextResponse.json(
+        { error: "Çok fazla istek gönderildi. Lütfen birkaç dakika sonra tekrar deneyin." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    
+
     // Vercel'deki yeşil yanan isimlerle birebir aynı olmalı
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatid = process.env.TELEGRAM_CHAT_ID;

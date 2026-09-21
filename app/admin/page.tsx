@@ -26,7 +26,6 @@ const items: AdminItem[] = [
   { title: "Kampanyalı Sıfır Liste", active: false },
   { title: "2. El Listesi", href: "/?view=normal&mode=ikinci_el_apple", active: true },
   { title: "Cihaz Talep", active: false },
-  { title: "WingSM Değer Puan Kuralları", href: "/admin/wingsm-score-rules", active: true },
 ];
 
 export default function SuperAdminDashboardPage() {

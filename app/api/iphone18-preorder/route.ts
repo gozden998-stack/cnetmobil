@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isRateLimited, getClientIp } from "@/app/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,14 @@ function cleanText(value: unknown, max = 300) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    if (isRateLimited(`iphone18-preorder:${ip}`, 6, 5 * 60_000)) {
+      return NextResponse.json(
+        { success: false, error: "Çok fazla istek gönderildi. Lütfen birkaç dakika sonra tekrar deneyin." },
+        { status: 429 }
+      );
+    }
+
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 

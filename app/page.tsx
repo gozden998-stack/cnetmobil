@@ -18,6 +18,7 @@ import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
 import Paratika from './components/screens/Paratika/Paratika';
 import Depo from './components/screens/Depo';
+import WingsmDegerPuan from './components/screens/WingsmDegerPuan';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -670,7 +671,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -2229,7 +2230,8 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'paratika', label: 'Paratika', visible: !isZumay },
         { id: 'ihale', label: 'Mağazalar Arası İhale', visible: !isZumay && (isAdmin || isMasterAccess || selectedBranch.startsWith('CMR') || selectedBranch === 'VODAFONE KANALI') },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
-        { id: 'thh', label: 'THH Takip', visible: isMasterAccess }
+        { id: 'thh', label: 'THH Takip', visible: isMasterAccess },
+        { id: 'wingsm_deger_puan', label: 'WingSM Değer Puan', visible: selectedBranch.startsWith('CMR') && (isAdmin || accessRole === 'personel') }
       ]
     },
     {
@@ -2414,6 +2416,13 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h8" />
+          </svg>
+        );
+      case 'wingsm_deger_puan':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8" strokeWidth="2" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7v5l3.5 2" />
           </svg>
         );
       default:
@@ -4722,6 +4731,23 @@ export default function CnetmobilCmrFinalUltimate() {
               branches={branches}
               selectedBranch={selectedBranch}
             />
+          ) :
+
+          appMode === 'wingsm_deger_puan' && step < 99 ? (
+            isAdmin ? (
+              <WingsmDegerPuan />
+            ) : (
+              <div className="animate-in fade-in duration-500 flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8" strokeWidth="2" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7v5l3.5 2" />
+                  </svg>
+                </div>
+                <div className="text-lg font-black text-slate-800">WingSM Değer Puan</div>
+                <div className="text-sm font-bold text-blue-600 uppercase tracking-widest">Çok Yakında</div>
+              </div>
+            )
           ) :
 
           step === 99 ? (
