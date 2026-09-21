@@ -1994,6 +1994,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                 );
               });
 
+            const toplamStokAdedi = cihazTalepRows.reduce(
+              (sum, { row }) => sum + Math.max(0, Number(row?.[8]) || 0),
+              0
+            );
+
             const activeRequests = cihazTalepRows.filter(
               ({ row }) =>
                 getCihazTalepStatus(row) === 'AKTİF TALEP'
@@ -2142,12 +2147,12 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         CANLI
                       </span>
                     </div>
-                    <div className="mt-4 text-[11px] font-bold text-slate-500">Toplam Cihaz</div>
+                    <div className="mt-4 text-[11px] font-bold text-slate-500">Toplam Stok Adedi</div>
                     <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
-                      {cihazTalepRows.length}
+                      {toplamStokAdedi}
                     </div>
                     <div className="mt-1 text-[10px] font-semibold text-slate-400">
-                      Listede bulunan ürün
+                      {cihazTalepRows.length} farklı üründe elde bulunan cihaz
                     </div>
                   </div>
 
