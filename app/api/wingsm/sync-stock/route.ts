@@ -2065,11 +2065,33 @@ function normalizeWingText(value: unknown): string {
     .replace(/Ç/g, "C");
 }
 
+// WingSM satis/hareket kaydi bir IADE mi (satis DEGIL, cihaz stoga
+// GERI donuyor demektir - ornek: "72179" IMEI'si musterinin eski
+// telefonunu takas/iade olarak geri verdigi bir kayittı, "isIade":
+// true idi, ama eskiden SATIS sayilip yanlislikla SOLD isaretlenmisti).
+// WingSM'in kendi "isIade" alani varsa ona guveniyoruz; yoksa metinde
+// "IADE" gecip gecmedigine (guvenli tarafta kalmak icin) bakiyoruz.
+function isReturnRow(row: any): boolean {
+  if (row && typeof row === "object" && "isIade" in row) {
+    return Boolean(row.isIade);
+  }
+
+  try {
+    return normalizeWingText(JSON.stringify(row)).includes("IADE");
+  } catch {
+    return false;
+  }
+}
+
 function findSaleMovementRow(
   movementRows: any[]
 ): any | null {
   for (const row of movementRows) {
     try {
+      if (isReturnRow(row)) {
+        continue;
+      }
+
       const flatText = JSON.stringify(row);
       if (normalizeWingText(flatText).includes("SATIS")) {
         return row;
@@ -2085,7 +2107,8 @@ function findSaleMovementRow(
 // icin: bir satirin herhangi bir alaninda aranan IMEI'nin gecip
 // gecmedigine bakar. Bu uc nokta zaten sadece satislari dondurdugu
 // icin (alis=1 gonderilmedigi surece) metin/tur aramaya gerek yok -
-// IMEI gecmesi tek basina yeterli kanit.
+// IMEI gecmesi tek basina yeterli kanit - AMA iade/takas kayitlari
+// (isIade: true) HARIC, bunlar cihazi stoga GERI sokan kayitlardir.
 function findImeiInRows(
   rows: any[],
   imei: string
@@ -2095,6 +2118,10 @@ function findImeiInRows(
 
   for (const row of rows) {
     try {
+      if (isReturnRow(row)) {
+        continue;
+      }
+
       const flatText = JSON.stringify(row);
       if (flatText.includes(cleanImei)) {
         return row;
