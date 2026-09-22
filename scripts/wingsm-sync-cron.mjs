@@ -213,6 +213,48 @@ function printSyncSummary(
       2
     )
   );
+
+  // mismatchCount/conflictCount/detailErrorCount sifirdan buyukse,
+  // HANGI urun/depo oldugunu da logla - eskiden bu bilgi sadece HTTP
+  // cevabinda vardi, cron logunda gorunmuyordu.
+  const warnings =
+    result?.warnings || {};
+
+  if (
+    Array.isArray(warnings.mismatches) &&
+    warnings.mismatches.length
+  ) {
+    console.warn(
+      "[WINGSM CRON] ⚠️ Mismatch detayları:"
+    );
+    console.warn(
+      JSON.stringify(warnings.mismatches, null, 2)
+    );
+  }
+
+  if (
+    Array.isArray(warnings.serialConflicts) &&
+    warnings.serialConflicts.length
+  ) {
+    console.warn(
+      "[WINGSM CRON] ⚠️ Seri çakışması detayları:"
+    );
+    console.warn(
+      JSON.stringify(warnings.serialConflicts, null, 2)
+    );
+  }
+
+  if (
+    Array.isArray(warnings.detailErrors) &&
+    warnings.detailErrors.length
+  ) {
+    console.warn(
+      "[WINGSM CRON] ⚠️ Detay hatası detayları:"
+    );
+    console.warn(
+      JSON.stringify(warnings.detailErrors, null, 2)
+    );
+  }
 }
 
 function printTransferSummary(
