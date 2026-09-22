@@ -413,6 +413,86 @@ const normalizeCnetExcelHeader = (value: unknown) =>
     .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
+// Mağaza içine girildiğinde (stockSourceBranch seçiliyken) o mağazanın stok
+// tablosunu Excel'e aktarır. Sadece yönetici/admin/super admin için aktif.
+const canDownloadStoreStockExcel = Boolean(
+  (isAdmin || isMasterAccess || isSuperAdminUser) && stockSourceBranch
+);
+
+const downloadMagazaStokExcel = () => {
+  if (!canDownloadStoreStockExcel) return;
+
+  const rows = effectiveCihazTalepData
+    .slice(1)
+    .filter((row) =>
+      !Array.from({ length: 9 }, (_, c) => String(row?.[c] ?? '').trim()).every(
+        (value) => value === ''
+      )
+    )
+    .map((row) => ({
+      MARKA_MODEL: String(row?.[0] ?? '').trim(),
+      HAFIZA: String(row?.[1] ?? '').trim(),
+      RENK: String(row?.[2] ?? '').trim(),
+      PIL: String(row?.[3] ?? '').trim(),
+      GRADE: String(row?.[4] ?? '').trim(),
+      GARANTI: String(row?.[5] ?? '').trim(),
+      DEGISEN_PARCA: String(row?.[6] ?? '').trim(),
+      KUTU_FATURA: String(row?.[7] ?? '').trim(),
+      STOK: Math.max(0, Number(row?.[8]) || 0),
+    }));
+
+  if (!rows.length) {
+    showTalepMessage(
+      'EXCEL OLUŞTURULAMADI',
+      'Bu mağazada Excel’e aktarılacak stok bulunamadı.',
+      'error'
+    );
+    return;
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, {
+    header: [
+      'MARKA_MODEL',
+      'HAFIZA',
+      'RENK',
+      'PIL',
+      'GRADE',
+      'GARANTI',
+      'DEGISEN_PARCA',
+      'KUTU_FATURA',
+      'STOK',
+    ],
+  });
+
+  worksheet['!cols'] = [
+    { wch: 34 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 9 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 22 },
+    { wch: 10 },
+  ];
+
+  worksheet['!autofilter'] = {
+    ref: `A1:I${rows.length + 1}`,
+  };
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Stok');
+
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  XLSX.writeFile(workbook, `${stockSourceBranch}_STOK_${today}.xlsx`);
+};
+
 const downloadCnetDetailExcel = () => {
   if (!canUseCnetDetailExcel || cnetDetailExcelBusy) return;
 
@@ -2485,6 +2565,20 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       </button>
                     )}
 
+                    {canDownloadStoreStockExcel && (
+                      <button
+                        type="button"
+                        onClick={downloadMagazaStokExcel}
+                        title={`${stockSourceBranch} mağazasının stoğunu Excel olarak indir`}
+                        className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 active:scale-[0.99]"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                        </svg>
+                        Excel İndir
+                      </button>
+                    )}
+
                     {stockSourceBranch && (
                       <button
                         type="button"
@@ -3855,7 +3949,6 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
   </div>
   );
 })()}
-
 
 {/* TRANSFER BEKLEYEN MODALI - WINGSM SONRADAN TAMAMLAYACAK */}
 {transferBekleyenModalOpen && (
