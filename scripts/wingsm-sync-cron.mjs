@@ -194,6 +194,9 @@ function printSyncSummary(
         safeForMissing:
           summary.safeForMissing,
 
+        safeBranches:
+          summary.safeBranches,
+
         stockReadErrorCount:
           summary.stockReadErrorCount,
 

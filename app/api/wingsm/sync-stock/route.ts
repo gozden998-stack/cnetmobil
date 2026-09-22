@@ -217,6 +217,13 @@ type SnapshotResult = {
   safeForMissing:
     boolean;
 
+  // MISSING/SOLD isaretlemesinin GUVENLE yapilabilecegi magazalar.
+  // Bir magazada (ornegin sadece MERKEZ'de) tek bir urun mismatch'i
+  // olsa bile diger tum magazalar bundan etkilenmesin diye
+  // safeForMissing artik GLOBAL degil, magaza bazli hesaplaniyor.
+  safeBranches:
+    BranchCode[];
+
   startedAt:
     Date;
 
@@ -1534,6 +1541,76 @@ Promise<SnapshotResult> {
     successfulBranches.length ===
       MANAGED_BRANCHES.length;
 
+  // MISSING/SOLD isaretlemesi artik GLOBAL degil, magaza bazli
+  // guvenlik kontrolu kullaniyor: bir magazada (ornegin tek bir
+  // urunde) mismatch/hata varsa SADECE o magaza MISSING
+  // isaretlemesinden muaf tutulur, diger tum magazalar normal
+  // calismaya devam eder. Onceki davranista TEK bir uruncuk
+  // tutarsizlik TUM magazalarda MISSING/SOLD tespitini sonsuza
+  // kadar durduruyordu.
+  const unsafeBranches =
+    new Set<string>();
+
+  for (
+    const branch of
+    MANAGED_BRANCHES
+  ) {
+    if (
+      !successfulBranches.includes(
+        branch
+      )
+    ) {
+      unsafeBranches.add(
+        branch
+      );
+    }
+  }
+
+  for (
+    const err of
+    stockReadErrors
+  ) {
+    unsafeBranches.add(
+      err.branch
+    );
+  }
+
+  for (
+    const mismatch of
+    mismatches
+  ) {
+    unsafeBranches.add(
+      mismatch.branch
+    );
+  }
+
+  // detailErrors / serialConflicts urun bazlidir, hangi magazayi
+  // etkiledigi guvenilir sekilde bilinemez - varsa eskisi gibi
+  // TUM magazalari guvensiz say (fail-safe, degismedi).
+  if (
+    detailErrors.length >
+      0 ||
+    serialConflicts.length >
+      0
+  ) {
+    for (
+      const branch of
+      MANAGED_BRANCHES
+    ) {
+      unsafeBranches.add(
+        branch
+      );
+    }
+  }
+
+  const safeBranches =
+    MANAGED_BRANCHES.filter(
+      (branch) =>
+        !unsafeBranches.has(
+          branch
+        )
+    );
+
   return {
     candidates,
 
@@ -1553,6 +1630,8 @@ Promise<SnapshotResult> {
     successfulBranches,
 
     safeForMissing,
+
+    safeBranches,
 
     startedAt,
 
@@ -2948,7 +3027,8 @@ async function syncSnapshotToDatabase(
 
     if (
       snapshot
-        .safeForMissing
+        .safeBranches
+        .length > 0
     ) {
       // NOT: Satis tespiti (WingSM hareket gecmisi sorgusu) BURADA
       // YAPILMIYOR - bilerek. Bu sorgu WingSM'e canli, IMEI basina HTTP
@@ -3030,6 +3110,10 @@ async function syncSnapshotToDatabase(
                 ) <>
                   'MISSING'
 
+              AND
+                sd.current_branch_code =
+                  ANY($2::text[])
+
             RETURNING
               id,
               imei,
@@ -3039,6 +3123,8 @@ async function syncSnapshotToDatabase(
           `,
           [
             seenAt,
+            snapshot
+              .safeBranches,
           ]
         );
 
@@ -3073,7 +3159,8 @@ async function syncSnapshotToDatabase(
 
     if (
       snapshot
-        .safeForMissing
+        .safeBranches
+        .length > 0
     ) {
       const counts =
         branchCounts(
@@ -3083,9 +3170,13 @@ async function syncSnapshotToDatabase(
       const runFinishedAt =
         new Date();
 
+      // SADECE guvenli (mismatch/hata olmayan) magazalar icin SUCCESS
+      // sync kaydi yazilir - transfers/complete route'un "hedef magaza
+      // icin SUCCESS sync bulunmali" sarti artik yanlislikla TUM
+      // magazalari degil, sadece gercekten guvensiz olani bloklar.
       for (
         const branch of
-        MANAGED_BRANCHES
+        snapshot.safeBranches
       ) {
         const depot =
           String(
@@ -3401,6 +3492,10 @@ export async function GET(
         safeForMissing:
           snapshot
             .safeForMissing,
+
+        safeBranches:
+          snapshot
+            .safeBranches,
 
         stockReadErrorCount:
           snapshot
@@ -3760,6 +3855,10 @@ export async function POST(
         safeForMissing:
           snapshot
             .safeForMissing,
+
+        safeBranches:
+          snapshot
+            .safeBranches,
 
         stockReadErrorCount:
           snapshot
