@@ -197,6 +197,12 @@ function printSyncSummary(
         safeBranches:
           summary.safeBranches,
 
+        unsafeProductCodes:
+          summary.unsafeProductCodes,
+
+        unsafeProductBranchPairs:
+          summary.unsafeProductBranchPairs,
+
         stockReadErrorCount:
           summary.stockReadErrorCount,
 

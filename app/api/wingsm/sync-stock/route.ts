@@ -225,6 +225,17 @@ type SnapshotResult = {
   safeBranches:
     BranchCode[];
 
+  // Bu urun kodlari HICBIR magazada MISSING/SOLD isaretlemesine dahil
+  // edilmez (detailErrors/serialConflicts - hangi magazayi etkiledigi
+  // guvenilir bilinmiyor).
+  unsafeProductCodes:
+    string[];
+
+  // "${productCode}|${branch}" formatinda - SADECE bu urun+magaza
+  // kombinasyonu MISSING/SOLD isaretlemesinden muaf (mismatches).
+  unsafeProductBranchPairs:
+    string[];
+
   startedAt:
     Date;
 
@@ -1542,13 +1553,16 @@ Promise<SnapshotResult> {
     successfulBranches.length ===
       MANAGED_BRANCHES.length;
 
-  // MISSING/SOLD isaretlemesi artik GLOBAL degil, magaza bazli
-  // guvenlik kontrolu kullaniyor: bir magazada (ornegin tek bir
-  // urunde) mismatch/hata varsa SADECE o magaza MISSING
-  // isaretlemesinden muaf tutulur, diger tum magazalar normal
-  // calismaya devam eder. Onceki davranista TEK bir uruncuk
-  // tutarsizlik TUM magazalarda MISSING/SOLD tespitini sonsuza
-  // kadar durduruyordu.
+  // MISSING/SOLD isaretlemesi artik GLOBAL degil, hatta magaza bazli
+  // bile degil - URUN+MAGAZA bazli guvenlik kontrolu kullaniyor.
+  //
+  // ONCEKI davranista (magaza bazli) TEK bir uruncukte mismatch olan
+  // bir magaza TAMAMEN guvensiz sayiliyordu - ornegin MERKEZ'de 1
+  // urunde (14/15 IMEI) tutarsizlik varsa, MERKEZ'deki DIGER 573
+  // saglikli cihaz da yanlislikla korumaya giriyor, gercekte satilmis
+  // cihazlar MISSING/SOLD'a hic donemiyordu. Artik SADECE o mismatch'e
+  // konu olan urun+magaza kombinasyonu MISSING isaretlemesinden muaf,
+  // ayni magazadaki diger urunler normal calismaya devam ediyor.
   const unsafeBranches =
     new Set<string>();
 
@@ -1576,32 +1590,64 @@ Promise<SnapshotResult> {
     );
   }
 
+  // detailErrors urun bazlidir (o urunun detayi/seri listesi hic
+  // okunamadi) - SADECE o urun kodu tum magazalarda guvensiz sayilir,
+  // diger urunler etkilenmez.
+  const unsafeProductCodes =
+    new Set<string>();
+
+  for (
+    const err of
+    detailErrors
+  ) {
+    if (
+      err.productCode
+    ) {
+      unsafeProductCodes.add(
+        err.productCode
+      );
+    }
+  }
+
+  // serialConflicts'in kendi urun kodu yok ama first/second alanlari
+  // "productCode/depot" seklinde - oradan urun kodunu cikarip ayni
+  // sekilde SADECE o urunleri guvensiz sayiyoruz.
+  for (
+    const conflict of
+    serialConflicts
+  ) {
+    for (
+      const ref of
+      [
+        conflict.first,
+        conflict.second,
+      ]
+    ) {
+      const code =
+        String(ref || "")
+          .split("/")[0]
+          .trim();
+
+      if (code) {
+        unsafeProductCodes.add(
+          code
+        );
+      }
+    }
+  }
+
+  // mismatches HEM urun kodunu HEM magazayi biliyor - en dar kapsamli
+  // muafiyet burada: sadece bu urun+magaza kombinasyonu korunur.
+  const unsafeProductBranchPairs =
+    new Set<string>();
+
   for (
     const mismatch of
     mismatches
   ) {
-    unsafeBranches.add(
-      mismatch.branch
+    unsafeProductBranchPairs.add(
+      `${mismatch.productCode}|${mismatch.branch}`
     );
-  }
-
-  // detailErrors / serialConflicts urun bazlidir, hangi magazayi
-  // etkiledigi guvenilir sekilde bilinemez - varsa eskisi gibi
-  // TUM magazalari guvensiz say (fail-safe, degismedi).
-  if (
-    detailErrors.length >
-      0 ||
-    serialConflicts.length >
-      0
-  ) {
-    for (
-      const branch of
-      MANAGED_BRANCHES
-    ) {
-      unsafeBranches.add(
-        branch
-      );
-    }
   }
 
   const safeBranches =
@@ -1633,6 +1679,16 @@ Promise<SnapshotResult> {
     safeForMissing,
 
     safeBranches,
+
+    unsafeProductCodes:
+      Array.from(
+        unsafeProductCodes
+      ),
+
+    unsafeProductBranchPairs:
+      Array.from(
+        unsafeProductBranchPairs
+      ),
 
     startedAt,
 
@@ -3140,6 +3196,28 @@ async function syncSnapshotToDatabase(
                 sd.current_branch_code =
                   ANY($2::text[])
 
+              AND
+                NOT (
+                  COALESCE(
+                    sd.wing_product_code,
+                    ''
+                  ) =
+                    ANY($3::text[])
+                )
+
+              AND
+                NOT (
+                  (
+                    COALESCE(
+                      sd.wing_product_code,
+                      ''
+                    ) ||
+                    '|' ||
+                    sd.current_branch_code
+                  ) =
+                    ANY($4::text[])
+                )
+
             RETURNING
               id,
               imei,
@@ -3151,6 +3229,10 @@ async function syncSnapshotToDatabase(
             seenAt,
             snapshot
               .safeBranches,
+            snapshot
+              .unsafeProductCodes,
+            snapshot
+              .unsafeProductBranchPairs,
           ]
         );
 
@@ -3560,6 +3642,14 @@ export async function GET(
           snapshot
             .safeBranches,
 
+        unsafeProductCodes:
+          snapshot
+            .unsafeProductCodes,
+
+        unsafeProductBranchPairs:
+          snapshot
+            .unsafeProductBranchPairs,
+
         stockReadErrorCount:
           snapshot
             .stockReadErrors
@@ -3922,6 +4012,14 @@ export async function POST(
         safeBranches:
           snapshot
             .safeBranches,
+
+        unsafeProductCodes:
+          snapshot
+            .unsafeProductCodes,
+
+        unsafeProductBranchPairs:
+          snapshot
+            .unsafeProductBranchPairs,
 
         stockReadErrorCount:
           snapshot
