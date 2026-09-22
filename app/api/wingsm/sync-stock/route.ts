@@ -1380,10 +1380,23 @@ Promise<SnapshotResult> {
 
         // ==============================================
         // ADET <-> IMEI KONTROL
+        //
+        // ONEMLI: bu kontrol ESKIDEN tek bir magazada (ornegin
+        // MERKEZ'de) mismatch bulununca urunun TAMAMINI (TUM
+        // magazalardaki candidate'larini) `return` ile atlıyordu.
+        // Bu, ayni urun kodunun BASKA (tamamen saglikli) bir
+        // magazadaki (ornegin CMR'deki) birimlerinin de sessizce
+        // kaybolmasina yol aciyordu - somut ornek: CMR WingSM'de
+        // 217 gosterirken bizde 217-9=208 cikiyordu, o 9 birim tam
+        // da MERKEZ'de mismatch'li olan urunun CMR'deki saglikli
+        // birimleriydi. Artik hangi MAGAZALARIN bu urun icin guvensiz
+        // oldugu ayri tutuluyor, sadece o magazalarin adaylari
+        // filtreleniyor - diger magazalarin ayni urundeki birimleri
+        // normal sekilde candidates'a giriyor.
         // ==============================================
 
-        let productSafe =
-          true;
+        const unsafeBranchesForProduct =
+          new Set<BranchCode>();
 
         for (
           const branch of
@@ -1432,8 +1445,9 @@ Promise<SnapshotResult> {
             stockQuantity !==
             imeiCount
           ) {
-            productSafe =
-              false;
+            unsafeBranchesForProduct.add(
+              branch
+            );
 
             mismatches.push({
               productCode,
@@ -1450,12 +1464,6 @@ Promise<SnapshotResult> {
               imeiCount,
             });
           }
-        }
-
-        if (
-          !productSafe
-        ) {
-          return;
         }
 
         // ==============================================
@@ -1512,6 +1520,17 @@ Promise<SnapshotResult> {
 
           if (
             !branchCode
+          ) {
+            continue;
+          }
+
+          // SADECE bu urunun BU magazada mismatch'i varsa atla -
+          // ayni urunun diger (saglikli) magazalardaki birimleri
+          // normal sekilde candidates'a girmeye devam eder.
+          if (
+            unsafeBranchesForProduct.has(
+              branchCode
+            )
           ) {
             continue;
           }
