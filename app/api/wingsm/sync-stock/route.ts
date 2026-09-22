@@ -47,7 +47,6 @@ import crypto from "crypto";
 
 import {
   getWingSMProductByCode,
-  getWingSMProductMovementHistory,
   getWingSMSalesList,
   getWingSMStock,
   WINGSM_DEPOT_MAP,
@@ -2083,26 +2082,6 @@ function isReturnRow(row: any): boolean {
   }
 }
 
-function findSaleMovementRow(
-  movementRows: any[]
-): any | null {
-  for (const row of movementRows) {
-    try {
-      if (isReturnRow(row)) {
-        continue;
-      }
-
-      const flatText = JSON.stringify(row);
-      if (normalizeWingText(flatText).includes("SATIS")) {
-        return row;
-      }
-    } catch {
-      // JSON.stringify basarisiz olursa (dongusel referans vb.) bu satiri atla.
-    }
-  }
-  return null;
-}
-
 // WingSM'in resmi satis listesi (get('/api/b2b/satis/list/:sirket'))
 // icin: bir satirin herhangi bir alaninda aranan IMEI'nin gecip
 // gecmedigine bakar. Bu uc nokta zaten sadece satislari dondurdugu
@@ -3504,24 +3483,17 @@ async function syncSnapshotToDatabase(
             }
           }
 
-          // 2) YEDEK KONTROL: satis listesi bulamadiysa/hata verdiyse,
-          // urun hareket gecmisinde "SATIS" metni ara (eski yontem).
-          if (!saleRow) {
-            const movementPayload =
-              await getWingSMProductMovementHistory({
-                serialNo: String(candidate.imei || ""),
-                startDate: lastSeen,
-                endDate: new Date(),
-                depot,
-              });
-
-            const movementRows =
-              extractWingSMMovementRows(movementPayload);
-
-            saleRow =
-              findSaleMovementRow(movementRows);
-          }
-
+          // NOT: eskiden burada bir "yedek kontrol" vardi -
+          // getWingSMProductMovementHistory (hareket gecmisi) sonucunda
+          // "SATIS" metni gecen ilk satiri kanit sayiyordu. Bu KALDIRILDI:
+          // somut bir vakada WingSM bu uc noktada seriNo filtresini
+          // dogru uygulamiyor, o depo/tarih araligindaki ALAKASIZ bir
+          // satisi (ornegin bir hafiza karti aksesuari) bizim IMEI'nin
+          // kaniti sanip yanlislikla SOLD isaretlemistik. Artik SADECE
+          // resmi satis listesi (yukarida, dogrudan IMEI eslesmesi
+          // arayan) kanit kabul ediliyor - bulunamazsa cihaz guvenli
+          // tarafta kalip MISSING'de bekliyor, sonraki turda tekrar
+          // denenecek.
           if (!saleRow) {
             continue;
           }
