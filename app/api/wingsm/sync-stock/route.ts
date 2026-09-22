@@ -4138,6 +4138,11 @@ export async function POST(
             .serialConflicts
             .length,
 
+        invalidImeiCount:
+          snapshot
+            .invalidImeiSamples
+            .length,
+
         syncStartedAt:
           sync
             .syncStartedAt,
