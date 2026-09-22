@@ -206,6 +206,13 @@ type SnapshotResult = {
       second: string;
     }>;
 
+  invalidImeiSamples:
+    Array<{
+      productCode: string;
+      rawSeriNo: string;
+      depot: string;
+    }>;
+
   productCount:
     number;
 
@@ -1100,6 +1107,13 @@ Promise<SnapshotResult> {
     SnapshotResult["serialConflicts"] =
     [];
 
+  // TESHIS: validImei() formatina uymadigi icin sessizce elenen
+  // seriler - eskiden hicbir iz birakmiyordu. Ilk 50 ornegi (ham
+  // SeriNo degeriyle) burada tutuluyor.
+  const invalidImeiSamples:
+    SnapshotResult["invalidImeiSamples"] =
+    [];
+
   const successfulBranches:
     string[] = [];
 
@@ -1462,6 +1476,27 @@ Promise<SnapshotResult> {
               imei
             )
           ) {
+            if (
+              invalidImeiSamples.length <
+              50
+            ) {
+              invalidImeiSamples.push(
+                {
+                  productCode,
+
+                  rawSeriNo:
+                    text(
+                      serial?.SeriNo
+                    ),
+
+                  depot:
+                    text(
+                      serial?.DepoKod
+                    ),
+                }
+              );
+            }
+
             continue;
           }
 
@@ -1709,6 +1744,8 @@ Promise<SnapshotResult> {
     mismatches,
 
     serialConflicts,
+
+    invalidImeiSamples,
 
     productCount:
       productCodes.length,
@@ -3716,6 +3753,11 @@ export async function GET(
           snapshot
             .serialConflicts
             .length,
+
+        invalidImeiCount:
+          snapshot
+            .invalidImeiSamples
+            .length,
       },
 
       errors: {
@@ -3746,6 +3788,10 @@ export async function GET(
               0,
               50
             ),
+
+        invalidImeiSamples:
+          snapshot
+            .invalidImeiSamples,
       },
 
       sampleDevices:
@@ -4129,6 +4175,10 @@ export async function POST(
               0,
               50
             ),
+
+        invalidImeiSamples:
+          snapshot
+            .invalidImeiSamples,
       },
     });
   } catch (

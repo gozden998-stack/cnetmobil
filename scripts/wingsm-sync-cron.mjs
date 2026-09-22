@@ -206,6 +206,9 @@ function printSyncSummary(
         rawDepotDiagnostics:
           summary.rawDepotDiagnostics,
 
+        invalidImeiCount:
+          summary.invalidImeiCount,
+
         stockReadErrorCount:
           summary.stockReadErrorCount,
 
@@ -265,6 +268,18 @@ function printSyncSummary(
     );
     console.warn(
       JSON.stringify(warnings.detailErrors, null, 2)
+    );
+  }
+
+  if (
+    Array.isArray(warnings.invalidImeiSamples) &&
+    warnings.invalidImeiSamples.length
+  ) {
+    console.warn(
+      "[WINGSM CRON] ⚠️ Format dışı (sessizce elenen) seri örnekleri:"
+    );
+    console.warn(
+      JSON.stringify(warnings.invalidImeiSamples, null, 2)
     );
   }
 }
