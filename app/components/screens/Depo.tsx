@@ -259,16 +259,22 @@ export default function Depo() {
             row.cihaz || row.imei
         );
 
-      // instantUsedRef'i bu turun sonucuna göre yeniden kur: backend'in
-      // "kullanıldı" dediği her IMEI taze bir zaman damgasıyla korunur;
-      // backend "kullanılmadı" diyorsa ve TTL'i geçmiş bir optimistik kayıt
-      // varsa o artık ATILIR (aşağıdaki expiredImeis).
-      const now = Date.now();
+      // instantUsedRef'i bu turun sonucuna göre yeniden kur: override SADECE
+      // kullanıcının kendi optimistik tıklaması ile backend'in onayı
+      // arasındaki KISA gecikmeyi köprülemeli. Backend zaten bağımsız olarak
+      // "kullanıldı" diyorsa (confirmedUsed) override'a hiç gerek yok — bu
+      // yüzden burada TAMAMEN düşürülüyor. ESKİDEN burada setAt: now ile
+      // her pollingde yenileniyordu; bu da Sheet'ten "KULLANILDI" silindikten
+      // SONRA bile override'ın her zaman "az önce" set edilmiş görünüp 10
+      // dakika daha eski durumu dayatmasına yol açan asıl bug'dı.
       const nextInstantUsed: Record<string, InstantUsedEntry> = {};
       const expiredImeis: string[] = [];
 
       for (const [imei, entry] of Object.entries(instantUsedRef.current)) {
-        if (confirmedUsed[imei]) continue; // aşağıda taze damgayla yeniden eklenecek
+        if (confirmedUsed[imei]) {
+          expiredImeis.push(imei);
+          continue;
+        }
         if (overrideGecerliMi(entry)) {
           nextInstantUsed[imei] = entry;
         } else {
@@ -276,11 +282,7 @@ export default function Depo() {
         }
       }
 
-      for (const [imei, durum] of Object.entries(confirmedUsed)) {
-        nextInstantUsed[imei] = { durum, setAt: now };
-      }
-
-      if (Object.keys(confirmedUsed).length || expiredImeis.length) {
+      if (expiredImeis.length) {
         instantUsedRef.current = nextInstantUsed;
 
         if (mountedRef.current) {
@@ -288,13 +290,6 @@ export default function Depo() {
         }
 
         if (typeof window !== "undefined") {
-          Object.entries(confirmedUsed).forEach(([imei, durum]) => {
-            window.localStorage.setItem(
-              "kullanilan_imei_" + imei,
-              JSON.stringify({ durum, setAt: now })
-            );
-          });
-
           expiredImeis.forEach((imei) => {
             window.localStorage.removeItem("kullanilan_imei_" + imei);
           });
