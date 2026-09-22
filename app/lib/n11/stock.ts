@@ -217,6 +217,68 @@ async function saveN11Task(
 // denenmeye devam eder, WingSM senkronu bu yüzden asla bozulmaz.
 // ======================================================
 
+const ACTIVE_CHANNEL_MEMBERSHIP_STATUSES = [
+  "LISTED",
+  "RESERVED",
+  "PENDING_CREATE",
+];
+
+// Bir listing tek bir IMEI'yi mi (external_stock_code) temsil ediyor,
+// yoksa ayni model icin birden fazla IMEI'yi tek ilanda mi (raw_data.
+// availableImeis / centerImeis havuzu, ornegin toplu/pool ilanlar)
+// gruplayan bir "havuz" mu bunu ayirt etmemiz gerekiyor. Havuzda sadece
+// SATILAN IMEI cikarilir, geri kalan IMEI'ler hala satilabilir kaldigi
+// icin listing'in tamami sifirlanmaz - sadece havuz BOSALIRSA n11'e
+// stok=0 gonderilir.
+function stripImeiFromPoolRawData(
+  rawData: any,
+  imei: string
+): { raw: any; remaining: number; hadPool: boolean } {
+  const raw = rawData && typeof rawData === "object" ? { ...rawData } : {};
+
+  let hadPool = false;
+  let remaining = -1;
+
+  if (Array.isArray(raw.availableImeis)) {
+    hadPool = true;
+    raw.availableImeis = raw.availableImeis.filter(
+      (value: unknown) => String(value ?? "").trim() !== imei
+    );
+    remaining = raw.availableImeis.length;
+  }
+
+  if (Array.isArray(raw.centerImeis)) {
+    raw.centerImeis = raw.centerImeis.filter(
+      (value: unknown) => String(value ?? "").trim() !== imei
+    );
+  }
+
+  return { raw, remaining, hadPool };
+}
+
+async function markChannelDeviceSoldByImei(pool: Pool, imei: string) {
+  await pool.query(
+    `
+      UPDATE public.online_channel_devices
+      SET
+        membership_status = 'PASSIVE',
+        metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+        updated_at = now()
+      WHERE imei = $1
+        AND channel = 'N11'
+        AND UPPER(COALESCE(membership_status, '')) = ANY($3::text[])
+    `,
+    [
+      imei,
+      JSON.stringify({
+        soldAt: new Date().toISOString(),
+        source: "WINGSM_AUTO",
+      }),
+      ACTIVE_CHANNEL_MEMBERSHIP_STATUSES,
+    ]
+  );
+}
+
 export async function autoZeroN11StockForSoldImei(
   pool: Pool,
   imei: string
@@ -230,6 +292,79 @@ export async function autoZeroN11StockForSoldImei(
     return { zeroed, errors };
   }
 
+  // "Merkezi IMEI Stok" ekranindaki kanal rozeti online_channel_devices
+  // VEYA (o tablo bos ise) online_listings.raw_data.availableImeis
+  // uzerinden hesaplaniyor - ikisini de guncelliyoruz ki hangi yoldan
+  // ilan edilmis olursa olsun IMEI kanaldan dusmus gorunsun.
+  try {
+    await markChannelDeviceSoldByImei(pool, cleanImei);
+  } catch (error) {
+    errors.push(
+      `online_channel_devices güncellenemedi: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  let poolListings;
+
+  try {
+    poolListings = await pool.query(
+      `
+        SELECT id, raw_data
+        FROM public.online_listings
+        WHERE channel = 'N11'
+          AND raw_data -> 'availableImeis' @> $1::jsonb
+      `,
+      [JSON.stringify([cleanImei])]
+    );
+  } catch (error) {
+    poolListings = { rows: [] as any[] };
+    errors.push(
+      `Havuz ilan sorgusu başarısız: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  const emptiedPoolListingIds: number[] = [];
+
+  for (const poolListing of poolListings.rows) {
+    const listingId = Number(poolListing.id);
+
+    try {
+      const { raw, remaining } = stripImeiFromPoolRawData(
+        poolListing.raw_data,
+        cleanImei
+      );
+
+      raw.lastSoldImeiRemovedAt = new Date().toISOString();
+
+      await pool.query(
+        `
+          UPDATE public.online_listings
+          SET
+            raw_data = $2::jsonb,
+            quantity = $3,
+            updated_at = now()
+          WHERE id = $1
+            AND channel = 'N11'
+        `,
+        [listingId, JSON.stringify(raw), Math.max(0, remaining)]
+      );
+
+      if (remaining <= 0) {
+        emptiedPoolListingIds.push(listingId);
+      }
+    } catch (error) {
+      errors.push(
+        `Havuz ilan #${listingId} güncellenemedi: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
   let listings;
 
   try {
@@ -238,10 +373,12 @@ export async function autoZeroN11StockForSoldImei(
         SELECT id, external_stock_code, external_product_id, quantity
         FROM public.online_listings
         WHERE channel = 'N11'
-          AND external_stock_code = $1
-          AND COALESCE(quantity, 0) > 0
+          AND (
+            (external_stock_code = $1 AND COALESCE(quantity, 0) > 0)
+            OR id = ANY($2::bigint[])
+          )
       `,
-      [cleanImei]
+      [cleanImei, emptiedPoolListingIds]
     );
   } catch (error) {
     errors.push(
