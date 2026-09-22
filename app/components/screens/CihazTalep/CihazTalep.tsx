@@ -430,6 +430,8 @@ const downloadMagazaStokExcel = () => {
       )
     )
     .map((row) => ({
+      MAGAZA: String(stockSourceBranch ?? '').trim(),
+      IMEI: String(row?.[15] ?? '').trim(),
       MARKA_MODEL: String(row?.[0] ?? '').trim(),
       HAFIZA: String(row?.[1] ?? '').trim(),
       RENK: String(row?.[2] ?? '').trim(),
@@ -452,6 +454,8 @@ const downloadMagazaStokExcel = () => {
 
   const worksheet = XLSX.utils.json_to_sheet(rows, {
     header: [
+      'MAGAZA',
+      'IMEI',
       'MARKA_MODEL',
       'HAFIZA',
       'RENK',
@@ -465,6 +469,8 @@ const downloadMagazaStokExcel = () => {
   });
 
   worksheet['!cols'] = [
+    { wch: 16 },
+    { wch: 19 },
     { wch: 34 },
     { wch: 12 },
     { wch: 18 },
@@ -477,7 +483,7 @@ const downloadMagazaStokExcel = () => {
   ];
 
   worksheet['!autofilter'] = {
-    ref: `A1:I${rows.length + 1}`,
+    ref: `A1:K${rows.length + 1}`,
   };
 
   const workbook = XLSX.utils.book_new();
