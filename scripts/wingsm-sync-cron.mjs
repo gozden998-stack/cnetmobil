@@ -191,6 +191,18 @@ function printSyncSummary(
         missingMarked:
           summary.missingMarked,
 
+        soldViaSaleDetection:
+          summary.soldViaSaleDetection,
+
+        reversedSoldCount:
+          summary.reversedSoldCount,
+
+        n11AutoZeroed:
+          summary.n11AutoZeroed,
+
+        n11AutoZeroErrors:
+          summary.n11AutoZeroErrors,
+
         safeForMissing:
           summary.safeForMissing,
 

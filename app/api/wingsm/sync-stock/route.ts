@@ -3585,6 +3585,142 @@ async function syncSnapshotToDatabase(
     }
 
     // ==================================================
+    // SATIS IPTALI / IADE TESPITI - COMMIT SONRASI
+    //
+    // SOLD durumu bilerek KALICI/DONUK tutuluyor (yanlislikla geri
+    // alinip cihaz n11'de tekrar satilmasin diye - cifte satis
+    // riski). Ama gercekte WingSM'de bir satis SONRADAN iptal/iade
+    // edilebiliyor - bu durumda cihaz gercekten stoga geri donuyor,
+    // panelin de bunu yansitmasi lazim.
+    //
+    // SADECE SON 2 SAAT icinde SOLD olan cihazlar kontrol edilir -
+    // her SOLD cihazi sonsuza kadar her dakika kontrol etmek WingSM'e
+    // gereksiz yuk bindirir; iptaller pratikte satistan kisa sure
+    // sonra oluyor. Bu adim da (asagidaki n11 adimi gibi) ana
+    // senkrondan tamamen bagimsiz - hata/yavaslik sadece burayi
+    // etkiler.
+    // ==================================================
+
+    let reversedSoldCount =
+      0;
+
+    try {
+      const pool =
+        getPool();
+
+      const recentlySold =
+        await pool.query(
+          `
+            SELECT id, imei, current_branch_code, updated_at
+            FROM public.stock_devices
+            WHERE status = 'SOLD'
+              AND source IN ('WINGSM', 'MIXED')
+              AND updated_at > now() - interval '2 hours'
+          `
+        );
+
+      for (const device of recentlySold.rows) {
+        try {
+          const branchCode =
+            String(
+              device.current_branch_code || ""
+            ) as BranchCode;
+
+          const depot =
+            WINGSM_DEPOT_MAP[branchCode] || null;
+
+          if (!depot) {
+            continue;
+          }
+
+          const salesPayload =
+            await getWingSMSalesList({
+              sirket: depot,
+              startDate: new Date(device.updated_at),
+              endDate: new Date(),
+            });
+
+          const salesRows =
+            extractWingSMMovementRows(salesPayload);
+
+          const cleanImei =
+            String(device.imei || "").replace(/\D/g, "");
+
+          const returnRow =
+            salesRows.find((row: any) => {
+              try {
+                return (
+                  JSON.stringify(row).includes(cleanImei) &&
+                  isReturnRow(row)
+                );
+              } catch {
+                return false;
+              }
+            }) || null;
+
+          if (!returnRow) {
+            continue;
+          }
+
+          const reverted =
+            await pool.query(
+              `
+                UPDATE public.stock_devices
+                SET
+                  status = 'AVAILABLE',
+                  wing_status = 'IN_STOCK',
+                  updated_at = NOW()
+                WHERE id = $1
+                  AND status = 'SOLD'
+              `,
+              [device.id]
+            );
+
+          if (!reverted.rowCount) {
+            continue;
+          }
+
+          await pool.query(
+            `
+              INSERT INTO public.stock_events (
+                device_id, imei, event_type,
+                from_branch_code, to_branch_code,
+                old_status, new_status,
+                performed_by, metadata
+              )
+              VALUES (
+                $1, $2, 'WINGSM_SALE_REVERSED',
+                $3, $3,
+                'SOLD', 'AVAILABLE',
+                'WINGSM_AUTO', $4::jsonb
+              )
+            `,
+            [
+              device.id,
+              device.imei,
+              device.current_branch_code,
+              JSON.stringify({ evidence: returnRow }),
+            ]
+          );
+
+          reversedSoldCount +=
+            1;
+        } catch (reverseError) {
+          console.error(
+            "WINGSM_SALE_REVERSAL_ERROR:",
+            device.imei,
+            reverseError
+          );
+        }
+      }
+    } catch (reverseQueryError) {
+      console.error(
+        "WINGSM_SALE_REVERSAL_QUERY_ERROR:",
+        reverseQueryError
+      );
+    }
+
+    // ==================================================
     // SOLD OLARAK ISARETLENEN CIHAZLAR ICIN N11 STOK=0
     //
     // Ana stok senkron transaction'i COMMIT olduktan SONRA, ayri bir
@@ -3655,6 +3791,8 @@ async function syncSnapshotToDatabase(
       missingMarked,
 
       soldViaSaleDetection,
+
+      reversedSoldCount,
 
       n11AutoZeroed,
 
@@ -4135,6 +4273,10 @@ export async function POST(
         soldViaSaleDetection:
           sync
             .soldViaSaleDetection,
+
+        reversedSoldCount:
+          sync
+            .reversedSoldCount,
 
         n11AutoZeroed:
           sync
