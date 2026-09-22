@@ -236,6 +236,17 @@ type SnapshotResult = {
   unsafeProductBranchPairs:
     string[];
 
+  // Teshis: magaza basina WingSM'den HAM gelen satir/adet (bizim
+  // filtrelememizden once).
+  rawDepotDiagnostics:
+    Record<
+      string,
+      {
+        rawRowCount: number;
+        rawQuantitySum: number;
+      }
+    >;
+
   startedAt:
     Date;
 
@@ -1107,6 +1118,16 @@ Promise<SnapshotResult> {
   let stockRowCount =
     0;
 
+  // TESHIS AMACLI: WingSM'den mağaza başına ham olarak kaç satır ve
+  // toplam adet geldiğini, bizim hiçbir filtreleme/eşleştirme
+  // mantığımız uygulanmadan ÖNCE kaydediyoruz. Böylece bir mağazanın
+  // WingSM sayısıyla tutmaması durumunda "WingSM'den zaten eksik
+  // geliyor" mu yoksa "bizim tarafta sonradan eleniyor" mu net ayrılır.
+  const rawDepotDiagnostics: Record<
+    string,
+    { rawRowCount: number; rawQuantitySum: number }
+  > = {};
+
   // ==================================================
   // 5 DEPO
   // ==================================================
@@ -1142,6 +1163,26 @@ Promise<SnapshotResult> {
           successfulBranches.push(
             branch
           );
+
+          rawDepotDiagnostics[
+            branch
+          ] = {
+            rawRowCount:
+              rows.length,
+
+            rawQuantitySum:
+              rows.reduce(
+                (
+                  sum,
+                  row
+                ) =>
+                  sum +
+                  numberOrZero(
+                    row?.DepoMiktar
+                  ),
+                0
+              ),
+          };
 
           for (
             const row of
@@ -1689,6 +1730,8 @@ Promise<SnapshotResult> {
       Array.from(
         unsafeProductBranchPairs
       ),
+
+    rawDepotDiagnostics,
 
     startedAt,
 
@@ -3650,6 +3693,10 @@ export async function GET(
           snapshot
             .unsafeProductBranchPairs,
 
+        rawDepotDiagnostics:
+          snapshot
+            .rawDepotDiagnostics,
+
         stockReadErrorCount:
           snapshot
             .stockReadErrors
@@ -4020,6 +4067,10 @@ export async function POST(
         unsafeProductBranchPairs:
           snapshot
             .unsafeProductBranchPairs,
+
+        rawDepotDiagnostics:
+          snapshot
+            .rawDepotDiagnostics,
 
         stockReadErrorCount:
           snapshot

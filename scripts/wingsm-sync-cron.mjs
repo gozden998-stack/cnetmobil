@@ -203,6 +203,9 @@ function printSyncSummary(
         unsafeProductBranchPairs:
           summary.unsafeProductBranchPairs,
 
+        rawDepotDiagnostics:
+          summary.rawDepotDiagnostics,
+
         stockReadErrorCount:
           summary.stockReadErrorCount,
 
