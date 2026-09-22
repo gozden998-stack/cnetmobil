@@ -1817,10 +1817,45 @@ function resolveLocalDeviceState(
   }
 
   // Talep daha yeni acildi.
+  //
+  // ISTISNA: GONDERILDI hic tiklanmamis olsa bile, WingSM'in guncel stok
+  // anlik goruntusu cihazi zaten TALEP EDEN magazada gosteriyorsa (personel
+  // paneli hic kullanmadan elden/WingSM uzerinden transfer etmis demektir),
+  // bu PENDING talebi sonsuza kadar "REQUESTED" gostermeye devam etmek
+  // yaniltici olur. Cagiran taraf autoCompletedPendingRequest=true gorunce
+  // device_requests'i COMPLETED yapip transfer/olay kaydini olusturuyor.
   if (
     requestStatus ===
       "PENDING"
   ) {
+    const requesterBranch =
+      text(
+        existing
+          .requester_branch_code
+      ).toUpperCase();
+
+    const wingBranch =
+      text(
+        actualWingBranch
+      ).toUpperCase();
+
+    if (
+      requesterBranch &&
+      wingBranch ===
+        requesterBranch
+    ) {
+      return {
+        currentBranch:
+          actualWingBranch,
+
+        status:
+          "AVAILABLE",
+
+        autoCompletedPendingRequest:
+          true,
+      };
+    }
+
     return {
       currentBranch:
         existing
@@ -2459,6 +2494,90 @@ async function syncSnapshotToDatabase(
       ) {
         branchMoved +=
           1;
+      }
+
+      // GONDERILDI hic tiklanmadan WingSM'de dogrudan hedef magazaya
+      // tasindigi tespit edilen PENDING talebi burada kapatiyoruz: talep
+      // COMPLETED olur, gecmis icin bir device_transfers + stock_events
+      // kaydi acilir (panel_sent_by/performed_by = WINGSM_AUTO).
+      if (
+        localState.autoCompletedPendingRequest &&
+        existing?.request_id
+      ) {
+        const completedRequest =
+          await client.query(
+            `
+              UPDATE public.device_requests
+              SET
+                status = 'COMPLETED',
+                completed_at = NOW(),
+                updated_at = NOW()
+              WHERE id = $1
+                AND status = 'PENDING'
+              RETURNING id
+            `,
+            [existing.request_id]
+          );
+
+        if (completedRequest.rowCount === 1) {
+          const wingReference =
+            `WINGSM:DIRECT_PENDING_BYPASS:${device.branchCode}:${seenAt.toISOString()}`;
+
+          await client.query(
+            `
+              INSERT INTO public.device_transfers (
+                device_id, request_id, imei,
+                from_branch_code, to_branch_code,
+                status, panel_sent_by, panel_sent_at,
+                wing_transfer_at, wing_reference,
+                completed_at
+              )
+              VALUES (
+                $1, $2, $3,
+                $4, $5,
+                'COMPLETED', 'WINGSM_AUTO', $6,
+                $6, $7,
+                NOW()
+              )
+            `,
+            [
+              existing.id,
+              existing.request_id,
+              device.imei,
+              existing.owner_branch_code,
+              device.branchCode,
+              seenAt,
+              wingReference,
+            ]
+          );
+
+          await client.query(
+            `
+              INSERT INTO public.stock_events (
+                device_id, imei, event_type,
+                from_branch_code, to_branch_code,
+                old_status, new_status,
+                performed_by, metadata
+              )
+              VALUES (
+                $1, $2, 'TRANSFER_COMPLETED_WINGSM_DIRECT',
+                $3, $4,
+                'REQUESTED', 'AVAILABLE',
+                'WINGSM_AUTO', $5::jsonb
+              )
+            `,
+            [
+              existing.id,
+              device.imei,
+              existing.owner_branch_code,
+              device.branchCode,
+              JSON.stringify({
+                requestId: existing.request_id,
+                note: 'GÖNDERİLDİ hiç tıklanmadan WingSM üzerinde direkt transfer tespit edildi.',
+              }),
+            ]
+          );
+        }
       }
 
       const result =
