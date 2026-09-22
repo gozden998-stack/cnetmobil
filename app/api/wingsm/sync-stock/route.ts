@@ -2938,138 +2938,28 @@ async function syncSnapshotToDatabase(
     // SADECE TAM VE HATASIZ SNAPSHOTTA.
     // ==================================================
 
+    let freshlyMissingRows:
+      Array<{
+        id: number;
+        imei: string;
+        current_branch_code: string;
+        wing_last_seen_at: string | null;
+      }> = [];
+
     if (
       snapshot
         .safeForMissing
     ) {
-      // ==================================================
-      // MISSING'e DUSMEDEN ONCE: SATIS TESPITI
-      //
-      // Asagidaki bulk MISSING sorgusunun isaretleyecegi AYNI adaylari
-      // once tek tek WingSM hareket gecmisinden kontrol ediyoruz. Bir
-      // "SATIS" hareketi bulunursa cihaz MISSING yerine SOLD olarak
-      // isaretlenir ve bulk sorgunun disinda tutulur. Hareket sorgusu
-      // basarisiz olursa (WingSM hatasi, timeout vb.) o cihaz GUVENLI
-      // TARAFTA kalir - eskisi gibi MISSING'e duser, genel senkron
-      // asla bu yuzden durmaz/bozulmaz.
-      // ==================================================
-
-      const missingCandidates =
-        await client.query(
-          `
-            SELECT
-              sd.id,
-              sd.imei,
-              sd.current_branch_code,
-              sd.wing_last_seen_at
-            FROM public.stock_devices sd
-            WHERE
-              sd.source IN ('WINGSM', 'MIXED')
-              AND (
-                sd.wing_last_seen_at IS NULL
-                OR sd.wing_last_seen_at < $1
-              )
-              AND COALESCE(sd.wing_status, '') <> 'MISSING'
-              AND sd.status NOT IN ('SOLD', 'PASSIVE')
-              AND NOT EXISTS (
-                SELECT 1
-                FROM public.device_requests dr
-                WHERE
-                  dr.device_id = sd.id
-                  AND dr.status IN ('PENDING', 'SENT', 'TRANSFER_WAITING')
-              )
-          `,
-          [seenAt]
-        );
-
-      const soldDeviceIds: number[] = [];
-
-      for (const candidate of missingCandidates.rows) {
-        try {
-          const lastSeen =
-            candidate.wing_last_seen_at
-              ? new Date(candidate.wing_last_seen_at)
-              : new Date(
-                  Date.now() - 30 * 24 * 60 * 60 * 1000
-                );
-
-          const candidateBranch =
-            String(
-              candidate.current_branch_code || ""
-            ) as BranchCode;
-
-          const depot =
-            WINGSM_DEPOT_MAP[candidateBranch] || null;
-
-          const movementPayload =
-            await getWingSMProductMovementHistory({
-              serialNo: String(candidate.imei || ""),
-              startDate: lastSeen,
-              endDate: new Date(),
-              depot,
-            });
-
-          const movementRows =
-            extractWingSMMovementRows(movementPayload);
-
-          const saleRow =
-            findSaleMovementRow(movementRows);
-
-          if (saleRow) {
-            await client.query(
-              `
-                UPDATE public.stock_devices
-                SET
-                  status = 'SOLD',
-                  wing_status = 'SOLD',
-                  updated_at = NOW()
-                WHERE id = $1
-              `,
-              [candidate.id]
-            );
-
-            await client.query(
-              `
-                INSERT INTO public.stock_events (
-                  device_id, imei, event_type,
-                  from_branch_code, to_branch_code,
-                  old_status, new_status,
-                  performed_by, metadata
-                )
-                VALUES (
-                  $1, $2, 'WINGSM_SALE_DETECTED',
-                  $3, $3,
-                  'AVAILABLE', 'SOLD',
-                  'WINGSM_AUTO', $4::jsonb
-                )
-              `,
-              [
-                candidate.id,
-                candidate.imei,
-                candidate.current_branch_code,
-                JSON.stringify({ movement: saleRow }),
-              ]
-            );
-
-            soldDeviceIds.push(
-              Number(candidate.id)
-            );
-
-            soldImeisForN11.push(
-              String(candidate.imei || "")
-            );
-
-            soldViaSaleDetection += 1;
-          }
-        } catch (saleCheckError) {
-          console.error(
-            "WINGSM_SALE_DETECTION_ERROR:",
-            candidate.imei,
-            saleCheckError
-          );
-        }
-      }
-
+      // NOT: Satis tespiti (WingSM hareket gecmisi sorgusu) BURADA
+      // YAPILMIYOR - bilerek. Bu sorgu WingSM'e canli, IMEI basina HTTP
+      // istegi atiyor; COMMIT'ten once, ana senkron transaction'i
+      // icinde calistirilirsa yavas/coklu adayda tum senkronu
+      // geciktirip zaman asimina ugratabilir, bu da HICBIR magazanin
+      // stogunun guncellenmemesine (transaction rollback) yol acar.
+      // Bu yuzden MISSING isaretleme ESKISI GIBI hizli ve tek sorguda
+      // kaliyor; hangi cihazlarin bu turda YENI MISSING oldugunu
+      // RETURNING ile yakalayip satis kontrolunu COMMIT'ten SONRA,
+      // ayri ve izole bir adimda yapiyoruz (asagida).
       const missingResult =
         await client.query(
           `
@@ -3140,12 +3030,15 @@ async function syncSnapshotToDatabase(
                 ) <>
                   'MISSING'
 
-              AND
-                sd.id <> ALL($2::int[])
+            RETURNING
+              id,
+              imei,
+              current_branch_code,
+              wing_last_seen_at,
+              status
           `,
           [
             seenAt,
-            soldDeviceIds,
           ]
         );
 
@@ -3153,6 +3046,17 @@ async function syncSnapshotToDatabase(
         missingResult
           .rowCount ||
         0;
+
+      // Satis kontrolu SADECE bu turda gercekten MISSING'e donenler
+      // icin yapilir - aktif talebi olan (REQUESTED/TRANSFER_WAITING)
+      // veya zaten SOLD/PASSIVE kalanlar (ELSE dali) disarida kalir,
+      // eski davranisla birebir ayni kapsam.
+      freshlyMissingRows =
+        missingResult.rows.filter(
+          (row) =>
+            row.status === "MISSING" &&
+            String(row.imei || "").trim().length > 0
+        );
     }
 
     // ==================================================
@@ -3208,6 +3112,115 @@ async function syncSnapshotToDatabase(
     await client.query(
       "COMMIT"
     );
+
+    // ==================================================
+    // SATIS TESPITI (WINGSM HAREKET GECMISI) - COMMIT SONRASI
+    //
+    // Ana transaction COMMIT olduktan SONRA, bu turda YENI MISSING
+    // olan cihazlari (freshlyMissingRows) tek tek WingSM hareket
+    // gecmisinden kontrol ediyoruz. Bir "SATIS" hareketi bulunursa
+    // MISSING -> SOLD'a ceviriyoruz. Bu adim ana senkrona hicbir
+    // sekilde bagli degil: burada olabilecek herhangi bir yavaslik/
+    // hata sadece BU ek kontrolu etkiler, stok senkronunun kendisi
+    // COMMIT ile zaten guvenlik altina alinmis durumda.
+    // ==================================================
+
+    if (freshlyMissingRows.length) {
+      const pool =
+        getPool();
+
+      for (const candidate of freshlyMissingRows) {
+        try {
+          const lastSeen =
+            candidate.wing_last_seen_at
+              ? new Date(candidate.wing_last_seen_at)
+              : new Date(
+                  Date.now() - 30 * 24 * 60 * 60 * 1000
+                );
+
+          const candidateBranch =
+            String(
+              candidate.current_branch_code || ""
+            ) as BranchCode;
+
+          const depot =
+            WINGSM_DEPOT_MAP[candidateBranch] || null;
+
+          const movementPayload =
+            await getWingSMProductMovementHistory({
+              serialNo: String(candidate.imei || ""),
+              startDate: lastSeen,
+              endDate: new Date(),
+              depot,
+            });
+
+          const movementRows =
+            extractWingSMMovementRows(movementPayload);
+
+          const saleRow =
+            findSaleMovementRow(movementRows);
+
+          if (!saleRow) {
+            continue;
+          }
+
+          const flipped =
+            await pool.query(
+              `
+                UPDATE public.stock_devices
+                SET
+                  status = 'SOLD',
+                  wing_status = 'SOLD',
+                  updated_at = NOW()
+                WHERE id = $1
+                  AND status = 'MISSING'
+              `,
+              [candidate.id]
+            );
+
+          if (!flipped.rowCount) {
+            // Bu aradaki bir baska islem (ör. yeni bir talep) durumu
+            // degistirmis olabilir - guvenli tarafta kal, dokunma.
+            continue;
+          }
+
+          await pool.query(
+            `
+              INSERT INTO public.stock_events (
+                device_id, imei, event_type,
+                from_branch_code, to_branch_code,
+                old_status, new_status,
+                performed_by, metadata
+              )
+              VALUES (
+                $1, $2, 'WINGSM_SALE_DETECTED',
+                $3, $3,
+                'MISSING', 'SOLD',
+                'WINGSM_AUTO', $4::jsonb
+              )
+            `,
+            [
+              candidate.id,
+              candidate.imei,
+              candidate.current_branch_code,
+              JSON.stringify({ movement: saleRow }),
+            ]
+          );
+
+          soldImeisForN11.push(
+            String(candidate.imei || "")
+          );
+
+          soldViaSaleDetection += 1;
+        } catch (saleCheckError) {
+          console.error(
+            "WINGSM_SALE_DETECTION_ERROR:",
+            candidate.imei,
+            saleCheckError
+          );
+        }
+      }
+    }
 
     // ==================================================
     // SOLD OLARAK ISARETLENEN CIHAZLAR ICIN N11 STOK=0
