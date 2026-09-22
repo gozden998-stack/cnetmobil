@@ -48,6 +48,7 @@ import crypto from "crypto";
 import {
   getWingSMProductByCode,
   getWingSMProductMovementHistory,
+  getWingSMSalesList,
   getWingSMStock,
   WINGSM_DEPOT_MAP,
 } from "@/app/lib/wingsm/server";
@@ -1925,6 +1926,31 @@ function findSaleMovementRow(
   return null;
 }
 
+// WingSM'in resmi satis listesi (get('/api/b2b/satis/list/:sirket'))
+// icin: bir satirin herhangi bir alaninda aranan IMEI'nin gecip
+// gecmedigine bakar. Bu uc nokta zaten sadece satislari dondurdugu
+// icin (alis=1 gonderilmedigi surece) metin/tur aramaya gerek yok -
+// IMEI gecmesi tek basina yeterli kanit.
+function findImeiInRows(
+  rows: any[],
+  imei: string
+): any | null {
+  const cleanImei = String(imei || "").replace(/\D/g, "");
+  if (!cleanImei) return null;
+
+  for (const row of rows) {
+    try {
+      const flatText = JSON.stringify(row);
+      if (flatText.includes(cleanImei)) {
+        return row;
+      }
+    } catch {
+      // JSON.stringify basarisiz olursa bu satiri atla.
+    }
+  }
+  return null;
+}
+
 // ======================================================
 // LOCAL DEVICE STATE
 //
@@ -3237,19 +3263,56 @@ async function syncSnapshotToDatabase(
           const depot =
             WINGSM_DEPOT_MAP[candidateBranch] || null;
 
-          const movementPayload =
-            await getWingSMProductMovementHistory({
-              serialNo: String(candidate.imei || ""),
-              startDate: lastSeen,
-              endDate: new Date(),
-              depot,
-            });
+          // 1) ONCELIKLI KONTROL: WingSM'in resmi satis listesi
+          // (get('/api/b2b/satis/list/:sirket')). Bu uc nokta zaten
+          // SADECE satislari donduruyor (alis=1 gondermedigimiz
+          // surece) - IMEI cevapta geciyorsa bu dogrudan "satildi"
+          // demektir, ayrica metin aramaya gerek yok.
+          let saleRow: any = null;
 
-          const movementRows =
-            extractWingSMMovementRows(movementPayload);
+          if (depot) {
+            try {
+              const salesPayload =
+                await getWingSMSalesList({
+                  sirket: depot,
+                  startDate: lastSeen,
+                  endDate: new Date(),
+                });
 
-          const saleRow =
-            findSaleMovementRow(movementRows);
+              const salesRows =
+                extractWingSMMovementRows(salesPayload);
+
+              saleRow =
+                findImeiInRows(
+                  salesRows,
+                  String(candidate.imei || "")
+                );
+            } catch (salesListError) {
+              console.error(
+                "WINGSM_SALES_LIST_ERROR:",
+                candidate.imei,
+                salesListError
+              );
+            }
+          }
+
+          // 2) YEDEK KONTROL: satis listesi bulamadiysa/hata verdiyse,
+          // urun hareket gecmisinde "SATIS" metni ara (eski yontem).
+          if (!saleRow) {
+            const movementPayload =
+              await getWingSMProductMovementHistory({
+                serialNo: String(candidate.imei || ""),
+                startDate: lastSeen,
+                endDate: new Date(),
+                depot,
+              });
+
+            const movementRows =
+              extractWingSMMovementRows(movementPayload);
+
+            saleRow =
+              findSaleMovementRow(movementRows);
+          }
 
           if (!saleRow) {
             continue;
@@ -3294,7 +3357,7 @@ async function syncSnapshotToDatabase(
               candidate.id,
               candidate.imei,
               candidate.current_branch_code,
-              JSON.stringify({ movement: saleRow }),
+              JSON.stringify({ evidence: saleRow }),
             ]
           );
 

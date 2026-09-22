@@ -1214,6 +1214,109 @@ export async function getWingSMProductMovementHistory(
 }
 
 // ======================================================
+// SATIS/ALIS LISTESI
+//
+// WingSM B2B dokumantasyonundaki resmi satis endpoint'i:
+// get('/api/b2b/satis/list/:sirket')
+// QueryParams: tarih (baslangic), tarih2 (bitis),
+//              temlik=1 (temlikli satislar), aktivasyon=1
+//              (aktivasyon turu satislar), alis=1 (alislar icin).
+//
+// alis parametresini GONDERMIYORUZ - dokumana gore bu bayrak
+// olmadan endpoint sadece SATISLARI donduruyor (alislari degil).
+// Bu yuzden donen cevapta bir IMEI'nin gecmesi, dogrudan "bu IMEI
+// bu tarih araliginda SATILDI" anlamina gelir - ayrica "SATIS"
+// metni aramaya gerek yok (getWingSMProductMovementHistory'deki
+// gibi), cunku endpoint'in kendisi zaten sadece satislari listeliyor.
+// ======================================================
+
+export async function getWingSMSalesList(
+  params: {
+    sirket: string;
+    startDate:
+      | Date
+      | string
+      | number;
+    endDate?:
+      | Date
+      | string
+      | number;
+  }
+) {
+  const sirket =
+    String(
+      params.sirket || ""
+    ).trim();
+
+  if (!sirket) {
+    throw new Error(
+      "WingSM satış sorgusu için şirket/depo kodu gerekli."
+    );
+  }
+
+  const query = {
+    tarih:
+      toWingSMDateNumber(
+        params.startDate
+      ),
+
+    tarih2:
+      toWingSMDateNumber(
+        params.endDate ||
+          new Date()
+      ),
+  };
+
+  const documentedPath =
+    `/api/b2b/satis/list/${encodeURIComponent(
+      sirket
+    )}`;
+
+  try {
+    return await wingSMRequest(
+      documentedPath,
+      {
+        method:
+          "GET",
+
+        query,
+      }
+    );
+  } catch (
+    error: any
+  ) {
+    const message =
+      String(
+        error?.message ||
+          ""
+      );
+
+    // /b2b/urun/list/hareket'te dokuman ile canli servis arasinda
+    // /api onekinde fark cikmisti - ayni ihtimale karsi burada da
+    // 404 donerse onek olmadan bir kez daha deneriz.
+    if (
+      !/HTTP\s*404/i.test(
+        message
+      )
+    ) {
+      throw error;
+    }
+
+    return wingSMRequest(
+      `/b2b/satis/list/${encodeURIComponent(
+        sirket
+      )}`,
+      {
+        method:
+          "GET",
+
+        query,
+      }
+    );
+  }
+}
+
+// ======================================================
 // HEALTH CONFIG
 // ======================================================
 
