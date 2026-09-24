@@ -423,7 +423,6 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         },
       };
     });
-    setCartOpen(true);
   };
 
   const removeCartEntry = (itemId: number) => {
@@ -776,13 +775,33 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                                 Sepette: {inCart.quantity}
                               </span>
                             )}
-                            <input
-                              type="number"
-                              min={1}
-                              value={getItemQtyDraft(item.id)}
-                              onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
-                              className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
-                            />
+                            <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setItemQtyDraft(item.id, String(Math.max(1, (Number(getItemQtyDraft(item.id)) || 1) - 1)))
+                                }
+                                className="flex h-9 w-8 items-center justify-center text-sm font-black text-slate-500 transition hover:bg-slate-50"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                min={1}
+                                value={getItemQtyDraft(item.id)}
+                                onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
+                                className="h-9 w-12 border-x border-slate-200 bg-white text-center text-[11px] font-bold text-slate-700 outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setItemQtyDraft(item.id, String((Number(getItemQtyDraft(item.id)) || 1) + 1))
+                                }
+                                className="flex h-9 w-8 items-center justify-center text-sm font-black text-slate-500 transition hover:bg-slate-50"
+                              >
+                                +
+                              </button>
+                            </div>
                             <button
                               type="button"
                               onClick={() => {
@@ -790,7 +809,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                                 addToCart(period.id, item.id, item.itemName, qty);
                                 setItemQtyDraft(item.id, "1");
                               }}
-                              className="rounded-xl bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
+                              className="rounded-xl bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500 active:scale-95"
                             >
                               Sepete Ekle
                             </button>
