@@ -2034,11 +2034,15 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                 const garanti = String(row?.[5] || '');
                 const degisen = String(row?.[6] || '');
                 const kutu = String(row?.[7] || '');
+                const imei = String(row?.[15] || '');
                 const brand = getCihazTalepBrand(markaModel);
                 const status = getCihazTalepStatus(row);
 
+                const normalizedImeiSearch = normalizedSearch.replace(/\D/g, '');
+
                 const searchOk =
                   !normalizedSearch ||
+                  (normalizedImeiSearch.length >= 4 && imei.includes(normalizedImeiSearch)) ||
                   [
                     markaModel,
                     hafiza,
@@ -2442,7 +2446,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           setCihazTalepSearch(e.target.value);
                           setCihazTalepPage(1);
                         }}
-                        placeholder="Model, marka veya özellik ara..."
+                        placeholder="Model, marka, özellik veya IMEI ara..."
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                       />
                     </div>
