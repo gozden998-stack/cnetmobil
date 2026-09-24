@@ -3074,7 +3074,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </>
               )}
 
-              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI' || selectedBranch.startsWith('CMR')) && (
                 <button
                   type="button"
                   onClick={() => { setAppMode('tedarik'); setStep(1); }}
@@ -3123,7 +3123,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </>
               )}
 
-              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI' || selectedBranch.startsWith('CMR')) && (
                 <button
                   onClick={() => { setAppMode('tedarik'); setStep(1); }}
                   className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-3 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500 md:flex"

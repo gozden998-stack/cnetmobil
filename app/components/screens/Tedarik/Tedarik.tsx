@@ -15,14 +15,14 @@ type SupplyRequestRow = {
   updatedAt: string;
 };
 
-type SupplyItem = {
+type PeriodItem = {
   id: number;
   itemName: string;
   itemNote: string;
   requests: SupplyRequestRow[];
 };
 
-type SupplyBatch = {
+type SupplyPeriod = {
   id: number;
   title: string;
   status: "DRAFT" | "LIVE" | "ENDED" | "CANCELLED";
@@ -31,7 +31,14 @@ type SupplyBatch = {
   endsAt: string | null;
   createdByName: string;
   createdAt: string;
-  items: SupplyItem[];
+  items: PeriodItem[];
+};
+
+type CatalogItem = {
+  id: number;
+  itemName: string;
+  itemNote: string;
+  isActive: boolean;
 };
 
 const POLL_MS = 4000;
@@ -90,30 +97,37 @@ function PlusIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
+function ListIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V4h6v3m-8 0l1 13a2 2 0 002 2h4a2 2 0 002-2l1-13" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
     </svg>
   );
 }
 
 export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
+  void selectedBranch;
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isManager, setIsManager] = useState(isAdmin);
-  const [batches, setBatches] = useState<SupplyBatch[]>([]);
+  const [channel, setChannel] = useState<"CMR" | "VODAFONE" | null>(null);
+  const [periods, setPeriods] = useState<SupplyPeriod[]>([]);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemNote, setNewItemNote] = useState("");
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createDuration, setCreateDuration] = useState(DURATION_PRESETS[2].minutes);
-  const [createItems, setCreateItems] = useState<{ itemName: string; itemNote: string }[]>([
-    { itemName: "", itemNote: "" },
-  ]);
   const [createSaving, setCreateSaving] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  const [pendingRequest, setPendingRequest] = useState<{ batchId: number; itemId: number } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<{ periodId: number; itemId: number } | null>(null);
   const [requestShop, setRequestShop] = useState(VODAFONE_SHOPS[0]);
   const [requestQty, setRequestQty] = useState("1");
   const [requestSaving, setRequestSaving] = useState(false);
@@ -122,20 +136,26 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/supply", {
-        method: "GET",
-        cache: "no-store",
-        credentials: "same-origin",
-      });
+      const [periodsRes, catalogRes] = await Promise.all([
+        fetch("/api/supply", { method: "GET", cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/supply/catalog", { method: "GET", cache: "no-store", credentials: "same-origin" }),
+      ]);
 
-      const result = await response.json().catch(() => ({}));
+      const periodsResult = await periodsRes.json().catch(() => ({}));
+      const catalogResult = await catalogRes.json().catch(() => ({}));
 
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Tedarik verisi alınamadı.");
+      if (!periodsRes.ok || !periodsResult?.ok) {
+        throw new Error(periodsResult?.error || "Tedarik verisi alınamadı.");
       }
 
-      setIsManager(Boolean(result.isManager));
-      setBatches(Array.isArray(result.batches) ? result.batches : []);
+      if (!catalogRes.ok || !catalogResult?.ok) {
+        throw new Error(catalogResult?.error || "Katalog verisi alınamadı.");
+      }
+
+      setIsManager(Boolean(periodsResult.isManager));
+      setChannel(periodsResult.channel ?? null);
+      setPeriods(Array.isArray(periodsResult.periods) ? periodsResult.periods : []);
+      setCatalog(Array.isArray(catalogResult.items) ? catalogResult.items : []);
       setError("");
     } catch (err: any) {
       setError(err?.message || "Tedarik verisi alınamadı.");
@@ -152,34 +172,62 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     return () => window.clearInterval(intervalId);
   }, [load]);
 
-  const addCreateItemRow = () => {
-    setCreateItems((rows) => [...rows, { itemName: "", itemNote: "" }]);
+  const submitNewCatalogItem = async () => {
+    if (catalogSaving || !newItemName.trim()) return;
+
+    setCatalogSaving(true);
+    setCatalogError("");
+
+    try {
+      const response = await fetch("/api/supply/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ itemName: newItemName.trim(), itemNote: newItemNote.trim() }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Ürün eklenemedi.");
+      }
+
+      setNewItemName("");
+      setNewItemNote("");
+      void load();
+    } catch (err: any) {
+      setCatalogError(err?.message || "Ürün eklenemedi.");
+    } finally {
+      setCatalogSaving(false);
+    }
   };
 
-  const removeCreateItemRow = (index: number) => {
-    setCreateItems((rows) => rows.filter((_, i) => i !== index));
+  const toggleCatalogItem = async (item: CatalogItem) => {
+    try {
+      const response = await fetch(`/api/supply/catalog/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ isActive: !item.isActive }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Güncellenemedi.");
+      }
+
+      void load();
+    } catch (err: any) {
+      setError(err?.message || "Güncellenemedi.");
+    }
   };
 
-  const updateCreateItemRow = (index: number, field: "itemName" | "itemNote", value: string) => {
-    setCreateItems((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row))
-    );
-  };
-
-  const submitCreate = async () => {
+  const submitCreatePeriod = async () => {
     if (createSaving) return;
-
-    const items = createItems
-      .map((item) => ({ itemName: item.itemName.trim(), itemNote: item.itemNote.trim() }))
-      .filter((item) => item.itemName);
 
     if (!createTitle.trim()) {
       setCreateError("Başlık zorunludur.");
-      return;
-    }
-
-    if (!items.length) {
-      setCreateError("En az bir ürün eklemelisiniz.");
       return;
     }
 
@@ -191,37 +239,32 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({
-          title: createTitle.trim(),
-          durationMinutes: createDuration,
-          items,
-        }),
+        body: JSON.stringify({ title: createTitle.trim(), durationMinutes: createDuration }),
       });
 
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Tedarik dönemi oluşturulamadı.");
+        throw new Error(result?.error || "Dönem oluşturulamadı.");
       }
 
       setCreateOpen(false);
       setCreateTitle("");
-      setCreateItems([{ itemName: "", itemNote: "" }]);
       setCreateDuration(DURATION_PRESETS[2].minutes);
       void load();
     } catch (err: any) {
-      setCreateError(err?.message || "Tedarik dönemi oluşturulamadı.");
+      setCreateError(err?.message || "Dönem oluşturulamadı.");
     } finally {
       setCreateSaving(false);
     }
   };
 
-  const runBatchAction = async (batchId: number, action: "START" | "END" | "CANCEL") => {
+  const runPeriodAction = async (periodId: number, action: "START" | "END" | "CANCEL") => {
     if (actionBusyId) return;
-    setActionBusyId(batchId);
+    setActionBusyId(periodId);
 
     try {
-      const response = await fetch(`/api/supply/${batchId}`, {
+      const response = await fetch(`/api/supply/${periodId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -242,12 +285,12 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const deleteBatch = async (batchId: number) => {
+  const deletePeriod = async (periodId: number) => {
     if (actionBusyId) return;
-    setActionBusyId(batchId);
+    setActionBusyId(periodId);
 
     try {
-      const response = await fetch(`/api/supply/${batchId}`, {
+      const response = await fetch(`/api/supply/${periodId}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -271,26 +314,21 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
     const quantity = Number(requestQty);
 
-    if (!Number.isInteger(quantity) || quantity < 1) {
-      return;
-    }
+    if (!Number.isInteger(quantity) || quantity < 1) return;
 
     setRequestSaving(true);
 
     try {
-      const response = await fetch(
-        `/api/supply/${pendingRequest.batchId}/request`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            itemId: pendingRequest.itemId,
-            shopName: requestShop,
-            quantity,
-          }),
-        }
-      );
+      const response = await fetch(`/api/supply/${pendingRequest.periodId}/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          itemId: pendingRequest.itemId,
+          shopName: channel === "VODAFONE" ? requestShop : undefined,
+          quantity,
+        }),
+      });
 
       const result = await response.json().catch(() => ({}));
 
@@ -308,18 +346,12 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const downloadExcel = (batch: SupplyBatch) => {
+  const downloadExcel = (period: SupplyPeriod) => {
     const rows: Record<string, unknown>[] = [];
 
-    for (const item of batch.items) {
+    for (const item of period.items) {
       if (!item.requests.length) {
-        rows.push({
-          URUN: item.itemName,
-          NOT: item.itemNote,
-          MAGAZA: "-",
-          ADET: 0,
-          TALEP_EDEN: "",
-        });
+        rows.push({ URUN: item.itemName, NOT: item.itemNote, MAGAZA: "-", ADET: 0, TALEP_EDEN: "" });
         continue;
       }
 
@@ -338,13 +370,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       header: ["URUN", "NOT", "MAGAZA", "ADET", "TALEP_EDEN"],
     });
 
-    worksheet["!cols"] = [
-      { wch: 34 },
-      { wch: 24 },
-      { wch: 14 },
-      { wch: 10 },
-      { wch: 22 },
-    ];
+    worksheet["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 22 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Tedarik");
@@ -356,21 +382,12 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       day: "2-digit",
     }).format(new Date());
 
-    XLSX.writeFile(
-      workbook,
-      `${batch.title.replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ]+/g, "_")}_${today}.xlsx`
-    );
+    XLSX.writeFile(workbook, `${period.title.replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ]+/g, "_")}_${today}.xlsx`);
   };
 
-  const liveBatches = useMemo(
-    () => batches.filter((b) => b.status === "LIVE"),
-    [batches]
-  );
-
-  const otherBatches = useMemo(
-    () => batches.filter((b) => b.status !== "LIVE"),
-    [batches]
-  );
+  const livePeriods = useMemo(() => periods.filter((p) => p.status === "LIVE"), [periods]);
+  const otherPeriods = useMemo(() => periods.filter((p) => p.status !== "LIVE"), [periods]);
+  const activeCatalogCount = useMemo(() => catalog.filter((c) => c.isActive).length, [catalog]);
 
   if (loading) {
     return (
@@ -397,21 +414,31 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               </h2>
               <p className="mt-1 text-xs font-semibold text-slate-500">
                 {isManager
-                  ? "Sarf malzeme taleplerini açın, süre belirleyin, gelen talepleri toplayın."
-                  : "Açık tedarik dönemlerinden mağazanız için ihtiyaç talebi girin."}
+                  ? "Ürünleri bir kez ekle, dönem açtığında hepsi otomatik talebe açılır."
+                  : "Açık dönemlerde ihtiyacınız olan ürün için talep girin."}
               </p>
             </div>
           </div>
 
           {isManager && (
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500"
-            >
-              <PlusIcon />
-              Yeni Tedarik Dönemi
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCatalogOpen(true)}
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
+              >
+                <ListIcon className="h-4 w-4" />
+                Ürün Kataloğu ({activeCatalogCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500"
+              >
+                <PlusIcon />
+                Yeni Dönem Aç
+              </button>
+            </div>
           )}
         </div>
       </section>
@@ -422,29 +449,24 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </div>
       )}
 
-      {liveBatches.length > 0 && (
+      {livePeriods.length > 0 && (
         <section className="space-y-4">
           <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
             Açık Tedarik Dönemleri
           </h3>
 
-          {liveBatches.map((batch) => (
-            <div
-              key={batch.id}
-              className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm"
-            >
+          {livePeriods.map((period) => (
+            <div key={period.id} className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-lg font-black text-slate-900">{batch.title}</h4>
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[batch.status]}`}
-                    >
-                      {STATUS_LABEL[batch.status]}
+                    <h4 className="text-lg font-black text-slate-900">{period.title}</h4>
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
+                      {STATUS_LABEL[period.status]}
                     </span>
                   </div>
                   <p className="mt-1 text-[10px] font-bold text-slate-400">
-                    Bitiş: {formatDate(batch.endsAt)} · Açan: {batch.createdByName || "-"}
+                    Bitiş: {formatDate(period.endsAt)} · Açan: {period.createdByName || "-"}
                   </p>
                 </div>
 
@@ -452,15 +474,15 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => downloadExcel(batch)}
+                      onClick={() => downloadExcel(period)}
                       className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
                     >
                       Excel İndir
                     </button>
                     <button
                       type="button"
-                      disabled={actionBusyId === batch.id}
-                      onClick={() => runBatchAction(batch.id, "END")}
+                      disabled={actionBusyId === period.id}
+                      onClick={() => runPeriodAction(period.id, "END")}
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       Şimdi Kapat
@@ -470,38 +492,33 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               </div>
 
               <div className="mt-4 space-y-2">
-                {batch.items.map((item) => {
+                {period.items.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 py-6 text-center text-[11px] font-bold text-slate-400">
+                    Katalogda aktif ürün yok.
+                  </div>
+                )}
+
+                {period.items.map((item) => {
                   const totalQty = item.requests.reduce((sum, r) => sum + r.quantity, 0);
-                  const isPending =
-                    pendingRequest?.batchId === batch.id && pendingRequest?.itemId === item.id;
+                  const isPending = pendingRequest?.periodId === period.id && pendingRequest?.itemId === item.id;
 
                   return (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
-                    >
+                    <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-black text-slate-900">{item.itemName}</div>
                           {item.itemNote && (
-                            <div className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                              {item.itemNote}
-                            </div>
+                            <div className="mt-0.5 text-[10px] font-semibold text-slate-400">{item.itemNote}</div>
                           )}
                         </div>
 
                         {isManager ? (
                           <div className="flex flex-wrap items-center gap-1.5">
                             {item.requests.length === 0 && (
-                              <span className="text-[10px] font-bold text-slate-400">
-                                Henüz talep yok
-                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">Henüz talep yok</span>
                             )}
                             {item.requests.map((req) => (
-                              <span
-                                key={req.shopName}
-                                className="rounded-lg border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-black text-blue-700"
-                              >
+                              <span key={req.shopName} className="rounded-lg border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-black text-blue-700">
                                 {req.shopName}: {req.quantity}
                               </span>
                             ))}
@@ -515,7 +532,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                           <button
                             type="button"
                             onClick={() => {
-                              setPendingRequest({ batchId: batch.id, itemId: item.id });
+                              setPendingRequest({ periodId: period.id, itemId: item.id });
                               setRequestQty("1");
                               setRequestShop(VODAFONE_SHOPS[0]);
                             }}
@@ -525,17 +542,19 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                           </button>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={requestShop}
-                              onChange={(e) => setRequestShop(e.target.value)}
-                              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
-                            >
-                              {VODAFONE_SHOPS.map((shop) => (
-                                <option key={shop} value={shop}>
-                                  {shop}
-                                </option>
-                              ))}
-                            </select>
+                            {channel === "VODAFONE" && (
+                              <select
+                                value={requestShop}
+                                onChange={(e) => setRequestShop(e.target.value)}
+                                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
+                              >
+                                {VODAFONE_SHOPS.map((shop) => (
+                                  <option key={shop} value={shop}>
+                                    {shop}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                             <input
                               type="number"
                               min={1}
@@ -570,7 +589,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </section>
       )}
 
-      {liveBatches.length === 0 && (
+      {livePeriods.length === 0 && (
         <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
           <div className="text-sm font-black uppercase tracking-widest text-slate-400">
             Şu an açık tedarik dönemi yok
@@ -578,72 +597,67 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </div>
       )}
 
-      {isManager && otherBatches.length > 0 && (
+      {isManager && otherPeriods.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">
             Geçmiş / Taslak Dönemler
           </h3>
 
-          {otherBatches.map((batch) => (
-            <div
-              key={batch.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-4"
-            >
+          {otherPeriods.map((period) => (
+            <div key={period.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-slate-800">{batch.title}</span>
-                  <span
-                    className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[batch.status]}`}
-                  >
-                    {STATUS_LABEL[batch.status]}
+                  <span className="font-black text-slate-800">{period.title}</span>
+                  <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
+                    {STATUS_LABEL[period.status]}
                   </span>
                 </div>
                 <p className="mt-1 text-[10px] font-bold text-slate-400">
-                  {batch.items.length} ürün · Oluşturuldu: {formatDate(batch.createdAt)}
+                  Oluşturuldu: {formatDate(period.createdAt)}
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                {batch.status === "ENDED" && (
+                {period.status === "ENDED" && (
                   <button
                     type="button"
-                    onClick={() => downloadExcel(batch)}
+                    onClick={() => downloadExcel(period)}
                     className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
                   >
                     Excel İndir
                   </button>
                 )}
 
-                {batch.status === "DRAFT" && (
+                {period.status === "DRAFT" && (
                   <button
                     type="button"
-                    disabled={actionBusyId === batch.id}
-                    onClick={() => runBatchAction(batch.id, "START")}
+                    disabled={actionBusyId === period.id}
+                    onClick={() => runPeriodAction(period.id, "START")}
                     className="rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
                   >
                     Başlat
                   </button>
                 )}
 
-                {(batch.status === "DRAFT" || batch.status === "LIVE") && (
+                {(period.status === "DRAFT" || period.status === "LIVE") && (
                   <button
                     type="button"
-                    disabled={actionBusyId === batch.id}
-                    onClick={() => runBatchAction(batch.id, "CANCEL")}
+                    disabled={actionBusyId === period.id}
+                    onClick={() => runPeriodAction(period.id, "CANCEL")}
                     className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                   >
                     İptal Et
                   </button>
                 )}
 
-                {["DRAFT", "ENDED", "CANCELLED"].includes(batch.status) && (
+                {["DRAFT", "ENDED", "CANCELLED"].includes(period.status) && (
                   <button
                     type="button"
-                    disabled={actionBusyId === batch.id}
-                    onClick={() => deleteBatch(batch.id)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                    disabled={actionBusyId === period.id}
+                    onClick={() => deletePeriod(period.id)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                   >
-                    <TrashIcon />
+                    Sil
                   </button>
                 )}
               </div>
@@ -652,13 +666,99 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </section>
       )}
 
+      {catalogOpen && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md">
+          <div className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-5">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Ürün Kataloğu</h3>
+              <button
+                type="button"
+                onClick={() => setCatalogOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5 space-y-4">
+              <p className="text-[11px] font-semibold text-slate-400">
+                Buraya eklediğin ürünler kalıcı olarak kalır — her yeni dönemde tekrar eklemene gerek yok.
+                Bir ürünü artık istemiyorsan pasif yap, geçmiş talepler silinmez.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <input
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  placeholder="Ürün adı (örn: Peçete)"
+                  className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
+                />
+                <input
+                  value={newItemNote}
+                  onChange={(e) => setNewItemNote(e.target.value)}
+                  placeholder="Not (opsiyonel)"
+                  className="h-11 w-40 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-400"
+                />
+                <button
+                  type="button"
+                  disabled={catalogSaving || !newItemName.trim()}
+                  onClick={submitNewCatalogItem}
+                  className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-blue-600 px-4 text-[10px] font-black uppercase text-white transition hover:bg-blue-500 disabled:opacity-50"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" /> Ekle
+                </button>
+              </div>
+
+              {catalogError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
+                  {catalogError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                {catalog.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-[11px] font-bold text-slate-400">
+                    Henüz ürün eklenmedi.
+                  </div>
+                )}
+
+                {catalog.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
+                      item.isActive ? "border-slate-100 bg-slate-50" : "border-slate-100 bg-white opacity-60"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-slate-800">{item.itemName}</div>
+                      {item.itemNote && (
+                        <div className="text-[10px] font-semibold text-slate-400">{item.itemNote}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleCatalogItem(item)}
+                      className={`shrink-0 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase tracking-wide transition ${
+                        item.isActive
+                          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
+                    >
+                      {item.isActive ? "Aktif" : "Pasif"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {createOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md">
-          <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-5">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
-                Yeni Tedarik Dönemi
-              </h3>
+          <div className="w-full max-w-md rounded-[32px] border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Yeni Dönem Aç</h3>
               <button
                 type="button"
                 onClick={() => setCreateOpen(false)}
@@ -668,23 +768,19 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-6 py-5 space-y-4">
+            <div className="space-y-4 px-6 py-5">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Başlık
-                </label>
+                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Başlık</label>
                 <input
                   value={createTitle}
                   onChange={(e) => setCreateTitle(e.target.value)}
-                  placeholder="Örn: Eylül Temizlik Malzemesi Talebi"
+                  placeholder="Örn: Eylül Tedarik Talebi"
                   className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Süre
-                </label>
+                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Süre</label>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {DURATION_PRESETS.map((preset) => (
                     <button
@@ -703,48 +799,9 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                    Ürünler
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addCreateItemRow}
-                    className="flex items-center gap-1 text-[10px] font-black uppercase text-blue-600 hover:text-blue-500"
-                  >
-                    <PlusIcon className="h-3.5 w-3.5" /> Ürün Ekle
-                  </button>
-                </div>
-
-                <div className="mt-2 space-y-2">
-                  {createItems.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <input
-                        value={item.itemName}
-                        onChange={(e) => updateCreateItemRow(index, "itemName", e.target.value)}
-                        placeholder="Ürün adı (örn: Peçete)"
-                        className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-400"
-                      />
-                      <input
-                        value={item.itemNote}
-                        onChange={(e) => updateCreateItemRow(index, "itemNote", e.target.value)}
-                        placeholder="Not (opsiyonel)"
-                        className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-400"
-                      />
-                      {createItems.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeCreateItemRow(index)}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <p className="text-[10px] font-semibold text-slate-400">
+                Başlattığında katalogdaki ({activeCatalogCount}) aktif ürünün tamamı otomatik talebe açılır.
+              </p>
 
               {createError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
@@ -753,11 +810,11 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               )}
             </div>
 
-            <div className="shrink-0 border-t border-slate-100 px-6 py-4">
+            <div className="border-t border-slate-100 px-6 py-4">
               <button
                 type="button"
                 disabled={createSaving}
-                onClick={submitCreate}
+                onClick={submitCreatePeriod}
                 className="h-12 w-full rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white transition hover:bg-blue-500 disabled:opacity-50"
               >
                 {createSaving ? "Oluşturuluyor..." : "Taslak Olarak Oluştur"}

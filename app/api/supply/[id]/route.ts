@@ -58,7 +58,7 @@ export async function PATCH(
       await ensureSupplyTables(client);
 
       const existingResult = await client.query(
-        `SELECT id, status, duration_minutes FROM public.supply_batches WHERE id = $1 LIMIT 1`,
+        `SELECT id, status, duration_minutes FROM public.supply_periods WHERE id = $1 LIMIT 1`,
         [id]
       );
 
@@ -82,7 +82,7 @@ export async function PATCH(
 
         await client.query(
           `
-            UPDATE public.supply_batches
+            UPDATE public.supply_periods
             SET status = 'LIVE', starts_at = NOW(),
                 ends_at = NOW() + ($2 || ' minutes')::interval,
                 updated_at = NOW()
@@ -99,7 +99,7 @@ export async function PATCH(
         }
 
         await client.query(
-          `UPDATE public.supply_batches SET status = 'ENDED', updated_at = NOW() WHERE id = $1`,
+          `UPDATE public.supply_periods SET status = 'ENDED', updated_at = NOW() WHERE id = $1`,
           [id]
         );
       } else if (action === "CANCEL") {
@@ -111,7 +111,7 @@ export async function PATCH(
         }
 
         await client.query(
-          `UPDATE public.supply_batches SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
+          `UPDATE public.supply_periods SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
           [id]
         );
       }
@@ -148,7 +148,7 @@ export async function DELETE(
 
       const result = await client.query(
         `
-          DELETE FROM public.supply_batches
+          DELETE FROM public.supply_periods
           WHERE id = $1 AND status IN ('DRAFT', 'ENDED', 'CANCELLED')
         `,
         [id]

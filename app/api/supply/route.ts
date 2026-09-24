@@ -1,15 +1,17 @@
 // app/api/supply/route.ts
 //
-// "Mağaza Tedarik" - GET (liste) / POST (yönetici yeni dönem açar).
+// "Mağaza Tedarik" - GET (dönem listesi) / POST (yönetici yeni bir
+// dönem açar - ürün SEÇMEZ, kataloğun TAMAMI otomatik bu döneme dahil
+// olur).
 
 import { NextRequest, NextResponse } from "next/server";
 
 import {
   apiError,
   cleanAuctionText,
-  closeExpiredSupplyBatches,
+  closeExpiredSupplyPeriods,
+  ensureRequestChannel,
   ensureSupplyManager,
-  ensureVodafoneChannel,
   ensureSupplyTables,
   getSupplyPool,
   getSupplySession,
@@ -29,77 +31,75 @@ function json(body: Record<string, unknown>, status = 200) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getSupplySession(request);
-    ensureVodafoneChannel(session);
+    ensureRequestChannel(session);
 
     const pool = getSupplyPool();
     const client = await pool.connect();
 
     try {
       await ensureSupplyTables(client);
-      await closeExpiredSupplyBatches(client);
+      await closeExpiredSupplyPeriods(client);
 
       const statusFilter = session.isManager
         ? `('DRAFT','LIVE','ENDED','CANCELLED')`
         : `('LIVE','ENDED')`;
 
-      const batchesResult = await client.query(
+      const periodsResult = await client.query(
         `
           SELECT
-            b.id, b.title, b.status, b.duration_minutes,
-            b.starts_at, b.ends_at, b.created_by_name, b.created_at
-          FROM public.supply_batches b
-          WHERE b.status IN ${statusFilter}
-          ORDER BY b.created_at DESC
+            id, title, status, duration_minutes,
+            starts_at, ends_at, created_by_name, created_at
+          FROM public.supply_periods
+          WHERE status IN ${statusFilter}
+          ORDER BY created_at DESC
           LIMIT 50
         `
       );
 
-      const batchIds = batchesResult.rows.map((row) => Number(row.id));
+      const periodIds = periodsResult.rows.map((row) => Number(row.id));
 
-      const itemsResult = batchIds.length
-        ? await client.query(
-            `
-              SELECT id, batch_id, item_name, item_note
-              FROM public.supply_items
-              WHERE batch_id = ANY($1::int[])
-              ORDER BY id ASC
-            `,
-            [batchIds]
-          )
-        : { rows: [] as any[] };
+      // LIVE bir donemde katalogtaki TUM aktif urunler otomatik
+      // talebe aciktir - donem "urun secimi" tutmuyor. ENDED/CANCELLED
+      // donemlerde ise sadece o donemde GERCEKTEN talep edilmis
+      // urunler gosterilir (Excel/gecmis icin).
+      const catalogResult = await client.query(
+        `
+          SELECT id, item_name, item_note, is_active
+          FROM public.supply_catalog_items
+          ORDER BY item_name ASC
+        `
+      );
 
-      const itemsByBatch = new Map<number, any[]>();
-      for (const item of itemsResult.rows) {
-        const key = Number(item.batch_id);
-        if (!itemsByBatch.has(key)) itemsByBatch.set(key, []);
-        itemsByBatch.get(key)!.push({
-          id: Number(item.id),
-          itemName: String(item.item_name),
-          itemNote: item.item_note ? String(item.item_note) : "",
+      const catalogById = new Map<
+        number,
+        { id: number; itemName: string; itemNote: string; isActive: boolean }
+      >();
+
+      for (const row of catalogResult.rows) {
+        catalogById.set(Number(row.id), {
+          id: Number(row.id),
+          itemName: String(row.item_name),
+          itemNote: row.item_note ? String(row.item_note) : "",
+          isActive: Boolean(row.is_active),
         });
       }
 
-      // Personel tarafi sadece "bu subenin kendi taleplerini" gorsun -
-      // baska subelerin adedini gormesine gerek yok. Yonetici ise
-      // toplu/subeler bazinda tum talepleri gorur.
-      const itemIds = itemsResult.rows.map((row) => Number(row.id));
-
-      const requestsResult = itemIds.length
+      const requestsResult = periodIds.length
         ? await client.query(
             `
-              SELECT item_id, shop_name, quantity, requested_by_name, updated_at
+              SELECT period_id, item_id, shop_name, quantity, requested_by_name, updated_at
               FROM public.supply_requests
-              WHERE item_id = ANY($1::int[])
+              WHERE period_id = ANY($1::int[])
             `,
-            [itemIds]
+            [periodIds]
           )
         : { rows: [] as any[] };
 
-      const requestsByItem = new Map<number, any[]>();
+      const requestsByPeriodItem = new Map<string, any[]>();
       for (const req of requestsResult.rows) {
-        const key = Number(req.item_id);
-        if (!requestsByItem.has(key)) requestsByItem.set(key, []);
-        requestsByItem.get(key)!.push({
+        const key = `${req.period_id}:${req.item_id}`;
+        if (!requestsByPeriodItem.has(key)) requestsByPeriodItem.set(key, []);
+        requestsByPeriodItem.get(key)!.push({
           shopName: String(req.shop_name),
           quantity: Number(req.quantity),
           requestedByName: req.requested_by_name
@@ -109,24 +109,48 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const batches = batchesResult.rows.map((row) => {
-        const items = (itemsByBatch.get(Number(row.id)) || []).map(
-          (item) => ({
-            ...item,
-            requests: session.isManager
-              ? requestsByItem.get(item.id) || []
-              : (requestsByItem.get(item.id) || []).filter(
+      const activeCatalog = Array.from(catalogById.values()).filter(
+        (item) => item.isActive
+      );
+
+      const periods = periodsResult.rows.map((row) => {
+        const periodId = Number(row.id);
+        const status = String(row.status);
+
+        // Bu donemde HANGI urunlerin gosterilecegini belirle: LIVE
+        // ise TUM aktif katalog; degilse sadece talep edilmis olanlar.
+        const relevantItems =
+          status === "LIVE"
+            ? activeCatalog
+            : Array.from(catalogById.values()).filter((item) =>
+                requestsByPeriodItem.has(`${periodId}:${item.id}`)
+              );
+
+        const items = relevantItems.map((item) => {
+          const allRequests =
+            requestsByPeriodItem.get(`${periodId}:${item.id}`) || [];
+
+          const visibleRequests =
+            session.isManager || session.channel === "VODAFONE"
+              ? allRequests
+              : allRequests.filter(
                   (r) =>
                     r.shopName.toLocaleUpperCase("tr-TR") ===
                     session.branch.toLocaleUpperCase("tr-TR")
-                ),
-          })
-        );
+                );
+
+          return {
+            id: item.id,
+            itemName: item.itemName,
+            itemNote: item.itemNote,
+            requests: visibleRequests,
+          };
+        });
 
         return {
-          id: Number(row.id),
+          id: periodId,
           title: String(row.title),
-          status: String(row.status),
+          status,
           durationMinutes: row.duration_minutes
             ? Number(row.duration_minutes)
             : null,
@@ -140,7 +164,13 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      return json({ ok: true, isManager: session.isManager, batches });
+      return json({
+        ok: true,
+        isManager: session.isManager,
+        channel: session.channel,
+        branch: session.branch,
+        periods,
+      });
     } finally {
       client.release();
     }
@@ -163,10 +193,6 @@ export async function POST(request: NextRequest) {
     const title = cleanAuctionText((body as any).title, 180);
     const durationMinutes = Number((body as any).durationMinutes);
 
-    const rawItems = Array.isArray((body as any).items)
-      ? (body as any).items
-      : [];
-
     if (!title) {
       return json({ ok: false, error: "Başlık zorunludur." }, 400);
     }
@@ -175,37 +201,30 @@ export async function POST(request: NextRequest) {
       return json({ ok: false, error: "Geçersiz süre." }, 400);
     }
 
-    const items = rawItems
-      .map((item: any) => ({
-        itemName: cleanAuctionText(item?.itemName, 160),
-        itemNote: cleanAuctionText(item?.itemNote, 300),
-      }))
-      .filter((item: any) => item.itemName);
-
-    if (!items.length) {
-      return json(
-        { ok: false, error: "En az bir ürün eklemelisiniz." },
-        400
-      );
-    }
-
-    if (items.length > 50) {
-      return json(
-        { ok: false, error: "Tek seferde en fazla 50 ürün eklenebilir." },
-        400
-      );
-    }
-
     const pool = getSupplyPool();
     const client = await pool.connect();
 
     try {
       await ensureSupplyTables(client);
-      await client.query("BEGIN");
 
-      const batchResult = await client.query(
+      const catalogCount = await client.query(
+        `SELECT COUNT(*)::int AS count FROM public.supply_catalog_items WHERE is_active = TRUE`
+      );
+
+      if (!Number(catalogCount.rows[0]?.count)) {
+        return json(
+          {
+            ok: false,
+            error:
+              "Önce katalogdan en az bir aktif ürün eklemelisiniz.",
+          },
+          400
+        );
+      }
+
+      const result = await client.query(
         `
-          INSERT INTO public.supply_batches (
+          INSERT INTO public.supply_periods (
             title, status, duration_minutes, created_by_user_id, created_by_name
           )
           VALUES ($1, 'DRAFT', $2, $3, $4)
@@ -214,24 +233,7 @@ export async function POST(request: NextRequest) {
         [title, durationMinutes, session.userKey, session.userName]
       );
 
-      const batchId = Number(batchResult.rows[0].id);
-
-      for (const item of items) {
-        await client.query(
-          `
-            INSERT INTO public.supply_items (batch_id, item_name, item_note)
-            VALUES ($1, $2, $3)
-          `,
-          [batchId, item.itemName, item.itemNote || null]
-        );
-      }
-
-      await client.query("COMMIT");
-
-      return json({ ok: true, batchId });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
+      return json({ ok: true, periodId: Number(result.rows[0].id) });
     } finally {
       client.release();
     }
