@@ -96,16 +96,72 @@ export async function GET(request: NextRequest) {
         : { rows: [] as any[] };
 
       const requestsByPeriodItem = new Map<string, any[]>();
+      const requestsByPeriodShop = new Map<
+        string,
+        Array<{ itemId: number; itemName: string; quantity: number }>
+      >();
+
       for (const req of requestsResult.rows) {
-        const key = `${req.period_id}:${req.item_id}`;
-        if (!requestsByPeriodItem.has(key)) requestsByPeriodItem.set(key, []);
-        requestsByPeriodItem.get(key)!.push({
-          shopName: String(req.shop_name),
+        const periodId = Number(req.period_id);
+        const itemId = Number(req.item_id);
+        const shopName = String(req.shop_name);
+
+        const itemKey = `${periodId}:${itemId}`;
+        if (!requestsByPeriodItem.has(itemKey)) requestsByPeriodItem.set(itemKey, []);
+        requestsByPeriodItem.get(itemKey)!.push({
+          shopName,
           quantity: Number(req.quantity),
           requestedByName: req.requested_by_name
             ? String(req.requested_by_name)
             : "",
           updatedAt: req.updated_at,
+        });
+
+        const shopKey = `${periodId}:${shopName}`;
+        if (!requestsByPeriodShop.has(shopKey)) requestsByPeriodShop.set(shopKey, []);
+        requestsByPeriodShop.get(shopKey)!.push({
+          itemId,
+          itemName: catalogById.get(itemId)?.itemName || `#${itemId}`,
+          quantity: Number(req.quantity),
+        });
+      }
+
+      const ordersResult = periodIds.length
+        ? await client.query(
+            `
+              SELECT id, period_id, shop_name, status, submitted_by_name, updated_at
+              FROM public.supply_orders
+              WHERE period_id = ANY($1::int[])
+              ORDER BY updated_at DESC
+            `,
+            [periodIds]
+          )
+        : { rows: [] as any[] };
+
+      const ordersByPeriod = new Map<number, any[]>();
+
+      for (const row of ordersResult.rows) {
+        const periodId = Number(row.period_id);
+        const shopName = String(row.shop_name);
+
+        const visible =
+          session.isManager ||
+          session.channel === "VODAFONE" ||
+          shopName.toLocaleUpperCase("tr-TR") ===
+            session.branch.toLocaleUpperCase("tr-TR");
+
+        if (!visible) continue;
+
+        if (!ordersByPeriod.has(periodId)) ordersByPeriod.set(periodId, []);
+        ordersByPeriod.get(periodId)!.push({
+          id: Number(row.id),
+          shopName,
+          status: String(row.status),
+          submittedByName: row.submitted_by_name
+            ? String(row.submitted_by_name)
+            : "",
+          updatedAt: row.updated_at,
+          items: requestsByPeriodShop.get(`${periodId}:${shopName}`) || [],
         });
       }
 
@@ -161,6 +217,7 @@ export async function GET(request: NextRequest) {
             : "",
           createdAt: row.created_at,
           items,
+          orders: ordersByPeriod.get(periodId) || [],
         };
       });
 

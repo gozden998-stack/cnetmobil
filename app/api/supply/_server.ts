@@ -84,6 +84,25 @@ export function isValidVodafoneShop(
   return (VODAFONE_SHOPS as readonly string[]).includes(normalized);
 }
 
+// Bir magazanin sepetini gonderdiginde olusan/guncellenen siparisin
+// durumu - online alisveris sepeti gibi: BEKLEMEDE -> HAZIRLANIYOR ->
+// GONDERILDI. Sadece yonetici ilerletebilir/geri alabilir.
+export const SUPPLY_ORDER_STATUSES = [
+  "BEKLEMEDE",
+  "HAZIRLANIYOR",
+  "GONDERILDI",
+] as const;
+
+export type SupplyOrderStatus = (typeof SUPPLY_ORDER_STATUSES)[number];
+
+export function isValidSupplyOrderStatus(
+  value: unknown
+): value is SupplyOrderStatus {
+  return (SUPPLY_ORDER_STATUSES as readonly string[]).includes(
+    String(value ?? "")
+  );
+}
+
 // Bir talebi kaydederken kullanilacak GERCEK magaza adini belirler:
 // - VODAFONE: kullanicinin formda sectigi deger (Meydan/Saray/Erna/Tekira).
 // - CMR (ve diger her sey): oturumun kendi magazasi - client'in
@@ -206,6 +225,20 @@ export async function ensureSupplyTables(
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (period_id, item_id, shop_name)
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS public.supply_orders (
+      id SERIAL PRIMARY KEY,
+      period_id INTEGER NOT NULL REFERENCES public.supply_periods(id) ON DELETE CASCADE,
+      shop_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'BEKLEMEDE',
+      submitted_by_user_key TEXT,
+      submitted_by_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (period_id, shop_name)
     )
   `);
 }

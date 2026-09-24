@@ -22,6 +22,23 @@ type PeriodItem = {
   requests: SupplyRequestRow[];
 };
 
+type OrderStatus = "BEKLEMEDE" | "HAZIRLANIYOR" | "GONDERILDI";
+
+type SupplyOrderItem = {
+  itemId: number;
+  itemName: string;
+  quantity: number;
+};
+
+type SupplyOrder = {
+  id: number;
+  shopName: string;
+  status: OrderStatus;
+  submittedByName: string;
+  updatedAt: string;
+  items: SupplyOrderItem[];
+};
+
 type SupplyPeriod = {
   id: number;
   title: string;
@@ -32,6 +49,7 @@ type SupplyPeriod = {
   createdByName: string;
   createdAt: string;
   items: PeriodItem[];
+  orders: SupplyOrder[];
 };
 
 type CatalogItem = {
@@ -40,6 +58,8 @@ type CatalogItem = {
   itemNote: string;
   isActive: boolean;
 };
+
+type CartEntry = { itemName: string; quantity: number };
 
 const POLL_MS = 4000;
 
@@ -64,6 +84,18 @@ const STATUS_TONE: Record<string, string> = {
   LIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
   ENDED: "bg-blue-50 text-blue-700 border-blue-200",
   CANCELLED: "bg-red-50 text-red-700 border-red-200",
+};
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  BEKLEMEDE: "BEKLEMEDE",
+  HAZIRLANIYOR: "HAZIRLANIYOR",
+  GONDERILDI: "GÖNDERİLDİ",
+};
+
+const ORDER_STATUS_TONE: Record<string, string> = {
+  BEKLEMEDE: "bg-amber-50 text-amber-700 border-amber-200",
+  HAZIRLANIYOR: "bg-blue-50 text-blue-700 border-blue-200",
+  GONDERILDI: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 function formatDate(value: string | null) {
@@ -105,6 +137,14 @@ function ListIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m-10 4a1 1 0 102 0 1 1 0 00-2 0zm10 0a1 1 0 102 0 1 1 0 00-2 0z" />
+    </svg>
+  );
+}
+
 export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   void selectedBranch;
 
@@ -127,13 +167,17 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const [createSaving, setCreateSaving] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  const [pendingRequest, setPendingRequest] = useState<{ periodId: number; itemId: number } | null>(null);
-  const [requestShop, setRequestShop] = useState(VODAFONE_SHOPS[0]);
-  const [requestQty, setRequestQty] = useState("1");
-  const [requestSaving, setRequestSaving] = useState(false);
-
   const [actionBusyId, setActionBusyId] = useState<number | null>(null);
   const [expandedPeriodId, setExpandedPeriodId] = useState<number | null>(null);
+  const [orderBusyId, setOrderBusyId] = useState<number | null>(null);
+  const [deletingRequestKey, setDeletingRequestKey] = useState<string | null>(null);
+
+  const [itemQtyDrafts, setItemQtyDrafts] = useState<Record<number, string>>({});
+  const [cart, setCart] = useState<{ periodId: number; entries: Record<number, CartEntry> } | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartShop, setCartShop] = useState(VODAFONE_SHOPS[0]);
+  const [cartSubmitting, setCartSubmitting] = useState(false);
+  const [cartError, setCartError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -310,8 +354,6 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const [deletingRequestKey, setDeletingRequestKey] = useState<string | null>(null);
-
   const deleteRequest = async (periodId: number, itemId: number, shopName: string) => {
     const key = `${periodId}:${itemId}:${shopName}`;
     if (deletingRequestKey) return;
@@ -337,49 +379,121 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const submitRequest = async () => {
-    if (!pendingRequest || requestSaving) return;
-
-    const quantity = Number(requestQty);
-
-    if (!Number.isInteger(quantity) || quantity < 1) return;
-
-    setRequestSaving(true);
+  const updateOrderStatus = async (orderId: number, status: OrderStatus) => {
+    if (orderBusyId) return;
+    setOrderBusyId(orderId);
 
     try {
-      const response = await fetch(`/api/supply/${pendingRequest.periodId}/request`, {
+      const response = await fetch(`/api/supply/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ status }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Durum güncellenemedi.");
+      }
+
+      void load();
+    } catch (err: any) {
+      setError(err?.message || "Durum güncellenemedi.");
+    } finally {
+      setOrderBusyId(null);
+    }
+  };
+
+  const getItemQtyDraft = (itemId: number) => itemQtyDrafts[itemId] ?? "1";
+  const setItemQtyDraft = (itemId: number, value: string) =>
+    setItemQtyDrafts((prev) => ({ ...prev, [itemId]: value }));
+
+  const addToCart = (periodId: number, itemId: number, itemName: string, quantity: number) => {
+    setCart((prev) => {
+      const samePeriod = prev && prev.periodId === periodId;
+      const baseEntries = samePeriod ? prev!.entries : {};
+      const existing = baseEntries[itemId];
+
+      return {
+        periodId,
+        entries: {
+          ...baseEntries,
+          [itemId]: { itemName, quantity: (existing?.quantity || 0) + quantity },
+        },
+      };
+    });
+    setCartOpen(true);
+  };
+
+  const removeCartEntry = (itemId: number) => {
+    setCart((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev.entries };
+      delete next[itemId];
+      return Object.keys(next).length ? { periodId: prev.periodId, entries: next } : null;
+    });
+  };
+
+  const updateCartQty = (itemId: number, quantity: number) => {
+    setCart((prev) => {
+      if (!prev || !prev.entries[itemId]) return prev;
+      return { periodId: prev.periodId, entries: { ...prev.entries, [itemId]: { ...prev.entries[itemId], quantity } } };
+    });
+  };
+
+  const cartEntries = useMemo(
+    () => (cart ? Object.entries(cart.entries).map(([itemId, entry]) => ({ itemId: Number(itemId), ...entry })) : []),
+    [cart]
+  );
+
+  const submitCart = async () => {
+    if (!cart || cartSubmitting || cartEntries.length === 0) return;
+
+    const items = cartEntries.map(({ itemId, quantity }) => ({ itemId, quantity }));
+
+    if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1)) {
+      setCartError("Geçersiz adet.");
+      return;
+    }
+
+    setCartSubmitting(true);
+    setCartError("");
+
+    try {
+      const response = await fetch(`/api/supply/${cart.periodId}/cart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          itemId: pendingRequest.itemId,
-          shopName: channel === "VODAFONE" ? requestShop : undefined,
-          quantity,
+          shopName: channel === "VODAFONE" ? cartShop : undefined,
+          items,
         }),
       });
 
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Talep gönderilemedi.");
+        throw new Error(result?.error || "Sipariş gönderilemedi.");
       }
 
-      setPendingRequest(null);
-      setRequestQty("1");
+      setCart(null);
+      setCartOpen(false);
       void load();
     } catch (err: any) {
-      setError(err?.message || "Talep gönderilemedi.");
+      setCartError(err?.message || "Sipariş gönderilemedi.");
     } finally {
-      setRequestSaving(false);
+      setCartSubmitting(false);
     }
   };
 
   const downloadExcel = (period: SupplyPeriod) => {
+    const statusByShop = new Map(period.orders.map((o) => [o.shopName, o.status]));
     const rows: Record<string, unknown>[] = [];
 
     for (const item of period.items) {
       if (!item.requests.length) {
-        rows.push({ URUN: item.itemName, NOT: item.itemNote, MAGAZA: "-", ADET: 0, TALEP_EDEN: "" });
+        rows.push({ URUN: item.itemName, NOT: item.itemNote, MAGAZA: "-", ADET: 0, DURUM: "-", TALEP_EDEN: "" });
         continue;
       }
 
@@ -389,16 +503,17 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
           NOT: item.itemNote,
           MAGAZA: req.shopName,
           ADET: req.quantity,
+          DURUM: ORDER_STATUS_LABEL[statusByShop.get(req.shopName) || ""] || "-",
           TALEP_EDEN: req.requestedByName,
         });
       }
     }
 
     const worksheet = XLSX.utils.json_to_sheet(rows, {
-      header: ["URUN", "NOT", "MAGAZA", "ADET", "TALEP_EDEN"],
+      header: ["URUN", "NOT", "MAGAZA", "ADET", "DURUM", "TALEP_EDEN"],
     });
 
-    worksheet["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 22 }];
+    worksheet["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 22 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Tedarik");
@@ -417,6 +532,112 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const otherPeriods = useMemo(() => periods.filter((p) => p.status !== "LIVE"), [periods]);
   const activeCatalogCount = useMemo(() => catalog.filter((c) => c.isActive).length, [catalog]);
 
+  const renderOrdersSection = (period: SupplyPeriod) => (
+    <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
+      <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+        Mağaza Siparişleri{period.orders.length > 0 ? ` (${period.orders.length})` : ""}
+      </h5>
+
+      {period.orders.length === 0 && (
+        <div className="rounded-xl border border-dashed border-slate-200 py-4 text-center text-[11px] font-bold text-slate-400">
+          Henüz sepet gönderilmedi.
+        </div>
+      )}
+
+      {period.orders.map((order) => {
+        const totalQty = order.items.reduce((sum, it) => sum + it.quantity, 0);
+
+        return (
+          <div key={order.id} className="rounded-2xl border border-slate-100 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-black text-slate-900">{order.shopName}</span>
+                <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
+                  {ORDER_STATUS_LABEL[order.status] || order.status}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400">{totalQty} adet</span>
+              </div>
+
+              {isManager && (
+                <div className="flex items-center gap-1.5">
+                  {order.status === "BEKLEMEDE" && (
+                    <button
+                      type="button"
+                      disabled={orderBusyId === order.id}
+                      onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      Hazırlanıyor Yap
+                    </button>
+                  )}
+                  {order.status === "HAZIRLANIYOR" && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={orderBusyId === order.id}
+                        onClick={() => updateOrderStatus(order.id, "BEKLEMEDE")}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Beklemeye Al
+                      </button>
+                      <button
+                        type="button"
+                        disabled={orderBusyId === order.id}
+                        onClick={() => updateOrderStatus(order.id, "GONDERILDI")}
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        Gönderildi Yap
+                      </button>
+                    </>
+                  )}
+                  {order.status === "GONDERILDI" && (
+                    <button
+                      type="button"
+                      disabled={orderBusyId === order.id}
+                      onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Geri Al
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {order.items.map((it) => {
+                const key = `${period.id}:${it.itemId}:${order.shopName}`;
+                return (
+                  <span
+                    key={it.itemId}
+                    className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/60 pl-2.5 pr-1.5 py-1 text-[10px] font-black text-blue-700"
+                  >
+                    {it.itemName}: {it.quantity}
+                    {isManager && (
+                      <button
+                        type="button"
+                        disabled={deletingRequestKey === key}
+                        onClick={() => deleteRequest(period.id, it.itemId, order.shopName)}
+                        className="flex h-4 w-4 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                        title="Bu kalemi sil"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+
+            <p className="mt-2 text-[9px] font-semibold text-slate-400">
+              Gönderen: {order.submittedByName || "-"} · {formatDate(order.updatedAt)}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-sm font-bold text-slate-400">
@@ -426,7 +647,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] animate-in fade-in space-y-5 duration-500">
+    <div className="mx-auto w-full max-w-[1400px] animate-in fade-in space-y-5 duration-500 pb-24">
       <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/70 p-5 shadow-sm sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -443,7 +664,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               <p className="mt-1 text-xs font-semibold text-slate-500">
                 {isManager
                   ? "Ürünleri bir kez ekle, dönem açtığında hepsi otomatik talebe açılır."
-                  : "Açık dönemlerde ihtiyacınız olan ürün için talep girin."}
+                  : "İstediğiniz ürünleri sepete ekleyip tek seferde sipariş gönderin."}
               </p>
             </div>
           </div>
@@ -528,7 +749,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
                 {period.items.map((item) => {
                   const totalQty = item.requests.reduce((sum, r) => sum + r.quantity, 0);
-                  const isPending = pendingRequest?.periodId === period.id && pendingRequest?.itemId === item.id;
+                  const inCart = cart?.periodId === period.id ? cart.entries[item.id] : undefined;
 
                   return (
                     <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
@@ -541,84 +762,37 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         </div>
 
                         {isManager ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {item.requests.length === 0 && (
-                              <span className="text-[10px] font-bold text-slate-400">Henüz talep yok</span>
-                            )}
-                            {item.requests.map((req) => {
-                              const key = `${period.id}:${item.id}:${req.shopName}`;
-                              return (
-                                <span
-                                  key={req.shopName}
-                                  className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-white pl-2.5 pr-1.5 py-1 text-[10px] font-black text-blue-700"
-                                >
-                                  {req.shopName}: {req.quantity}
-                                  <button
-                                    type="button"
-                                    disabled={deletingRequestKey === key}
-                                    onClick={() => deleteRequest(period.id, item.id, req.shopName)}
-                                    className="flex h-4 w-4 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                                    title="Talebi sil"
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              );
-                            })}
-                            {item.requests.length > 0 && (
-                              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
-                                Toplam: {totalQty}
-                              </span>
-                            )}
-                          </div>
-                        ) : !isPending ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPendingRequest({ periodId: period.id, itemId: item.id });
-                              setRequestQty("1");
-                              setRequestShop(VODAFONE_SHOPS[0]);
-                            }}
-                            className="rounded-xl bg-blue-600 px-4 py-2 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
-                          >
-                            Talep Ol
-                          </button>
+                          totalQty > 0 ? (
+                            <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                              Toplam Talep: {totalQty}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400">Henüz talep yok</span>
+                          )
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
-                            {channel === "VODAFONE" && (
-                              <select
-                                value={requestShop}
-                                onChange={(e) => setRequestShop(e.target.value)}
-                                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
-                              >
-                                {VODAFONE_SHOPS.map((shop) => (
-                                  <option key={shop} value={shop}>
-                                    {shop}
-                                  </option>
-                                ))}
-                              </select>
+                            {inCart && (
+                              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                                Sepette: {inCart.quantity}
+                              </span>
                             )}
                             <input
                               type="number"
                               min={1}
-                              value={requestQty}
-                              onChange={(e) => setRequestQty(e.target.value)}
-                              className="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
+                              value={getItemQtyDraft(item.id)}
+                              onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
+                              className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
                             />
                             <button
                               type="button"
-                              disabled={requestSaving}
-                              onClick={submitRequest}
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                              onClick={() => {
+                                const qty = Math.max(1, Number(getItemQtyDraft(item.id)) || 1);
+                                addToCart(period.id, item.id, item.itemName, qty);
+                                setItemQtyDraft(item.id, "1");
+                              }}
+                              className="rounded-xl bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
                             >
-                              Onayla
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPendingRequest(null)}
-                              className="rounded-lg bg-slate-200 px-3 py-2 text-[10px] font-black uppercase text-slate-600 transition hover:bg-slate-300"
-                            >
-                              Vazgeç
+                              Sepete Ekle
                             </button>
                           </div>
                         )}
@@ -627,6 +801,8 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                   );
                 })}
               </div>
+
+              {renderOrdersSection(period)}
             </div>
           ))}
         </section>
@@ -720,39 +896,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                   </div>
                 </div>
 
-                {isExpanded && (
-                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
-                    {period.items.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-slate-200 py-4 text-center text-[11px] font-bold text-slate-400">
-                        Bu dönemde hiç talep girilmemiş.
-                      </div>
-                    )}
-
-                    {period.items.map((item) => {
-                      const totalQty = item.requests.reduce((sum, r) => sum + r.quantity, 0);
-
-                      return (
-                        <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="font-black text-slate-800 text-sm">{item.itemName}</div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {item.requests.map((req) => (
-                                <span key={req.shopName} className="rounded-lg border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-black text-blue-700">
-                                  {req.shopName}: {req.quantity}
-                                </span>
-                              ))}
-                              {item.requests.length > 0 && (
-                                <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
-                                  Toplam: {totalQty}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {isExpanded && renderOrdersSection(period)}
               </div>
             );
           })}
@@ -915,6 +1059,98 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               <p className="mt-2 text-center text-[10px] font-semibold text-slate-400">
                 Oluşturduktan sonra listeden "Başlat" ile talebe açarsın.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isManager && cart && cartEntries.length > 0 && !cartOpen && (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-6 right-6 z-[130] flex items-center gap-2 rounded-full bg-blue-600 px-5 py-4 text-xs font-black uppercase tracking-wide text-white shadow-2xl shadow-blue-950/30 transition hover:bg-blue-500"
+        >
+          <CartIcon className="h-5 w-5" />
+          Sepetim ({cartEntries.length})
+        </button>
+      )}
+
+      {cartOpen && cart && (
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-slate-900/80 p-4 backdrop-blur-md sm:items-center">
+          <div className="w-full max-w-lg rounded-[32px] border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Sepetim</h3>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[45vh] overflow-y-auto px-6 py-5 space-y-2">
+              {cartEntries.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-[11px] font-bold text-slate-400">
+                  Sepetiniz boş.
+                </div>
+              )}
+
+              {cartEntries.map((entry) => (
+                <div key={entry.itemId} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="min-w-0 text-sm font-black text-slate-800">{entry.itemName}</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={entry.quantity}
+                      onChange={(e) => updateCartQty(entry.itemId, Math.max(1, Number(e.target.value) || 1))}
+                      className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeCartEntry(entry.itemId)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 transition hover:bg-red-50 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {channel === "VODAFONE" && cartEntries.length > 0 && (
+              <div className="px-6 pb-2">
+                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Mağaza</label>
+                <select
+                  value={cartShop}
+                  onChange={(e) => setCartShop(e.target.value)}
+                  className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
+                >
+                  {VODAFONE_SHOPS.map((shop) => (
+                    <option key={shop} value={shop}>
+                      {shop}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {cartError && (
+              <div className="mx-6 mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
+                {cartError}
+              </div>
+            )}
+
+            <div className="border-t border-slate-100 px-6 py-4">
+              <button
+                type="button"
+                disabled={cartSubmitting || cartEntries.length === 0}
+                onClick={submitCart}
+                className="h-12 w-full rounded-2xl bg-emerald-600 text-xs font-black uppercase tracking-widest text-white transition hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {cartSubmitting ? "Gönderiliyor..." : "Siparişi Gönder"}
+              </button>
             </div>
           </div>
         </div>

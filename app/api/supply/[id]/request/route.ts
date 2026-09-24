@@ -178,6 +178,22 @@ export async function DELETE(
         return json({ ok: false, error: "Talep bulunamadı." }, 404);
       }
 
+      // Bu magazanin bu donemde baska hic talebi kalmadiysa, artik
+      // bos olan siparis kaydini da temizle - yonetici panelinde
+      // hayalet/bos bir siparis gorunmesin.
+      await client.query(
+        `
+          DELETE FROM public.supply_orders
+          WHERE period_id = $1
+            AND shop_name = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM public.supply_requests
+              WHERE period_id = $1 AND shop_name = $2
+            )
+        `,
+        [periodId, shopName]
+      );
+
       return json({ ok: true });
     } finally {
       client.release();
