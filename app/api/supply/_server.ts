@@ -130,9 +130,44 @@ export function resolveRequestShopName(
 //   talep edilen adet.
 // ======================================================
 
+// Ilk surumde (commit 10bb2b6) "supply_requests" tablosu farkli bir
+// semayla (period_id YOK, UNIQUE(item_id, shop_name)) zaten production'da
+// olusturulmustu. "CREATE TABLE IF NOT EXISTS" mevcut tabloyu DEGISTIRMEZ,
+// bu yuzden yeni koda gore period_id sutunu eksik kalip "column period_id
+// does not exist" hatasi veriyordu. Eski tabloyu SILMIYORUZ - olasi test
+// verisini korumak icin kenara (supply_requests_legacy) tasiyip, asagidaki
+// CREATE TABLE'in yeni semayla sifirdan olusturmasina birakiyoruz.
+async function migrateLegacySupplyRequestsTable(client: PoolClient) {
+  const tableCheck = await client.query(`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'supply_requests'
+      ) AS table_exists,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'supply_requests'
+          AND column_name = 'period_id'
+      ) AS has_period_id
+  `);
+
+  const { table_exists: tableExists, has_period_id: hasPeriodId } =
+    tableCheck.rows[0] || {};
+
+  if (tableExists && !hasPeriodId) {
+    await client.query(`
+      ALTER TABLE public.supply_requests
+      RENAME TO supply_requests_legacy
+    `);
+  }
+}
+
 export async function ensureSupplyTables(
   client: PoolClient
 ) {
+  await migrateLegacySupplyRequestsTable(client);
+
   await client.query(`
     CREATE TABLE IF NOT EXISTS public.supply_catalog_items (
       id SERIAL PRIMARY KEY,
