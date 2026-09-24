@@ -133,6 +133,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const [requestSaving, setRequestSaving] = useState(false);
 
   const [actionBusyId, setActionBusyId] = useState<number | null>(null);
+  const [expandedPeriodId, setExpandedPeriodId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -645,66 +646,116 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
             Geçmiş / Taslak Dönemler
           </h3>
 
-          {otherPeriods.map((period) => (
-            <div key={period.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-slate-800">{period.title}</span>
-                  <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
-                    {STATUS_LABEL[period.status]}
-                  </span>
+          {otherPeriods.map((period) => {
+            const isExpanded = expandedPeriodId === period.id;
+
+            return (
+              <div key={period.id} className="rounded-2xl border border-slate-100 bg-white px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-800">{period.title}</span>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
+                        {STATUS_LABEL[period.status]}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[10px] font-bold text-slate-400">
+                      Oluşturuldu: {formatDate(period.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {period.status === "ENDED" && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPeriodId(isExpanded ? null : period.id)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
+                      >
+                        {isExpanded ? "Gizle" : "Detay"}
+                      </button>
+                    )}
+
+                    {period.status === "ENDED" && (
+                      <button
+                        type="button"
+                        onClick={() => downloadExcel(period)}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                      >
+                        Excel İndir
+                      </button>
+                    )}
+
+                    {period.status === "DRAFT" && (
+                      <button
+                        type="button"
+                        disabled={actionBusyId === period.id}
+                        onClick={() => runPeriodAction(period.id, "START")}
+                        className="rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        Başlat
+                      </button>
+                    )}
+
+                    {(period.status === "DRAFT" || period.status === "LIVE") && (
+                      <button
+                        type="button"
+                        disabled={actionBusyId === period.id}
+                        onClick={() => runPeriodAction(period.id, "CANCEL")}
+                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                      >
+                        İptal Et
+                      </button>
+                    )}
+
+                    {["DRAFT", "ENDED", "CANCELLED"].includes(period.status) && (
+                      <button
+                        type="button"
+                        disabled={actionBusyId === period.id}
+                        onClick={() => deletePeriod(period.id)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                      >
+                        Sil
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="mt-1 text-[10px] font-bold text-slate-400">
-                  Oluşturuldu: {formatDate(period.createdAt)}
-                </p>
-              </div>
 
-              <div className="flex items-center gap-2">
-                {period.status === "ENDED" && (
-                  <button
-                    type="button"
-                    onClick={() => downloadExcel(period)}
-                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
-                  >
-                    Excel İndir
-                  </button>
-                )}
+                {isExpanded && (
+                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                    {period.items.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-slate-200 py-4 text-center text-[11px] font-bold text-slate-400">
+                        Bu dönemde hiç talep girilmemiş.
+                      </div>
+                    )}
 
-                {period.status === "DRAFT" && (
-                  <button
-                    type="button"
-                    disabled={actionBusyId === period.id}
-                    onClick={() => runPeriodAction(period.id, "START")}
-                    className="rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    Başlat
-                  </button>
-                )}
+                    {period.items.map((item) => {
+                      const totalQty = item.requests.reduce((sum, r) => sum + r.quantity, 0);
 
-                {(period.status === "DRAFT" || period.status === "LIVE") && (
-                  <button
-                    type="button"
-                    disabled={actionBusyId === period.id}
-                    onClick={() => runPeriodAction(period.id, "CANCEL")}
-                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                  >
-                    İptal Et
-                  </button>
-                )}
-
-                {["DRAFT", "ENDED", "CANCELLED"].includes(period.status) && (
-                  <button
-                    type="button"
-                    disabled={actionBusyId === period.id}
-                    onClick={() => deletePeriod(period.id)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                  >
-                    Sil
-                  </button>
+                      return (
+                        <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-black text-slate-800 text-sm">{item.itemName}</div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {item.requests.map((req) => (
+                                <span key={req.shopName} className="rounded-lg border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-black text-blue-700">
+                                  {req.shopName}: {req.quantity}
+                                </span>
+                              ))}
+                              {item.requests.length > 0 && (
+                                <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                                  Toplam: {totalQty}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 
