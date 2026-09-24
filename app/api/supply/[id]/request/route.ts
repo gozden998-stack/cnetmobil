@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   apiError,
   ensureRequestChannel,
+  ensureSupplyManager,
   ensureSupplyTables,
   getSupplyPool,
   getSupplySession,
@@ -122,6 +123,60 @@ export async function POST(
         `,
         [batchId, itemId, shopName, quantity, session.userKey, session.userName]
       );
+
+      return json({ ok: true });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    return apiError(error);
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSupplySession(request);
+    ensureSupplyManager(session);
+
+    const { id: idParam } = await context.params;
+    const periodId = parseId(idParam);
+
+    if (!periodId) {
+      return json({ ok: false, error: "Geçersiz dönem." }, 400);
+    }
+
+    const { searchParams } = new URL(request.url);
+    const itemId = Number(searchParams.get("itemId"));
+    const shopName = String(searchParams.get("shopName") || "").trim();
+
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      return json({ ok: false, error: "Geçersiz ürün." }, 400);
+    }
+
+    if (!shopName) {
+      return json({ ok: false, error: "Geçersiz mağaza." }, 400);
+    }
+
+    const pool = getSupplyPool();
+    const client = await pool.connect();
+
+    try {
+      await ensureSupplyTables(client);
+
+      const result = await client.query(
+        `
+          DELETE FROM public.supply_requests
+          WHERE period_id = $1 AND item_id = $2 AND shop_name = $3
+        `,
+        [periodId, itemId, shopName]
+      );
+
+      if (!result.rowCount) {
+        return json({ ok: false, error: "Talep bulunamadı." }, 404);
+      }
 
       return json({ ok: true });
     } finally {

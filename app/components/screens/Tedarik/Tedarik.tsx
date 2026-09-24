@@ -309,6 +309,33 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
+  const [deletingRequestKey, setDeletingRequestKey] = useState<string | null>(null);
+
+  const deleteRequest = async (periodId: number, itemId: number, shopName: string) => {
+    const key = `${periodId}:${itemId}:${shopName}`;
+    if (deletingRequestKey) return;
+    setDeletingRequestKey(key);
+
+    try {
+      const response = await fetch(
+        `/api/supply/${periodId}/request?itemId=${itemId}&shopName=${encodeURIComponent(shopName)}`,
+        { method: "DELETE", credentials: "same-origin" }
+      );
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Talep silinemedi.");
+      }
+
+      void load();
+    } catch (err: any) {
+      setError(err?.message || "Talep silinemedi.");
+    } finally {
+      setDeletingRequestKey(null);
+    }
+  };
+
   const submitRequest = async () => {
     if (!pendingRequest || requestSaving) return;
 
@@ -517,11 +544,26 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                             {item.requests.length === 0 && (
                               <span className="text-[10px] font-bold text-slate-400">Henüz talep yok</span>
                             )}
-                            {item.requests.map((req) => (
-                              <span key={req.shopName} className="rounded-lg border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-black text-blue-700">
-                                {req.shopName}: {req.quantity}
-                              </span>
-                            ))}
+                            {item.requests.map((req) => {
+                              const key = `${period.id}:${item.id}:${req.shopName}`;
+                              return (
+                                <span
+                                  key={req.shopName}
+                                  className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-white pl-2.5 pr-1.5 py-1 text-[10px] font-black text-blue-700"
+                                >
+                                  {req.shopName}: {req.quantity}
+                                  <button
+                                    type="button"
+                                    disabled={deletingRequestKey === key}
+                                    onClick={() => deleteRequest(period.id, item.id, req.shopName)}
+                                    className="flex h-4 w-4 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                    title="Talebi sil"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
                             {item.requests.length > 0 && (
                               <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
                                 Toplam: {totalQty}
