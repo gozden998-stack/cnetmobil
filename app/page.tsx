@@ -16,6 +16,7 @@ import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
+import Tedarik from './components/screens/Tedarik/Tedarik';
 import Paratika from './components/screens/Paratika/Paratika';
 import Depo from './components/screens/Depo';
 import WingsmDegerPuan from './components/screens/WingsmDegerPuan';
@@ -671,7 +672,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -3073,6 +3074,20 @@ export default function CnetmobilCmrFinalUltimate() {
                 </>
               )}
 
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
+                <button
+                  type="button"
+                  onClick={() => { setAppMode('tedarik'); setStep(1); }}
+                  aria-label="Mağaza Tedarik"
+                  title="Mağaza Tedarik"
+                  className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-950/10 transition active:scale-95 md:hidden"
+                >
+                  <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" />
+                  </svg>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
@@ -3105,7 +3120,23 @@ export default function CnetmobilCmrFinalUltimate() {
                     </svg>
                     Kasko Hesapla
                   </button>
+                </>
+              )}
 
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI') && (
+                <button
+                  onClick={() => { setAppMode('tedarik'); setStep(1); }}
+                  className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-3 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500 md:flex"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" />
+                  </svg>
+                  Mağaza Tedarik
+                </button>
+              )}
+
+              {!isZumay && !isAuctionOnlyUser && step < 99 && (
+                <>
                   <div className="relative">
                     <button
                       type="button"
@@ -4377,7 +4408,8 @@ export default function CnetmobilCmrFinalUltimate() {
               appMode === 'ikas' ||
               appMode === 'idefix' ||
               appMode === 'paratika' ||
-              appMode === 'ihale') &&
+              appMode === 'ihale' ||
+              appMode === 'tedarik') &&
             step < 99
               ? 'max-w-[1900px] p-3 sm:p-4 lg:p-5'
               : 'max-w-[1600px] p-4 sm:p-6 lg:p-10'
@@ -4787,6 +4819,13 @@ export default function CnetmobilCmrFinalUltimate() {
 
           appMode === 'ihale' && step < 99 ? (
             <Ihale
+              isAdmin={Boolean(isAdmin || isMasterAccess)}
+              selectedBranch={selectedBranch}
+            />
+          ) :
+
+          appMode === 'tedarik' && step < 99 ? (
+            <Tedarik
               isAdmin={Boolean(isAdmin || isMasterAccess)}
               selectedBranch={selectedBranch}
             />
