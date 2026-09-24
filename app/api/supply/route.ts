@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       const requestsResult = periodIds.length
         ? await client.query(
             `
-              SELECT period_id, item_id, shop_name, quantity, requested_by_name, updated_at
+              SELECT period_id, item_id, shop_name, quantity, delivered_quantity, requested_by_name, updated_at
               FROM public.supply_requests
               WHERE period_id = ANY($1::int[])
             `,
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       const requestsByPeriodItem = new Map<string, any[]>();
       const requestsByPeriodShop = new Map<
         string,
-        Array<{ itemId: number; itemName: string; quantity: number }>
+        Array<{ itemId: number; itemName: string; quantity: number; deliveredQuantity: number | null }>
       >();
 
       for (const req of requestsResult.rows) {
@@ -123,6 +123,10 @@ export async function GET(request: NextRequest) {
           itemId,
           itemName: catalogById.get(itemId)?.itemName || `#${itemId}`,
           quantity: Number(req.quantity),
+          deliveredQuantity:
+            req.delivered_quantity === null || req.delivered_quantity === undefined
+              ? null
+              : Number(req.delivered_quantity),
         });
       }
 

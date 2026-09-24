@@ -228,6 +228,15 @@ export async function ensureSupplyTables(
     )
   `);
 
+  // Yonetici bir kalemi gonderirken GERCEKTE kac adet gonderdigini
+  // buraya isaretler (istenenden az/hic gonderilmemis olabilir).
+  // NULL = henuz isaretlenmedi. Personel bunu talebiyle karsilastirip
+  // gorur.
+  await client.query(`
+    ALTER TABLE public.supply_requests
+    ADD COLUMN IF NOT EXISTS delivered_quantity INTEGER
+  `);
+
   await client.query(`
     CREATE TABLE IF NOT EXISTS public.supply_orders (
       id SERIAL PRIMARY KEY,

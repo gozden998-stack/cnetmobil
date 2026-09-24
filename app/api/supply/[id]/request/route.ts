@@ -202,3 +202,65 @@ export async function DELETE(
     return apiError(error);
   }
 }
+
+// Yonetici bir kalemi FIILEN kac adet gonderdigini isaretler (istenenle
+// ayni olmayabilir). Personel bunu kendi talebiyle karsilastirip gorur.
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSupplySession(request);
+    ensureSupplyManager(session);
+
+    const { id: idParam } = await context.params;
+    const periodId = parseId(idParam);
+
+    if (!periodId) {
+      return json({ ok: false, error: "Geçersiz dönem." }, 400);
+    }
+
+    const body = await request.json().catch(() => null);
+    const itemId = Number((body as any)?.itemId);
+    const shopName = String((body as any)?.shopName || "").trim();
+    const deliveredQuantity = Number((body as any)?.deliveredQuantity);
+
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      return json({ ok: false, error: "Geçersiz ürün." }, 400);
+    }
+
+    if (!shopName) {
+      return json({ ok: false, error: "Geçersiz mağaza." }, 400);
+    }
+
+    if (!Number.isInteger(deliveredQuantity) || deliveredQuantity < 0 || deliveredQuantity > 100000) {
+      return json({ ok: false, error: "Geçersiz adet." }, 400);
+    }
+
+    const pool = getSupplyPool();
+    const client = await pool.connect();
+
+    try {
+      await ensureSupplyTables(client);
+
+      const result = await client.query(
+        `
+          UPDATE public.supply_requests
+          SET delivered_quantity = $4, updated_at = NOW()
+          WHERE period_id = $1 AND item_id = $2 AND shop_name = $3
+        `,
+        [periodId, itemId, shopName, deliveredQuantity]
+      );
+
+      if (!result.rowCount) {
+        return json({ ok: false, error: "Talep bulunamadı." }, 404);
+      }
+
+      return json({ ok: true });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    return apiError(error);
+  }
+}

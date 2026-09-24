@@ -28,6 +28,7 @@ type SupplyOrderItem = {
   itemId: number;
   itemName: string;
   quantity: number;
+  deliveredQuantity: number | null;
 };
 
 type SupplyOrder = {
@@ -379,6 +380,43 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
+  const [deliveredDrafts, setDeliveredDrafts] = useState<Record<string, string>>({});
+  const [savingDeliveredKey, setSavingDeliveredKey] = useState<string | null>(null);
+
+  const saveDeliveredQuantity = async (periodId: number, itemId: number, shopName: string, value: string) => {
+    const key = `${periodId}:${itemId}:${shopName}`;
+    const deliveredQuantity = Math.max(0, Number(value) || 0);
+
+    if (savingDeliveredKey) return;
+    setSavingDeliveredKey(key);
+
+    try {
+      const response = await fetch(`/api/supply/${periodId}/request`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ itemId, shopName, deliveredQuantity }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error || "Kaydedilemedi.");
+      }
+
+      setDeliveredDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      void load();
+    } catch (err: any) {
+      setError(err?.message || "Kaydedilemedi.");
+    } finally {
+      setSavingDeliveredKey(null);
+    }
+  };
+
   const updateOrderStatus = async (orderId: number, status: OrderStatus) => {
     if (orderBusyId) return;
     setOrderBusyId(orderId);
@@ -603,27 +641,72 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               )}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-col gap-1.5">
               {order.items.map((it) => {
                 const key = `${period.id}:${it.itemId}:${order.shopName}`;
+                const deliveredDraft = deliveredDrafts[key];
+                const hasDelivered = it.deliveredQuantity !== null;
+                const fullyMatched = hasDelivered && it.deliveredQuantity === it.quantity;
+                const shortDelivered = hasDelivered && (it.deliveredQuantity as number) < it.quantity;
+
                 return (
-                  <span
+                  <div
                     key={it.itemId}
-                    className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/60 pl-2.5 pr-1.5 py-1 text-[10px] font-black text-blue-700"
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-1.5 text-[10px] font-black text-blue-700"
                   >
-                    {it.itemName}: {it.quantity}
+                    <span>{it.itemName}: İstenen {it.quantity}</span>
+
+                    {isManager ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-blue-400">Gönderilen</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={deliveredDraft ?? (it.deliveredQuantity ?? "")}
+                          onChange={(e) =>
+                            setDeliveredDrafts((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          onBlur={(e) => {
+                            if (e.target.value === "" || Number(e.target.value) === it.deliveredQuantity) return;
+                            void saveDeliveredQuantity(period.id, it.itemId, order.shopName, e.target.value);
+                          }}
+                          placeholder="-"
+                          className="h-7 w-14 rounded-md border border-blue-200 bg-white px-1.5 text-center text-[10px] font-black text-slate-700 outline-none focus:border-blue-400"
+                        />
+                        {savingDeliveredKey === key && (
+                          <span className="text-[9px] font-bold text-slate-400">kaydediliyor...</span>
+                        )}
+                      </div>
+                    ) : hasDelivered ? (
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                          fullyMatched
+                            ? "bg-emerald-100 text-emerald-700"
+                            : shortDelivered
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        Gönderilen: {it.deliveredQuantity}
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                        Henüz işaretlenmedi
+                      </span>
+                    )}
+
                     {isManager && (
                       <button
                         type="button"
                         disabled={deletingRequestKey === key}
                         onClick={() => deleteRequest(period.id, it.itemId, order.shopName)}
-                        className="flex h-4 w-4 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                        className="ml-auto flex h-5 w-5 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                         title="Bu kalemi sil"
                       >
                         ×
                       </button>
                     )}
-                  </span>
+                  </div>
                 );
               })}
             </div>
