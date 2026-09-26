@@ -96,6 +96,36 @@ async function postParatika(config: ParatikaConfig, params: URLSearchParams) {
   }
 }
 
+// Paratika destek ekibinin talebiyle personel tarafinda (payment-link/
+// route.ts) da ayni sekilde gonderiliyor: CR1..CR24 x CONSUMER/BUSINESS
+// tam listesi, sadece secilen taksit active=true. Bayi odemeleri pesin
+// (taksit yok) oldugu icin burada hep installment=1 (CR1) aktif edilir.
+// Bu parametre olmadan PAYBYLINKPAYMENT session'i acilsa bile odeme
+// sayfasi 3D Secure kart formunu duzgun render etmiyor.
+function buildInstallmentSupport(selectedInstallment: number) {
+  const result: Array<{
+    commissionKey: string;
+    active: boolean;
+    installmentType: "CONSUMER" | "BUSINESS";
+    encryptable: boolean;
+  }> = [];
+
+  const installmentTypes: Array<"CONSUMER" | "BUSINESS"> = ["CONSUMER", "BUSINESS"];
+
+  for (const installmentType of installmentTypes) {
+    for (let installment = 1; installment <= 24; installment++) {
+      result.push({
+        commissionKey: `CR${installment}`,
+        active: installment === selectedInstallment,
+        installmentType,
+        encryptable: false,
+      });
+    }
+  }
+
+  return JSON.stringify(result);
+}
+
 function field(data: any, ...keys: string[]) {
   for (const key of keys) {
     const value = data?.[key];
@@ -153,6 +183,13 @@ export async function createDealerPayByLink(
   params.set("LANGUAGE", "tr");
   params.set("RETURNURL", input.returnUrl);
   params.set("MERCHANTNOTE", input.merchantPaymentId);
+
+  // Personel tarafiyla ayni encode deseni: once JSON.stringify sonra
+  // encodeURIComponent ile once-encode edilip URLSearchParams'a konur -
+  // form-encode ikinci katmani ekler, Paratika'nin kendi decode adimi
+  // JSON'u geri elde eder.
+  const installmentSupport = buildInstallmentSupport(1);
+  params.set("INSTALLMENTSUPPORT", encodeURIComponent(installmentSupport));
 
   const result = await postParatika(config, params);
 
