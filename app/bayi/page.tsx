@@ -156,6 +156,41 @@ function BoxIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+function ChevronRightIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.3} d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v5h5M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+function MoreIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </svg>
+  );
+}
+
+function EmptyCartIcon({ className = "h-8 w-8" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m-10 4a1 1 0 102 0 1 1 0 00-2 0zm10 0a1 1 0 102 0 1 1 0 00-2 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M18 3l.6 1.6L20 5l-1.4.6L18 7l-.6-1.4L16 5l1.4-.4z" />
+    </svg>
+  );
+}
+
 const TABS: Array<{ key: Tab; label: string; icon: (p: { className?: string }) => React.JSX.Element }> = [
   { key: "ana_sayfa", label: "Ana Sayfa", icon: HomeIcon },
   { key: "cihaz_al", label: "Cihaz Al", icon: CartIcon },
@@ -537,8 +572,18 @@ export default function BayiPortal() {
         {tab === "cihaz_al" && (
           <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
             <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-sm font-black text-slate-900">Talep Edilebilir Cihazlar</h2>
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                    <CartIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-900">Talep Edilebilir Cihazlar</h2>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                      İhtiyacınız olan cihazları arayın, filtreleyin ve talep sepetinize ekleyin.
+                    </p>
+                  </div>
+                </div>
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   <select
                     value={brandFilter}
@@ -687,16 +732,25 @@ export default function BayiPortal() {
 
             <aside className="space-y-4">
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="flex items-center gap-1.5 text-sm font-black text-slate-900">
-                    <CartIcon className="h-4 w-4 text-blue-600" />
-                    Talep Sepetim ({cartEntries.length})
-                  </h3>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                      <CartIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">
+                        Talep Sepetim ({cartEntries.length})
+                      </h3>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                        Seçtiğiniz cihazlar burada listelenir.
+                      </p>
+                    </div>
+                  </div>
                   {cartEntries.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setCart({})}
-                      className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500"
+                      className="shrink-0 text-[10px] font-black uppercase text-slate-400 hover:text-red-500"
                     >
                       Sepeti Temizle
                     </button>
@@ -705,8 +759,15 @@ export default function BayiPortal() {
 
                 <div className="mt-3 space-y-2">
                   {cartEntries.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs font-bold text-slate-400">
-                      Sepetiniz boş.
+                    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 py-8 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-300 ring-1 ring-blue-100">
+                        <EmptyCartIcon className="h-7 w-7" />
+                      </div>
+                      <div className="text-xs font-black text-slate-600">Sepetiniz boş.</div>
+                      <p className="max-w-[220px] text-[10px] font-semibold text-slate-400">
+                        Talep edilebilir cihazlar arasından seçim yaparak sepetinize
+                        ekleyebilirsiniz.
+                      </p>
                     </div>
                   ) : (
                     cartEntries.map((entry) => (
@@ -768,13 +829,17 @@ export default function BayiPortal() {
                 >
                   <CardIcon className="h-4 w-4" />
                   {checkingOut ? "Yönlendiriliyor..." : "Ödemeye Geç (Paratika)"}
+                  {!checkingOut && <ChevronRightIcon className="h-4 w-4" />}
                 </button>
               </section>
 
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                  Ödeme Süreci
-                </h3>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                    <ShieldCheckIcon className="h-5 w-5" />
+                  </div>
+                  <h3 className="pt-2 text-sm font-black text-slate-900">Ödeme Süreci</h3>
+                </div>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black text-white">
                     PARATİKA
@@ -803,8 +868,21 @@ export default function BayiPortal() {
             </aside>
 
             <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm lg:col-span-2">
-              <div className="border-b border-slate-100 p-4">
-                <h2 className="text-sm font-black text-slate-900">Siparişlerim</h2>
+              <div className="flex items-start justify-between gap-2 border-b border-slate-100 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                    <DocumentIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-900">Siparişlerim</h2>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                      Geçmiş ve devam eden siparişlerinizi görüntüleyebilirsiniz.
+                    </p>
+                  </div>
+                </div>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300">
+                  <MoreIcon />
+                </span>
               </div>
 
               {orders.length === 0 ? (
@@ -859,9 +937,10 @@ export default function BayiPortal() {
                               <button
                                 type="button"
                                 onClick={() => continuePayment(order)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
+                                className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
                               >
                                 Ödemeyi Tamamla
+                                <ChevronRightIcon className="h-3.5 w-3.5" />
                               </button>
                             )}
                           </td>
