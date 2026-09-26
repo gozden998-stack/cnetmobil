@@ -1383,6 +1383,11 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
+      if (data.isDealer) {
+        window.location.href = '/bayi';
+        return;
+      }
+
       const matchedBranch = String(data.branch || '');
       const loginAccessRole = String(data.accessRole || data.role || '');
       setAccessRole(loginAccessRole);

@@ -5,6 +5,11 @@ import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
+import {
+  DEALER_AUTH_COOKIE,
+  createDealerSessionToken,
+} from '@/app/lib/dealer/server';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -172,6 +177,66 @@ export async function POST(request: NextRequest) {
     const user = result.rows[0];
 
     if (!user) {
+      // Personel tablosunda bulunamadi - bayi (dis is ortagi) hesabi
+      // olabilir. Mevcut personel akisi hicbir sekilde DEGISMEZ,
+      // sadece "boyle bir personel yok" durumunda ek bir kontrol
+      // eklenir. Bayi bulunursa AYRI cookie (cnet_dealer_auth) ile
+      // giris yapilir, personel session'a hic dokunulmaz.
+      try {
+        const dealerResult = await pool.query(
+          `
+            SELECT id, company_name, email, password_hash, is_active
+            FROM public.dealers
+            WHERE LOWER(email) = LOWER($1)
+            LIMIT 1
+          `,
+          [email]
+        );
+
+        const dealer = dealerResult.rows[0];
+
+        if (dealer && dealer.is_active) {
+          const dealerPasswordOk = await bcrypt.compare(
+            password,
+            dealer.password_hash
+          );
+
+          if (dealerPasswordOk) {
+            await pool.query(
+              `UPDATE public.dealers SET last_login_at = NOW() WHERE id = $1`,
+              [dealer.id]
+            );
+
+            const { token, maxAge } = createDealerSessionToken(
+              Number(dealer.id)
+            );
+
+            const dealerResponse = NextResponse.json({
+              success: true,
+              isDealer: true,
+              companyName: dealer.company_name,
+            });
+
+            dealerResponse.cookies.set({
+              name: DEALER_AUTH_COOKIE,
+              value: token,
+              httpOnly: true,
+              secure: true,
+              sameSite: 'lax',
+              path: '/',
+              maxAge,
+            });
+
+            return dealerResponse;
+          }
+        }
+      } catch (dealerLookupError) {
+        // dealers tablosu henuz olusmamis olabilir (ilk deploy) - bu
+        // durumda sessizce normal "hatali giris" cevabina dus, personel
+        // girisini asla 500 ile kesmez.
+        console.error('AUTH DEALER FALLBACK ERROR:', dealerLookupError);
+      }
+
       return NextResponse.json(
         { success: false, message: 'E-posta veya şifre hatalı.' },
         { status: 401 }
