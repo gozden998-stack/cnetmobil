@@ -1,0 +1,170 @@
+// app/lib/dealer/paratika.ts
+//
+// Bayi siparişleri için KENDİ, İZOLE Paratika ödeme linki oluşturma
+// mantığı. Personel tarafının app/api/paratika/payment-link/route.ts
+// dosyasına KASITLI OLARAK dokunulmadı/tekrar kullanılmadı - bugün
+// orada kritik bir ödeme hatası bulup düzelttik, o dosyaları
+// gereksiz yere değiştirip yeni bir risk almak istemiyoruz.
+//
+// Ödeme onaylama/senkronizasyon (return.ts, status-sync.ts) DEĞİŞMEDİ
+// ve burada TEKRAR YAZILMADI - dealer_orders sadece paratika_payments
+// tablosuna merchantPaymentId ile bağlanır, doğrulama aynı mevcut
+// (bugün düzeltilen) koddan geçer.
+
+import crypto from "crypto";
+
+export type ParatikaConfig = {
+  merchant: string;
+  merchantUser: string;
+  merchantPassword: string;
+  baseUrl: string;
+};
+
+export function getDealerParatikaConfig(): ParatikaConfig {
+  const merchant = String(process.env.PARATIKA_MERCHANT || "").trim();
+  const merchantUser = String(process.env.PARATIKA_MERCHANT_USER || "").trim();
+  const merchantPassword = String(
+    process.env.PARATIKA_MERCHANT_PASSWORD || ""
+  ).trim();
+  const baseUrl = String(
+    process.env.PARATIKA_BASE_URL ||
+      "https://vpos.paratika.com.tr/paratika/api/v2"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  const missing: string[] = [];
+
+  if (!merchant) missing.push("PARATIKA_MERCHANT");
+  if (!merchantUser) missing.push("PARATIKA_MERCHANT_USER");
+  if (!merchantPassword) missing.push("PARATIKA_MERCHANT_PASSWORD");
+
+  if (missing.length) {
+    throw new Error(`Eksik environment variable: ${missing.join(", ")}`);
+  }
+
+  if (!baseUrl.startsWith("https://")) {
+    throw new Error("PARATIKA_BASE_URL HTTPS olmalıdır.");
+  }
+
+  return { merchant, merchantUser, merchantPassword, baseUrl };
+}
+
+export function createDealerMerchantPaymentId() {
+  const now = new Date();
+
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0"),
+  ].join("");
+
+  return `CNETDLR-${stamp}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+async function postParatika(config: ParatikaConfig, params: URLSearchParams) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const response = await fetch(config.baseUrl, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: params.toString(),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let data: any = null;
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { responseCode: "", responseMsg: text || "Paratika boş cevap döndürdü." };
+    }
+
+    return { response, data };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function field(data: any, ...keys: string[]) {
+  for (const key of keys) {
+    const value = data?.[key];
+    if (value !== undefined && value !== null) return String(value);
+  }
+  return "";
+}
+
+export function buildDealerPaymentUrl(baseUrl: string, sessionToken: string) {
+  const url = new URL(baseUrl);
+  return `${url.protocol}//${url.host}/merchant/payment/${encodeURIComponent(sessionToken)}`;
+}
+
+export function getDealerParatikaReturnUrl(request: { headers: Headers; url: string }) {
+  const configured = String(process.env.PARATIKA_RETURN_URL || "").trim();
+  if (configured) return configured;
+
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const forwardedHost =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    new URL(request.url).host;
+
+  return `${forwardedProto}://${forwardedHost}/api/paratika/return`;
+}
+
+// Tek taksit (pesin) - bayi odemelerinde taksit secimi yok.
+export async function createDealerPayByLink(
+  config: ParatikaConfig,
+  input: {
+    merchantPaymentId: string;
+    amount: number;
+    customerCode: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    returnUrl: string;
+  }
+) {
+  const params = new URLSearchParams();
+
+  params.set("ACTION", "PAYBYLINKPAYMENT");
+  params.set("MERCHANT", config.merchant);
+  params.set("MERCHANTUSER", config.merchantUser);
+  params.set("MERCHANTPASSWORD", config.merchantPassword);
+  params.set("SESSIONTYPE", "PAYMENTSESSION");
+  params.set("SESSIONEXPIRY", "24h");
+  params.set("MERCHANTPAYMENTID", input.merchantPaymentId);
+  params.set("AMOUNT", input.amount.toFixed(2));
+  params.set("CURRENCY", "TRY");
+  params.set("CUSTOMER", input.customerCode);
+  params.set("CUSTOMERNAME", input.customerName);
+  params.set("CUSTOMEREMAIL", input.customerEmail);
+  params.set("CUSTOMERPHONE", input.customerPhone);
+  params.set("LANGUAGE", "tr");
+  params.set("RETURNURL", input.returnUrl);
+  params.set("MERCHANTNOTE", input.merchantPaymentId);
+
+  const result = await postParatika(config, params);
+
+  const responseCode = field(result.data, "responseCode", "RESPONSECODE");
+  const responseMsg = field(result.data, "responseMsg", "RESPONSEMSG");
+  const sessionToken = field(result.data, "sessionToken", "SESSIONTOKEN").trim();
+
+  return {
+    ok: result.response.ok && responseCode === "00" && Boolean(sessionToken),
+    sessionToken,
+    responseCode,
+    responseMsg,
+    raw: result.data,
+  };
+}
