@@ -131,7 +131,7 @@ function normalizeTcInput(value: string) {
 }
 
 function normalizeImeiInput(value: string) {
-  return value.replace(/\D/g, "").slice(0, 16);
+  return value.replace(/\D/g, "").slice(0, 15);
 }
 
 function normalizePhoneInput(value: string) {
@@ -406,7 +406,7 @@ export default function DisKanal({
       canUsePurchaseFlow &&
         selectedRow &&
         selectedAmount > 0 &&
-        /^\d{14,16}$/.test(purchaseForm.imei) &&
+        /^\d{15}$/.test(purchaseForm.imei) &&
         purchaseForm.firstName.trim() &&
         purchaseForm.lastName.trim() &&
         /^\d{11}$/.test(purchaseForm.tc) &&
@@ -1180,8 +1180,8 @@ export default function DisKanal({
                         inputMode="numeric"
                         value={purchaseForm.imei}
                         onChange={(e) => updatePurchaseForm("imei", normalizeImeiInput(e.target.value))}
-                        maxLength={16}
-                        placeholder="14-16 haneli IMEI numarası"
+                        maxLength={15}
+                        placeholder="15 haneli IMEI numarası"
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                       />
                     </label>

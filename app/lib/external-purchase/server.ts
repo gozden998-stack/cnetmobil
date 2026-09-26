@@ -363,7 +363,7 @@ export function normalizeImei(
 ) {
   return String(value ?? "")
     .replace(/\D/g, "")
-    .slice(0, 16);
+    .slice(0, 15);
 }
 
 // ======================================================

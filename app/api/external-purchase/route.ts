@@ -150,7 +150,7 @@ export async function POST(
     }
 
     if (
-      !/^\d{14,16}$/.test(
+      !/^\d{15}$/.test(
         imei
       )
     ) {
@@ -158,7 +158,7 @@ export async function POST(
         {
           success: false,
           message:
-            "Geçerli bir IMEI numarası giriniz (14-16 hane).",
+            "Geçerli bir IMEI numarası giriniz (15 hane).",
         },
         400
       );
