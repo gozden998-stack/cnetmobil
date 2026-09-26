@@ -1492,9 +1492,28 @@ async function syncOnePayment(
 
     const oldStatus = String(locked.status || '');
 
-    // Lock alındıktan sonra arada başka süreç APPROVED yaptıysa
-    // geriye düşürmeyelim.
+    // FIX 26.09.2026 - CIDDI HATA:
+    // Eski kural "oldStatus === 'APPROVED' ise asla dusurme" idi.
+    // Bu, GERCEK bir yaris durumuyla (biz Paratika'yi sorgularken
+    // BASKA bir surecin ayni odemeyi az once APPROVED yapmasi) ile
+    // "bu odeme zaten uzun suredir APPROVED, simdi rutin yeniden
+    // kontrol ediyoruz" durumunu ayirt edemiyordu. Sonuc: Paratika
+    // sonradan (fraud/guvenlik kontrolu) bir odemeyi FA yapsa bile
+    // status sutunu sonsuza kadar APPROVED'da donup kaliyordu -
+    // panelde "onaylandi" gorunup Paratika'da "basarisiz" olan
+    // vakalarin kok nedeni buydu (bkz. id 103/104, response_code 63
+    // "Guvenlik Ihlali").
+    //
+    // Duzeltme: sadece GERCEK yaris durumunda (bu sync baslarken
+    // okunan payment.status HENUZ APPROVED degilken, kilit alindiginda
+    // APPROVED gorulduyse) APPROVED'da sabit kal. Odeme sync baslamadan
+    // ONCE zaten APPROVED ise, Paratika'nin yeni verdigi sonuc (ornegin
+    // sonradan iptal/red) GECERLI ve GUNCEL bilgidir - asla gizlenmez.
+    const wasAlreadyApprovedBeforeSync =
+      String(payment.status || '') === 'APPROVED';
+
     if (
+      !wasAlreadyApprovedBeforeSync &&
       oldStatus === 'APPROVED' &&
       newStatus !== 'CANCELLED'
     ) {
