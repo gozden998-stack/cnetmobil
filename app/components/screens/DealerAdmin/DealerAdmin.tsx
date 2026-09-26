@@ -259,9 +259,10 @@ export default function DealerAdmin() {
   const [newGrade, setNewGrade] = useState("");
   const [newBasePrice, setNewBasePrice] = useState("");
   const [newStock, setNewStock] = useState("");
+  const [newImageUrl, setNewImageUrl] = useState("");
   const [catalogSaving, setCatalogSaving] = useState(false);
 
-  const [editDrafts, setEditDrafts] = useState<Record<number, { basePrice: string; stockQuantity: string }>>({});
+  const [editDrafts, setEditDrafts] = useState<Record<number, { basePrice: string; stockQuantity: string; imageUrl: string }>>({});
   const [savingItemId, setSavingItemId] = useState<number | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -329,6 +330,7 @@ export default function DealerAdmin() {
           grade: newGrade.trim(),
           basePrice,
           stockQuantity,
+          imageUrl: newImageUrl.trim(),
         }),
       });
 
@@ -344,6 +346,7 @@ export default function DealerAdmin() {
       setNewGrade("");
       setNewBasePrice("");
       setNewStock("");
+      setNewImageUrl("");
       void loadCatalog();
     } catch (err: any) {
       setCatalogError(err?.message || "Ürün eklenemedi.");
@@ -377,6 +380,7 @@ export default function DealerAdmin() {
     editDrafts[item.id] ?? {
       basePrice: String(item.basePrice),
       stockQuantity: String(item.stockQuantity),
+      imageUrl: item.imageUrl || "",
     };
 
   const saveCatalogEdits = async (item: CatalogItem) => {
@@ -401,7 +405,7 @@ export default function DealerAdmin() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ basePrice, stockQuantity }),
+        body: JSON.stringify({ basePrice, stockQuantity, imageUrl: draft.imageUrl.trim() }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -808,6 +812,23 @@ export default function DealerAdmin() {
                 type="number"
                 className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
               />
+              <input
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                placeholder="Görsel URL (opsiyonel)"
+                className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400 sm:col-span-2"
+              />
+              {newImageUrl.trim() && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={newImageUrl.trim()}
+                  alt=""
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.visibility = "hidden";
+                  }}
+                  className="h-11 w-11 rounded-xl border border-slate-200 object-cover"
+                />
+              )}
             </div>
 
             {catalogError && (
@@ -847,7 +868,22 @@ export default function DealerAdmin() {
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-300">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M4 7h16v13H4zM8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-black text-slate-900">{item.brandModel}</span>
                           <span
@@ -862,6 +898,7 @@ export default function DealerAdmin() {
                         </div>
                         <div className="mt-0.5 text-xs font-semibold text-slate-500">
                           {[item.memory, item.color, item.grade].filter(Boolean).join(" · ") || "-"}
+                        </div>
                         </div>
                       </div>
 
@@ -909,6 +946,22 @@ export default function DealerAdmin() {
                             }))
                           }
                           className="h-10 w-24 rounded-lg border border-slate-200 px-2 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <div className="min-w-[180px] flex-1">
+                        <label className="block text-[9px] font-black uppercase text-slate-400">
+                          Görsel URL
+                        </label>
+                        <input
+                          value={draft.imageUrl}
+                          onChange={(e) =>
+                            setEditDrafts((prev) => ({
+                              ...prev,
+                              [item.id]: { ...draft, imageUrl: e.target.value },
+                            }))
+                          }
+                          placeholder="https://..."
+                          className="h-10 w-full rounded-lg border border-slate-200 px-2 text-sm font-semibold text-slate-700 outline-none focus:border-blue-400"
                         />
                       </div>
                       <button

@@ -81,6 +81,12 @@ export async function PATCH(
       updates.push(`stock_quantity = $${values.length}`);
     }
 
+    if (typeof (body as any)?.imageUrl === "string") {
+      const imageUrl = (body as any).imageUrl.trim();
+      values.push(imageUrl || null);
+      updates.push(`image_url = $${values.length}`);
+    }
+
     if (!updates.length) {
       return json({ ok: false, error: "Güncellenecek alan yok." }, 400);
     }

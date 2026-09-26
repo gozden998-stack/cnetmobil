@@ -68,6 +68,18 @@ function formatDate(value: string | null) {
   }
 }
 
+function gradeTone(grade: string) {
+  const normalized = grade.trim().toLocaleUpperCase("tr-TR");
+
+  if (normalized.includes("MÜKEMMEL")) return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (normalized.includes("ÇOK İYİ") || normalized.includes("COK IYI"))
+    return "bg-blue-50 text-blue-700 ring-blue-200";
+  if (normalized.includes("İYİ") || normalized.includes("IYI"))
+    return "bg-amber-50 text-amber-700 ring-amber-200";
+
+  return "bg-slate-100 text-slate-600 ring-slate-200";
+}
+
 function initials(name: string) {
   return (
     name
@@ -159,6 +171,7 @@ export default function BayiPortal() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("TÜMÜ");
 
   const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
   const [qtyDrafts, setQtyDrafts] = useState<Record<number, string>>({});
@@ -281,16 +294,29 @@ export default function BayiPortal() {
     return { totalSale, totalBase, commission: Math.round((totalSale - totalBase) * 100) / 100 };
   }, [cartEntries]);
 
+  const brandOptions = useMemo(() => {
+    const brands = new Set(
+      catalog.map((item) => item.brandModel.trim().split(/\s+/)[0]).filter(Boolean)
+    );
+    return ["TÜMÜ", ...Array.from(brands).sort((a, b) => a.localeCompare(b, "tr"))];
+  }, [catalog]);
+
   const filteredCatalog = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
-    if (!query) return catalog;
 
-    return catalog.filter((item) =>
-      `${item.brandModel} ${item.memory} ${item.color} ${item.grade}`
-        .toLocaleLowerCase("tr-TR")
-        .includes(query)
-    );
-  }, [catalog, search]);
+    return catalog.filter((item) => {
+      const matchesBrand =
+        brandFilter === "TÜMÜ" || item.brandModel.trim().startsWith(brandFilter);
+
+      const matchesQuery =
+        !query ||
+        `${item.brandModel} ${item.memory} ${item.color} ${item.grade}`
+          .toLocaleLowerCase("tr-TR")
+          .includes(query);
+
+      return matchesBrand && matchesQuery;
+    });
+  }, [catalog, search, brandFilter]);
 
   const homeStats = useMemo(() => {
     const completed = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "AWAITING_PAYMENT");
@@ -513,14 +539,27 @@ export default function BayiPortal() {
             <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-sm font-black text-slate-900">Talep Edilebilir Cihazlar</h2>
-                <div className="relative w-full sm:w-72">
-                  <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Marka, model ara..."
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
-                  />
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
+                  >
+                    {brandOptions.map((brand) => (
+                      <option key={brand} value={brand}>
+                        {brand}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative w-full sm:w-64">
+                    <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Marka, model ara..."
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -553,9 +592,18 @@ export default function BayiPortal() {
                           >
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
-                                  <BoxIcon className="h-4.5 w-4.5" />
-                                </div>
+                                {item.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={item.imageUrl}
+                                    alt=""
+                                    className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                                    <BoxIcon className="h-4.5 w-4.5" />
+                                  </div>
+                                )}
                                 <div className="min-w-0">
                                   <div className="font-black text-slate-900">{item.brandModel}</div>
                                   {inCart && (
@@ -567,7 +615,16 @@ export default function BayiPortal() {
                               </div>
                             </td>
                             <td className="px-3 py-3 text-xs font-semibold text-slate-500">
-                              {[item.memory, item.color, item.grade].filter(Boolean).join(" · ") || "-"}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span>{[item.memory, item.color].filter(Boolean).join(" · ") || "-"}</span>
+                                {item.grade && (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ring-1 ${gradeTone(item.grade)}`}
+                                  >
+                                    {item.grade}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap font-black text-slate-800">
                               {formatTry(item.basePrice)}
