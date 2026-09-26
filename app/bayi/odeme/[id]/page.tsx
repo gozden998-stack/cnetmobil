@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 type OrderItem = { itemName: string; salePrice: number; quantity: number };
@@ -13,11 +13,8 @@ type OrderDetail = {
   items: OrderItem[];
   companyName: string;
   email: string;
-  sale3dUrl: string | null;
+  paymentUrl: string | null;
 };
-
-const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-const YEARS = Array.from({ length: 13 }, (_, i) => String(new Date().getFullYear() + i));
 
 function formatTry(value: number) {
   return new Intl.NumberFormat("tr-TR", {
@@ -25,11 +22,6 @@ function formatTry(value: number) {
     currency: "TRY",
     minimumFractionDigits: 2,
   }).format(value);
-}
-
-function formatCardNumber(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 19);
-  return digits.replace(/(.{4})/g, "$1 ").trim();
 }
 
 function ShieldCheckIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -48,14 +40,7 @@ export default function DealerCheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [order, setOrder] = useState<OrderDetail | null>(null);
-
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardOwner, setCardOwner] = useState("");
-  const [expiryMonth, setExpiryMonth] = useState(MONTHS[0]);
-  const [expiryYear, setExpiryYear] = useState(YEARS[0]);
-  const [cvv, setCvv] = useState("");
-  const [agreed, setAgreed] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -88,16 +73,11 @@ export default function DealerCheckoutPage() {
     })();
   }, [orderId]);
 
-  const formValid = useMemo(() => {
-    const digits = cardNumber.replace(/\s/g, "");
-    return (
-      digits.length >= 15 &&
-      digits.length <= 19 &&
-      cardOwner.trim().length >= 3 &&
-      /^\d{3,4}$/.test(cvv) &&
-      agreed
-    );
-  }, [cardNumber, cardOwner, cvv, agreed]);
+  const goToPayment = () => {
+    if (!order?.paymentUrl || redirecting) return;
+    setRedirecting(true);
+    window.location.href = order.paymentUrl;
+  };
 
   if (loading) {
     return (
@@ -117,7 +97,7 @@ export default function DealerCheckoutPage() {
     );
   }
 
-  if (!order.sale3dUrl) {
+  if (!order.paymentUrl) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-4">
         <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -156,140 +136,49 @@ export default function DealerCheckoutPage() {
       <main className="mx-auto mt-8 max-w-[1100px] px-4 sm:px-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-            <h1 className="text-lg font-black text-slate-900">Ödeme Bilgileri</h1>
+            <h1 className="text-lg font-black text-slate-900">Ödeme</h1>
             <p className="mt-1 text-xs font-semibold text-slate-400">
-              Kart bilgileriniz doğrudan Paratika&apos;nın güvenli sistemine iletilir,
-              CnetMobil sunucularından hiç geçmez.
+              Siparişinizi onaylayınca, kart bilgilerinizi güvenle gireceğiniz Paratika
+              ödeme sayfasına yönlendirileceksiniz.
             </p>
 
-            {/* DIKKAT: Bu form dogrudan Paratika'ya POST edilir (Direct
-                POST 3D Guvenli - PCI DSS uyumlu model). Kart verisi
-                bizim backend'imize HICBIR ZAMAN ugramaz. */}
-            <form
-              method="post"
-              action={order.sale3dUrl}
-              className="mt-5 space-y-4"
-              onSubmit={() => setSubmitting(true)}
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black text-white">
+                  PARATİKA
+                </div>
+                <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                  <ShieldCheckIcon className="h-3.5 w-3.5" /> 3D Secure
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-500">
+                Kart bilgileriniz Paratika&apos;nın güvenli ödeme sayfasında istenir,
+                CnetMobil sunucularına hiç uğramaz. 3D Secure ile onayladıktan sonra
+                bu sayfaya dönüp siparişinizin durumunu görebilirsiniz.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={goToPayment}
+              disabled={redirecting}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:opacity-50 disabled:shadow-none"
             >
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Kart Üzerindeki İsim
-                </label>
-                <input
-                  name="cardOwner"
-                  value={cardOwner}
-                  onChange={(e) => setCardOwner(e.target.value)}
-                  placeholder="Ad Soyad"
-                  maxLength={32}
-                  required
-                  className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
-              </div>
+              <ShieldCheckIcon className="h-4 w-4" />
+              {redirecting ? "Yönlendiriliyor..." : `${formatTry(order.totalSaleAmount)} - Ödemeye Geç`}
+            </button>
 
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Kart Numarası
-                </label>
-                <input
-                  name="pan"
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                  placeholder="0000 0000 0000 0000"
-                  inputMode="numeric"
-                  maxLength={23}
-                  required
-                  className="h-12 w-full rounded-xl border border-slate-200 px-4 font-mono text-sm font-semibold tracking-wide text-slate-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                    Ay
-                  </label>
-                  <select
-                    name="expiryMonth"
-                    value={expiryMonth}
-                    onChange={(e) => setExpiryMonth(e.target.value)}
-                    className="h-12 w-full rounded-xl border border-slate-200 px-2 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
-                  >
-                    {MONTHS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                    Yıl
-                  </label>
-                  <select
-                    name="expiryYear"
-                    value={expiryYear}
-                    onChange={(e) => setExpiryYear(e.target.value)}
-                    className="h-12 w-full rounded-xl border border-slate-200 px-2 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
-                  >
-                    {YEARS.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                    CVV
-                  </label>
-                  <input
-                    name="cvv"
-                    value={cvv}
-                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    placeholder="***"
-                    inputMode="numeric"
-                    maxLength={4}
-                    required
-                    className="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
-                  />
-                </div>
-              </div>
-
-              <input type="hidden" name="cardName" value="" />
-              <input type="hidden" name="installmentCount" value="1" />
-              <input type="hidden" name="points" value="" />
-              <input type="hidden" name="paymentSystem" value="" />
-
-              <label className="flex items-start gap-2 pt-1 text-xs font-semibold text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                />
-                <span>Mesafeli Satış Sözleşmesini okudum, onaylıyorum.</span>
-              </label>
-
-              <button
-                type="submit"
-                disabled={!formValid || submitting}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:opacity-50 disabled:shadow-none"
-              >
-                <ShieldCheckIcon className="h-4 w-4" />
-                {submitting ? "Yönlendiriliyor..." : `${formatTry(order.totalSaleAmount)} - Ödemeyi Tamamla`}
-              </button>
-
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                {["PARATİKA", "3D Secure", "SSL", "PCI DSS"].map((badge) => (
-                  <span
-                    key={badge}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black uppercase text-slate-500"
-                  >
-                    <ShieldCheckIcon className="h-3 w-3 text-emerald-500" />
-                    {badge}
-                  </span>
-                ))}
-              </div>
-            </form>
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              {["PARATİKA", "3D Secure", "SSL", "PCI DSS"].map((badge) => (
+                <span
+                  key={badge}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black uppercase text-slate-500"
+                >
+                  <ShieldCheckIcon className="h-3 w-3 text-emerald-500" />
+                  {badge}
+                </span>
+              ))}
+            </div>
           </section>
 
           <aside className="h-fit rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">

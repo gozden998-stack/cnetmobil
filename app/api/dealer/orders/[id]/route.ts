@@ -1,12 +1,14 @@
 // app/api/dealer/orders/[id]/route.ts
 //
 // Bayinin KENDI siparişinin detayi - checkout/odeme sayfasi icin.
-// Odeme hala AWAITING_PAYMENT ise, Paratika Direct POST 3D formunun
-// action URL'ini kurmak icin gereken sessionToken da donuyor.
-// (bkz. app/lib/dealer/paratika.ts - ayni sessionToken hem Barindirilan
-// Odeme Sayfasi hem Direct POST 3D icin kullanilabiliyor, Paratika'nin
-// resmi API&HPP URLs bolumune gore.)
-
+//
+// FIX 26.09.2026: Direct POST 3D (sale3d) icin PAYBYLINKPAYMENT'tan
+// alinan sessionToken'in gecerli olacagini varsaymistik - CANLIDA
+// denendi, calismadi (Paratika dokumaninda da bu iki entegrasyon
+// modelinin AYRI oldugu, sale3d icin ayrı bir "Session Token" istegi
+// gerektigi yaziyor ama tam parametreleri dokumanda yok). Paratika
+// destekten net cevap gelene kadar KANITLANMIS calisan yonteme
+// (Barindirilan Odeme Sayfasi / hosted page redirect) donuldu.
 import { NextRequest, NextResponse } from "next/server";
 
 import {
@@ -14,7 +16,7 @@ import {
   getDealerPool,
   requireDealerActor,
 } from "@/app/lib/dealer/server";
-import { buildDealerSale3DUrl, getDealerParatikaConfig } from "@/app/lib/dealer/paratika";
+import { buildDealerPaymentUrl, getDealerParatikaConfig } from "@/app/lib/dealer/paratika";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,11 +100,11 @@ export async function GET(
 
       const canPay = status === "AWAITING_PAYMENT" && Boolean(order.session_token);
 
-      let sale3dUrl: string | null = null;
+      let paymentUrl: string | null = null;
 
       if (canPay) {
         const config = getDealerParatikaConfig();
-        sale3dUrl = buildDealerSale3DUrl(config.baseUrl, String(order.session_token));
+        paymentUrl = buildDealerPaymentUrl(config.baseUrl, String(order.session_token));
       }
 
       return json({
@@ -115,7 +117,7 @@ export async function GET(
           items,
           companyName: actor.companyName,
           email: actor.email,
-          sale3dUrl,
+          paymentUrl,
         },
       });
     } finally {
