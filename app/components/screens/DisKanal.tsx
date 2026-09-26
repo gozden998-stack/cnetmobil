@@ -18,6 +18,7 @@ type DisKanalRow = {
 };
 
 type PurchaseForm = {
+  imei: string;
   firstName: string;
   lastName: string;
   tc: string;
@@ -32,6 +33,7 @@ type ExternalPurchaseRequest = {
   branch: string;
   sourceUserEmail?: string;
   deviceName: string;
+  imei: string;
   amount: number;
   customer: {
     firstName: string;
@@ -58,6 +60,7 @@ type RequestSummary = {
 };
 
 const EMPTY_FORM: PurchaseForm = {
+  imei: "",
   firstName: "",
   lastName: "",
   tc: "",
@@ -125,6 +128,10 @@ function formatDateTime(value: unknown) {
 
 function normalizeTcInput(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function normalizeImeiInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 16);
 }
 
 function normalizePhoneInput(value: string) {
@@ -399,6 +406,7 @@ export default function DisKanal({
       canUsePurchaseFlow &&
         selectedRow &&
         selectedAmount > 0 &&
+        /^\d{14,16}$/.test(purchaseForm.imei) &&
         purchaseForm.firstName.trim() &&
         purchaseForm.lastName.trim() &&
         /^\d{11}$/.test(purchaseForm.tc) &&
@@ -460,6 +468,7 @@ export default function DisKanal({
         },
         body: JSON.stringify({
           deviceName: selectedRow.name,
+          imei: purchaseForm.imei,
           amount: selectedAmount,
           firstName: purchaseForm.firstName.trim(),
           lastName: purchaseForm.lastName.trim(),
@@ -583,6 +592,41 @@ export default function DisKanal({
       await loadRequests(item.id);
     } catch (error: any) {
       setRequestsMessage(error?.message || "İşlem güncellenemedi.");
+    } finally {
+      setRequestActionLoading(null);
+    }
+  }
+
+  async function deleteRequest(item: ExternalPurchaseRequest) {
+    if (requestActionLoading !== null) return;
+
+    const confirmed = window.confirm(
+      `${item.requestNo}\n${item.deviceName}\n\nBu ödeme talebi kalıcı olarak silinecek. Emin misiniz?`
+    );
+
+    if (!confirmed) return;
+
+    setRequestActionLoading(item.id);
+    setRequestsMessage("");
+
+    try {
+      const response = await fetch(`/api/external-purchase/${item.id}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || "Ödeme talebi silinemedi.");
+      }
+
+      setSelectedRequest(null);
+      await loadRequests();
+    } catch (error: any) {
+      setRequestsMessage(error?.message || "Ödeme talebi silinemedi.");
     } finally {
       setRequestActionLoading(null);
     }
@@ -1066,6 +1110,9 @@ export default function DisKanal({
                     </div>
                     <div className="mt-4 border-t border-emerald-200 pt-4 text-left">
                       <div className="text-[10px] font-black text-slate-950">{selectedRow.name}</div>
+                      <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
+                        IMEI: {purchaseForm.imei}
+                      </div>
                       <div className="mt-1 text-[17px] font-black text-emerald-700">
                         {formatTry(selectedAmount)}
                       </div>
@@ -1117,6 +1164,27 @@ export default function DisKanal({
                         {formatTry(selectedAmount)}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${isZumay ? "bg-red-500" : "bg-teal-500"}`} />
+                      <h4 className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                        Cihaz IMEI Numarası
+                      </h4>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-1.5 block text-[9px] font-black text-slate-500">IMEI</span>
+                      <input
+                        inputMode="numeric"
+                        value={purchaseForm.imei}
+                        onChange={(e) => updatePurchaseForm("imei", normalizeImeiInput(e.target.value))}
+                        maxLength={16}
+                        placeholder="14-16 haneli IMEI numarası"
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                      />
+                    </label>
                   </div>
 
                   <div className="mt-5">
@@ -1361,6 +1429,11 @@ export default function DisKanal({
                                 <div className="mt-1 truncate text-[10px] font-bold text-slate-600">
                                   {item.deviceName}
                                 </div>
+                                {item.imei && (
+                                  <div className="mt-0.5 truncate font-mono text-[8px] font-semibold text-slate-400">
+                                    IMEI: {item.imei}
+                                  </div>
+                                )}
                               </div>
 
                               <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[7px] font-black ${info.badge}`}>
@@ -1411,6 +1484,7 @@ export default function DisKanal({
                         onDownload={() => downloadReceipt(selectedRequest)}
                         onPaid={() => changeRequestStatus(selectedRequest, "PAID")}
                         onCancel={() => changeRequestStatus(selectedRequest, "CANCELLED")}
+                        onDelete={() => deleteRequest(selectedRequest)}
                       />
                     )}
                   </div>
@@ -1433,6 +1507,7 @@ function RequestDetail({
   onDownload,
   onPaid,
   onCancel,
+  onDelete,
 }: {
   item: ExternalPurchaseRequest;
   canManagePayments: boolean;
@@ -1442,6 +1517,7 @@ function RequestDetail({
   onDownload: () => void;
   onPaid: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const info = statusInfo(item.status);
 
@@ -1466,6 +1542,9 @@ function RequestDetail({
 
         <div className="mt-4 border-t border-black/5 pt-4">
           <div className="text-[12px] font-black text-slate-950">{item.deviceName}</div>
+          {item.imei && (
+            <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">IMEI: {item.imei}</div>
+          )}
           <div className="mt-1 text-[20px] font-black text-slate-950">{formatTry(item.amount)}</div>
         </div>
       </div>
@@ -1608,6 +1687,19 @@ function RequestDetail({
               : item.hasReceipt
               ? "✓ ÖDEME GÖNDERİLDİ"
               : "ÖNCE DEKONT YÜKLEYİN"}
+          </button>
+        </div>
+      )}
+
+      {canManagePayments && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={actionLoading}
+            className="h-11 w-full rounded-2xl border border-rose-200 bg-white text-[9px] font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+          >
+            ÖDEME TALEBİNİ SİL
           </button>
         </div>
       )}

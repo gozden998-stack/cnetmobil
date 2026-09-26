@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   decryptSensitive,
   encryptSensitive,
+  ensureExternalPurchaseImeiColumn,
   externalPurchasePool,
   formatTry,
   maskPhone,
   normalizeIban,
+  normalizeImei,
   normalizePhone,
   normalizeTc,
   parseMoney,
@@ -74,6 +76,11 @@ export async function POST(
         body?.amount
       );
 
+    const imei =
+      normalizeImei(
+        body?.imei
+      );
+
     // --------------------------------------------------
     // MÜŞTERİ
     // --------------------------------------------------
@@ -137,6 +144,21 @@ export async function POST(
           success: false,
           message:
             "Cihaz tutarı geçersiz.",
+        },
+        400
+      );
+    }
+
+    if (
+      !/^\d{14,16}$/.test(
+        imei
+      )
+    ) {
+      return noStore(
+        {
+          success: false,
+          message:
+            "Geçerli bir IMEI numarası giriniz (14-16 hane).",
         },
         400
       );
@@ -231,6 +253,10 @@ export async function POST(
     // TRANSACTION
     // ==================================================
 
+    await ensureExternalPurchaseImeiColumn(
+      client
+    );
+
     await client.query(
       "BEGIN"
     );
@@ -252,6 +278,7 @@ export async function POST(
             source_branch,
 
             device_name,
+            device_imei,
             amount,
 
             customer_first_name,
@@ -275,15 +302,16 @@ export async function POST(
 
             $4,
             $5,
-
             $6,
+
             $7,
-
             $8,
-            $9,
 
+            $9,
             $10,
+
             $11,
+            $12,
 
             'PAYMENT_PENDING',
 
@@ -300,6 +328,7 @@ export async function POST(
           actor.branch,
 
           deviceName,
+          imei,
           amount,
 
           firstName,
@@ -436,6 +465,7 @@ export async function POST(
           `🧾 Talep No: ${requestNo}`,
           "",
           `📱 Cihaz: ${deviceName}`,
+          `🔢 IMEI: ${imei}`,
           `💰 Tutar: ${formatTry(
             amount
           )}`,
@@ -561,6 +591,8 @@ export async function GET(
         request
       );
 
+    await ensureExternalPurchaseImeiColumn();
+
     const requestedStatus =
       String(
         request.nextUrl.searchParams.get(
@@ -650,6 +682,7 @@ export async function GET(
             r.source_branch,
 
             r.device_name,
+            r.device_imei,
             r.amount,
 
             r.customer_first_name,
@@ -731,6 +764,13 @@ export async function GET(
 
           deviceName:
             row.device_name,
+
+          imei:
+            row.device_imei
+              ? String(
+                  row.device_imei
+                )
+              : "",
 
           amount:
             Number(

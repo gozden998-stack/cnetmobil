@@ -335,6 +335,38 @@ export async function requireExternalPurchaseActor(
 }
 
 // ======================================================
+// IMEI SÜTUNU
+// Tablo bu repodan bagimsiz (elle) olusturulmus, device_imei
+// sonradan eklendigi icin idempotent ALTER TABLE ile garanti altina
+// aliniyor.
+// ======================================================
+
+let imeiColumnEnsured = false;
+
+export async function ensureExternalPurchaseImeiColumn(
+  client?: PoolClient
+) {
+  if (imeiColumnEnsured) return;
+
+  const db = client || externalPurchasePool;
+
+  await db.query(`
+    ALTER TABLE public.external_purchase_requests
+    ADD COLUMN IF NOT EXISTS device_imei TEXT
+  `);
+
+  imeiColumnEnsured = true;
+}
+
+export function normalizeImei(
+  value: unknown
+) {
+  return String(value ?? "")
+    .replace(/\D/g, "")
+    .slice(0, 16);
+}
+
+// ======================================================
 // HASSAS VERİ ŞİFRELEME
 // TC / IBAN / IBAN SAHİBİ
 // AES-256-GCM
