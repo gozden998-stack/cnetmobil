@@ -183,8 +183,13 @@ function formatParatikaQueryDate(value: Date) {
 }
 
 export function buildDealerPaymentUrl(baseUrl: string, sessionToken: string) {
+  // DIKKAT: dogru yol Paratika'nin resmi dokumaninda "/payment/{token}"
+  // olarak geciyor - "/merchant/payment/{token}" DEGIL. Bu yanlis yol
+  // personel tarafindaki (mevcut) kodda da vardi, bu yuzden gercek
+  // musteriler hep SMS'teki (Paratika'nin kendi urettigi, dogru) linke
+  // tikliyordu - panelin gosterdigi link hic gercekten test edilmemisti.
   const url = new URL(baseUrl);
-  return `${url.protocol}//${url.host}/merchant/payment/${encodeURIComponent(sessionToken)}`;
+  return `${url.protocol}//${url.host}/payment/${encodeURIComponent(sessionToken)}`;
 }
 
 export function getDealerParatikaReturnUrl(request: { headers: Headers; url: string }) {
