@@ -182,6 +182,16 @@ function formatParatikaQueryDate(value: Date) {
   return `${map.day}-${map.month}-${map.year} ${map.hour}:${map.minute}`;
 }
 
+// Direct POST 3D Guvenli - kart formu bizim kendi sayfamizda kalir,
+// form dogrudan bu URL'e POST edilir (Paratika resmi dokuman: "API &
+// HPP URLs" / "Direct POST - 3D Guvenli" bolumu). Ayni sessionToken,
+// buildDealerPaymentUrl'deki hosted sayfa icin kullanilanla AYNI -
+// Paratika ikisini de ayni "Session Token" uzerinden calistiriyor.
+export function buildDealerSale3DUrl(baseUrl: string, sessionToken: string) {
+  const url = new URL(baseUrl);
+  return `${url.protocol}//${url.host}/paratika/api/v2/post/sale3d/${encodeURIComponent(sessionToken)}`;
+}
+
 export function buildDealerPaymentUrl(baseUrl: string, sessionToken: string) {
   // DIKKAT: dogru yol Paratika'nin resmi dokumaninda "/payment/{token}"
   // olarak geciyor - "/merchant/payment/{token}" DEGIL. Bu yanlis yol

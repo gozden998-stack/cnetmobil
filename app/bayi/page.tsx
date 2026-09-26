@@ -390,8 +390,8 @@ export default function BayiPortal() {
         throw new Error(result?.error || "Sipariş oluşturulamadı.");
       }
 
-      if (result.paymentUrl) {
-        window.location.href = result.paymentUrl;
+      if (result.orderId) {
+        window.location.href = `/bayi/odeme/${result.orderId}`;
         return;
       }
 
@@ -405,7 +405,7 @@ export default function BayiPortal() {
   };
 
   const continuePayment = (order: Order) => {
-    if (order.paymentUrl) window.location.href = order.paymentUrl;
+    window.location.href = `/bayi/odeme/${order.id}`;
   };
 
   if (checkingSession) {
