@@ -17,7 +17,6 @@ import Idefix from './components/screens/Idefix/Idefix';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
 import Tedarik from './components/screens/Tedarik/Tedarik';
-import DealerAdmin from './components/screens/DealerAdmin/DealerAdmin';
 import Paratika from './components/screens/Paratika/Paratika';
 import Depo from './components/screens/Depo';
 import WingsmDegerPuan from './components/screens/WingsmDegerPuan';
@@ -673,7 +672,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'bayi_yonetim'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -1380,11 +1379,6 @@ export default function CnetmobilCmrFinalUltimate() {
       if (!res.ok || !data.success) {
         alert(data.message || 'E-posta veya şifre hatalı.');
         setLoginLoading(false);
-        return;
-      }
-
-      if (data.isDealer) {
-        window.location.href = '/bayi';
         return;
       }
 
@@ -3141,18 +3135,6 @@ export default function CnetmobilCmrFinalUltimate() {
                 </button>
               )}
 
-              {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess) && (
-                <button
-                  onClick={() => { setAppMode('bayi_yonetim'); setStep(1); }}
-                  className="hidden h-10 items-center gap-2 rounded-xl bg-slate-800 px-3 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-slate-950/10 transition hover:bg-slate-700 md:flex"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m5-9a4 4 0 110 8 4 4 0 010-8zm7 11a4 4 0 10-8 0" />
-                  </svg>
-                  Bayi Yönetimi
-                </button>
-              )}
-
               {!isZumay && !isAuctionOnlyUser && step < 99 && (
                 <>
                   <div className="relative">
@@ -4847,10 +4829,6 @@ export default function CnetmobilCmrFinalUltimate() {
               isAdmin={Boolean(isAdmin || isMasterAccess)}
               selectedBranch={selectedBranch}
             />
-          ) :
-
-          appMode === 'bayi_yonetim' && step < 99 ? (
-            <DealerAdmin />
           ) :
 
           appMode === 'servis' && step < 99 ? (
