@@ -27,6 +27,7 @@ type Order = {
 };
 
 type CartEntry = { item: CatalogItem; salePrice: number; quantity: number };
+type Tab = "ana_sayfa" | "cihaz_al" | "ihale";
 
 const STATUS_LABEL: Record<string, string> = {
   AWAITING_PAYMENT: "Ödeme Bekleniyor",
@@ -68,18 +69,36 @@ function formatDate(value: string | null) {
 }
 
 function initials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || "")
-    .join("") || "İO";
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "İO"
+  );
 }
 
-function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
+function HomeIcon({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M3 11.5L12 4l9 7.5M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9" />
+    </svg>
+  );
+}
+
+function CartIcon({ className = "h-4.5 w-4.5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m-10 4a1 1 0 102 0 1 1 0 00-2 0zm10 0a1 1 0 102 0 1 1 0 00-2 0z" />
+    </svg>
+  );
+}
+
+function GavelIcon({ className = "h-4.5 w-4.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14 4l6 6M3 21l7-7M9 13l-4.5-4.5a1 1 0 010-1.4l2-2a1 1 0 011.4 0L12.5 9.5M11 11l6-6M13 9l4.5 4.5a1 1 0 010 1.4l-2 2a1 1 0 01-1.4 0L9.5 12.5" />
     </svg>
   );
 }
@@ -88,25 +107,6 @@ function CardIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8h18M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM6 16h4" />
-    </svg>
-  );
-}
-
-function BoxCheckIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.5 12.5l1.8 1.8L15 10" />
-    </svg>
-  );
-}
-
-function TruckIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7h11v8H3zM14 10h4l3 3v2h-7z" />
-      <circle cx="7" cy="17" r="1.6" strokeWidth={1.8} />
-      <circle cx="17.5" cy="17" r="1.6" strokeWidth={1.8} />
     </svg>
   );
 }
@@ -136,21 +136,24 @@ function LogoutIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-const STEPS = [
-  { icon: CartIcon, label: "Cihazı Seç, Talep Ol" },
-  { icon: CardIcon, label: "Güvenli Ödeme (Paratika)" },
-  { icon: BoxCheckIcon, label: "Talep Onay ve Hazırlık" },
-  { icon: TruckIcon, label: "Kargo / Sevk Takibi" },
+function BoxIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" />
+    </svg>
+  );
+}
+
+const TABS: Array<{ key: Tab; label: string; icon: (p: { className?: string }) => React.JSX.Element }> = [
+  { key: "ana_sayfa", label: "Ana Sayfa", icon: HomeIcon },
+  { key: "cihaz_al", label: "Cihaz Al", icon: CartIcon },
+  { key: "ihale", label: "İhale", icon: GavelIcon },
 ];
 
 export default function BayiPortal() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [companyName, setCompanyName] = useState("");
-
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [tab, setTab] = useState<Tab>("ana_sayfa");
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -172,9 +175,18 @@ export default function BayiPortal() {
       });
 
       const result = await response.json().catch(() => ({}));
-      setCompanyName(response.ok && result?.ok ? result.companyName || "" : "");
-    } finally {
-      setCheckingSession(false);
+
+      if (response.ok && result?.ok) {
+        setCompanyName(result.companyName || "");
+        setCheckingSession(false);
+      } else {
+        // Bayi girişi artık tek noktadan (ana giriş ekranı) yapılıyor -
+        // burada ayrı bir giriş formu YOK, oturum yoksa direkt oraya
+        // döneriz.
+        window.location.href = "/";
+      }
+    } catch {
+      window.location.href = "/";
     }
   }, []);
 
@@ -219,48 +231,11 @@ export default function BayiPortal() {
     return () => window.clearInterval(intervalId);
   }, [companyName, loadData]);
 
-  const submitLogin = async () => {
-    if (loggingIn) return;
-
-    if (!loginEmail.trim() || !loginPassword) {
-      setLoginError("E-posta ve şifre gerekli.");
-      return;
-    }
-
-    setLoggingIn(true);
-    setLoginError("");
-
-    try {
-      const response = await fetch("/api/dealer-auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword }),
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Giriş başarısız.");
-      }
-
-      setCompanyName(result.companyName || "");
-      setLoginPassword("");
-    } catch (err: any) {
-      setLoginError(err?.message || "Giriş başarısız.");
-    } finally {
-      setLoggingIn(false);
-    }
-  };
-
   const logout = async () => {
     try {
       await fetch("/api/dealer-auth", { method: "DELETE", credentials: "same-origin" });
     } finally {
-      setCompanyName("");
-      setCart({});
-      setCatalog([]);
-      setOrders([]);
+      window.location.href = "/";
     }
   };
 
@@ -317,6 +292,17 @@ export default function BayiPortal() {
     );
   }, [catalog, search]);
 
+  const homeStats = useMemo(() => {
+    const completed = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "AWAITING_PAYMENT");
+    const totalDevices = completed.length;
+    const totalSpent = completed.reduce((sum, o) => sum + o.totalSaleAmount, 0);
+    const totalCommission = completed.reduce((sum, o) => sum + o.commissionAmount, 0);
+    const pending = orders.filter((o) => o.status === "AWAITING_PAYMENT").length;
+    const inProgress = orders.filter((o) => o.status === "PAID" || o.status === "PREPARING").length;
+
+    return { totalDevices, totalSpent, totalCommission, pending, inProgress };
+  }, [orders]);
+
   const submitCheckout = async () => {
     if (checkingOut || cartEntries.length === 0) return;
 
@@ -369,476 +355,481 @@ export default function BayiPortal() {
     );
   }
 
-  if (!companyName) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0b1730] via-[#0f2247] to-[#13306b] px-4">
-        <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl">
-          <div className="bg-gradient-to-r from-blue-700 to-indigo-700 px-8 pb-8 pt-9 text-white">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 font-black">
-                CP
+  return (
+    <div className="min-h-screen bg-[#f5f7fb] pb-16">
+      {/* TOPBAR */}
+      <header className="sticky top-0 z-20 w-full bg-gradient-to-r from-[#10233f] via-[#15345d] to-[#10233f] shadow-[0_10px_30px_rgba(15,23,42,0.22)]">
+        <div className="border-b border-white/10">
+          <div className="mx-auto flex min-h-[64px] max-w-[1600px] items-center justify-between gap-3 px-4 lg:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
+                <span className="text-sm font-black text-white">CP</span>
               </div>
-              <div>
-                <div className="text-sm font-black leading-none">CnetMobil</div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-blue-200">
-                  Partner
+              <div className="hidden sm:block">
+                <div className="text-[22px] font-black leading-none tracking-tight text-white">
+                  Cnet<span className="text-blue-300">mobil</span>
+                  <span className="ml-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">
+                    Partner
+                  </span>
+                </div>
+                <div className="mt-1 text-[7px] font-black uppercase tracking-[0.38em] text-blue-200/70">
+                  Türkiye&apos;nin Yenilenmiş Cep Telefonu Markası
                 </div>
               </div>
             </div>
-            <h1 className="mt-6 text-2xl font-black tracking-tight">İş Ortağı Portalı</h1>
-            <p className="mt-1 text-xs font-semibold text-blue-100/80">
-              Hesabınızla giriş yapın, cihaz talebinizi oluşturun.
-            </p>
-          </div>
 
-          <div className="px-8 py-7">
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  E-posta
-                </label>
-                <input
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="ornek@firma.com"
-                  type="email"
-                  onKeyDown={(e) => e.key === "Enter" && submitLogin()}
-                  className="h-12 w-full rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden h-8 w-px bg-white/10 sm:block" />
+
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5 pr-2 sm:gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[10px] font-black text-white shadow-lg shadow-blue-950/20">
+                  {initials(companyName)}
+                </div>
+                <div className="hidden min-w-[110px] md:block">
+                  <div className="truncate text-[10px] font-black text-white">{companyName}</div>
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-200/60">
+                    İş Ortağı
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Şifre
-                </label>
-                <input
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  type="password"
-                  onKeyDown={(e) => e.key === "Enter" && submitLogin()}
-                  className="h-12 w-full rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                />
-              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                title="Çıkış Yap"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10 hover:text-white"
+              >
+                <LogoutIcon />
+              </button>
             </div>
-
-            {loginError && (
-              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="button"
-              disabled={loggingIn}
-              onClick={submitLogin}
-              className="mt-5 h-12 w-full rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:opacity-50"
-            >
-              {loggingIn ? "Giriş yapılıyor..." : "Giriş Yap"}
-            </button>
-
-            <div className="mt-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-300">
-              <div className="h-px flex-1 bg-slate-100" />
-              güvenli bağlantı
-              <div className="h-px flex-1 bg-slate-100" />
-            </div>
-            <p className="mt-3 text-center text-[10px] font-bold uppercase tracking-wide text-slate-300">
-              CNETMOBİL İş Ortağı Portalı
-            </p>
           </div>
         </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="min-h-screen bg-[#f5f7fb] pb-16">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-[#0b1730] px-4 py-3.5 sm:px-8">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-xs font-black text-white">
-              CP
-            </div>
-            <div className="leading-none">
-              <div className="text-sm font-black text-white">CnetMobil</div>
-              <div className="text-[9px] font-black uppercase tracking-widest text-blue-300">
-                Partner
-              </div>
-            </div>
-          </div>
+        {/* SEKME SATIRI */}
+        <div className="mx-auto max-w-[1600px] px-2 lg:px-4">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {TABS.map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.key;
 
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <div className="text-xs font-black text-white">{companyName}</div>
-              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                İş Ortağı
-              </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-[11px] font-black text-white ring-2 ring-white/10">
-              {initials(companyName)}
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-wide text-slate-200 transition hover:bg-white/10"
-            >
-              <LogoutIcon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Çıkış</span>
-            </button>
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setTab(item.key)}
+                  className={`flex min-w-[92px] shrink-0 flex-col items-center gap-1 border-b-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-wide transition ${
+                    active
+                      ? "border-blue-400 text-white"
+                      : "border-transparent text-blue-100/50 hover:text-blue-100/80"
+                  }`}
+                >
+                  <Icon className={`h-4.5 w-4.5 ${active ? "text-blue-400" : ""}`} />
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto mt-6 max-w-[1400px] px-4 sm:px-8">
-        {/* HERO */}
-        <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#0d1f43] via-[#123072] to-[#1a45a0] p-6 text-white shadow-xl sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-xl">
-              <h1 className="text-2xl font-black tracking-tight sm:text-[28px]">
-                Cihaz Talep ile Stoklarınızı Güçlendirin
-              </h1>
-              <p className="mt-2 text-sm font-medium text-blue-100/85">
-                Aşağıdaki kataloğumuzdan ihtiyacınız olan cihazları seçin, kendi satış fiyatınızı
-                belirleyip talebinizi oluşturun ve ödemeyi güvenle tamamlayın.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
-              {STEPS.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.label} className="flex flex-col items-center gap-2 text-center">
-                    <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
-                      <Icon className="h-5 w-5 text-white" />
-                      <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-400 text-[10px] font-black text-blue-950">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <span className="max-w-[90px] text-[10px] font-bold leading-tight text-blue-100/90">
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
+      <main className="mx-auto mt-6 max-w-[1600px] px-4 sm:px-8">
         {error && (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">
             {error}
           </div>
         )}
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_360px]">
-          {/* KATALOG */}
-          <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-black text-slate-900">Talep Edilebilir Cihazlar</h2>
-              <div className="relative w-full sm:w-72">
-                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Marka, model ara..."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
-                />
+        {tab === "ana_sayfa" && (
+          <div className="space-y-6">
+            <section className="overflow-hidden rounded-[28px] bg-gradient-to-r from-[#0d1f43] via-[#123072] to-[#1a45a0] p-6 text-white shadow-xl sm:p-8">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">
+                Hoş Geldiniz
               </div>
-            </div>
+              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-[28px]">{companyName}</h1>
+              <p className="mt-2 max-w-xl text-sm font-medium text-blue-100/85">
+                CnetMobil'den yaptığınız alımların özeti aşağıda. Yeni cihaz talep etmek için
+                üstteki "Cihaz Al" sekmesine geçebilirsiniz.
+              </p>
+            </section>
 
-            {filteredCatalog.length === 0 ? (
-              <div className="py-16 text-center text-sm font-bold text-slate-400">
-                {catalog.length === 0 ? "Şu an talep edilebilir cihaz yok." : "Sonuç bulunamadı."}
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Alınan Cihaz", value: String(homeStats.totalDevices), tone: "text-slate-900" },
+                { label: "Toplam Alım Tutarı", value: formatTry(homeStats.totalSpent), tone: "text-slate-900" },
+                { label: "Toplam Kârınız", value: formatTry(homeStats.totalCommission), tone: "text-emerald-600" },
+                { label: "Bekleyen / Süreçte", value: `${homeStats.pending} / ${homeStats.inProgress}`, tone: "text-amber-600" },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    {stat.label}
+                  </div>
+                  <div className={`mt-2 text-2xl font-black ${stat.tone}`}>{stat.value}</div>
+                </div>
+              ))}
+            </section>
+
+            <p className="text-[10px] font-semibold text-slate-400">
+              * Bu rakamlar CnetMobil üzerinden yaptığınız alımlara aittir; kendi müşterilerinize
+              yaptığınız satışları içermez.
+            </p>
+
+            <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 p-4">
+                <h2 className="text-sm font-black text-slate-900">Son Siparişleriniz</h2>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left">
-                  <thead>
-                    <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3">Marka / Model</th>
-                      <th className="px-3 py-3">Özellikler</th>
-                      <th className="px-3 py-3">Temel Fiyat</th>
-                      <th className="px-3 py-3">Stok</th>
-                      <th className="px-4 py-3">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCatalog.map((item, index) => {
-                      const inCart = cart[item.id];
 
-                      return (
+              {orders.length === 0 ? (
+                <div className="py-14 text-center text-sm font-bold text-slate-400">
+                  Henüz siparişiniz yok.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {orders.slice(0, 5).map((order) => (
+                    <div key={order.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                      <div>
+                        <div className="text-xs font-black text-slate-900">#{order.id}</div>
+                        <div className="text-[10px] font-semibold text-slate-400">
+                          {formatDate(order.createdAt)}
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ring-1 ${STATUS_TONE[order.status]}`}
+                      >
+                        {STATUS_LABEL[order.status]}
+                      </span>
+                      <div className="text-sm font-black text-slate-900">
+                        {formatTry(order.totalSaleAmount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {tab === "cihaz_al" && (
+          <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+            <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-sm font-black text-slate-900">Talep Edilebilir Cihazlar</h2>
+                <div className="relative w-full sm:w-72">
+                  <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Marka, model ara..."
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {filteredCatalog.length === 0 ? (
+                <div className="py-16 text-center text-sm font-bold text-slate-400">
+                  {catalog.length === 0 ? "Şu an talep edilebilir cihaz yok." : "Sonuç bulunamadı."}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] border-collapse text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Marka / Model</th>
+                        <th className="px-3 py-3">Özellikler</th>
+                        <th className="px-3 py-3">Temel Fiyat</th>
+                        <th className="px-3 py-3">Stok</th>
+                        <th className="px-4 py-3">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCatalog.map((item, index) => {
+                        const inCart = cart[item.id];
+
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`border-t border-slate-100 align-top text-sm ${
+                              index % 2 === 1 ? "bg-slate-50/40" : "bg-white"
+                            }`}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+                                  <BoxIcon className="h-4.5 w-4.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-black text-slate-900">{item.brandModel}</div>
+                                  {inCart && (
+                                    <span className="mt-0.5 inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-700">
+                                      Sepette
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-xs font-semibold text-slate-500">
+                              {[item.memory, item.color, item.grade].filter(Boolean).join(" · ") || "-"}
+                            </td>
+                            <td className="px-3 py-3 whitespace-nowrap font-black text-slate-800">
+                              {formatTry(item.basePrice)}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">
+                                {item.stockQuantity} adet
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap items-end gap-1.5">
+                                <div>
+                                  <label className="block text-[8px] font-black uppercase text-slate-400">
+                                    Satış Fiyatı
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={item.basePrice}
+                                    step="0.01"
+                                    value={getPriceDraft(item)}
+                                    onChange={(e) =>
+                                      setPriceDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                    }
+                                    className="h-9 w-24 rounded-lg border border-slate-200 px-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[8px] font-black uppercase text-slate-400">
+                                    Adet
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={item.stockQuantity}
+                                    value={getQtyDraft(item.id)}
+                                    onChange={(e) =>
+                                      setQtyDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                    }
+                                    className="h-9 w-14 rounded-lg border border-slate-200 px-2 text-center text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => addToCart(item)}
+                                  className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
+                                >
+                                  <CartIcon className="h-3.5 w-3.5" />
+                                  Talep Ol
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-4">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="flex items-center gap-1.5 text-sm font-black text-slate-900">
+                    <CartIcon className="h-4 w-4 text-blue-600" />
+                    Talep Sepetim ({cartEntries.length})
+                  </h3>
+                  {cartEntries.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCart({})}
+                      className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500"
+                    >
+                      Sepeti Temizle
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {cartEntries.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs font-bold text-slate-400">
+                      Sepetiniz boş.
+                    </div>
+                  ) : (
+                    cartEntries.map((entry) => (
+                      <div
+                        key={entry.item.id}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-black text-slate-800">
+                            {entry.item.brandModel}
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-400">
+                            {entry.quantity} adet
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-sm font-black text-slate-900">
+                            {formatTry(entry.salePrice * entry.quantity)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(entry.item.id)}
+                            className="text-red-400 hover:text-red-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {cartEntries.length > 0 && (
+                  <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                      <span>Toplam Tutar</span>
+                      <span className="text-lg font-black text-slate-950">
+                        {formatTry(cartTotals.totalSale)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-600">
+                      <span>Tahmini Kârınız</span>
+                      <span className="font-black">{formatTry(cartTotals.commission)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {checkoutError && (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
+                    {checkoutError}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={checkingOut || cartEntries.length === 0}
+                  onClick={submitCheckout}
+                  className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:opacity-50 disabled:shadow-none"
+                >
+                  <CardIcon className="h-4 w-4" />
+                  {checkingOut ? "Yönlendiriliyor..." : "Ödemeye Geç (Paratika)"}
+                </button>
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                  Ödeme Süreci
+                </h3>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black text-white">
+                    PARATİKA
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <ShieldCheckIcon className="h-3.5 w-3.5" /> 3D Secure
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-500">
+                  Ödeme sayfasına yönlendirilirsiniz, kart bilgilerinizi girip 3D Secure ile
+                  onaylarsınız. İşlem tamamlandığında talebiniz sistemimize düşer ve
+                  hazırlanmaya başlanır.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {["3D Secure", "SSL Güvenlik", "PCI DSS"].map((badge) => (
+                    <span
+                      key={badge}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black uppercase text-slate-500"
+                    >
+                      <ShieldCheckIcon className="h-3 w-3 text-emerald-500" />
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            </aside>
+
+            <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm lg:col-span-2">
+              <div className="border-b border-slate-100 p-4">
+                <h2 className="text-sm font-black text-slate-900">Siparişlerim</h2>
+              </div>
+
+              {orders.length === 0 ? (
+                <div className="py-14 text-center text-sm font-bold text-slate-400">
+                  Henüz siparişiniz yok.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] border-collapse text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3">Sipariş</th>
+                        <th className="px-3 py-3">Durum</th>
+                        <th className="px-3 py-3">Tutar</th>
+                        <th className="px-3 py-3">Kâr</th>
+                        <th className="px-3 py-3">Kargo</th>
+                        <th className="px-4 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((order, index) => (
                         <tr
-                          key={item.id}
-                          className={`border-t border-slate-100 align-top text-sm ${
+                          key={order.id}
+                          className={`border-t border-slate-100 text-sm ${
                             index % 2 === 1 ? "bg-slate-50/40" : "bg-white"
                           }`}
                         >
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
-                                <CardIcon className="h-4.5 w-4.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-black text-slate-900">{item.brandModel}</div>
-                                {inCart && (
-                                  <span className="mt-0.5 inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-700">
-                                    Sepette
-                                  </span>
-                                )}
-                              </div>
+                            <div className="font-black text-slate-900">#{order.id}</div>
+                            <div className="text-[10px] font-semibold text-slate-400">
+                              {formatDate(order.createdAt)}
                             </div>
-                          </td>
-                          <td className="px-3 py-3 text-xs font-semibold text-slate-500">
-                            {[item.memory, item.color, item.grade].filter(Boolean).join(" · ") || "-"}
-                          </td>
-                          <td className="px-3 py-3 whitespace-nowrap font-black text-slate-800">
-                            {formatTry(item.basePrice)}
                           </td>
                           <td className="px-3 py-3">
-                            <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">
-                              {item.stockQuantity} adet
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ring-1 ${STATUS_TONE[order.status]}`}
+                            >
+                              {STATUS_LABEL[order.status]}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-end gap-1.5">
-                              <div>
-                                <label className="block text-[8px] font-black uppercase text-slate-400">
-                                  Satış Fiyatı
-                                </label>
-                                <input
-                                  type="number"
-                                  min={item.basePrice}
-                                  step="0.01"
-                                  value={getPriceDraft(item)}
-                                  onChange={(e) =>
-                                    setPriceDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
-                                  }
-                                  className="h-9 w-24 rounded-lg border border-slate-200 px-2 text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[8px] font-black uppercase text-slate-400">
-                                  Adet
-                                </label>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={item.stockQuantity}
-                                  value={getQtyDraft(item.id)}
-                                  onChange={(e) =>
-                                    setQtyDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
-                                  }
-                                  className="h-9 w-14 rounded-lg border border-slate-200 px-2 text-center text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
-                                />
-                              </div>
+                          <td className="px-3 py-3 font-black text-slate-900">
+                            {formatTry(order.totalSaleAmount)}
+                          </td>
+                          <td className="px-3 py-3 font-bold text-emerald-600">
+                            {formatTry(order.commissionAmount)}
+                          </td>
+                          <td className="px-3 py-3 text-xs font-semibold text-slate-500">
+                            {order.trackingNo || "-"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {order.status === "AWAITING_PAYMENT" && order.paymentUrl && (
                               <button
                                 type="button"
-                                onClick={() => addToCart(item)}
-                                className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
+                                onClick={() => continuePayment(order)}
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
                               >
-                                <CartIcon className="h-3.5 w-3.5" />
-                                Talep Ol
+                                Ödemeyi Tamamla
                               </button>
-                            </div>
+                            )}
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          {/* SEPET + ÖDEME */}
-          <aside className="space-y-4">
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-1.5 text-sm font-black text-slate-900">
-                  <CartIcon className="h-4 w-4 text-blue-600" />
-                  Talep Sepetim ({cartEntries.length})
-                </h3>
-                {cartEntries.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setCart({})}
-                    className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500"
-                  >
-                    Sepeti Temizle
-                  </button>
-                )}
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {cartEntries.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs font-bold text-slate-400">
-                    Sepetiniz boş.
-                  </div>
-                ) : (
-                  cartEntries.map((entry) => (
-                    <div
-                      key={entry.item.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-black text-slate-800">
-                          {entry.item.brandModel}
-                        </div>
-                        <div className="text-[10px] font-semibold text-slate-400">
-                          {entry.quantity} adet
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-sm font-black text-slate-900">
-                          {formatTry(entry.salePrice * entry.quantity)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(entry.item.id)}
-                          className="text-red-400 hover:text-red-600"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {cartEntries.length > 0 && (
-                <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                    <span>Toplam Tutar</span>
-                    <span className="text-lg font-black text-slate-950">
-                      {formatTry(cartTotals.totalSale)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-bold text-emerald-600">
-                    <span>Tahmini Kârınız</span>
-                    <span className="font-black">{formatTry(cartTotals.commission)}</span>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
-
-              {checkoutError && (
-                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
-                  {checkoutError}
-                </div>
-              )}
-
-              <button
-                type="button"
-                disabled={checkingOut || cartEntries.length === 0}
-                onClick={submitCheckout}
-                className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:opacity-50 disabled:shadow-none"
-              >
-                <CardIcon className="h-4 w-4" />
-                {checkingOut ? "Yönlendiriliyor..." : "Ödemeye Geç (Paratika)"}
-              </button>
             </section>
-
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                Ödeme Süreci
-              </h3>
-              <div className="mt-2 flex items-center gap-2">
-                <div className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black text-white">
-                  PARATİKA
-                </div>
-                <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                  <ShieldCheckIcon className="h-3.5 w-3.5" /> 3D Secure
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-500">
-                Ödeme sayfasına yönlendirilirsiniz, kart bilgilerinizi girip 3D Secure ile
-                onaylarsınız. İşlem tamamlandığında talebiniz sistemimize düşer ve
-                hazırlanmaya başlanır.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {["3D Secure", "SSL Güvenlik", "PCI DSS"].map((badge) => (
-                  <span
-                    key={badge}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-black uppercase text-slate-500"
-                  >
-                    <ShieldCheckIcon className="h-3 w-3 text-emerald-500" />
-                    {badge}
-                  </span>
-                ))}
-              </div>
-            </section>
-          </aside>
-        </div>
-
-        {/* SİPARİŞLERİM */}
-        <section className="mt-6 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-black text-slate-900">Siparişlerim</h2>
           </div>
+        )}
 
-          {orders.length === 0 ? (
-            <div className="py-14 text-center text-sm font-bold text-slate-400">
-              Henüz siparişiniz yok.
+        {tab === "ihale" && (
+          <div className="flex min-h-[50vh] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-white p-10 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-500 ring-1 ring-blue-100">
+              <GavelIcon className="h-7 w-7" />
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-left">
-                <thead>
-                  <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-3">Sipariş</th>
-                    <th className="px-3 py-3">Durum</th>
-                    <th className="px-3 py-3">Tutar</th>
-                    <th className="px-3 py-3">Kâr</th>
-                    <th className="px-3 py-3">Kargo</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order, index) => (
-                    <tr
-                      key={order.id}
-                      className={`border-t border-slate-100 text-sm ${
-                        index % 2 === 1 ? "bg-slate-50/40" : "bg-white"
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-black text-slate-900">#{order.id}</div>
-                        <div className="text-[10px] font-semibold text-slate-400">
-                          {formatDate(order.createdAt)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ring-1 ${STATUS_TONE[order.status]}`}
-                        >
-                          {STATUS_LABEL[order.status]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 font-black text-slate-900">
-                        {formatTry(order.totalSaleAmount)}
-                      </td>
-                      <td className="px-3 py-3 font-bold text-emerald-600">
-                        {formatTry(order.commissionAmount)}
-                      </td>
-                      <td className="px-3 py-3 text-xs font-semibold text-slate-500">
-                        {order.trackingNo || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {order.status === "AWAITING_PAYMENT" && order.paymentUrl && (
-                          <button
-                            type="button"
-                            onClick={() => continuePayment(order)}
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500"
-                          >
-                            Ödemeyi Tamamla
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+            <h2 className="mt-4 text-lg font-black text-slate-900">İhale — Yakında</h2>
+            <p className="mt-1.5 max-w-sm text-xs font-semibold text-slate-500">
+              Bayiler arası cihaz ihalesi özelliği üzerinde çalışıyoruz. Hazır olduğunda bu
+              sekmeden teklif verebileceksiniz.
+            </p>
+          </div>
+        )}
       </main>
     </div>
   );
