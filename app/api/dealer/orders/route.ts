@@ -20,6 +20,8 @@ import {
   createDealerPayByLink,
   getDealerParatikaConfig,
   getDealerParatikaReturnUrl,
+  queryDealerPayByLink,
+  resendDealerPayByLink,
 } from "@/app/lib/dealer/paratika";
 
 export const runtime = "nodejs";
@@ -300,6 +302,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Personel akisindaki ADIM 3+4 (QUERYPAYBYLINKPAYMENT + RESEND) -
+      // bu adimlar sadece SMS icin degil, PayByLink kaydini "aktive"
+      // eden adim gibi davraniyor; bunlar olmadan session olussa bile
+      // odeme sayfasi genel bir hata veriyordu (bkz. 2026-09-26 vaka).
+      // SMS gonderilip gonderilmemesi burada onemli degil - sadece bu
+      // cagrilarin yapilmis olmasi onemli, bu yuzden basarisiz olursa
+      // bile akisi durdurmuyoruz.
+      const queryResult = await queryDealerPayByLink(config, {
+        merchantPaymentId,
+        customerEmail: String(dealer.email || actor.email),
+        payByLinkCreateResponse: payByLink.raw,
+      });
+
+      let resendResult: Awaited<ReturnType<typeof resendDealerPayByLink>> | null = null;
+
+      if (queryResult.payByLinkToken) {
+        resendResult = await resendDealerPayByLink(config, queryResult.payByLinkToken);
+      } else {
+        console.error("DEALER PAYBYLINK: payByLinkToken bulunamadi", {
+          merchantPaymentId,
+          queryResult,
+        });
+      }
+
       const paymentUrl = buildDealerPaymentUrl(config.baseUrl, payByLink.sessionToken);
 
       const paymentResult = await client.query(
@@ -336,7 +362,11 @@ export async function POST(request: NextRequest) {
           Number(totalSaleAmount.toFixed(2)),
           payByLink.responseCode || null,
           payByLink.responseMsg || null,
-          JSON.stringify(payByLink.raw ?? null),
+          JSON.stringify({
+            payByLink: payByLink.raw ?? null,
+            query: queryResult ?? null,
+            resend: resendResult ?? null,
+          }),
         ]
       );
 

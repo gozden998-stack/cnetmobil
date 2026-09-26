@@ -134,6 +134,54 @@ function field(data: any, ...keys: string[]) {
   return "";
 }
 
+function findDeepStringByKeys(value: unknown, keys: string[]): string {
+  const wanted = new Set(keys.map((key) => key.toLowerCase()));
+
+  const visit = (node: unknown): string => {
+    if (node === null || node === undefined) return "";
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return "";
+    }
+
+    if (typeof node !== "object") return "";
+
+    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+      if (wanted.has(key.toLowerCase()) && child !== null && child !== undefined) {
+        const text = String(child).trim();
+        if (text) return text;
+      }
+
+      const nested = visit(child);
+      if (nested) return nested;
+    }
+
+    return "";
+  };
+
+  return visit(value);
+}
+
+function formatParatikaQueryDate(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Istanbul",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(value);
+
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${map.day}-${map.month}-${map.year} ${map.hour}:${map.minute}`;
+}
+
 export function buildDealerPaymentUrl(baseUrl: string, sessionToken: string) {
   const url = new URL(baseUrl);
   return `${url.protocol}//${url.host}/merchant/payment/${encodeURIComponent(sessionToken)}`;
@@ -204,4 +252,86 @@ export async function createDealerPayByLink(
     responseMsg,
     raw: result.data,
   };
+}
+
+// Personel akisindaki ADIM 3 - ayni PayByLink kaydinin payByLinkToken'ini
+// bulur. Personel tarafinda bu sadece SMS icin kullaniliyor gibi
+// gorunse de, ADIM 4 (resend) ile birlikte PayByLink kaydini
+// "aktive" eden adim gibi davraniyor - bu ikisi olmadan session
+// olussa bile odeme sayfasi acilirken genel bir hata veriyor.
+export async function queryDealerPayByLink(
+  config: ParatikaConfig,
+  input: { merchantPaymentId: string; customerEmail: string; payByLinkCreateResponse: unknown }
+) {
+  let payByLinkToken = findDeepStringByKeys(input.payByLinkCreateResponse, [
+    "payByLinkToken",
+    "PAYBYLINKTOKEN",
+  ]);
+
+  if (payByLinkToken) {
+    return { ok: true, payByLinkToken };
+  }
+
+  const params = new URLSearchParams();
+
+  params.set("ACTION", "QUERYPAYBYLINKPAYMENT");
+  params.set("MERCHANT", config.merchant);
+  params.set("MERCHANTUSER", config.merchantUser);
+  params.set("MERCHANTPASSWORD", config.merchantPassword);
+
+  const now = new Date();
+  const start = new Date(now.getTime() - 5 * 60 * 1000);
+  const end = new Date(now.getTime() + 5 * 60 * 1000);
+
+  params.set("STARTDATE", formatParatikaQueryDate(start));
+  params.set("ENDDATE", formatParatikaQueryDate(end));
+  params.set("MERCHANTNOTE", input.merchantPaymentId);
+  params.set("CUSTOMEREMAIL", input.customerEmail);
+
+  const result = await postParatika(config, params);
+
+  const list = Array.isArray(result.data?.payByLinkPaymentList)
+    ? result.data.payByLinkPaymentList
+    : Array.isArray(result.data?.PAYBYLINKPAYMENTLIST)
+    ? result.data.PAYBYLINKPAYMENTLIST
+    : [];
+
+  const match = list.find(
+    (item: any) =>
+      String(item?.merchantNote ?? item?.MERCHANTNOTE ?? "").trim() ===
+      input.merchantPaymentId
+  );
+
+  payByLinkToken = String(
+    match?.token ?? match?.payByLinkToken ?? match?.PAYBYLINKTOKEN ?? list[0]?.token ?? ""
+  ).trim();
+
+  if (!payByLinkToken) {
+    payByLinkToken = findDeepStringByKeys(result.data, [
+      "payByLinkToken",
+      "PAYBYLINKTOKEN",
+      "token",
+    ]);
+  }
+
+  return { ok: Boolean(payByLinkToken), payByLinkToken, raw: result.data };
+}
+
+export async function resendDealerPayByLink(
+  config: ParatikaConfig,
+  payByLinkToken: string
+) {
+  const params = new URLSearchParams();
+
+  params.set("ACTION", "PAYBYLINKPAYMENTRESEND");
+  params.set("MERCHANT", config.merchant);
+  params.set("MERCHANTUSER", config.merchantUser);
+  params.set("MERCHANTPASSWORD", config.merchantPassword);
+  params.set("PAYBYLINKTOKEN", payByLinkToken);
+  params.set("NOTIFICATIONCHANNELS", "SMS");
+
+  const result = await postParatika(config, params);
+  const responseCode = field(result.data, "responseCode", "RESPONSECODE");
+
+  return { ok: result.response.ok && responseCode === "00", responseCode, raw: result.data };
 }
