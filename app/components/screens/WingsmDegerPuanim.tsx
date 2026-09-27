@@ -847,7 +847,41 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             </p>
           </div>
           {pickedName ? (
-            <div className="max-h-[360px] overflow-auto">
+            <>
+            <div className="max-h-[360px] divide-y divide-slate-100 overflow-auto md:hidden">
+              {report.personnel.map((p, i) => {
+                const isMe = normalizeName(p.saticiAdi) === normalizeName(pickedName);
+                return (
+                  <div key={`m-${p.saticiKod || p.saticiAdi}-${i}`} className={`px-3 py-2.5 ${isMe ? "bg-blue-50" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      <RankBadge rank={p.siralama} />
+                      <span className={`flex-1 text-[11px] ${isMe ? "font-black text-blue-700" : "font-semibold"}`}>
+                        {p.saticiAdi || p.saticiKod}
+                        {isMe && (
+                          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">SEN</span>
+                        )}
+                        {p.isManager && (
+                          <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">MÜDÜR</span>
+                        )}
+                      </span>
+                      {p.siralamaPuani > 0 && (
+                        <span className="text-[13px] font-black text-emerald-600">{p.siralamaPuani}</span>
+                      )}
+                    </div>
+                    <div className="mt-1 pl-7 text-[10px] font-semibold text-slate-500">
+                      {p.branchLabel} · Toplam: {formatNumber(p.totalScore)} · Hedef: {p.hedef !== null ? formatNumber(p.hedef) : "-"} ({formatPercent(p.hedefYuzdesi)})
+                    </div>
+                  </div>
+                );
+              })}
+              {report.personnel.length === 0 && (
+                <div className="px-3 py-6 text-center text-xs font-bold text-slate-400">
+                  Bu dönemde hiçbir mağazada kayıt bulunamadı.
+                </div>
+              )}
+            </div>
+
+            <div className="hidden max-h-[360px] overflow-auto md:block">
               <table className="w-full min-w-[600px] text-left">
                 <thead>
                   <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -901,6 +935,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                 </tbody>
               </table>
             </div>
+            </>
           ) : (
             <PersonalPlaceholder label="Adını seçince kendi satırın vurgulanacak." className="rounded-none border-0 border-t border-dashed border-slate-200" />
           )}
@@ -911,7 +946,32 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             <StorefrontIcon className="h-4 w-4 text-blue-500" />
             <div className="text-sm font-black text-slate-800">Mağaza Sıralaması</div>
           </div>
-          <div className="overflow-auto">
+          <div className="divide-y divide-slate-100 md:hidden">
+            {sortedStores.map((s, i) => {
+              const isMyStore = s.branchLabel === report.myBranch;
+              return (
+                <div key={`m-${s.depotCode}`} className={`px-3 py-2.5 ${isMyStore ? "bg-blue-50" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <RankBadge rank={i + 1} />
+                    <span className={`flex-1 text-[11px] ${isMyStore ? "font-black text-blue-700" : "font-semibold"}`}>
+                      {s.branchLabel}
+                      {isMyStore && (
+                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                          BENİM MAĞAZAM
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[13px] font-black text-slate-900">{formatNumber(s.carpanliPuan)}</span>
+                  </div>
+                  <div className="mt-1 pl-7 text-[10px] font-semibold text-slate-500">
+                    Hedef: {s.hedef !== null ? formatNumber(s.hedef) : "-"} ({formatPercent(s.hedefYuzdesi)})
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-auto md:block">
             <table className="w-full min-w-[480px] text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
