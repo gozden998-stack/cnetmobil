@@ -4963,7 +4963,7 @@ export default function Merkez() {
 
                             <div className="mt-3 grid gap-2 sm:grid-cols-4">
                               <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                <div className="text-[10px] font-black uppercase text-slate-400">
                                   İşlem
                                 </div>
                                 <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -4978,7 +4978,7 @@ export default function Merkez() {
                               </div>
 
                               <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                <div className="text-[10px] font-black uppercase text-slate-400">
                                   Stok
                                 </div>
                                 <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -4987,7 +4987,7 @@ export default function Merkez() {
                               </div>
 
                               <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                <div className="text-[10px] font-black uppercase text-slate-400">
                                   Durum
                                 </div>
                                 <div
@@ -5004,7 +5004,7 @@ export default function Merkez() {
                               </div>
 
                               <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                                <div className="text-[6px] font-black uppercase text-slate-400">
+                                <div className="text-[10px] font-black uppercase text-slate-400">
                                   Listing
                                 </div>
                                 <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -5066,7 +5066,7 @@ export default function Merkez() {
 
                           <div className="mt-3 grid gap-2 sm:grid-cols-5">
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 İşlem
                               </div>
                               <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -5079,7 +5079,7 @@ export default function Merkez() {
                             </div>
 
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Stok
                               </div>
                               <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -5088,7 +5088,7 @@ export default function Merkez() {
                             </div>
 
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Satış
                               </div>
                               <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -5097,7 +5097,7 @@ export default function Merkez() {
                             </div>
 
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Liste
                               </div>
                               <div className="mt-1 text-[10px] font-black text-slate-700">
@@ -5106,7 +5106,7 @@ export default function Merkez() {
                             </div>
 
                             <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
-                              <div className="text-[6px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Satış Kanalı
                               </div>
                               <div className="mt-1 text-[10px] font-black text-emerald-700">

@@ -279,7 +279,19 @@ export default function IkinciElFiyatListesi({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {visibleRows.length === 0 ? (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                <SearchIcon />
+              </div>
+              <p className="text-[11px] font-black text-slate-700">Cihaz bulunamadı</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-400">Arama kelimesini değiştirin.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+        <div className="hidden overflow-x-auto md:block">
           <div className="min-w-[930px]">
             <div className={`grid grid-cols-[48px_minmax(330px,1fr)_170px_150px_minmax(260px,1fr)] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500`}>
               <div className="px-2 py-3 text-center">#</div>
@@ -289,18 +301,7 @@ export default function IkinciElFiyatListesi({
               <div className="px-3 py-3 text-left">Açıklama</div>
             </div>
 
-            {visibleRows.length === 0 ? (
-              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
-                <div>
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                    <SearchIcon />
-                  </div>
-                  <p className="text-[11px] font-black text-slate-700">Cihaz bulunamadı</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">Arama kelimesini değiştirin.</p>
-                </div>
-              </div>
-            ) : (
-              visibleRows.map((row, index) => (
+              {visibleRows.map((row, index) => (
                 <div
                   key={`${row.device}-${index}`}
                   className={`grid grid-cols-[48px_minmax(330px,1fr)_170px_150px_minmax(260px,1fr)] border-b border-slate-100 last:border-b-0 transition ${
@@ -338,10 +339,41 @@ export default function IkinciElFiyatListesi({
                     </span>
                   </div>
                 </div>
-              ))
-            )}
+              ))}
           </div>
         </div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {visibleRows.map((row, index) => (
+            <div
+              key={`m-${row.device}-${index}`}
+              className={`px-4 py-3 ${
+                row.highlighted ? "bg-amber-50/80" : index % 2 === 0 ? "bg-white" : "bg-slate-50/35"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">#{index + 1}</span>
+                {row.highlighted && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />}
+                <span className={`flex-1 text-[12px] font-black ${row.highlighted ? "text-amber-700" : "text-slate-900"}`}>
+                  {row.device}
+                </span>
+                <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">
+                  {row.feature || "-"}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <span className="line-clamp-2 text-[10px] font-semibold text-slate-500">
+                  {row.description || "-"}
+                </span>
+                <span className={`shrink-0 text-[13px] font-black ${row.highlighted ? "text-amber-600" : accent.text}`}>
+                  {String(row.price || "-")}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-3 px-5 py-3">
           <button

@@ -1816,7 +1816,60 @@ export default function Ikas() {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {currentOrders.map((order) => (
+                    <div key={`m-${order.id}`} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-[11px] font-black text-slate-900">{order.orderNumber}</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">{dateTime(order.orderedAt)}</div>
+                        </div>
+                        <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ring-1 ${meta.className}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-[11px] font-black text-slate-800">
+                        {order.productSummary}
+                      </div>
+                      {order.packages?.some((pkg: any) => pkg?.trackingNumber) ? (
+                        <div className="mt-1 text-[10px] font-bold text-violet-600">
+                          Takip: {order.packages.map((pkg: any) => pkg?.trackingNumber).filter(Boolean).join(", ")}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2">
+                        <div className="truncate text-[10px] font-black text-slate-700">{order.customer?.name || "-"}</div>
+                        <div className="mt-0.5 truncate text-[10px] font-bold text-slate-400">
+                          {order.customer?.phone || order.customer?.email || "-"} · {order.city || "-"}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="text-[10px] font-bold text-slate-500">
+                          {order.quantity || 1} adet · <span className="font-black text-slate-900">{money(order.totalFinalPrice)}</span>
+                        </div>
+                        {meta.action ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void runOrderAction(order);
+                            }}
+                            disabled={orderActionId === order.id}
+                            className="h-9 rounded-xl bg-violet-600 px-3 text-[10px] font-black uppercase text-white transition hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {orderActionId === order.id ? "İşleniyor..." : meta.button}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">Tamamlandı</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <div className="min-w-[1120px]">
                     <div className="grid grid-cols-[130px_150px_minmax(280px,1fr)_70px_120px_100px_140px_130px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
                       <div>
@@ -1949,7 +2002,7 @@ export default function Ikas() {
 
                             {(order.operationalStatus ||
                               order.rawStatus) ? (
-                              <div className="mt-1 max-w-[130px] truncate text-[6px] font-bold text-slate-400">
+                              <div className="mt-1 max-w-[130px] truncate text-[10px] font-bold text-slate-400">
                                 {order.operationalStatus ||
                                   order.rawStatus}
                               </div>
@@ -1987,6 +2040,7 @@ export default function Ikas() {
                     )}
                   </div>
                 </div>
+                </>
               )}
             </div>
           ) : (
@@ -2128,7 +2182,88 @@ export default function Ikas() {
                           </button>
 
                           {expanded ? (
-                            <div className="mt-3 overflow-x-auto rounded-[16px] border border-slate-200">
+                            <>
+                            <div className="mt-3 space-y-2 md:hidden">
+                              {productVariants.map((variant: any) => {
+                                const key = `${product?.id}:${variant?.id}`;
+                                const quantity = Number(variant?.stockCount || 0);
+                                const price = variantPrice(variant);
+
+                                return (
+                                  <div key={`m-${variant?.id}`} className="rounded-[16px] border border-slate-200 p-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="truncate text-[11px] font-black text-slate-900">{variantLabel(variant)}</div>
+                                        <div className="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-400">{String(variant?.sku || "-")}</div>
+                                      </div>
+                                      <span
+                                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                          quantity > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                                        }`}
+                                      >
+                                        {quantity}
+                                      </span>
+                                    </div>
+
+                                    <div className="mt-1.5 text-[10px] font-bold text-slate-500">
+                                      Satış: <span className="font-black text-slate-800">{money(price.salePrice)}</span> · Liste:{" "}
+                                      <span className="font-black text-slate-800">{money(price.listPrice)}</span>
+                                    </div>
+                                    <div className="mt-1 truncate text-[10px] font-bold text-slate-400">{locationNames(variant)}</div>
+
+                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        disabled={quantity <= 0 || stockBusyId === key}
+                                        onClick={() => {
+                                          void runStockAction(String(product?.id || ""), String(variant?.id || ""), "decrement", quantity);
+                                        }}
+                                        className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 disabled:opacity-40"
+                                      >
+                                        -1
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={quantity <= 0 || stockBusyId === key}
+                                        onClick={() => {
+                                          void runStockAction(String(product?.id || ""), String(variant?.id || ""), "zero", quantity);
+                                        }}
+                                        className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-3 text-[10px] font-black text-rose-700 disabled:opacity-40"
+                                      >
+                                        0 Yap
+                                      </button>
+                                      <input
+                                        value={stockDrafts[key] ?? String(quantity)}
+                                        onChange={(event) =>
+                                          setStockDrafts((current) => ({ ...current, [key]: event.target.value }))
+                                        }
+                                        inputMode="numeric"
+                                        className="h-9 w-[58px] rounded-lg border border-slate-200 px-2 text-center text-[10px] font-black"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={stockBusyId === key}
+                                        onClick={() => {
+                                          void runStockAction(String(product?.id || ""), String(variant?.id || ""), "set", quantity);
+                                        }}
+                                        className="h-9 rounded-lg bg-slate-950 px-3 text-[10px] font-black text-white disabled:opacity-40"
+                                      >
+                                        {stockBusyId === key ? "..." : "Kaydet"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openPriceEditor(product, variant)}
+                                        className="h-9 rounded-lg bg-violet-600 px-3 text-[10px] font-black text-white hover:bg-violet-700"
+                                      >
+                                        Fiyat
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="mt-3 hidden overflow-x-auto rounded-[16px] border border-slate-200 md:block">
                               <div className="min-w-[1080px]">
                                 <div className="grid grid-cols-[200px_110px_130px_130px_minmax(120px,1fr)_390px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
                                   <div>
@@ -2352,6 +2487,7 @@ export default function Ikas() {
                                 )}
                               </div>
                             </div>
+                            </>
                           ) : null}
                         </div>
                       );
