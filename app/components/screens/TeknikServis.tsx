@@ -243,7 +243,7 @@ export default function TeknikServis({
       <section className="overflow-hidden rounded-[26px] border border-orange-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]">
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-600">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600">
               CNETMOBİL V2
             </div>
 
@@ -290,13 +290,13 @@ export default function TeknikServis({
               </svg>
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                 Marka
               </p>
               <p className="text-[18px] font-black text-slate-950">
                 {serviceBrands.length}
               </p>
-              <p className="text-[8px] font-semibold text-slate-400">
+              <p className="text-[10px] font-semibold text-slate-400">
                 Servis markası
               </p>
             </div>
@@ -307,13 +307,13 @@ export default function TeknikServis({
               <PhoneIcon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                 Cihaz Modeli
               </p>
               <p className="text-[18px] font-black text-slate-950">
                 {Array.from(new Set((devices || []).map((item) => item?.name).filter(Boolean))).length}
               </p>
-              <p className="text-[8px] font-semibold text-slate-400">
+              <p className="text-[10px] font-semibold text-slate-400">
                 Tanımlı cihaz
               </p>
             </div>
@@ -326,11 +326,11 @@ export default function TeknikServis({
               </svg>
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                 Fiyat Listesi
               </p>
               <p className="text-[15px] font-black text-slate-950">Güncel</p>
-              <p className="text-[8px] font-semibold text-slate-400">
+              <p className="text-[10px] font-semibold text-slate-400">
                 Servis_Fiyatlari
               </p>
             </div>
@@ -360,7 +360,7 @@ export default function TeknikServis({
                 className="flex shrink-0 items-center gap-2 disabled:cursor-default"
               >
                 <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-[9px] font-black ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black ${
                     current
                       ? "bg-orange-600 text-white"
                       : done
@@ -371,7 +371,7 @@ export default function TeknikServis({
                   {done ? "✓" : number}
                 </span>
                 <span
-                  className={`text-[9px] font-black ${
+                  className={`text-[11px] font-black ${
                     current ? "text-slate-900" : "text-slate-400"
                   }`}
                 >
@@ -425,7 +425,7 @@ export default function TeknikServis({
                   <div className="mt-3 text-[12px] font-black uppercase tracking-[-0.02em] text-slate-900">
                     {brand}
                   </div>
-                  <div className="mt-1 text-[8px] font-black uppercase tracking-[0.08em] text-orange-500">
+                  <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-500">
                     Servis İşlemleri
                   </div>
                 </button>
@@ -442,13 +442,13 @@ export default function TeknikServis({
             <button
               type="button"
               onClick={goBrands}
-              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black text-slate-500 hover:bg-slate-50"
+              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-500 hover:bg-slate-50"
             >
               ← Markalara Dön
             </button>
 
             <div className="text-right">
-              <div className="text-[8px] font-black uppercase tracking-[0.12em] text-orange-600">
+              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-600">
                 {selectedBrand}
               </div>
               <div className="text-[18px] font-black tracking-[-0.03em] text-slate-950">
@@ -511,7 +511,7 @@ export default function TeknikServis({
                       <div className="line-clamp-2 text-[10px] font-black uppercase leading-4 text-slate-900">
                         {model}
                       </div>
-                      <div className="mt-1 text-[8px] font-black uppercase tracking-[0.08em] text-orange-500">
+                      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-500">
                         Servis Seçenekleri
                       </div>
                     </div>
@@ -530,13 +530,13 @@ export default function TeknikServis({
             <button
               type="button"
               onClick={goModels}
-              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black text-slate-500 hover:bg-slate-50"
+              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-500 hover:bg-slate-50"
             >
               ← Modellere Dön
             </button>
 
             <div className="text-right">
-              <div className="text-[8px] font-black uppercase tracking-[0.12em] text-orange-600">
+              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-600">
                 {selectedBrand}
               </div>
               <div className="text-[18px] font-black tracking-[-0.03em] text-slate-950">
@@ -561,13 +561,13 @@ export default function TeknikServis({
                 </div>
 
                 <div>
-                  <span className="rounded-lg bg-orange-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-orange-700">
+                  <span className="rounded-lg bg-orange-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-orange-700">
                     {selectedBrand}
                   </span>
                   <h3 className="mt-3 text-[25px] font-black uppercase tracking-[-0.04em] text-slate-950">
                     {selectedModel}
                   </h3>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.1em] text-orange-500">
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-orange-500">
                     Teknik Servis Onarım Fiyatları
                   </p>
                 </div>
@@ -581,7 +581,7 @@ export default function TeknikServis({
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
-                      <span className="text-[8px] font-black uppercase text-slate-400">
+                      <span className="text-[10px] font-black uppercase text-slate-400">
                         Orijinal
                       </span>
                       <span className="text-[11px] font-black text-slate-950">
@@ -590,7 +590,7 @@ export default function TeknikServis({
                     </div>
 
                     <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
-                      <span className="text-[8px] font-black uppercase text-slate-400">
+                      <span className="text-[10px] font-black uppercase text-slate-400">
                         OLED
                       </span>
                       <span className="text-[11px] font-black text-slate-950">
@@ -600,7 +600,7 @@ export default function TeknikServis({
 
                     {selectedBrand.toLocaleLowerCase("tr-TR") === "apple" && (
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[8px] font-black uppercase text-slate-400">
+                        <span className="text-[10px] font-black uppercase text-slate-400">
                           Çipli
                         </span>
                         <span className="text-[11px] font-black text-slate-950">
@@ -654,12 +654,12 @@ export default function TeknikServis({
                 Müşteriye İlet
               </h4>
 
-              <p className="mt-2 text-[9px] font-semibold leading-4 text-slate-400">
+              <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-400">
                 Seçili cihazın güncel servis fiyatlarını WhatsApp üzerinden paylaşın.
               </p>
 
               <div className="mt-4 rounded-2xl bg-slate-50 p-3">
-                <div className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                   Aktif Mağaza
                 </div>
                 <div className="mt-1 text-[10px] font-black text-slate-800">
@@ -670,7 +670,7 @@ export default function TeknikServis({
               <button
                 type="button"
                 onClick={sendWhatsapp}
-                className="mt-4 flex h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-[9px] font-black uppercase tracking-[0.08em] text-white shadow-lg shadow-emerald-900/10 transition hover:bg-[#128C7E]"
+                className="mt-4 flex h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 text-[11px] font-black uppercase tracking-[0.08em] text-white shadow-lg shadow-emerald-900/10 transition hover:bg-[#128C7E]"
               >
                 WhatsApp'tan Gönder
               </button>

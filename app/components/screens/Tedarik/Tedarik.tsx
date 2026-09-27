@@ -585,24 +585,24 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         const totalQty = order.items.reduce((sum, it) => sum + it.quantity, 0);
 
         return (
-          <div key={order.id} className="rounded-2xl border border-slate-100 bg-white px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div key={order.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 sm:px-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-black text-slate-900">{order.shopName}</span>
-                <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
+                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
                   {ORDER_STATUS_LABEL[order.status] || order.status}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400">{totalQty} adet</span>
+                <span className="text-xs font-bold text-slate-400">{totalQty} adet</span>
               </div>
 
               {isManager && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {order.status === "BEKLEMEDE" && (
                     <button
                       type="button"
                       disabled={orderBusyId === order.id}
                       onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black uppercase text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                     >
                       Hazırlanıyor Yap
                     </button>
@@ -613,7 +613,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         type="button"
                         disabled={orderBusyId === order.id}
                         onClick={() => updateOrderStatus(order.id, "BEKLEMEDE")}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
                       >
                         Beklemeye Al
                       </button>
@@ -621,7 +621,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         type="button"
                         disabled={orderBusyId === order.id}
                         onClick={() => updateOrderStatus(order.id, "GONDERILDI")}
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[9px] font-black uppercase text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                       >
                         Gönderildi Yap
                       </button>
@@ -632,7 +632,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                       type="button"
                       disabled={orderBusyId === order.id}
                       onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[9px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       Geri Al
                     </button>
@@ -652,66 +652,74 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                 return (
                   <div
                     key={it.itemId}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-1.5 text-[10px] font-black text-blue-700"
+                    className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5"
                   >
-                    <span>{it.itemName}: İstenen {it.quantity}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 break-words text-xs font-black text-blue-700">{it.itemName}</span>
+                      {isManager && (
+                        <button
+                          type="button"
+                          disabled={deletingRequestKey === key}
+                          onClick={() => deleteRequest(period.id, it.itemId, order.shopName)}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                          title="Bu kalemi sil"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
 
-                    {isManager ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-blue-400">Gönderilen</span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={deliveredDraft ?? (it.deliveredQuantity ?? "")}
-                          onChange={(e) =>
-                            setDeliveredDrafts((prev) => ({ ...prev, [key]: e.target.value }))
-                          }
-                          onBlur={(e) => {
-                            if (e.target.value === "" || Number(e.target.value) === it.deliveredQuantity) return;
-                            void saveDeliveredQuantity(period.id, it.itemId, order.shopName, e.target.value);
-                          }}
-                          placeholder="-"
-                          className="h-7 w-14 rounded-md border border-blue-200 bg-white px-1.5 text-center text-[10px] font-black text-slate-700 outline-none focus:border-blue-400"
-                        />
-                        {savingDeliveredKey === key && (
-                          <span className="text-[9px] font-bold text-slate-400">kaydediliyor...</span>
-                        )}
-                      </div>
-                    ) : hasDelivered ? (
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                          fullyMatched
-                            ? "bg-emerald-100 text-emerald-700"
-                            : shortDelivered
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}
-                      >
-                        Gönderilen: {it.deliveredQuantity}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-600">
+                        İstenen: {it.quantity}
                       </span>
-                    ) : (
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
-                        Henüz işaretlenmedi
-                      </span>
-                    )}
 
-                    {isManager && (
-                      <button
-                        type="button"
-                        disabled={deletingRequestKey === key}
-                        onClick={() => deleteRequest(period.id, it.itemId, order.shopName)}
-                        className="ml-auto flex h-5 w-5 items-center justify-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                        title="Bu kalemi sil"
-                      >
-                        ×
-                      </button>
-                    )}
+                      {isManager ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-blue-400">Gönderilen</span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={deliveredDraft ?? (it.deliveredQuantity ?? "")}
+                            onChange={(e) =>
+                              setDeliveredDrafts((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            onBlur={(e) => {
+                              if (e.target.value === "" || Number(e.target.value) === it.deliveredQuantity) return;
+                              void saveDeliveredQuantity(period.id, it.itemId, order.shopName, e.target.value);
+                            }}
+                            placeholder="-"
+                            className="h-9 w-16 rounded-md border border-blue-200 bg-white px-1.5 text-center text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                          />
+                          {savingDeliveredKey === key && (
+                            <span className="text-[10px] font-bold text-slate-400">kaydediliyor...</span>
+                          )}
+                        </div>
+                      ) : hasDelivered ? (
+                        <span
+                          className={`rounded-md px-2 py-1 text-xs font-black uppercase tracking-wide ${
+                            fullyMatched
+                              ? "bg-emerald-100 text-emerald-700"
+                              : shortDelivered
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          Gönderilen: {it.deliveredQuantity}
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                          Henüz işaretlenmedi
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            <p className="mt-2 text-[9px] font-semibold text-slate-400">
+            <p className="mt-2 text-[11px] font-semibold text-slate-400">
               Gönderen: {order.submittedByName || "-"} · {formatDate(order.updatedAt)}
             </p>
           </div>
@@ -792,7 +800,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="text-lg font-black text-slate-900">{period.title}</h4>
-                    <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
                       {STATUS_LABEL[period.status]}
                     </span>
                   </div>
@@ -806,7 +814,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                     <button
                       type="button"
                       onClick={() => downloadExcel(period)}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
                     >
                       Excel İndir
                     </button>
@@ -814,7 +822,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                       type="button"
                       disabled={actionBusyId === period.id}
                       onClick={() => runPeriodAction(period.id, "END")}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       Şimdi Kapat
                     </button>
@@ -834,27 +842,27 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                   const inCart = cart?.periodId === period.id ? cart.entries[item.id] : undefined;
 
                   return (
-                    <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
+                    <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 sm:px-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 break-words">
                           <div className="font-black text-slate-900">{item.itemName}</div>
                           {item.itemNote && (
-                            <div className="mt-0.5 text-[10px] font-semibold text-slate-400">{item.itemNote}</div>
+                            <div className="mt-0.5 text-xs font-semibold text-slate-400">{item.itemNote}</div>
                           )}
                         </div>
 
                         {isManager ? (
                           totalQty > 0 ? (
-                            <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                            <span className="self-start rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700 sm:self-auto">
                               Toplam Talep: {totalQty}
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold text-slate-400">Henüz talep yok</span>
+                            <span className="text-xs font-bold text-slate-400">Henüz talep yok</span>
                           )
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
                             {inCart && (
-                              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-black text-emerald-700">
                                 Sepette: {inCart.quantity}
                               </span>
                             )}
@@ -864,23 +872,24 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                                 onClick={() =>
                                   setItemQtyDraft(item.id, String(Math.max(1, (Number(getItemQtyDraft(item.id)) || 1) - 1)))
                                 }
-                                className="flex h-9 w-8 items-center justify-center text-sm font-black text-slate-500 transition hover:bg-slate-50"
+                                className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
                               >
                                 −
                               </button>
                               <input
                                 type="number"
+                                inputMode="numeric"
                                 min={1}
                                 value={getItemQtyDraft(item.id)}
                                 onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
-                                className="h-9 w-12 border-x border-slate-200 bg-white text-center text-[11px] font-bold text-slate-700 outline-none"
+                                className="h-11 w-14 border-x border-slate-200 bg-white text-center text-sm font-bold text-slate-700 outline-none"
                               />
                               <button
                                 type="button"
                                 onClick={() =>
                                   setItemQtyDraft(item.id, String((Number(getItemQtyDraft(item.id)) || 1) + 1))
                                 }
-                                className="flex h-9 w-8 items-center justify-center text-sm font-black text-slate-500 transition hover:bg-slate-50"
+                                className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
                               >
                                 +
                               </button>
@@ -892,7 +901,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                                 addToCart(period.id, item.id, item.itemName, qty);
                                 setItemQtyDraft(item.id, "1");
                               }}
-                              className="rounded-xl bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-500 active:scale-95"
+                              className="h-11 flex-1 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white transition hover:bg-blue-500 active:scale-95 sm:flex-none"
                             >
                               Sepete Ekle
                             </button>
@@ -933,7 +942,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-slate-800">{period.title}</span>
-                      <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
                         {STATUS_LABEL[period.status]}
                       </span>
                     </div>
@@ -947,7 +956,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                       <button
                         type="button"
                         onClick={() => setExpandedPeriodId(isExpanded ? null : period.id)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
                       >
                         {isExpanded ? "Gizle" : "Detay"}
                       </button>
@@ -957,7 +966,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                       <button
                         type="button"
                         onClick={() => downloadExcel(period)}
-                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
                       >
                         Excel İndir
                       </button>
@@ -968,7 +977,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         type="button"
                         disabled={actionBusyId === period.id}
                         onClick={() => runPeriodAction(period.id, "START")}
-                        className="rounded-xl bg-emerald-600 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                        className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
                       >
                         Başlat
                       </button>
@@ -979,7 +988,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         type="button"
                         disabled={actionBusyId === period.id}
                         onClick={() => runPeriodAction(period.id, "CANCEL")}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                       >
                         İptal Et
                       </button>
@@ -990,7 +999,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                         type="button"
                         disabled={actionBusyId === period.id}
                         onClick={() => deletePeriod(period.id)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[9px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                       >
                         Sil
                       </button>
@@ -1077,7 +1086,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
                     <button
                       type="button"
                       onClick={() => toggleCatalogItem(item)}
-                      className={`shrink-0 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase tracking-wide transition ${
+                      className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-black uppercase tracking-wide transition ${
                         item.isActive
                           ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                           : "bg-slate-100 text-slate-500 hover:bg-slate-200"

@@ -118,7 +118,7 @@ function StepPill({
     <div className="flex shrink-0 items-center gap-2">
       <span
         className={[
-          "flex h-8 w-8 items-center justify-center rounded-xl text-[9px] font-black",
+          "flex h-8 w-8 items-center justify-center rounded-xl text-[11px] font-black",
           active
             ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
             : done
@@ -128,7 +128,7 @@ function StepPill({
       >
         {done ? <CheckIcon /> : number}
       </span>
-      <span className={`text-[9px] font-black ${active ? "text-slate-900" : "text-slate-400"}`}>
+      <span className={`text-[11px] font-black ${active ? "text-slate-900" : "text-slate-400"}`}>
         {label}
       </span>
     </div>
@@ -150,7 +150,7 @@ function QuestionCard({
 }) {
   return (
     <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-[0_5px_18px_rgba(15,23,42,0.04)]">
-      <p className="mb-3 text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
+      <p className="mb-3 text-[11px] font-black uppercase tracking-[0.08em] text-slate-400">
         {label}
       </p>
 
@@ -164,7 +164,7 @@ function QuestionCard({
               key={option}
               onClick={() => setStatus({ ...status, [field]: option })}
               className={[
-                "rounded-xl border px-3.5 py-2.5 text-[9px] font-black transition",
+                "rounded-xl border px-3.5 py-2.5 text-[11px] font-black transition",
                 selected
                   ? "border-slate-900 bg-slate-900 text-white shadow-md"
                   : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
@@ -316,7 +316,7 @@ export default function CihazAlim({
       <section className={`overflow-hidden rounded-[26px] border ${accentBorder} bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]`}>
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className={`text-[8px] font-black uppercase tracking-[0.2em] ${accentText}`}>
+            <div className={`text-[10px] font-black uppercase tracking-[0.2em] ${accentText}`}>
               CNETMOBİL V2
             </div>
 
@@ -364,9 +364,9 @@ export default function CihazAlim({
               <PhoneIcon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Marka</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Marka</p>
               <p className="text-[18px] font-black text-slate-950">{displayBrands.length}</p>
-              <p className="text-[8px] font-semibold text-slate-400">Aktif marka</p>
+              <p className="text-[10px] font-semibold text-slate-400">Aktif marka</p>
             </div>
           </div>
 
@@ -375,9 +375,9 @@ export default function CihazAlim({
               <CheckIcon className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Ekspertiz</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Ekspertiz</p>
               <p className="text-[18px] font-black text-slate-950">{selectedQuestionCount}/8</p>
-              <p className="text-[8px] font-semibold text-slate-400">Kontrol adımı</p>
+              <p className="text-[10px] font-semibold text-slate-400">Kontrol adımı</p>
             </div>
           </div>
 
@@ -388,9 +388,9 @@ export default function CihazAlim({
               </svg>
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Teklif Sistemi</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Teklif Sistemi</p>
               <p className="text-[15px] font-black text-slate-950">Aktif</p>
-              <p className="text-[8px] font-semibold text-slate-400">Nakit + Takas</p>
+              <p className="text-[10px] font-semibold text-slate-400">Nakit + Takas</p>
             </div>
           </div>
         </div>
@@ -445,7 +445,7 @@ export default function CihazAlim({
                   <div className="mt-3 text-[12px] font-black uppercase tracking-[-0.02em] text-slate-900">
                     {brand}
                   </div>
-                  <div className={`mt-1 text-[8px] font-black uppercase tracking-[0.08em] ${accentText}`}>
+                  <div className={`mt-1 text-[10px] font-black uppercase tracking-[0.08em] ${accentText}`}>
                     Cihazını Sat
                   </div>
                 </button>
@@ -462,13 +462,13 @@ export default function CihazAlim({
             <button
               type="button"
               onClick={goBrands}
-              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black text-slate-500 hover:bg-slate-50"
+              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-500 hover:bg-slate-50"
             >
               ← Markalara Dön
             </button>
 
             <div className="text-right">
-              <div className={`text-[8px] font-black uppercase tracking-[0.12em] ${accentText}`}>
+              <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${accentText}`}>
                 {selectedBrand}
               </div>
               <div className="text-[18px] font-black tracking-[-0.03em] text-slate-950">
@@ -521,7 +521,7 @@ export default function CihazAlim({
                     <div className="line-clamp-2 text-[10px] font-black uppercase leading-4 text-slate-900">
                       {name}
                     </div>
-                    <div className={`mt-1 text-[8px] font-black uppercase tracking-[0.08em] ${accentText}`}>
+                    <div className={`mt-1 text-[10px] font-black uppercase tracking-[0.08em] ${accentText}`}>
                       Telefonunu Sat
                     </div>
                   </div>
@@ -548,13 +548,13 @@ export default function CihazAlim({
             <button
               type="button"
               onClick={goModels}
-              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black text-slate-500 hover:bg-slate-50"
+              className="inline-flex h-10 w-max items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black text-slate-500 hover:bg-slate-50"
             >
               ← Modellere Dön
             </button>
 
             <div className="text-right">
-              <div className={`text-[8px] font-black uppercase tracking-[0.12em] ${accentText}`}>
+              <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${accentText}`}>
                 {selectedBrand}
               </div>
               <div className="text-[18px] font-black tracking-[-0.03em] text-slate-950">
@@ -580,13 +580,13 @@ export default function CihazAlim({
                 </div>
 
                 <div className="min-w-0">
-                  <span className={`rounded-lg px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] ${accentLight} ${accentText}`}>
+                  <span className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${accentLight} ${accentText}`}>
                     {selectedBrand}
                   </span>
                   <h3 className="mt-3 text-[24px] font-black uppercase tracking-[-0.04em] text-slate-950">
                     {selectedModelName}
                   </h3>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">
                     Cihaz alım ekspertizi
                   </p>
                 </div>
@@ -601,7 +601,7 @@ export default function CihazAlim({
                     </div>
                     <div>
                       <h4 className="text-[15px] font-black text-slate-950">Müşteri & Güvenlik</h4>
-                      <p className="text-[8px] font-semibold text-slate-400">
+                      <p className="text-[10px] font-semibold text-slate-400">
                         Bilgileri eksiksiz doldurun ve cihaz güvenlik kontrollerini tamamlayın.
                       </p>
                     </div>
@@ -611,7 +611,7 @@ export default function CihazAlim({
                     <button
                       type="button"
                       onClick={() => window.open("https://www.turkiye.gov.tr/imei-sorgulama", "_blank")}
-                      className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-[9px] font-black text-white ${accentBg} ${accentHover}`}
+                      className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-[11px] font-black text-white ${accentBg} ${accentHover}`}
                     >
                       BTK IMEI SORGULA
                     </button>
@@ -621,7 +621,7 @@ export default function CihazAlim({
                 <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                     <label>
-                      <span className="mb-1.5 block text-[8px] font-black uppercase tracking-[0.08em] text-slate-400">
+                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
                         Müşteri Adı Soyadı
                       </span>
                       <input
@@ -635,7 +635,7 @@ export default function CihazAlim({
                     </label>
 
                     <label>
-                      <span className="mb-1.5 block text-[8px] font-black uppercase tracking-[0.08em] text-slate-400">
+                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
                         İletişim Numarası
                       </span>
                       <input
@@ -649,7 +649,7 @@ export default function CihazAlim({
                     </label>
 
                     <label>
-                      <span className="mb-1.5 block text-[8px] font-black uppercase tracking-[0.08em] text-slate-400">
+                      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
                         IMEI Numarası (15 Hane)
                       </span>
                       <input
@@ -668,7 +668,7 @@ export default function CihazAlim({
                   </div>
 
                   <div className="rounded-[22px] border border-red-100 bg-red-50/70 p-4">
-                    <div className="mb-3 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.08em] text-red-700">
+                    <div className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-red-700">
                       <span className="h-2 w-2 rounded-full bg-red-500" />
                       Personel Onay Listesi
                     </div>
@@ -682,7 +682,7 @@ export default function CihazAlim({
                       ].map((item: string) => (
                         <label key={item} className="flex cursor-pointer items-center gap-2.5">
                           <input type="checkbox" className="h-4 w-4 accent-red-600" />
-                          <span className="text-[9px] font-black text-slate-600">{item}</span>
+                          <span className="text-[11px] font-black text-slate-600">{item}</span>
                         </label>
                       ))}
                     </div>
@@ -693,7 +693,7 @@ export default function CihazAlim({
               {/* HAFIZA + RENK */}
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
+                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-400">
                     Hafıza Kapasitesi
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -716,7 +716,7 @@ export default function CihazAlim({
                 </div>
 
                 <div className={`rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm ${selectedModelName === "iPhone 13" ? "" : "opacity-60"}`}>
-                  <p className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
+                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-400">
                     Renk Seçimi
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -737,7 +737,7 @@ export default function CihazAlim({
                         </button>
                       ))
                     ) : (
-                      <span className="text-[9px] font-semibold text-slate-400">
+                      <span className="text-[11px] font-semibold text-slate-400">
                         Bu model için özel renk çarpanı bulunmuyor.
                       </span>
                     )}
@@ -750,11 +750,11 @@ export default function CihazAlim({
                 <div className="mb-3 flex items-end justify-between">
                   <div>
                     <h4 className="text-[16px] font-black text-slate-950">Ekspertiz Soruları</h4>
-                    <p className="text-[8px] font-semibold text-slate-400">
+                    <p className="text-[10px] font-semibold text-slate-400">
                       Tüm kontroller tamamlandığında teklif aktif olur.
                     </p>
                   </div>
-                  <span className={`rounded-full px-3 py-1.5 text-[8px] font-black ${selectedQuestionCount === 8 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                  <span className={`rounded-full px-3 py-1.5 text-[10px] font-black ${selectedQuestionCount === 8 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
                     {selectedQuestionCount}/8
                   </span>
                 </div>
@@ -791,13 +791,13 @@ export default function CihazAlim({
                   </div>
 
                   <div className="min-w-0">
-                    <span className={`text-[8px] font-black uppercase ${accentText}`}>
+                    <span className={`text-[10px] font-black uppercase ${accentText}`}>
                       {selectedBrand}
                     </span>
                     <h4 className="mt-1 line-clamp-2 text-[14px] font-black uppercase leading-4 text-slate-950">
                       {selectedModelName}
                     </h4>
-                    <p className="mt-1 text-[9px] font-bold text-slate-400">
+                    <p className="mt-1 text-[11px] font-bold text-slate-400">
                       {selectedCapacity?.cap || "Hafıza seçilmedi"}
                       {selectedModelName === "iPhone 13" && selectedColor !== "Diğer"
                         ? ` • ${selectedColor}`
@@ -815,14 +815,14 @@ export default function CihazAlim({
                   <p className="mt-3 text-[17px] font-black uppercase text-red-700">
                     Yurt Dışı Cihaz
                   </p>
-                  <p className="mt-2 text-[8px] font-black uppercase tracking-[0.1em] text-red-500">
+                  <p className="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-red-500">
                     Yönetici onayı gereklidir
                   </p>
                 </div>
               ) : (
                 <>
                   <div className="rounded-[26px] border border-slate-200 bg-white p-5 text-center shadow-sm">
-                    <p className="text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                       Nakit Alış Teklifi
                     </p>
 
@@ -836,7 +836,7 @@ export default function CihazAlim({
                           <button
                             type="button"
                             onClick={() => setIsCustomOfferActive(true)}
-                            className={`rounded-xl border px-4 py-2 text-[8px] font-black uppercase ${accentText} ${accentBorder} ${accentLight}`}
+                            className={`rounded-xl border px-4 py-2 text-[10px] font-black uppercase ${accentText} ${accentBorder} ${accentLight}`}
                           >
                             Teklifi Revize Et
                           </button>
@@ -880,7 +880,7 @@ export default function CihazAlim({
                   </div>
 
                   <div className={`rounded-[26px] p-5 text-center text-white shadow-xl ${accentBg}`}>
-                    <p className="text-[8px] font-black uppercase tracking-[0.1em] text-white/65">
+                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white/65">
                       Takas Desteği İle
                     </p>
 
@@ -894,7 +894,7 @@ export default function CihazAlim({
                           <button
                             type="button"
                             onClick={() => setIsCustomTradeOfferActive(true)}
-                            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-[8px] font-black uppercase text-white hover:bg-white/15"
+                            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-[10px] font-black uppercase text-white hover:bg-white/15"
                           >
                             Teklifi Revize Et
                           </button>
@@ -940,7 +940,7 @@ export default function CihazAlim({
               )}
 
               <div className="rounded-[26px] bg-slate-950 p-5 shadow-xl">
-                <p className="text-center text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+                <p className="text-center text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                   1. İşlem Türünü Seçin
                 </p>
 
@@ -953,7 +953,7 @@ export default function CihazAlim({
                       handleFinalProcess("NAKİT ALINDI");
                     }}
                     className={[
-                      "h-11 rounded-xl text-[9px] font-black uppercase transition",
+                      "h-11 rounded-xl text-[11px] font-black uppercase transition",
                       purchaseType === "NAKİT"
                         ? "bg-emerald-500 text-white"
                         : canProceed && !purchaseType
@@ -972,7 +972,7 @@ export default function CihazAlim({
                       handleFinalProcess("TAKAS ALINDI");
                     }}
                     className={[
-                      "h-11 rounded-xl text-[9px] font-black uppercase transition",
+                      "h-11 rounded-xl text-[11px] font-black uppercase transition",
                       purchaseType === "TAKAS"
                         ? `${accentBg} text-white`
                         : canProceed && !purchaseType
@@ -992,7 +992,7 @@ export default function CihazAlim({
                     handleFinalProcess("ALINMADI");
                   }}
                   className={[
-                    "mt-2 h-10 w-full rounded-xl text-[9px] font-black uppercase transition",
+                    "mt-2 h-10 w-full rounded-xl text-[11px] font-black uppercase transition",
                     purchaseType === "ALINMADI"
                       ? "bg-red-500 text-white"
                       : canProceed && !purchaseType
@@ -1004,7 +1004,7 @@ export default function CihazAlim({
                 </button>
 
                 <div className={`mt-5 border-t border-slate-800 pt-4 transition ${showDocs ? "opacity-100" : "pointer-events-none opacity-25"}`}>
-                  <p className="text-center text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+                  <p className="text-center text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
                     2. Belge ve Bildirim
                   </p>
 
@@ -1013,7 +1013,7 @@ export default function CihazAlim({
                       type="button"
                       disabled={!showDocs}
                       onClick={() => handleFinalProcess("print")}
-                      className="h-11 rounded-xl bg-white text-[9px] font-black uppercase text-slate-950 hover:bg-slate-200 disabled:bg-slate-800 disabled:text-slate-600"
+                      className="h-11 rounded-xl bg-white text-[11px] font-black uppercase text-slate-950 hover:bg-slate-200 disabled:bg-slate-800 disabled:text-slate-600"
                     >
                       Yazdır
                     </button>
@@ -1022,7 +1022,7 @@ export default function CihazAlim({
                       type="button"
                       disabled={!showDocs}
                       onClick={() => handleFinalProcess("whatsapp")}
-                      className="h-11 rounded-xl bg-[#25D366] text-[9px] font-black uppercase text-white hover:bg-[#128C7E] disabled:bg-slate-800 disabled:text-slate-600"
+                      className="h-11 rounded-xl bg-[#25D366] text-[11px] font-black uppercase text-white hover:bg-[#128C7E] disabled:bg-slate-800 disabled:text-slate-600"
                     >
                       WhatsApp
                     </button>

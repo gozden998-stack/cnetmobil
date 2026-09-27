@@ -85,13 +85,13 @@ function StatCard({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
           {label}
         </p>
         <p className="mt-0.5 truncate text-[19px] font-black leading-none tracking-[-0.03em] text-slate-950">
           {value}
         </p>
-        <p className="mt-1 truncate text-[8px] font-semibold text-slate-400">
+        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
           {footer}
         </p>
       </div>
@@ -152,7 +152,7 @@ export default function KampanyaliSifir({ data }: KampanyaliSifirProps) {
       <section className="overflow-hidden rounded-[26px] border border-red-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]">
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-red-600">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">
               CNETMOBİL V2
             </div>
 
@@ -276,20 +276,20 @@ export default function KampanyaliSifir({ data }: KampanyaliSifirProps) {
               <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
                 Kampanyalı Sıfır Cihazlar
               </h3>
-              <p className="truncate text-[9px] font-semibold text-slate-400">
+              <p className="truncate text-[11px] font-semibold text-slate-400">
                 Güncel sıfır cihaz kampanya fiyatları
               </p>
             </div>
           </div>
 
-          <span className="shrink-0 rounded-full bg-red-50 px-3 py-1.5 text-[8px] font-black text-red-600">
+          <span className="shrink-0 rounded-full bg-red-50 px-3 py-1.5 text-[10px] font-black text-red-600">
             {filteredRows.length} Ürün
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[560px]">
-            <div className="grid grid-cols-[48px_minmax(360px,1fr)_170px] border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500">
+            <div className="grid grid-cols-[48px_minmax(360px,1fr)_170px] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
               <div className="px-2 py-3 text-center">#</div>
               <div className="px-3 py-3">Ürün Adı</div>
               <div className="bg-red-50 px-3 py-3 text-right text-red-600">
@@ -306,7 +306,7 @@ export default function KampanyaliSifir({ data }: KampanyaliSifirProps) {
                   <p className="text-[11px] font-black text-slate-700">
                     Ürün bulunamadı
                   </p>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     Arama kelimesini değiştirerek tekrar deneyin.
                   </p>
                 </div>
@@ -323,7 +323,7 @@ export default function KampanyaliSifir({ data }: KampanyaliSifirProps) {
                       : "bg-slate-50/35"
                   } hover:bg-red-50/35`}
                 >
-                  <div className="flex items-center justify-center px-2 py-[10px] text-[9px] font-bold text-slate-400">
+                  <div className="flex items-center justify-center px-2 py-[10px] text-[11px] font-bold text-slate-400">
                     {index + 1}
                   </div>
 
@@ -358,13 +358,13 @@ export default function KampanyaliSifir({ data }: KampanyaliSifirProps) {
           <button
             type="button"
             onClick={() => setShowAll((value) => !value)}
-            className="inline-flex items-center gap-2 text-[9px] font-black text-red-600 transition hover:text-red-700"
+            className="inline-flex items-center gap-2 text-[11px] font-black text-red-600 transition hover:text-red-700"
           >
             {showAll ? "Listeyi Kısalt" : "Tüm Ürünleri Gör"}
             <span className="text-[14px]">→</span>
           </button>
 
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">
             {filteredRows.length} ürün listeleniyor
           </span>
         </div>

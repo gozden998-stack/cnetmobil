@@ -493,25 +493,25 @@ function AdminDynamicSheetEditor({
             <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-[10px] sm:min-w-0 sm:text-[11px]">
               <thead className="sticky top-0 z-20">
                 <tr>
-                  <th className="w-[52px] border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white">
+                  <th className="w-[52px] border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[11px] font-black text-white">
                     SATIR
                   </th>
 
                   {headers.map((header, index) => (
                     <th
                       key={`${header}-${index}`}
-                      className="border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[9px] font-black text-white break-words"
+                      className="border-b border-r border-slate-700 bg-slate-900 px-2 py-2 text-left text-[11px] font-black text-white break-words"
                     >
                       <div className="truncate" title={header}>
                         {header}
                       </div>
-                      <div className="mt-1 text-[9px] text-slate-400">
+                      <div className="mt-1 text-[11px] text-slate-400">
                         {excelColumnName(index)}
                       </div>
                     </th>
                   ))}
 
-                  <th className="w-[118px] border-b border-l border-slate-700 bg-slate-900 px-2 py-2 text-right text-[9px] font-black text-white">
+                  <th className="w-[118px] border-b border-l border-slate-700 bg-slate-900 px-2 py-2 text-right text-[11px] font-black text-white">
                     İŞLEM
                   </th>
                 </tr>
@@ -565,7 +565,7 @@ function AdminDynamicSheetEditor({
                                 }
                               }}
                               disabled={saving}
-                              className="h-8 rounded-lg border border-slate-200 px-2 text-[9px] font-black"
+                              className="h-8 rounded-lg border border-slate-200 px-2 text-[11px] font-black"
                             >
                               İPTAL
                             </button>
@@ -574,7 +574,7 @@ function AdminDynamicSheetEditor({
                               type="button"
                               onClick={saveRow}
                               disabled={saving}
-                              className="h-8 rounded-lg bg-emerald-600 px-2 text-[9px] font-black text-white disabled:opacity-50"
+                              className="h-8 rounded-lg bg-emerald-600 px-2 text-[11px] font-black text-white disabled:opacity-50"
                             >
                               {saving ? 'KAYDEDİLİYOR...' : 'KAYDET'}
                             </button>
@@ -584,7 +584,7 @@ function AdminDynamicSheetEditor({
                             type="button"
                             onClick={() => startEdit(row)}
                             disabled={editingRow !== null}
-                            className="h-8 w-full rounded-lg bg-blue-600 px-2 text-[9px] font-black text-white disabled:opacity-30"
+                            className="h-8 w-full rounded-lg bg-blue-600 px-2 text-[11px] font-black text-white disabled:opacity-30"
                           >
                             DÜZENLE
                           </button>
@@ -2265,7 +2265,7 @@ export default function CnetmobilCmrFinalUltimate() {
           label: (
             <div className="flex flex-col items-center justify-center -space-y-0.5">
               <span className="font-black tracking-widest">KAMPANYALI</span>
-              <span className="text-[9px] font-bold opacity-75">SIFIR LİSTE</span>
+              <span className="text-[11px] font-bold opacity-75">SIFIR LİSTE</span>
             </div>
           ), 
           visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay 
@@ -3039,7 +3039,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   )}
                 </div>
 
-                <div className="mt-1 text-[7px] font-black uppercase tracking-[0.38em] text-blue-200/70">
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.38em] text-blue-200/70">
                   Türkiye&apos;nin Yenilenmiş Cep Telefonu Markası
                 </div>
               </div>
@@ -3103,7 +3103,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 <>
                   <button
                     onClick={() => setIsInstallmentModalOpen(true)}
-                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-amber-950/10 transition hover:bg-amber-400 md:flex"
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-amber-950/10 transition hover:bg-amber-400 md:flex"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -3113,7 +3113,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                   <button
                     onClick={() => setIsKaskoModalOpen(true)}
-                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-violet-950/10 transition hover:bg-violet-500 md:flex"
+                    className="hidden h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-violet-950/10 transition hover:bg-violet-500 md:flex"
                   >
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -3126,7 +3126,7 @@ export default function CnetmobilCmrFinalUltimate() {
               {!isZumay && !isAuctionOnlyUser && step < 99 && (isAdmin || isMasterAccess || selectedBranch === 'VODAFONE KANALI' || selectedBranch.startsWith('CMR')) && (
                 <button
                   onClick={() => { setAppMode('tedarik'); setStep(1); }}
-                  className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-3 text-[9px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500 md:flex"
+                  className="hidden h-10 items-center gap-2 rounded-xl bg-blue-600 px-3 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500 md:flex"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" />
@@ -3155,7 +3155,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </button>
 
                     {unreadRequestNotificationCount > 0 && (
-                      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[8px] font-black text-white">
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#15345d] bg-rose-500 px-1 text-[10px] font-black text-white">
                         {unreadRequestNotificationCount > 99
                           ? '99+'
                           : unreadRequestNotificationCount}
@@ -3191,7 +3191,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </div>
                   )}
 
-                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-200/60">
+                  <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-200/60">
                     {isSuperAdminUser
                       ? 'Super Admin'
                       : isMasterAccess
@@ -3428,7 +3428,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                               openCihazTalepMenu();
                             }}
-                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
                                 : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
@@ -3476,7 +3476,7 @@ export default function CnetmobilCmrFinalUltimate() {
                               }}
                             >
                               <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
-                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                                   Cihaz Talep
                                 </div>
                                 <div className="mt-0.5 text-[11px] font-black text-slate-900">
@@ -3524,7 +3524,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                         {branchItem.label}
                                       </div>
 
-                                      <div className="mt-0.5 text-[8px] font-bold text-slate-400">
+                                      <div className="mt-0.5 text-[10px] font-bold text-slate-400">
                                         {branchItem.detail}
                                       </div>
                                     </div>
@@ -3546,7 +3546,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                           {cihazTalepMenuOpen && (
                             <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
-                              <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                              <div className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
                                 Cihaz Talep · Mağaza Seç
                               </div>
 
@@ -3578,7 +3578,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                   <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">
                                     {branchItem.label}
                                   </div>
-                                  <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                  <div className="mt-1 text-[11px] font-bold text-slate-400">
                                     {branchItem.detail}
                                   </div>
                                 </button>
@@ -3602,7 +3602,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                               openIntegrationsMenu();
                             }}
-                            className={`relative flex min-w-[104px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[124px] lg:px-4 ${
+                            className={`relative flex min-w-[104px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide transition lg:min-w-[124px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
                                 : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
@@ -3650,13 +3650,13 @@ export default function CnetmobilCmrFinalUltimate() {
                               }}
                             >
                               <div className="border-b border-slate-200 bg-slate-50/90 px-4 py-3">
-                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                                   CNETMOBİL
                                 </div>
                                 <div className="mt-0.5 text-[11px] font-black text-slate-900">
                                   Entegrasyonlar
                                 </div>
-                                <div className="mt-1 text-[8px] font-bold text-slate-400">
+                                <div className="mt-1 text-[10px] font-bold text-slate-400">
                                   Satış kanalı seç
                                 </div>
                               </div>
@@ -3708,14 +3708,14 @@ export default function CnetmobilCmrFinalUltimate() {
                                         {integrationItem.label}
                                       </div>
 
-                                      <div className="mt-0.5 truncate text-[8px] font-bold text-slate-400">
+                                      <div className="mt-0.5 truncate text-[10px] font-bold text-slate-400">
                                         {integrationItem.detail}
                                       </div>
                                     </div>
 
                                     {integrationItem.badge && (
                                       <span
-                                        className={`shrink-0 rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-wide ${
+                                        className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
                                           integrationItem.badge === 'AKTİF'
                                             ? 'bg-emerald-100 text-emerald-700'
                                             : integrationItem.badge === 'KURULUM'
@@ -3735,10 +3735,10 @@ export default function CnetmobilCmrFinalUltimate() {
                           {integrationsMenuOpen && (
                             <div className="fixed left-4 right-4 top-[132px] z-[9999] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl lg:hidden">
                               <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
-                                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
                                   Entegrasyonlar
                                 </div>
-                                <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                <div className="mt-1 text-[11px] font-bold text-slate-400">
                                   Satış kanalı seç
                                 </div>
                               </div>
@@ -3776,14 +3776,14 @@ export default function CnetmobilCmrFinalUltimate() {
                                     <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">
                                       {integrationItem.label}
                                     </div>
-                                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                    <div className="mt-1 text-[11px] font-bold text-slate-400">
                                       {integrationItem.detail}
                                     </div>
                                   </div>
 
                                   {integrationItem.badge && (
                                     <span
-                                      className={`shrink-0 rounded-full px-2 py-1 text-[7px] font-black uppercase tracking-wide ${
+                                      className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
                                         integrationItem.badge === 'AKTİF'
                                           ? 'bg-emerald-100 text-emerald-700'
                                           : integrationItem.badge === 'KURULUM'
@@ -3812,7 +3812,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                               subMenuConfig.openMenu();
                             }}
-                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                            className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                               isActive
                                 ? 'bg-blue-500/20 text-white'
                                 : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
@@ -3860,7 +3860,7 @@ export default function CnetmobilCmrFinalUltimate() {
                               }}
                             >
                               <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
-                                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                                   {item.dropdownTitle || item.label}
                                 </div>
                                 <div className="mt-0.5 text-[11px] font-black text-slate-900">
@@ -3929,7 +3929,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             setStep(1);
                             resetSelection();
                           }}
-                          className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[8px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
+                          className={`relative flex min-w-[92px] flex-col items-center justify-center gap-1 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide transition lg:min-w-[108px] lg:px-4 ${
                             isActive
                               ? 'bg-blue-500/20 text-white'
                               : 'text-blue-100/65 hover:bg-white/5 hover:text-white'
@@ -3955,7 +3955,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 })}
 
             {step === 99 && (
-              <div className="flex min-h-[52px] items-center px-4 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200">
+              <div className="flex min-h-[52px] items-center px-4 text-[11px] font-black uppercase tracking-[0.18em] text-blue-200">
                 Yönetici Paneli
               </div>
             )}
@@ -3995,12 +3995,12 @@ export default function CnetmobilCmrFinalUltimate() {
                     <div className="truncate text-lg font-black tracking-tight">
                       Cnet<span className="text-blue-300">mobil</span>
                       {isZumay && (
-                        <span className="ml-1.5 text-[9px] uppercase tracking-[0.15em] text-blue-200">
+                        <span className="ml-1.5 text-[11px] uppercase tracking-[0.15em] text-blue-200">
                           Partner
                         </span>
                       )}
                     </div>
-                    <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.15em] text-blue-100/60">
+                    <div className="mt-0.5 truncate text-[11px] font-bold uppercase tracking-[0.15em] text-blue-100/60">
                       {visibleBranchName}
                     </div>
                   </div>
@@ -4020,7 +4020,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
               {(isAdmin || isMasterAccess) && (
                 <div className="mt-4">
-                  <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.2em] text-blue-100/60">
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.2em] text-blue-100/60">
                     Mağaza Değiştir
                   </label>
                   <select
@@ -4041,7 +4041,7 @@ export default function CnetmobilCmrFinalUltimate() {
             <div className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4">
               {!isZumay && step < 99 && (
                 <section className="mb-5">
-                  <div className="mb-2 px-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  <div className="mb-2 px-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                     Hızlı Araçlar
                   </div>
 
@@ -4061,7 +4061,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-[11px] font-black text-amber-800">TAKSİT</span>
-                        <span className="mt-0.5 block text-[9px] font-semibold text-amber-700/70">Hesapla</span>
+                        <span className="mt-0.5 block text-[11px] font-semibold text-amber-700/70">Hesapla</span>
                       </span>
                     </button>
 
@@ -4080,7 +4080,7 @@ export default function CnetmobilCmrFinalUltimate() {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-[11px] font-black text-violet-800">KASKO</span>
-                        <span className="mt-0.5 block text-[9px] font-semibold text-violet-700/70">Hesapla</span>
+                        <span className="mt-0.5 block text-[11px] font-semibold text-violet-700/70">Hesapla</span>
                       </span>
                     </button>
                   </div>
@@ -4114,7 +4114,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                     return (
                       <section key={group.title}>
-                        <div className="mb-2 px-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        <div className="mb-2 px-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                           {group.title}
                         </div>
 
@@ -4151,7 +4151,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                             <div className={`text-xs font-black ${appMode === sub.id ? 'text-blue-700' : 'text-slate-800'}`}>
                                               {sub.label}
                                             </div>
-                                            <div className="mt-0.5 truncate text-[9px] font-semibold text-slate-400">
+                                            <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-400">
                                               {sub.detail}
                                             </div>
                                           </div>
@@ -4195,7 +4195,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                       >
                                         <div>
                                           <div className="text-xs font-black">{branchItem.label}</div>
-                                          <div className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                                          <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
                                             {branchItem.detail}
                                           </div>
                                         </div>
@@ -4331,7 +4331,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 resetAll();
                 setAppMode('ana_sayfa');
               }}
-              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-black ${
                 appMode === 'ana_sayfa' ? 'text-blue-600' : 'text-slate-500'
               }`}
             >
@@ -4348,7 +4348,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 setStep(1);
                 resetSelection();
               }}
-              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-black ${
                 appMode === 'alim' ? 'text-blue-600' : 'text-slate-500'
               }`}
             >
@@ -4365,7 +4365,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 setStep(1);
                 resetSelection();
               }}
-              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+              className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-black ${
                 appMode === 'dis_kanal' ? 'text-blue-600' : 'text-slate-500'
               }`}
             >
@@ -4387,7 +4387,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   setStep(1);
                   resetSelection();
                 }}
-                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black ${
+                className={`flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-black ${
                   (selectedBranch === 'VODAFONE KANALI' && appMode === 'imei_list') ||
                   (selectedBranch !== 'VODAFONE KANALI' && appMode === 'cep_tablet')
                     ? 'text-blue-600'
@@ -4404,7 +4404,7 @@ export default function CnetmobilCmrFinalUltimate() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-black text-slate-500"
+              className="flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-black text-slate-500"
             >
               <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
@@ -4669,7 +4669,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                 <div className="overflow-x-auto custom-scrollbar flex-1 min-h-[300px]">
                   <div className="min-w-max flex flex-col">
-                    <div className="flex items-center bg-[#4338ca] text-white text-[9px] font-black tracking-widest uppercase px-4 py-3 shrink-0">
+                    <div className="flex items-center bg-[#4338ca] text-white text-[11px] font-black tracking-widest uppercase px-4 py-3 shrink-0">
                       <div className="w-[160px] shrink-0 pl-2">TÜKETİCİ AD-SOYAD</div>
                       <div className="w-[120px] shrink-0">MÜŞTERİ TEL</div>
                       <div className="w-[110px] shrink-0">BAŞVURU TRH.</div>
@@ -5036,7 +5036,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
 
                 {topActiveRequestCount > 0 && (
-                  <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-blue-600 px-2 text-[9px] font-black text-white">
+                  <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-blue-600 px-2 text-[11px] font-black text-white">
                     {topActiveRequestCount > 99 ? '99+' : topActiveRequestCount}
                   </span>
                 )}
@@ -5077,7 +5077,7 @@ export default function CnetmobilCmrFinalUltimate() {
                             {notification.requesterBranch} → {notification.ownerBranch}
                           </div>
 
-                          <span className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-black ${
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
                             requestNotificationStatusText(notification.status) === 'BEKLİYOR'
                               ? 'bg-amber-50 text-amber-700'
                               : requestNotificationStatusText(notification.status) === 'REDDEDİLDİ'
@@ -5100,7 +5100,7 @@ export default function CnetmobilCmrFinalUltimate() {
                           </div>
                         )}
 
-                        <div className="mt-1.5 text-[9px] font-bold text-slate-400">
+                        <div className="mt-1.5 text-[11px] font-bold text-slate-400">
                           {requestNotificationTimeText(notification.createdAt)}
                         </div>
                       </div>
@@ -5158,11 +5158,11 @@ export default function CnetmobilCmrFinalUltimate() {
                 </summary>
                 <div className="grid grid-cols-1 gap-2 border-t border-slate-200 p-2.5">
                   <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-emerald-500">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Ad Soyad</label>
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Ad Soyad</label>
                     <input type="text" placeholder="Müşteri adı" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} className="mt-1 w-full bg-transparent text-base font-bold uppercase text-slate-800 outline-none placeholder-slate-300" />
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-emerald-500">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Telefon</label>
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-400">Telefon</label>
                     <input type="tel" inputMode="tel" placeholder="Telefon numarası" value={customer.phone} onChange={(e) => setCustomer({...customer, phone: e.target.value})} className="mt-1 w-full bg-transparent text-base font-bold text-slate-800 outline-none placeholder-slate-300" />
                   </div>
                 </div>
@@ -5211,13 +5211,13 @@ export default function CnetmobilCmrFinalUltimate() {
                         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                           <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-900 text-white shadow-md transition-colors group-hover:bg-emerald-600 sm:h-14 sm:w-14 sm:rounded-[20px]">
                             <span className="text-base font-black leading-none sm:text-xl">{inst.month}</span>
-                            <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider opacity-80 sm:text-[9px] sm:tracking-widest">Taksit</span>
+                            <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider opacity-80 sm:text-[11px] sm:tracking-widest">Taksit</span>
                           </div>
                           <div className="min-w-0">
                             <div className="truncate text-base font-black italic tracking-tighter text-slate-900 sm:text-xl">
                               {monthly.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                             </div>
-                            <div className="mt-0.5 text-[9px] font-bold text-slate-400 sm:hidden">
+                            <div className="mt-0.5 text-[11px] font-bold text-slate-400 sm:hidden">
                               Toplam {total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL
                             </div>
                           </div>
@@ -5443,7 +5443,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
                     return (
                         <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-1.5 hover:border-slate-400 transition-colors">
-                            <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{key}</span>
+                            <span className="text-[11px] text-slate-500 font-black uppercase tracking-widest">{key}</span>
                             <span className={`text-sm font-black uppercase tracking-tight ${valColor}`}>{val}</span>
                         </div>
                     )

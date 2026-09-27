@@ -278,13 +278,13 @@ function StatCard({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
           {label}
         </p>
         <p className="mt-0.5 truncate text-[18px] font-black leading-none tracking-[-0.03em] text-slate-950">
           {value}
         </p>
-        <p className="mt-1 truncate text-[8px] font-semibold text-slate-400">
+        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
           {footer}
         </p>
       </div>
@@ -714,7 +714,7 @@ export default function DisKanal({
       >
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className={`text-[8px] font-black uppercase tracking-[0.2em] ${accentText}`}>
+            <div className={`text-[10px] font-black uppercase tracking-[0.2em] ${accentText}`}>
               CNETMOBİL V2
             </div>
 
@@ -897,13 +897,13 @@ export default function DisKanal({
               <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
                 Dış Kanal Ürün Listesi
               </h3>
-              <p className="truncate text-[9px] font-semibold text-slate-400">
+              <p className="truncate text-[11px] font-semibold text-slate-400">
                 Cihaz listeden kaybolmaz. Aynı ürüne sınırsız yeni işlem açılabilir.
               </p>
             </div>
           </div>
 
-          <span className={`shrink-0 rounded-full px-3 py-1.5 text-[8px] font-black ${accentLight} ${accentText}`}>
+          <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black ${accentLight} ${accentText}`}>
             {filteredRows.length} Ürün
           </span>
         </div>
@@ -911,7 +911,7 @@ export default function DisKanal({
         <div className="overflow-x-auto">
           <div className={tableMinWidthClass}>
             <div
-              className={`grid ${tableGridClass} border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500`}
+              className={`grid ${tableGridClass} border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500`}
             >
               <div className="px-2 py-3 text-center">#</div>
               <div className="px-3 py-3">Ürün / Cihaz Adı</div>
@@ -937,7 +937,7 @@ export default function DisKanal({
                     <SearchIcon />
                   </div>
                   <p className="text-[11px] font-black text-slate-700">Ürün bulunamadı</p>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     Arama kelimesini değiştirerek tekrar deneyin.
                   </p>
                 </div>
@@ -961,7 +961,7 @@ export default function DisKanal({
                         : "bg-slate-50/35"
                     } hover:bg-slate-50`}
                   >
-                    <div className="flex items-center justify-center px-2 py-[10px] text-[9px] font-bold text-slate-400">
+                    <div className="flex items-center justify-center px-2 py-[10px] text-[11px] font-bold text-slate-400">
                       {index + 1}
                     </div>
 
@@ -1003,7 +1003,7 @@ export default function DisKanal({
                           type="button"
                           onClick={() => openPurchase(row)}
                           disabled={operationPrice <= 0}
-                          className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl px-3 text-[9px] font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
+                          className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
                         >
                           CİHAZ AL
                           <span className="text-[13px]">→</span>
@@ -1021,13 +1021,13 @@ export default function DisKanal({
           <button
             type="button"
             onClick={() => setShowAll((value) => !value)}
-            className={`inline-flex items-center gap-2 text-[9px] font-black ${accentText}`}
+            className={`inline-flex items-center gap-2 text-[11px] font-black ${accentText}`}
           >
             {showAll ? "Listeyi Kısalt" : "Tüm Ürünleri Gör"}
             <span className="text-[14px]">→</span>
           </button>
 
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">
             {filteredRows.length} ürün listeleniyor
           </span>
         </div>
@@ -1057,13 +1057,13 @@ export default function DisKanal({
           <div className="max-h-[94vh] w-full max-w-[760px] overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:px-7">
               <div className="min-w-0">
-                <div className="text-[8px] font-black uppercase tracking-[0.2em] text-blue-300">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">
                   DIŞ KANAL CİHAZ ALIMI
                 </div>
                 <h3 className="mt-1 truncate text-[22px] font-black tracking-[-0.03em]">
                   Yeni Ödeme Talebi
                 </h3>
-                <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                <p className="mt-1 text-[11px] font-semibold text-slate-400">
                   Her gönderim yeni ve bağımsız bir DK işlem numarası oluşturur.
                 </p>
               </div>
@@ -1102,7 +1102,7 @@ export default function DisKanal({
                   </div>
 
                   <div className="mx-auto mt-5 max-w-[480px] rounded-[22px] border border-emerald-200 bg-emerald-50 p-5 text-center">
-                    <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">
                       TALEP NUMARASI
                     </div>
                     <div className="mt-1 text-[20px] font-black text-emerald-800">
@@ -1148,7 +1148,7 @@ export default function DisKanal({
                 <>
                   <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_180px]">
                     <div className="min-w-0">
-                      <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                         SEÇİLEN CİHAZ
                       </div>
                       <div className="mt-1 break-words text-[13px] font-black text-slate-950">
@@ -1157,7 +1157,7 @@ export default function DisKanal({
                     </div>
 
                     <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                         ÖDENECEK TUTAR
                       </div>
                       <div className={`mt-1 text-[18px] font-black ${accentText}`}>
@@ -1175,7 +1175,7 @@ export default function DisKanal({
                     </div>
 
                     <label className="block">
-                      <span className="mb-1.5 block text-[9px] font-black text-slate-500">IMEI</span>
+                      <span className="mb-1.5 block text-[11px] font-black text-slate-500">IMEI</span>
                       <input
                         inputMode="numeric"
                         value={purchaseForm.imei}
@@ -1197,7 +1197,7 @@ export default function DisKanal({
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">Ad</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">Ad</span>
                         <input
                           value={purchaseForm.firstName}
                           onChange={(e) => updatePurchaseForm("firstName", e.target.value)}
@@ -1208,7 +1208,7 @@ export default function DisKanal({
                       </label>
 
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">Soyad</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">Soyad</span>
                         <input
                           value={purchaseForm.lastName}
                           onChange={(e) => updatePurchaseForm("lastName", e.target.value)}
@@ -1219,7 +1219,7 @@ export default function DisKanal({
                       </label>
 
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">T.C. Kimlik No</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">T.C. Kimlik No</span>
                         <input
                           inputMode="numeric"
                           value={purchaseForm.tc}
@@ -1231,7 +1231,7 @@ export default function DisKanal({
                       </label>
 
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">Telefon</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">Telefon</span>
                         <input
                           inputMode="tel"
                           value={purchaseForm.phone}
@@ -1253,7 +1253,7 @@ export default function DisKanal({
 
                     <div className="grid gap-3">
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">IBAN</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">IBAN</span>
                         <input
                           value={prettyIban(purchaseForm.iban)}
                           onChange={(e) => updatePurchaseForm("iban", normalizeIbanInput(e.target.value))}
@@ -1263,7 +1263,7 @@ export default function DisKanal({
                       </label>
 
                       <label className="block">
-                        <span className="mb-1.5 block text-[9px] font-black text-slate-500">IBAN Sahibi Ad Soyad</span>
+                        <span className="mb-1.5 block text-[11px] font-black text-slate-500">IBAN Sahibi Ad Soyad</span>
                         <input
                           value={purchaseForm.ibanHolder}
                           onChange={(e) => updatePurchaseForm("ibanHolder", e.target.value)}
@@ -1316,13 +1316,13 @@ export default function DisKanal({
             <div className="shrink-0 border-b border-slate-800 bg-slate-950 px-4 py-4 text-white sm:px-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="text-[8px] font-black uppercase tracking-[0.2em] text-blue-300">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300">
                     {canManagePayments ? "YÖNETİCİ / ADMIN" : "PARTNER"}
                   </div>
                   <h3 className="mt-1 truncate text-[22px] font-black tracking-[-0.035em]">
                     {canManagePayments ? "Dış Kanal Ödeme Yönetimi" : "Ödeme Taleplerim"}
                   </h3>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     {canManagePayments
                       ? "Bekleyen ödemeleri kontrol edin, dekont yükleyin ve işlemi tamamlayın."
                       : "Gönderdiğiniz dış kanal cihaz alımlarının ödeme durumunu takip edin."}
@@ -1334,7 +1334,7 @@ export default function DisKanal({
                     type="button"
                     onClick={() => loadRequests(selectedRequest?.id)}
                     disabled={requestsLoading}
-                    className="hidden h-10 rounded-xl bg-white/10 px-4 text-[9px] font-black text-white transition hover:bg-white/20 disabled:opacity-40 sm:block"
+                    className="hidden h-10 rounded-xl bg-white/10 px-4 text-[11px] font-black text-white transition hover:bg-white/20 disabled:opacity-40 sm:block"
                   >
                     YENİLE
                   </button>
@@ -1355,24 +1355,24 @@ export default function DisKanal({
 
             <div className="shrink-0 grid grid-cols-2 gap-2 border-b border-slate-200 bg-white p-3 sm:grid-cols-4 sm:p-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <div className="text-[7px] font-black uppercase tracking-wider text-amber-600">Bekleyen</div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-600">Bekleyen</div>
                 <div className="mt-1 text-[20px] font-black text-amber-800">{requestSummary.pending}</div>
               </div>
 
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <div className="text-[7px] font-black uppercase tracking-wider text-emerald-600">Ödenen</div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Ödenen</div>
                 <div className="mt-1 text-[20px] font-black text-emerald-800">{requestSummary.paid}</div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[7px] font-black uppercase tracking-wider text-slate-500">Bekleyen Tutar</div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Bekleyen Tutar</div>
                 <div className="mt-1 truncate text-[15px] font-black text-slate-900">
                   {formatTry(requestSummary.pendingAmount)}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
-                <div className="text-[7px] font-black uppercase tracking-wider text-blue-600">Ödenen Tutar</div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-blue-600">Ödenen Tutar</div>
                 <div className="mt-1 truncate text-[15px] font-black text-blue-900">
                   {formatTry(requestSummary.paidAmount)}
                 </div>
@@ -1430,23 +1430,23 @@ export default function DisKanal({
                                   {item.deviceName}
                                 </div>
                                 {item.imei && (
-                                  <div className="mt-0.5 truncate font-mono text-[8px] font-semibold text-slate-400">
+                                  <div className="mt-0.5 truncate font-mono text-[10px] font-semibold text-slate-400">
                                     IMEI: {item.imei}
                                   </div>
                                 )}
                               </div>
 
-                              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[7px] font-black ${info.badge}`}>
+                              <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black ${info.badge}`}>
                                 {info.label}
                               </span>
                             </div>
 
                             <div className="mt-3 flex items-end justify-between gap-3">
                               <div>
-                                <div className="text-[8px] font-semibold text-slate-400">
+                                <div className="text-[10px] font-semibold text-slate-400">
                                   {item.customer.firstName} {item.customer.lastName}
                                 </div>
-                                <div className="mt-0.5 text-[8px] font-semibold text-slate-400">
+                                <div className="mt-0.5 text-[10px] font-semibold text-slate-400">
                                   {formatDateTime(item.createdAt)}
                                 </div>
                               </div>
@@ -1469,7 +1469,7 @@ export default function DisKanal({
                             <ReceiptIcon className="h-8 w-8" />
                           </div>
                           <div className="mt-4 text-[13px] font-black text-slate-800">İşlem seçin</div>
-                          <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                          <p className="mt-1 text-[11px] font-semibold text-slate-400">
                             Detay, ödeme durumu ve dekont işlemleri burada açılır.
                           </p>
                         </div>
@@ -1526,7 +1526,7 @@ function RequestDetail({
       <div className={`rounded-[22px] border p-4 ${info.panel}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               TALEP NUMARASI
             </div>
             <div className="mt-1 text-[18px] font-black tracking-[-0.025em] text-slate-950">
@@ -1534,7 +1534,7 @@ function RequestDetail({
             </div>
           </div>
 
-          <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[8px] font-black ${info.badge}`}>
+          <span className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black ${info.badge}`}>
             <span className={`h-2 w-2 rounded-full ${info.dot}`} />
             {info.label}
           </span>
@@ -1561,17 +1561,17 @@ function RequestDetail({
       </div>
 
       <div className="mt-3 rounded-[20px] border border-blue-200 bg-blue-50 p-4">
-        <div className="text-[8px] font-black uppercase tracking-[0.15em] text-blue-600">ÖDEME HESABI</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-600">ÖDEME HESABI</div>
         <div className="mt-3 grid gap-3">
           <div>
-            <div className="text-[8px] font-black text-blue-500">IBAN SAHİBİ</div>
+            <div className="text-[10px] font-black text-blue-500">IBAN SAHİBİ</div>
             <div className="mt-1 break-words text-[11px] font-black text-slate-900">
               {item.customer.ibanHolder || "-"}
             </div>
           </div>
 
           <div>
-            <div className="text-[8px] font-black text-blue-500">IBAN</div>
+            <div className="text-[10px] font-black text-blue-500">IBAN</div>
             <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="break-all font-mono text-[11px] font-black text-slate-900">
                 {prettyIban(item.customer.iban)}
@@ -1583,7 +1583,7 @@ function RequestDetail({
                     await navigator.clipboard.writeText(item.customer.iban);
                   } catch {}
                 }}
-                className="h-9 shrink-0 rounded-xl border border-blue-200 bg-white px-3 text-[8px] font-black text-blue-700 transition hover:bg-blue-100"
+                className="h-9 shrink-0 rounded-xl border border-blue-200 bg-white px-3 text-[10px] font-black text-blue-700 transition hover:bg-blue-100"
               >
                 IBAN KOPYALA
               </button>
@@ -1594,7 +1594,7 @@ function RequestDetail({
 
       {item.sourceUserEmail && (
         <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">OLUŞTURAN KULLANICI</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">OLUŞTURAN KULLANICI</div>
           <div className="mt-1 break-all text-[10px] font-black text-slate-700">{item.sourceUserEmail}</div>
         </div>
       )}
@@ -1602,14 +1602,14 @@ function RequestDetail({
       <div className="mt-4 rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[9px] font-black text-slate-800">Dekont</div>
-            <div className="mt-1 text-[8px] font-semibold text-slate-400">
+            <div className="text-[11px] font-black text-slate-800">Dekont</div>
+            <div className="mt-1 text-[10px] font-semibold text-slate-400">
               {item.hasReceipt ? "Bu işlem için dekont yüklendi." : "Henüz dekont yüklenmedi."}
             </div>
           </div>
 
           <span
-            className={`rounded-full px-2.5 py-1 text-[7px] font-black ${
+            className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
               item.hasReceipt
                 ? "bg-emerald-50 text-emerald-700"
                 : "bg-slate-100 text-slate-500"
@@ -1625,7 +1625,7 @@ function RequestDetail({
               type="button"
               onClick={onUpload}
               disabled={actionLoading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-[8px] font-black text-white transition hover:bg-blue-700 disabled:opacity-40"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:opacity-40"
             >
               <UploadIcon />
               {item.hasReceipt ? "DEKONT DEĞİŞTİR" : "DEKONT YÜKLE"}
@@ -1636,7 +1636,7 @@ function RequestDetail({
             <button
               type="button"
               onClick={onView}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-[8px] font-black text-slate-700 transition hover:bg-slate-50"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:bg-slate-50"
             >
               DEKONT GÖR
             </button>
@@ -1646,7 +1646,7 @@ function RequestDetail({
             <button
               type="button"
               onClick={onDownload}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-[8px] font-black text-slate-700 transition hover:bg-slate-50"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:bg-slate-50"
             >
               DEKONT İNDİR
             </button>
@@ -1654,7 +1654,7 @@ function RequestDetail({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 text-[8px] font-semibold text-slate-400 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 text-[10px] font-semibold text-slate-400 sm:grid-cols-2">
         <div>Oluşturma: {formatDateTime(item.createdAt)}</div>
         <div className="sm:text-right">
           {item.status === "PAID" && item.paidAt
@@ -1671,7 +1671,7 @@ function RequestDetail({
             type="button"
             onClick={onCancel}
             disabled={actionLoading}
-            className="h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-[9px] font-black text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
+            className="h-12 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-[11px] font-black text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
           >
             İPTAL ET
           </button>
@@ -1680,7 +1680,7 @@ function RequestDetail({
             type="button"
             onClick={onPaid}
             disabled={actionLoading || !item.hasReceipt}
-            className="h-12 rounded-2xl bg-emerald-600 px-5 text-[9px] font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="h-12 rounded-2xl bg-emerald-600 px-5 text-[11px] font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             {actionLoading
               ? "İŞLENİYOR..."
@@ -1697,7 +1697,7 @@ function RequestDetail({
             type="button"
             onClick={onDelete}
             disabled={actionLoading}
-            className="h-11 w-full rounded-2xl border border-rose-200 bg-white text-[9px] font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+            className="h-11 w-full rounded-2xl border border-rose-200 bg-white text-[11px] font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
           >
             ÖDEME TALEBİNİ SİL
           </button>
@@ -1718,7 +1718,7 @@ function DetailBox({
 }) {
   return (
     <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3">
-      <div className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
       <div
         className={`mt-1 break-words text-[10px] font-black text-slate-800 ${
           mono ? "font-mono" : ""

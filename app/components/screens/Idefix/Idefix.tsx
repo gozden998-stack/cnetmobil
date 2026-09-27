@@ -858,7 +858,7 @@ export default function Idefix() {
                     İdefix Entegrasyonu
                   </h1>
 
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wide text-emerald-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     API Bağlı
                   </span>
@@ -868,7 +868,7 @@ export default function Idefix() {
                   İdefix mağazanız ile ürünlerinizi senkronize edin, fiyat ve stoklarınızı tek panelden yönetin.
                 </p>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-500">
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-500">
                   <span>
                     Mağaza: <b className="text-slate-900">Cnetmobil</b>
                   </span>
@@ -889,7 +889,7 @@ export default function Idefix() {
               <button
                 type="button"
                 onClick={openIdefixCreateModal}
-                className="h-10 rounded-xl bg-violet-700 px-5 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800"
+                className="h-10 rounded-xl bg-violet-700 px-5 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800"
               >
                 + Yeni Ürün Aç
               </button>
@@ -901,7 +901,7 @@ export default function Idefix() {
                   loadOrders();
                 }}
                 disabled={loading || ordersLoading}
-                className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
                 {loading || ordersLoading ? "Yenileniyor..." : "Yenile"}
               </button>
@@ -958,13 +958,13 @@ export default function Idefix() {
                   {card.icon}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                     {card.label}
                   </div>
                   <div className="mt-1 truncate text-lg font-black text-slate-950">
                     {card.value}
                   </div>
-                  <div className="mt-0.5 truncate text-[8px] font-semibold text-slate-400">
+                  <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
                     {card.sub}
                   </div>
                 </div>
@@ -973,7 +973,7 @@ export default function Idefix() {
           ))}
         </div>
 
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-[8px] font-bold text-slate-500">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-bold text-slate-500">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 font-black uppercase text-emerald-700">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -997,7 +997,7 @@ export default function Idefix() {
             <button
               type="button"
               onClick={() => setTab("orders")}
-              className={`rounded-xl px-4 py-2 text-[9px] font-black transition ${
+              className={`rounded-xl px-4 py-2 text-[11px] font-black transition ${
                 tab === "orders"
                   ? "border border-blue-200 bg-blue-50 text-blue-700"
                   : "text-slate-700 hover:bg-slate-50"
@@ -1009,7 +1009,7 @@ export default function Idefix() {
             <button
               type="button"
               onClick={() => setTab("open")}
-              className={`rounded-xl px-4 py-2 text-[9px] font-black transition ${
+              className={`rounded-xl px-4 py-2 text-[11px] font-black transition ${
                 tab === "open"
                   ? "border border-blue-200 bg-blue-50 text-blue-700"
                   : "text-slate-700 hover:bg-slate-50"
@@ -1021,7 +1021,7 @@ export default function Idefix() {
             <button
               type="button"
               onClick={() => setTab("closed")}
-              className={`rounded-xl px-4 py-2 text-[9px] font-black transition ${
+              className={`rounded-xl px-4 py-2 text-[11px] font-black transition ${
                 tab === "closed"
                   ? "border border-blue-200 bg-blue-50 text-blue-700"
                   : "text-slate-700 hover:bg-slate-50"
@@ -1033,7 +1033,7 @@ export default function Idefix() {
             <button
               type="button"
               onClick={() => setTab("n11migrate")}
-              className={`rounded-xl px-4 py-2 text-[9px] font-black transition ${
+              className={`rounded-xl px-4 py-2 text-[11px] font-black transition ${
                 tab === "n11migrate"
                   ? "border border-violet-200 bg-violet-50 text-violet-700"
                   : "text-slate-700 hover:bg-slate-50"
@@ -1050,7 +1050,7 @@ export default function Idefix() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Marka, model, barkod veya SKU ara..."
-                  className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 pr-9 text-[9px] font-semibold outline-none focus:border-blue-400 sm:w-[280px]"
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 pr-9 text-[11px] font-semibold outline-none focus:border-blue-400 sm:w-[280px]"
                 />
                 <span className="absolute right-3 top-2.5 text-slate-400">⌕</span>
               </div>
@@ -1058,7 +1058,7 @@ export default function Idefix() {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[9px] font-black text-slate-700 outline-none"
+                className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none"
               >
                 <option value="newest">En Yeni</option>
                 <option value="priceAsc">Fiyat Artan</option>
@@ -1091,7 +1091,7 @@ export default function Idefix() {
                       key={String(key)}
                       type="button"
                       onClick={() => setOrderFilter(key as OrderFilter)}
-                      className={`rounded-xl px-3 py-2 text-[8px] font-black transition ${
+                      className={`rounded-xl px-3 py-2 text-[10px] font-black transition ${
                         orderFilter === key
                           ? "bg-slate-900 text-white"
                           : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -1107,13 +1107,13 @@ export default function Idefix() {
                     value={orderSearch}
                     onChange={(e) => setOrderSearch(e.target.value)}
                     placeholder="Sipariş, müşteri, ürün, kargo ara..."
-                    className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[9px] font-semibold outline-none focus:border-blue-400 sm:w-[300px]"
+                    className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-semibold outline-none focus:border-blue-400 sm:w-[300px]"
                   />
                   <button
                     type="button"
                     onClick={loadOrders}
                     disabled={ordersLoading}
-                    className="h-9 rounded-xl border border-blue-200 bg-blue-50 px-3 text-[8px] font-black text-blue-700 disabled:opacity-50"
+                    className="h-9 rounded-xl border border-blue-200 bg-blue-50 px-3 text-[10px] font-black text-blue-700 disabled:opacity-50"
                   >
                     {ordersLoading ? "..." : "Sipariş Yenile"}
                   </button>
@@ -1122,13 +1122,13 @@ export default function Idefix() {
             </div>
 
             {ordersError && (
-              <div className="m-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-bold leading-5 text-rose-700">
+              <div className="m-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-bold leading-5 text-rose-700">
                 {ordersError}
               </div>
             )}
 
             {orderMessage && (
-              <div className="m-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-bold leading-5 text-emerald-700">
+              <div className="m-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-bold leading-5 text-emerald-700">
                 {orderMessage}
               </div>
             )}
@@ -1141,7 +1141,7 @@ export default function Idefix() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1250px] text-left">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-white text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-wide text-slate-500">
                       <th className="px-4 py-3">Sipariş</th>
                       <th className="px-4 py-3">Müşteri</th>
                       <th className="px-4 py-3">Ürün</th>
@@ -1161,14 +1161,14 @@ export default function Idefix() {
                         <tr key={order.id} className="align-top hover:bg-slate-50/60">
                           <td className="px-4 py-4">
                             <div className="text-[10px] font-black text-slate-950">{order.orderNumber || `#${order.id}`}</div>
-                            <div className="mt-1 text-[7px] font-semibold text-slate-400">Shipment: {order.id}</div>
-                            <div className="mt-1 text-[7px] font-semibold text-slate-400">{formatDateTime(order.orderDate)}</div>
+                            <div className="mt-1 text-[10px] font-semibold text-slate-400">Shipment: {order.id}</div>
+                            <div className="mt-1 text-[10px] font-semibold text-slate-400">{formatDateTime(order.orderDate)}</div>
                           </td>
 
                           <td className="px-4 py-4">
-                            <div className="max-w-[190px] truncate text-[9px] font-black text-slate-800">{order.customerContactName || order.shippingAddress?.fullName || "-"}</div>
-                            <div className="mt-1 text-[7px] font-semibold text-slate-500">{[order.shippingAddress?.county, order.shippingAddress?.city].filter(Boolean).join(" / ") || "-"}</div>
-                            <div className="mt-1 max-w-[220px] text-[7px] font-medium leading-4 text-slate-400">{order.shippingAddress?.fullAddress || ""}</div>
+                            <div className="max-w-[190px] truncate text-[11px] font-black text-slate-800">{order.customerContactName || order.shippingAddress?.fullName || "-"}</div>
+                            <div className="mt-1 text-[10px] font-semibold text-slate-500">{[order.shippingAddress?.county, order.shippingAddress?.city].filter(Boolean).join(" / ") || "-"}</div>
+                            <div className="mt-1 max-w-[220px] text-[10px] font-medium leading-4 text-slate-400">{order.shippingAddress?.fullAddress || ""}</div>
                           </td>
 
                           <td className="px-4 py-4">
@@ -1181,9 +1181,9 @@ export default function Idefix() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <div className="max-w-[320px] text-[9px] font-black leading-4 text-slate-900">{firstItem?.productName || "İdefix Ürünü"}</div>
-                                <div className="mt-1 text-[7px] font-semibold text-slate-400">{order.items?.length || 0} kalem</div>
-                                {firstItem?.merchantSku && <div className="mt-0.5 text-[7px] font-semibold text-slate-400">SKU: {firstItem.merchantSku}</div>}
+                                <div className="max-w-[320px] text-[11px] font-black leading-4 text-slate-900">{firstItem?.productName || "İdefix Ürünü"}</div>
+                                <div className="mt-1 text-[10px] font-semibold text-slate-400">{order.items?.length || 0} kalem</div>
+                                {firstItem?.merchantSku && <div className="mt-0.5 text-[10px] font-semibold text-slate-400">SKU: {firstItem.merchantSku}</div>}
                               </div>
                             </div>
                           </td>
@@ -1193,14 +1193,14 @@ export default function Idefix() {
                           </td>
 
                           <td className="px-4 py-4">
-                            <div className="text-[8px] font-black text-slate-700">{order.cargoCompany || order.cargoProfileName || "Kargo bekleniyor"}</div>
-                            {order.cargoKey && <div className="mt-1 text-[7px] font-semibold text-slate-500">Kargo kodu: {order.cargoKey}</div>}
-                            {order.cargoTrackingNumber && <div className="mt-1 text-[7px] font-semibold text-violet-600">Takip: {order.cargoTrackingNumber}</div>}
-                            {order.estimatedDeliveryDate && <div className="mt-1 text-[7px] font-semibold text-slate-400">Tahmini: {formatDateTime(order.estimatedDeliveryDate)}</div>}
+                            <div className="text-[10px] font-black text-slate-700">{order.cargoCompany || order.cargoProfileName || "Kargo bekleniyor"}</div>
+                            {order.cargoKey && <div className="mt-1 text-[10px] font-semibold text-slate-500">Kargo kodu: {order.cargoKey}</div>}
+                            {order.cargoTrackingNumber && <div className="mt-1 text-[10px] font-semibold text-violet-600">Takip: {order.cargoTrackingNumber}</div>}
+                            {order.estimatedDeliveryDate && <div className="mt-1 text-[10px] font-semibold text-slate-400">Tahmini: {formatDateTime(order.estimatedDeliveryDate)}</div>}
                           </td>
 
                           <td className="px-4 py-4">
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${orderStatusClass(order.status)}`}>
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${orderStatusClass(order.status)}`}>
                               {orderStatusLabel(order.status, order.statusDescription)}
                             </span>
                           </td>
@@ -1208,31 +1208,31 @@ export default function Idefix() {
                           <td className="px-4 py-4">
                             <div className="flex min-w-[200px] flex-wrap gap-1.5">
                               {["created", "shipment_ready"].includes(status) && (
-                                <button type="button" onClick={() => runOrderAction(order, "PICKING")} disabled={busy} className="h-8 rounded-lg border border-amber-200 bg-amber-50 px-3 text-[7px] font-black text-amber-700 disabled:opacity-50">
+                                <button type="button" onClick={() => runOrderAction(order, "PICKING")} disabled={busy} className="h-8 rounded-lg border border-amber-200 bg-amber-50 px-3 text-[10px] font-black text-amber-700 disabled:opacity-50">
                                   {busy ? "..." : "Hazırlamaya Başla"}
                                 </button>
                               )}
 
                               {status === "shipment_picking" && (
-                                <button type="button" onClick={() => runOrderAction(order, "INVOICED")} disabled={busy} className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[7px] font-black text-blue-700 disabled:opacity-50">
+                                <button type="button" onClick={() => runOrderAction(order, "INVOICED")} disabled={busy} className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[10px] font-black text-blue-700 disabled:opacity-50">
                                   {busy ? "..." : "Faturalandı"}
                                 </button>
                               )}
 
                               {status === "shipment_invoiced" && !order.cargoTrackingNumber && (
-                                <button type="button" onClick={() => runOrderAction(order, "TRACKING")} disabled={busy} className="h-8 rounded-lg bg-violet-700 px-3 text-[7px] font-black text-white disabled:opacity-50">
+                                <button type="button" onClick={() => runOrderAction(order, "TRACKING")} disabled={busy} className="h-8 rounded-lg bg-violet-700 px-3 text-[10px] font-black text-white disabled:opacity-50">
                                   {busy ? "..." : "Kargoya Ver"}
                                 </button>
                               )}
 
                               {(order.cargoTrackingNumber || order.cargoTrackingUrl) && (
-                                <button type="button" onClick={() => openTracking(order)} className="h-8 rounded-lg border border-violet-200 bg-violet-50 px-3 text-[7px] font-black text-violet-700">
+                                <button type="button" onClick={() => openTracking(order)} className="h-8 rounded-lg border border-violet-200 bg-violet-50 px-3 text-[10px] font-black text-violet-700">
                                   Kargo Takip
                                 </button>
                               )}
 
                               {status === "shipment_in_cargo" && !order.cargoTrackingNumber && (
-                                <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[7px] font-black text-slate-500">
+                                <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[10px] font-black text-slate-500">
                                   Takip kodu bekleniyor
                                 </span>
                               )}
@@ -1272,7 +1272,7 @@ export default function Idefix() {
                     n11BulkTransferring ||
                     Object.values(n11Selected).filter(Boolean).length === 0
                   }
-                  className="h-9 whitespace-nowrap rounded-xl bg-violet-700 px-4 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-9 whitespace-nowrap rounded-xl bg-violet-700 px-4 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {n11BulkTransferring
                     ? "AKTARILIYOR..."
@@ -1283,7 +1283,7 @@ export default function Idefix() {
                   type="button"
                   onClick={() => void loadN11Candidates()}
                   disabled={n11CandidatesLoading || n11BulkTransferring}
-                  className="h-9 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-[9px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                  className="h-9 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
                 >
                   {n11CandidatesLoading ? "Yenileniyor..." : "Yenile"}
                 </button>
@@ -1304,7 +1304,7 @@ export default function Idefix() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1200px] text-left">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                       <th className="px-4 py-3">
                         <input
                           type="checkbox"
@@ -1366,16 +1366,16 @@ export default function Idefix() {
                                 `${candidate.brand} ${candidate.model}`.trim()}
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1">
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                 {candidate.memory || "-"}
                               </span>
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                 {candidate.color || "-"}
                               </span>
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                 {candidate.grade || "-"}
                               </span>
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                 {candidate.warranty || "-"}
                               </span>
                             </div>
@@ -1389,7 +1389,7 @@ export default function Idefix() {
                             <div className="text-[10px] font-black text-slate-950">
                               {money(candidate.n11SalePrice)}
                             </div>
-                            <div className="text-[7px] font-semibold text-slate-400">
+                            <div className="text-[10px] font-semibold text-slate-400">
                               Liste: {money(candidate.n11ListPrice)}
                             </div>
                           </td>
@@ -1435,19 +1435,19 @@ export default function Idefix() {
                               type="button"
                               onClick={() => void transferN11Candidate(candidate)}
                               disabled={rowState?.loading || n11BulkTransferring}
-                              className="h-8 whitespace-nowrap rounded-lg bg-violet-700 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-8 whitespace-nowrap rounded-lg bg-violet-700 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {rowState?.loading ? "AKTARILIYOR..." : "İDEFİX'E AKTAR"}
                             </button>
 
                             {rowState?.error && (
-                              <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-rose-600">
+                              <div className="mt-2 max-w-[220px] text-[10px] font-bold leading-4 text-rose-600">
                                 {rowState.error}
                               </div>
                             )}
 
                             {rowState?.success && (
-                              <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-emerald-600">
+                              <div className="mt-2 max-w-[220px] text-[10px] font-bold leading-4 text-emerald-600">
                                 {rowState.success}
                               </div>
                             )}
@@ -1476,7 +1476,7 @@ export default function Idefix() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1050px] text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <th className="px-5 py-3">Ürün</th>
                   <th className="px-5 py-3">Stok</th>
                   <th className="px-5 py-3">Durum</th>
@@ -1505,18 +1505,18 @@ export default function Idefix() {
 
                             <div className="mt-1 flex flex-wrap gap-1">
                               {product.brandId && (
-                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                   Marka: {product.brandId}
                                 </span>
                               )}
                               {product.categoryId && (
-                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[7px] font-bold text-slate-500">
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                                   Kategori: {product.categoryId}
                                 </span>
                               )}
                             </div>
 
-                            <div className="mt-1 text-[7px] font-semibold text-slate-400">
+                            <div className="mt-1 text-[10px] font-semibold text-slate-400">
                               SKU: {product.vendorStockCode || "-"}
                               <span className="mx-2 text-slate-200">|</span>
                               Barkod: {product.barcode || "-"}
@@ -1531,12 +1531,12 @@ export default function Idefix() {
                         <div className="text-base font-black text-slate-950">
                           {Number(product.inventoryQuantity || 0)}
                         </div>
-                        <div className="text-[7px] font-semibold text-slate-400">Adet</div>
+                        <div className="text-[10px] font-semibold text-slate-400">Adet</div>
                       </td>
 
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${
                             open
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-slate-100 text-slate-500"
@@ -1550,7 +1550,7 @@ export default function Idefix() {
                         <div className="text-[11px] font-black text-slate-950">
                           {money(product.price)}
                         </div>
-                        <div className="mt-0.5 text-[7px] font-semibold text-slate-400">
+                        <div className="mt-0.5 text-[10px] font-semibold text-slate-400">
                           İdefix Satış Fiyatı
                         </div>
                       </td>
@@ -1559,7 +1559,7 @@ export default function Idefix() {
                         <div className="text-[11px] font-black text-slate-950">
                           {money(product.comparePrice || product.price)}
                         </div>
-                        <div className="mt-0.5 text-[7px] font-semibold text-slate-400">
+                        <div className="mt-0.5 text-[10px] font-semibold text-slate-400">
                           İdefix Liste Fiyatı
                         </div>
                       </td>
@@ -1568,7 +1568,7 @@ export default function Idefix() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[8px] font-black text-slate-700"
+                            className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700"
                           >
                             Düzenle
                           </button>
@@ -1576,7 +1576,7 @@ export default function Idefix() {
                             type="button"
                             onClick={() => openPriceModal(product)}
                             disabled={!product.barcode || priceSaving}
-                            className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[8px] font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="h-8 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             Fiyat
                           </button>
@@ -1748,7 +1748,7 @@ export default function Idefix() {
                     placeholder="A"
                     className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-violet-400"
                   />
-                  <div className="mt-1 text-[9px] font-bold text-slate-400">
+                  <div className="mt-1 text-[11px] font-bold text-slate-400">
                     A → A Kalite · B → B Kalite · C → C Kalite otomatik çevrilir.
                   </div>
                 </label>
@@ -1860,7 +1860,7 @@ export default function Idefix() {
         >
           <div className="w-full max-w-md overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="border-b border-slate-100 px-6 py-5">
-              <div className="text-[9px] font-black uppercase tracking-wider text-blue-600">
+              <div className="text-[11px] font-black uppercase tracking-wider text-blue-600">
                 İdefix Fiyat Güncelle
               </div>
 
@@ -1868,20 +1868,20 @@ export default function Idefix() {
                 {priceProduct.title || "İdefix Ürünü"}
               </div>
 
-              <div className="mt-2 text-[9px] font-semibold text-slate-400">
+              <div className="mt-2 text-[11px] font-semibold text-slate-400">
                 Barkod: {priceProduct.barcode || "-"}
               </div>
             </div>
 
             <div className="space-y-5 p-6">
               <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-[8px] font-black uppercase text-slate-400">
+                <div className="text-[10px] font-black uppercase text-slate-400">
                   Mevcut İdefix Fiyatları
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-[8px] font-bold text-slate-400">
+                    <div className="text-[10px] font-bold text-slate-400">
                       Satış Fiyatı
                     </div>
                     <div className="mt-1 text-base font-black text-slate-950">
@@ -1890,7 +1890,7 @@ export default function Idefix() {
                   </div>
 
                   <div>
-                    <div className="text-[8px] font-bold text-slate-400">
+                    <div className="text-[10px] font-bold text-slate-400">
                       Liste Fiyatı
                     </div>
                     <div className="mt-1 text-base font-black text-slate-950">
@@ -1901,7 +1901,7 @@ export default function Idefix() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase text-slate-500">
+                <label className="mb-1.5 block text-[11px] font-black uppercase text-slate-500">
                   Yeni Satış Fiyatı
                 </label>
 
@@ -1923,7 +1923,7 @@ export default function Idefix() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase text-slate-500">
+                <label className="mb-1.5 block text-[11px] font-black uppercase text-slate-500">
                   Yeni Liste Fiyatı
                 </label>
 
@@ -1945,13 +1945,13 @@ export default function Idefix() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[9px] font-bold leading-5 text-amber-700">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-bold leading-5 text-amber-700">
                 Bu işlem yalnızca İdefix satış ve liste fiyatını değiştirir.
                 Canlı stok adedi değiştirilmez.
               </div>
 
               {priceError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {priceError}
                 </div>
               )}
@@ -1962,7 +1962,7 @@ export default function Idefix() {
                 type="button"
                 onClick={closePriceModal}
                 disabled={priceSaving}
-                className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[9px] font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-[11px] font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
               >
                 Vazgeç
               </button>
@@ -1971,7 +1971,7 @@ export default function Idefix() {
                 type="button"
                 onClick={() => void savePrice()}
                 disabled={priceSaving}
-                className="h-10 rounded-xl bg-blue-600 px-5 text-[9px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+                className="h-10 rounded-xl bg-blue-600 px-5 text-[11px] font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
               >
                 {priceSaving ? "İdefix'e Gönderiliyor..." : "İdefix'e Gönder"}
               </button>

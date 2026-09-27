@@ -1174,7 +1174,7 @@ export default function WingsmDegerPuan() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1400px] text-left">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-yellow-100 text-[8px] font-black uppercase tracking-wide text-slate-600">
+                  <tr className="border-b border-slate-200 bg-yellow-100 text-[10px] font-black uppercase tracking-wide text-slate-600">
                     <th className="px-3 py-3">Sınıf</th>
                     <th className="px-3 py-3">Sınıf Kodu</th>
                     {CANON_BRACKETS.map((b) => (
@@ -1237,7 +1237,7 @@ export default function WingsmDegerPuan() {
                               type="button"
                               onClick={() => saveClassRow(group)}
                               disabled={crs.loading}
-                              className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-2.5 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-2.5 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {crs.loading ? "..." : "KAYDET"}
                             </button>
@@ -1245,7 +1245,7 @@ export default function WingsmDegerPuan() {
                               type="button"
                               onClick={() => toggleClassActive(group)}
                               disabled={crs.loading}
-                              className={`h-8 whitespace-nowrap rounded-full px-2.5 text-[8px] font-black transition disabled:opacity-50 ${
+                              className={`h-8 whitespace-nowrap rounded-full px-2.5 text-[10px] font-black transition disabled:opacity-50 ${
                                 group.active
                                   ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                                   : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -1257,18 +1257,18 @@ export default function WingsmDegerPuan() {
                               type="button"
                               onClick={() => deleteClassRows(group)}
                               disabled={crs.loading || !group.active}
-                              className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-2.5 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-2.5 text-[10px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               SİL
                             </button>
                           </div>
                           {crs.error && (
-                            <div className="mt-1 max-w-[180px] text-[8px] font-bold leading-4 text-rose-600">
+                            <div className="mt-1 max-w-[180px] text-[10px] font-bold leading-4 text-rose-600">
                               {crs.error}
                             </div>
                           )}
                           {crs.success && (
-                            <div className="mt-1 max-w-[180px] text-[8px] font-bold leading-4 text-emerald-600">
+                            <div className="mt-1 max-w-[180px] text-[10px] font-bold leading-4 text-emerald-600">
                               {crs.success}
                             </div>
                           )}
@@ -1314,13 +1314,13 @@ export default function WingsmDegerPuan() {
                         type="button"
                         onClick={() => saveMultiplier(m.branch_label)}
                         disabled={ms.loading}
-                        className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {ms.loading ? "..." : "KAYDET"}
                       </button>
                     </div>
-                    {ms.error && <div className="mt-2 text-[8px] font-bold text-rose-600">{ms.error}</div>}
-                    {ms.success && <div className="mt-2 text-[8px] font-bold text-emerald-600">{ms.success}</div>}
+                    {ms.error && <div className="mt-2 text-[10px] font-bold text-rose-600">{ms.error}</div>}
+                    {ms.success && <div className="mt-2 text-[10px] font-bold text-emerald-600">{ms.success}</div>}
                   </div>
                 );
               })}
@@ -1443,13 +1443,13 @@ export default function WingsmDegerPuan() {
                             type="button"
                             onClick={() => saveStoreTarget(t.branch_label)}
                             disabled={ts.loading}
-                            className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {ts.loading ? "..." : "KAYDET"}
                           </button>
                         </div>
-                        {ts.error && <div className="mt-2 text-[8px] font-bold text-rose-600">{ts.error}</div>}
-                        {ts.success && <div className="mt-2 text-[8px] font-bold text-emerald-600">{ts.success}</div>}
+                        {ts.error && <div className="mt-2 text-[10px] font-bold text-rose-600">{ts.error}</div>}
+                        {ts.success && <div className="mt-2 text-[10px] font-bold text-emerald-600">{ts.success}</div>}
                       </div>
                     );
                   })}
@@ -1466,7 +1466,7 @@ export default function WingsmDegerPuan() {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Satıcı</th>
                         <th className="px-4 py-3">Hedef</th>
@@ -1496,7 +1496,7 @@ export default function WingsmDegerPuan() {
                                 type="button"
                                 onClick={() => togglePersonnelManager(t)}
                                 disabled={ps.loading}
-                                className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black transition disabled:opacity-50 ${
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black transition disabled:opacity-50 ${
                                   t.is_manager
                                     ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
                                     : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -1511,7 +1511,7 @@ export default function WingsmDegerPuan() {
                                   type="button"
                                   onClick={() => savePersonnelTarget(t)}
                                   disabled={ps.loading}
-                                  className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   {ps.loading ? "..." : "KAYDET"}
                                 </button>
@@ -1519,13 +1519,13 @@ export default function WingsmDegerPuan() {
                                   type="button"
                                   onClick={() => deletePersonnelTarget(t)}
                                   disabled={ps.loading || !t.active}
-                                  className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                  className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[10px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   SİL
                                 </button>
                               </div>
-                              {ps.error && <div className="mt-1 text-[8px] font-bold text-rose-600">{ps.error}</div>}
-                              {ps.success && <div className="mt-1 text-[8px] font-bold text-emerald-600">{ps.success}</div>}
+                              {ps.error && <div className="mt-1 text-[10px] font-bold text-rose-600">{ps.error}</div>}
+                              {ps.success && <div className="mt-1 text-[10px] font-bold text-emerald-600">{ps.success}</div>}
                             </td>
                           </tr>
                         );
@@ -1542,12 +1542,12 @@ export default function WingsmDegerPuan() {
                 </div>
 
                 <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                  <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
                     Yeni Personel Hedefi Ekle
                   </div>
                   <div className="flex flex-wrap items-end gap-2">
                     <label>
-                      <div className="mb-1 text-[9px] font-bold text-slate-400">Mağaza</div>
+                      <div className="mb-1 text-[11px] font-bold text-slate-400">Mağaza</div>
                       <select
                         value={newPersonnelDraft.branchLabel}
                         onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, branchLabel: e.target.value }))}
@@ -1560,7 +1560,7 @@ export default function WingsmDegerPuan() {
                       </select>
                     </label>
                     <label>
-                      <div className="mb-1 text-[9px] font-bold text-slate-400">Satıcı Adı</div>
+                      <div className="mb-1 text-[11px] font-bold text-slate-400">Satıcı Adı</div>
                       <input
                         value={newPersonnelDraft.saticiAdi}
                         onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, saticiAdi: e.target.value }))}
@@ -1569,7 +1569,7 @@ export default function WingsmDegerPuan() {
                       />
                     </label>
                     <label>
-                      <div className="mb-1 text-[9px] font-bold text-slate-400">Hedef</div>
+                      <div className="mb-1 text-[11px] font-bold text-slate-400">Hedef</div>
                       <input
                         value={newPersonnelDraft.targetValue}
                         onChange={(e) => setNewPersonnelDraft((c) => ({ ...c, targetValue: e.target.value }))}
@@ -1577,7 +1577,7 @@ export default function WingsmDegerPuan() {
                         className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold outline-none focus:border-blue-400"
                       />
                     </label>
-                    <label className="flex items-center gap-2 pb-2 text-[9px] font-bold text-slate-500">
+                    <label className="flex items-center gap-2 pb-2 text-[11px] font-bold text-slate-500">
                       <input
                         type="checkbox"
                         checked={newPersonnelDraft.isManager}
@@ -1589,16 +1589,16 @@ export default function WingsmDegerPuan() {
                       type="button"
                       onClick={addPersonnelTarget}
                       disabled={newPersonnelState.loading}
-                      className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {newPersonnelState.loading ? "EKLENİYOR..." : "EKLE"}
                     </button>
                   </div>
                   {newPersonnelState.error && (
-                    <div className="mt-2 text-[9px] font-bold text-rose-600">{newPersonnelState.error}</div>
+                    <div className="mt-2 text-[11px] font-bold text-rose-600">{newPersonnelState.error}</div>
                   )}
                   {newPersonnelState.success && (
-                    <div className="mt-2 text-[9px] font-bold text-emerald-600">{newPersonnelState.success}</div>
+                    <div className="mt-2 text-[11px] font-bold text-emerald-600">{newPersonnelState.success}</div>
                   )}
                 </div>
               </section>
@@ -1683,7 +1683,7 @@ export default function WingsmDegerPuan() {
                   <div className="mt-3 max-h-[240px] overflow-auto rounded-lg border border-amber-200 bg-white">
                     <table className="w-full min-w-[560px] text-left">
                       <thead>
-                        <tr className="border-b border-amber-100 bg-amber-50 text-[8px] font-black uppercase tracking-wide text-amber-700">
+                        <tr className="border-b border-amber-100 bg-amber-50 text-[10px] font-black uppercase tracking-wide text-amber-700">
                           <th className="px-3 py-2">Mağaza</th>
                           <th className="px-3 py-2">Satıcı</th>
                           <th className="px-3 py-2">Sınıf</th>
@@ -1729,7 +1729,7 @@ export default function WingsmDegerPuan() {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[820px] text-left">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
@@ -1769,7 +1769,7 @@ export default function WingsmDegerPuan() {
                 <div className="max-h-[460px] overflow-auto">
                   <table className="w-full min-w-[880px] text-left">
                     <thead>
-                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Sıra</th>
                         <th className="px-4 py-3">Satıcı</th>
@@ -1789,7 +1789,7 @@ export default function WingsmDegerPuan() {
                           <td className="px-4 py-3 text-[11px] font-semibold">
                             {p.saticiAdi || p.saticiKod}
                             {p.isManager && (
-                              <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black text-violet-700">
+                              <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">
                                 MÜDÜR
                               </span>
                             )}
@@ -1823,7 +1823,7 @@ export default function WingsmDegerPuan() {
                 <div className="max-h-[480px] overflow-auto">
                   <table className="w-full min-w-[920px] text-left">
                     <thead>
-                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                      <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Satıcı</th>
                         <th className="px-4 py-3">Ürün</th>

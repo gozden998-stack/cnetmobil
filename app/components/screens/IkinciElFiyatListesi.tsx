@@ -137,7 +137,7 @@ export default function IkinciElFiyatListesi({
       <section className={`overflow-hidden rounded-[26px] border ${accent.border} bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]`}>
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className={`text-[8px] font-black uppercase tracking-[0.2em] ${accent.text}`}>
+            <div className={`text-[10px] font-black uppercase tracking-[0.2em] ${accent.text}`}>
               CNETMOBİL V2
             </div>
 
@@ -182,9 +182,9 @@ export default function IkinciElFiyatListesi({
               {isApple ? <AppleIcon className="h-5 w-5" /> : <AndroidIcon className="h-5 w-5" />}
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Toplam Cihaz</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Toplam Cihaz</p>
               <p className="text-[19px] font-black text-slate-950">{rows.length}</p>
-              <p className="text-[8px] font-semibold text-slate-400">{isApple ? "Apple" : "Android"} cihaz</p>
+              <p className="text-[10px] font-semibold text-slate-400">{isApple ? "Apple" : "Android"} cihaz</p>
             </div>
           </div>
 
@@ -195,9 +195,9 @@ export default function IkinciElFiyatListesi({
               </svg>
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Öne Çıkan</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Öne Çıkan</p>
               <p className="text-[19px] font-black text-slate-950">{highlightedCount}</p>
-              <p className="text-[8px] font-semibold text-slate-400">Kampanyalı / özel cihaz</p>
+              <p className="text-[10px] font-semibold text-slate-400">Kampanyalı / özel cihaz</p>
             </div>
           </div>
 
@@ -208,9 +208,9 @@ export default function IkinciElFiyatListesi({
               </svg>
             </div>
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">Liste Durumu</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Liste Durumu</p>
               <p className="text-[15px] font-black text-slate-950">Güncel</p>
-              <p className="text-[8px] font-semibold text-slate-400">2. El fiyat listesi</p>
+              <p className="text-[10px] font-semibold text-slate-400">2. El fiyat listesi</p>
             </div>
           </div>
         </div>
@@ -268,20 +268,20 @@ export default function IkinciElFiyatListesi({
               <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
                 {isApple ? "Apple" : "Android"} Cihaz Listesi
               </h3>
-              <p className="truncate text-[9px] font-semibold text-slate-400">
+              <p className="truncate text-[11px] font-semibold text-slate-400">
                 Cihaz bilgisi, özellik/durum, fiyat ve açıklama
               </p>
             </div>
           </div>
 
-          <span className={`shrink-0 rounded-full px-3 py-1.5 text-[8px] font-black ${accent.light} ${accent.text}`}>
+          <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black ${accent.light} ${accent.text}`}>
             {filteredRows.length} Cihaz
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[930px]">
-            <div className={`grid grid-cols-[48px_minmax(330px,1fr)_170px_150px_minmax(260px,1fr)] border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500`}>
+            <div className={`grid grid-cols-[48px_minmax(330px,1fr)_170px_150px_minmax(260px,1fr)] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500`}>
               <div className="px-2 py-3 text-center">#</div>
               <div className="px-3 py-3">Cihaz Bilgisi</div>
               <div className="px-3 py-3 text-center">Özellik / Durum</div>
@@ -296,7 +296,7 @@ export default function IkinciElFiyatListesi({
                     <SearchIcon />
                   </div>
                   <p className="text-[11px] font-black text-slate-700">Cihaz bulunamadı</p>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">Arama kelimesini değiştirin.</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">Arama kelimesini değiştirin.</p>
                 </div>
               </div>
             ) : (
@@ -311,7 +311,7 @@ export default function IkinciElFiyatListesi({
                       : "bg-slate-50/35"
                   } hover:bg-slate-50`}
                 >
-                  <div className="flex items-center justify-center px-2 py-[10px] text-[9px] font-bold text-slate-400">
+                  <div className="flex items-center justify-center px-2 py-[10px] text-[11px] font-bold text-slate-400">
                     {index + 1}
                   </div>
 
@@ -324,7 +324,7 @@ export default function IkinciElFiyatListesi({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-center border-l border-slate-100 px-3 py-[10px] text-center text-[9px] font-bold text-slate-600">
+                  <div className="flex items-center justify-center border-l border-slate-100 px-3 py-[10px] text-center text-[11px] font-bold text-slate-600">
                     {row.feature || "-"}
                   </div>
 
@@ -332,7 +332,7 @@ export default function IkinciElFiyatListesi({
                     {String(row.price || "-")}
                   </div>
 
-                  <div className="flex items-center border-l border-slate-100 px-3 py-[10px] text-[9px] font-semibold text-slate-500">
+                  <div className="flex items-center border-l border-slate-100 px-3 py-[10px] text-[11px] font-semibold text-slate-500">
                     <span title={row.description} className="line-clamp-2">
                       {row.description || "-"}
                     </span>
@@ -347,13 +347,13 @@ export default function IkinciElFiyatListesi({
           <button
             type="button"
             onClick={() => setShowAll((value) => !value)}
-            className={`inline-flex items-center gap-2 text-[9px] font-black ${accent.text}`}
+            className={`inline-flex items-center gap-2 text-[11px] font-black ${accent.text}`}
           >
             {showAll ? "Listeyi Kısalt" : "Tüm Cihazları Gör"}
             <span className="text-[14px]">→</span>
           </button>
 
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">
             {filteredRows.length} cihaz listeleniyor
           </span>
         </div>

@@ -120,13 +120,13 @@ function StatCard({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
           {label}
         </p>
         <p className="mt-0.5 truncate text-[20px] font-black leading-none tracking-[-0.03em] text-slate-950">
           {value}
         </p>
-        <p className="mt-1 truncate text-[8px] font-semibold text-slate-400">
+        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
           {footer}
         </p>
       </div>
@@ -170,14 +170,14 @@ function ProductList({
             <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
               {title}
             </h3>
-            <p className="truncate text-[9px] font-semibold text-slate-400">
+            <p className="truncate text-[11px] font-semibold text-slate-400">
               {subtitle}
             </p>
           </div>
         </div>
 
         <span
-          className={`shrink-0 rounded-full px-3 py-1.5 text-[8px] font-black ${
+          className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black ${
             isLeft
               ? "bg-purple-50 text-purple-600"
               : "bg-fuchsia-50 text-fuchsia-600"
@@ -189,7 +189,7 @@ function ProductList({
 
       <div className="overflow-x-auto">
         <div className="min-w-[430px]">
-          <div className="grid grid-cols-[42px_minmax(250px,1fr)_120px] border-y border-slate-200 bg-slate-50/90 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500">
+          <div className="grid grid-cols-[42px_minmax(250px,1fr)_120px] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
             <div className="px-2 py-3 text-center">#</div>
             <div className="px-3 py-3">Ürün Adı</div>
             <div className="bg-purple-50/70 px-3 py-3 text-right text-purple-600">
@@ -206,7 +206,7 @@ function ProductList({
                 <p className="text-[10px] font-black text-slate-700">
                   Ürün bulunamadı
                 </p>
-                <p className="mt-1 text-[8px] font-semibold text-slate-400">
+                <p className="mt-1 text-[10px] font-semibold text-slate-400">
                   Arama kelimesini değiştirin.
                 </p>
               </div>
@@ -223,7 +223,7 @@ function ProductList({
                     : "bg-slate-50/35"
                 }`}
               >
-                <div className="flex items-center justify-center px-2 py-[9px] text-[8px] font-bold text-slate-400">
+                <div className="flex items-center justify-center px-2 py-[9px] text-[10px] font-bold text-slate-400">
                   {index + 1}
                 </div>
 
@@ -233,7 +233,7 @@ function ProductList({
                   )}
                   <span
                     title={row.name}
-                    className={`truncate text-[9px] font-black ${
+                    className={`truncate text-[11px] font-black ${
                       row.highlighted ? "text-amber-700" : "text-slate-900"
                     }`}
                   >
@@ -258,13 +258,13 @@ function ProductList({
         <button
           type="button"
           onClick={onToggleShowAll}
-          className="inline-flex items-center gap-2 text-[9px] font-black text-purple-600 transition hover:text-purple-700"
+          className="inline-flex items-center gap-2 text-[11px] font-black text-purple-600 transition hover:text-purple-700"
         >
           {showAll ? "Listeyi Kısalt" : "Tüm Ürünleri Gör"}
           <span className="text-[14px]">→</span>
         </button>
 
-        <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+        <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">
           {rows.length} ürün listeleniyor
         </span>
       </div>
@@ -344,7 +344,7 @@ export default function YNAList({
       <section className="overflow-hidden rounded-[26px] border border-purple-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]">
         <div className="grid min-h-[122px] lg:grid-cols-[1.25fr_0.75fr]">
           <div className="flex flex-col justify-center px-7 py-5 sm:px-8">
-            <div className="text-[8px] font-black uppercase tracking-[0.20em] text-purple-600">
+            <div className="text-[10px] font-black uppercase tracking-[0.20em] text-purple-600">
               CNETMOBİL V2
             </div>
 

@@ -602,14 +602,14 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             <div className="flex items-center gap-2">
               <TrophyIcon className="h-5 w-5 text-blue-100" />
               <div>
-                <div className="text-[9px] font-black uppercase tracking-wide text-blue-100">Toplam Puan</div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-blue-100">Toplam Puan</div>
                 <div className="text-lg font-black text-white">{formatNumber(report.genelLider.carpanliPuan)}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <TargetIcon className="h-5 w-5 text-blue-100" />
               <div>
-                <div className="text-[9px] font-black uppercase tracking-wide text-blue-100">Hedef Gerçekleşme</div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-blue-100">Hedef Gerçekleşme</div>
                 <div className="text-lg font-black text-emerald-300">{formatPercent(report.genelLider.hedefYuzdesi)}</div>
               </div>
             </div>
@@ -693,21 +693,21 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
       {pickedName ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
               <UserIcon className="h-3.5 w-3.5" />
               Toplam Puan
             </div>
             <div className="mt-1 text-xl font-black text-slate-800">{me ? formatNumber(me.totalScore) : "-"}</div>
           </div>
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-blue-500">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-blue-500">
               <LayersIcon className="h-3.5 w-3.5" />
               Çarpanlı Puan
             </div>
             <div className="mt-1 text-xl font-black text-blue-800">{me ? formatNumber(me.carpanliPuan) : "-"}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
               <TargetIcon className="h-3.5 w-3.5" />
               Hedef
             </div>
@@ -716,7 +716,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             </div>
           </div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-emerald-600">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-emerald-600">
               <CheckCircleIcon className="h-3.5 w-3.5" />
               Gerçekleşme
             </div>
@@ -725,7 +725,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-amber-600">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-amber-600">
               <StarIcon className="h-3.5 w-3.5" />
               Puan
             </div>
@@ -734,7 +734,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             </div>
           </div>
           <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-violet-600">
+            <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-violet-600">
               <ChartBarIcon className="h-3.5 w-3.5" />
               Sıralamam
             </div>
@@ -783,7 +783,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
                 <ShoppingBasketIcon className="h-3.5 w-3.5" />
                 Bu Ay Satış Adedi
               </div>
@@ -793,12 +793,12 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
                 <ChartBarIcon className="h-3.5 w-3.5" />
                 Günlük Ortalama
               </div>
               <div className="mt-1 text-xl font-black text-slate-800">{me ? gunlukOrtalama.toFixed(1) : "-"}</div>
-              <div className="mt-0.5 text-[9px] font-bold text-slate-400">
+              <div className="mt-0.5 text-[11px] font-bold text-slate-400">
                 Toplam {report.gunBilgisi ? report.gunBilgisi.gecenGun : "-"} gün
               </div>
             </div>
@@ -806,7 +806,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
                 <TrendingUpIcon className="h-3.5 w-3.5" />
                 Ay Sonu Tahmini
               </div>
@@ -816,7 +816,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
-              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+              <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400">
                 <TargetIcon className="h-3.5 w-3.5" />
                 Hedef Durumu
               </div>
@@ -824,7 +824,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                 {durum.label}
               </div>
               {hedefeKalan !== null && !hedefiAsti && (
-                <div className="mt-1 text-[9px] font-bold text-slate-400">{formatNumber(hedefeKalan)} puan kaldı</div>
+                <div className="mt-1 text-[11px] font-bold text-slate-400">{formatNumber(hedefeKalan)} puan kaldı</div>
               )}
             </div>
             <ChevronRightIcon className="h-4 w-4 flex-none text-slate-300" />
@@ -850,7 +850,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             <div className="max-h-[360px] overflow-auto">
               <table className="w-full min-w-[600px] text-left">
                 <thead>
-                  <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2">Sıra</th>
                     <th className="px-3 py-2">Çalışan</th>
                     <th className="px-3 py-2">Mağaza</th>
@@ -871,12 +871,12 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                         <td className={`px-3 py-2 text-[11px] ${isMe ? "font-black text-blue-700" : "font-semibold"}`}>
                           {p.saticiAdi || p.saticiKod}
                           {isMe && (
-                            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[8px] font-black text-blue-700">
+                            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
                               SEN
                             </span>
                           )}
                           {p.isManager && (
-                            <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[8px] font-black text-violet-700">
+                            <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">
                               MÜDÜR
                             </span>
                           )}
@@ -914,7 +914,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
           <div className="overflow-auto">
             <table className="w-full min-w-[480px] text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Sıra</th>
                   <th className="px-3 py-2">Mağaza</th>
                   <th className="px-3 py-2">Toplam Puan</th>
@@ -933,7 +933,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                       <td className={`px-3 py-2 text-[11px] ${isMyStore ? "font-black text-blue-700" : "font-semibold"}`}>
                         {s.branchLabel}
                         {isMyStore && (
-                          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[8px] font-black text-blue-700">
+                          <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
                             BENİM MAĞAZAM
                           </span>
                         )}
@@ -1013,7 +1013,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
             <div className="mt-2 flex items-center justify-between">
               <div>
                 <div className="text-2xl font-black text-slate-800">{me ? formatNumber(Math.round(me.projeksiyon)) : "-"}</div>
-                <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Tahmini Puan</div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">Tahmini Puan</div>
               </div>
               <div className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700">
                 {projeksiyonYuzde !== null ? `${formatPercent(projeksiyonYuzde)} Tahmini Gerçekleşme` : "-"}
@@ -1029,7 +1029,7 @@ export default function WingsmDegerPuanim({ selectedBranch }: { selectedBranch: 
                 }}
               />
             </div>
-            <div className="mt-1 flex items-center justify-between text-[9px] font-bold text-slate-400">
+            <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-slate-400">
               <span>Mevcut: {me ? formatNumber(me.carpanliPuan) : "-"}</span>
               <span>Hedef: {me && me.hedef !== null ? formatNumber(me.hedef) : "-"}</span>
             </div>

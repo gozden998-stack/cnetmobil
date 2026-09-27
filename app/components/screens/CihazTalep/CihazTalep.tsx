@@ -2233,7 +2233,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                       </div>
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-600">
                         CANLI
                       </span>
                     </div>
@@ -2265,7 +2265,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h6l4 4v10a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      <span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-600">
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-600">
                         AKTİF
                       </span>
                     </div>
@@ -2285,7 +2285,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V9l7-5 7 5v12M9 13h6m-6 4h6" />
                         </svg>
                       </div>
-                      <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">
+                      <span className="rounded-full bg-violet-50 px-2 py-1 text-[11px] font-black text-violet-600">
                         MAĞAZA
                       </span>
                     </div>
@@ -2305,7 +2305,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 12l2 2 4-4m5-1a9 9 0 11-6.219-8.56" />
                         </svg>
                       </div>
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-600">
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-600">
                         TAMAMLANDI
                       </span>
                     </div>
@@ -2353,7 +2353,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                   MAĞAZA KAPASİTESİ
                                 </div>
                                 <span
-                                  className={`rounded-full px-2.5 py-1 text-[9px] font-black ${
+                                  className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
                                     postgresCapacity?.can_request === false
                                       ? 'bg-red-50 text-red-600'
                                       : 'bg-emerald-50 text-emerald-600'
@@ -2377,15 +2377,15 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
                             <div className="grid grid-cols-3 gap-2 sm:min-w-[390px]">
                               <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center">
-                                <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Mevcut Stok</div>
+                                <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Mevcut Stok</div>
                                 <div className="mt-1 text-xl font-black text-slate-900">{currentStock}</div>
                               </div>
                               <div className="rounded-2xl bg-blue-50 px-3 py-3 text-center">
-                                <div className="text-[9px] font-black uppercase tracking-wider text-blue-400">Rezerve</div>
+                                <div className="text-[11px] font-black uppercase tracking-wider text-blue-400">Rezerve</div>
                                 <div className="mt-1 text-xl font-black text-blue-700">{incomingWaiting}</div>
                               </div>
                               <div className="rounded-2xl bg-emerald-50 px-3 py-3 text-center">
-                                <div className="text-[9px] font-black uppercase tracking-wider text-emerald-500">Boş</div>
+                                <div className="text-[11px] font-black uppercase tracking-wider text-emerald-500">Boş</div>
                                 <div className="mt-1 text-xl font-black text-emerald-700">
                                   {remainingCapacity === null ? '∞' : remainingCapacity}
                                 </div>
@@ -2395,7 +2395,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
                           {maxStock !== null && (
                             <div className="mt-4">
-                              <div className="mb-1.5 flex items-center justify-between text-[9px] font-black text-slate-400">
+                              <div className="mb-1.5 flex items-center justify-between text-[11px] font-black text-slate-400">
                                 <span>KULLANILAN KAPASİTE</span>
                                 <span>%{percent}</span>
                               </div>
@@ -2408,7 +2408,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                             </div>
                           )}
 
-                          <div className="mt-3 text-[9px] font-semibold leading-4 text-slate-400">
+                          <div className="mt-3 text-[11px] font-semibold leading-4 text-slate-400">
                             Rezerve kapasite; bu mağazanın yaptığı PENDING / SENT / TRANSFER_WAITING taleplerini içerir.
                             WingSM bağlandığında mevcut stok verisi WingSM senkronundan beslenecek; mağaza limitleri panelde bizim belirlediğimiz değerler olarak kalacak.
                           </div>
@@ -2600,7 +2600,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         </svg>
                         Transfer Bekleyen
                         {transferBekleyenTalepler.length > 0 && (
-                          <span className="ml-1 inline-flex min-w-[22px] items-center justify-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] text-white">
+                          <span className="ml-1 inline-flex min-w-[22px] items-center justify-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[11px] text-white">
                             {transferBekleyenTalepler.length}
                           </span>
                         )}
@@ -2619,7 +2619,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       <div className="text-lg font-black tracking-tight text-slate-900">
                         CNET<span className="text-blue-600">MOBİL</span>
                       </div>
-                      <div className="mt-1 text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">
+                      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-blue-500">
                         V2 Panel
                       </div>
                     </div>
@@ -2652,10 +2652,10 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           </div>
 
                           <div>
-                            <div className="text-[9px] font-black text-slate-700">
+                            <div className="text-[11px] font-black text-slate-700">
                               {title}
                             </div>
-                            <div className="mt-0.5 text-[8px] font-bold text-slate-400">
+                            <div className="mt-0.5 text-[10px] font-bold text-slate-400">
                               {subtitle}
                             </div>
                           </div>
@@ -2664,7 +2664,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     </div>
 
                     <div className="mx-3 mb-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-4 text-white shadow-lg shadow-blue-500/20">
-                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-100">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-100">
                         CNETMOBİL
                       </div>
                       <div className="mt-2 text-base font-black leading-tight">
@@ -2689,17 +2689,17 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     <table className="w-full min-w-[1080px] border-collapse text-left">
                       <thead>
                         <tr className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50/30">
-                          <th className="w-[56px] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">#</th>
-                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Marka / Model</th>
-                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Hafıza</th>
-                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Renk</th>
-                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Pil</th>
-                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Grade</th>
-                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Garanti</th>
-                          <th className="px-4 py-4 text-[9px] font-black uppercase tracking-wider text-slate-500">Değişen Parça</th>
-                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
-                          <th className="px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-slate-500">Stok</th>
-                          <th className="px-4 py-4 text-right text-[9px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
+                          <th className="w-[56px] px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">#</th>
+                          <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">Marka / Model</th>
+                          <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">Hafıza</th>
+                          <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">Renk</th>
+                          <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Pil</th>
+                          <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Grade</th>
+                          <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Garanti</th>
+                          <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">Değişen Parça</th>
+                          <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
+                          <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Stok</th>
+                          <th className="px-4 py-4 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
                         </tr>
                       </thead>
 
@@ -2831,11 +2831,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 <div className="font-black text-slate-900">
                                   {markaModel}
                                 </div>
-                                <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                                   {getCihazTalepBrand(markaModel)}
                                 </div>
                                 {row?.[15] && (
-                                  <div className="mt-1 font-mono text-[8px] font-bold tracking-wide text-blue-500/70">
+                                  <div className="mt-1 font-mono text-[10px] font-bold tracking-wide text-blue-500/70">
                                     IMEI {String(row[15])}
                                   </div>
                                 )}
@@ -2865,7 +2865,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
                               <td className="px-4 py-3.5 text-center">
                                 <span
-                                  className={`inline-flex rounded-lg border px-2.5 py-1 text-[9px] font-black tracking-wide ${gradeStyle}`}
+                                  className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-black tracking-wide ${gradeStyle}`}
                                 >
                                   {grade || '-'}
                                 </span>
@@ -2890,7 +2890,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
                               <td className="px-4 py-3.5 text-center">
                                 <span
-                                  className={`inline-flex min-w-[66px] justify-center rounded-xl border px-2.5 py-1.5 text-[9px] font-black ${
+                                  className={`inline-flex min-w-[66px] justify-center rounded-xl border px-2.5 py-1.5 text-[11px] font-black ${
                                     stokAdedi >= 3
                                       ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
                                       : stokAdedi > 0
@@ -2907,7 +2907,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                   <div className="flex flex-col items-end gap-1.5">
                                     <div className="flex items-center justify-end gap-1.5">
                                       <div
-                                        className={`rounded-xl border px-3 py-1.5 text-[9px] font-black whitespace-nowrap ${
+                                        className={`rounded-xl border px-3 py-1.5 text-[11px] font-black whitespace-nowrap ${
                                           isRejected
                                             ? 'border-red-200 bg-red-50 text-red-600'
                                             : isSent
@@ -2941,13 +2941,13 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                         )}
                                     </div>
 
-                                    <div className="max-w-[190px] truncate text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                    <div className="max-w-[190px] truncate text-[10px] font-black uppercase tracking-wide text-slate-400">
                                       {mevcutTalepler}
                                     </div>
 
                                     {isRejected && redNedeni && (
                                       <div
-                                        className="max-w-[200px] rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-right text-[8px] font-bold leading-tight text-red-600"
+                                        className="max-w-[200px] rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-right text-[10px] font-bold leading-tight text-red-600"
                                         title={redNedeni}
                                       >
                                         {redNedeni}
@@ -2955,20 +2955,20 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                     )}
 
                                     {(isRejected || isSent) && kararTarihi && (
-                                      <div className="text-[8px] font-semibold text-slate-400">
+                                      <div className="text-[10px] font-semibold text-slate-400">
                                         {kararTarihi}
                                       </div>
                                     )}
                                   </div>
                                 ) : stockSourceBranch && canManageCihazStock ? (
                                   <div className="flex items-center justify-end gap-1.5">
-                                    <span className="inline-flex min-w-[112px] justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[9px] font-black tracking-wider text-slate-400">
+                                    <span className="inline-flex min-w-[112px] justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black tracking-wider text-slate-400">
                                       KENDİ STOĞUNUZ
                                     </span>
                                     <button
                                       type="button"
                                       onClick={() => openCihazDuzenleModal(rowIndex)}
-                                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[9px] font-black tracking-wider text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                                      className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-black tracking-wider text-blue-700 transition hover:bg-blue-600 hover:text-white"
                                       title="Cihaz detaylarını düzenle"
                                     >
                                       DÜZENLE
@@ -2993,7 +2993,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                         ? `CNET cihazı için eksik: ${cnetMissingDetails.join(', ')}`
                                         : undefined
                                     }
-                                    className="min-w-[124px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[9px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                                    className="min-w-[124px] rounded-xl border-2 border-blue-600 px-3 py-2 text-[11px] font-black tracking-wider text-blue-600 transition hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
                                   >
                                     {cnetDetailsMissing
                                       ? 'DETAYLAR EKSİK'
@@ -3146,7 +3146,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                               setAktifTaleplerModalOpen(true);
                             }
                           }}
-                          className="text-[8px] font-black uppercase tracking-wide text-blue-600"
+                          className="text-[10px] font-black uppercase tracking-wide text-blue-600"
                         >
                           Tümünü Gör
                         </button>
@@ -3180,14 +3180,14 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 </div>
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate text-[9px] font-black text-slate-800">
+                                  <div className="truncate text-[11px] font-black text-slate-800">
                                     {device}
                                   </div>
-                                  <div className="mt-0.5 truncate text-[8px] font-bold text-slate-400">
+                                  <div className="mt-0.5 truncate text-[10px] font-bold text-slate-400">
                                     {branch}
                                   </div>
                                   <div
-                                    className={`mt-1 text-[8px] font-black ${
+                                    className={`mt-1 text-[10px] font-black ${
                                       status === 'GÖNDERİLDİ'
                                         ? 'text-emerald-600'
                                         : status === 'REDDEDİLDİ'
@@ -3198,7 +3198,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                     {status}
                                   </div>
                                   {dateText && (
-                                    <div className="mt-0.5 truncate text-[7px] font-semibold text-slate-300">
+                                    <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-300">
                                       {dateText}
                                     </div>
                                   )}
@@ -3207,7 +3207,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                             );
                           })
                         ) : (
-                          <div className="px-3 py-8 text-center text-[9px] font-bold text-slate-400">
+                          <div className="px-3 py-8 text-center text-[11px] font-bold text-slate-400">
                             Henüz işlem bulunmuyor.
                           </div>
                         )}
@@ -3244,10 +3244,10 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                             </div>
 
                             <div>
-                              <div className="text-[9px] font-black text-slate-800">
+                              <div className="text-[11px] font-black text-slate-800">
                                 {title}
                               </div>
-                              <div className="mt-0.5 text-[8px] font-semibold leading-4 text-slate-400">
+                              <div className="mt-0.5 text-[10px] font-semibold leading-4 text-slate-400">
                                 {detail}
                               </div>
                             </div>
@@ -3278,7 +3278,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     <div className="text-xs font-black tracking-[0.14em] text-blue-700">
                       CNETMOBİL V2
                     </div>
-                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
                       Teknoloji Her Yerde
                     </div>
                   </div>
@@ -3416,9 +3416,9 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
           </div>
           <div className="p-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={(e: any) =>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">MARKA / MODEL *</label><input autoFocus value={cihazEkleForm.markaModel} onChange={(e: any) =>setCihazEkleForm(p=>({...p,markaModel:e.target.value}))} placeholder="Örn: iPhone 15 Pro" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">HAFIZA *</label>
                 <select value={cihazEkleForm.hafiza} onChange={(e: any) =>setCihazEkleForm(p=>({...p,hafiza:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white">
                   <option value="">Hafıza seçin</option>
                   <option value="16GB">16GB</option><option value="32GB">32GB</option><option value="64GB">64GB</option><option value="128GB">128GB</option>
@@ -3426,7 +3426,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK *</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">RENK *</label>
                 <div className="relative">
                   {cihazEkleForm.renk && cihazEkleForm.renk !== 'DİĞER' && (
                     <span className="pointer-events-none absolute left-4 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: ({
@@ -3447,12 +3447,12 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   <input autoFocus value={cihazEkleForm.renkDiger} onChange={(e: any) =>setCihazEkleForm(p=>({...p,renkDiger:e.target.value.toUpperCase()}))} placeholder="Özel rengi yazın" className="mt-2 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
                 )}
               </div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={(e: any) =>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={(e: any) =>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
-              <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={(e: any) =>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">PİL</label><input value={cihazEkleForm.pil} onChange={(e: any) =>setCihazEkleForm(p=>({...p,pil:e.target.value}))} placeholder="%100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">GRADE</label><select value={cihazEkleForm.grade} onChange={(e: any) =>setCihazEkleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500"><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option></select></div>
+              <div><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label><input value={cihazEkleForm.garanti} onChange={(e: any) =>setCihazEkleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
               {stockSourceBranch ? (
                 <div>
-                  <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">IMEI *</label>
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">IMEI *</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -3469,10 +3469,10 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   />
                 </div>
               ) : (
-                <div><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
+                <div><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">STOK ADET *</label><input type="number" min={1} value={cihazEkleForm.stokAdet} onChange={(e: any) =>setCihazEkleForm(p=>({...p,stokAdet:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" /></div>
               )}
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={(e: any) =>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={(e: any) =>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label><input value={cihazEkleForm.degisenParca} onChange={(e: any) =>setCihazEkleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label><input value={cihazEkleForm.kutuFatura} onChange={(e: any) =>setCihazEkleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" /></div>
             </div>
             <div className="mt-6 flex gap-3">
               <button onClick={()=>setCihazTalepDialog(null)} disabled={cihazEkleSaving} className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 disabled:opacity-50">VAZGEÇ</button>
@@ -3500,41 +3500,41 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
             <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-black text-slate-900">{cihazTalepDialog.markaModel} · {cihazTalepDialog.hafiza}</div>
               <div className="mt-1 font-mono text-xs font-bold text-slate-500">IMEI {cihazTalepDialog.imei}</div>
-              <div className="mt-2 text-[9px] font-black uppercase tracking-wider text-slate-400">Marka / model / hafıza / IMEI / mağaza bu ekrandan değişmez.</div>
+              <div className="mt-2 text-[11px] font-black uppercase tracking-wider text-slate-400">Marka / model / hafıza / IMEI / mağaza bu ekrandan değişmez.</div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">RENK</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">RENK</label>
                 <input value={cihazDuzenleForm.renk} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,renk:e.target.value.toUpperCase()}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black uppercase outline-none focus:border-blue-500 focus:bg-white" />
               </div>
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">PİL %</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">PİL %</label>
                 <input inputMode="numeric" maxLength={3} value={cihazDuzenleForm.pil} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,pil:String(e.target.value||'').replace(/\D/g,'').slice(0,3)}))} placeholder="100" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500 focus:bg-white" />
               </div>
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GRADE</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">GRADE</label>
                 <select value={cihazDuzenleForm.grade} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,grade:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black outline-none focus:border-blue-500">
                   <option value="">Seçin</option><option>OUTLET</option><option>İYİ</option><option>ÇOK İYİ</option><option>MÜKEMMEL</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">GARANTİ</label>
                 <input value={cihazDuzenleForm.garanti} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,garanti:e.target.value}))} placeholder="1 YIL" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label>
                 <input value={cihazDuzenleForm.degisenParca} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[9px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label>
+                <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label>
                 <input value={cihazDuzenleForm.kutuFatura} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
               </div>
             </div>
 
             {isSuperAdminUser && (
               <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4">
-                <div className="text-[9px] font-black uppercase tracking-widest text-red-500">SUPER ADMIN · TEST TEMİZLİĞİ</div>
+                <div className="text-[11px] font-black uppercase tracking-widest text-red-500">SUPER ADMIN · TEST TEMİZLİĞİ</div>
                 <div className="mt-1 text-[11px] font-semibold leading-5 text-red-700">
                   Yalnızca manuel eklenmiş test cihazlarını tamamen temizlemek için kullanın.
                   Gerçek WingSM cihazları bu işlemle silinemez.
@@ -3685,7 +3685,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     </div>
                   </div>
 
-                  <span className="w-fit rounded-full bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-white">
+                  <span className="w-fit rounded-full bg-emerald-600 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
                     {bulkCihazRows.length} KAYIT
                   </span>
                 </div>
@@ -3744,7 +3744,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                 </div>
 
                 {bulkCihazRows.length > 8 && (
-                  <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-center text-[9px] font-bold text-slate-400">
+                  <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-center text-[11px] font-bold text-slate-400">
                     Önizlemede ilk 8 kayıt gösteriliyor. Toplam {bulkCihazRows.length} cihaz yüklenecek.
                   </div>
                 )}
@@ -3920,7 +3920,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     </span>
                   </div>
                   <div>
-                    <span className="inline-flex rounded-lg border border-violet-100 bg-violet-50 px-2 py-1 text-[9px] font-black uppercase text-violet-700">
+                    <span className="inline-flex rounded-lg border border-violet-100 bg-violet-50 px-2 py-1 text-[11px] font-black uppercase text-violet-700">
                       {grade}
                     </span>
                   </div>
@@ -3931,14 +3931,14 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                     <button
                       disabled={isProcessing}
                       onClick={() => handleGonderildi(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-[11px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
                     >
                       {gonderildiLoadingIndex === rowIndex ? 'GÖNDERİLİYOR...' : 'GÖNDERİLDİ'}
                     </button>
                     <button
                       disabled={isProcessing}
                       onClick={() => handleTalepReddet(rowIndex, `${markaModel} (${hafiza})`, magazaAdi)}
-                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-[11px] font-black tracking-widest uppercase transition-all btn-click shadow-sm disabled:opacity-50 whitespace-nowrap"
                     >
                       {redLoadingIndex === rowIndex ? 'REDDEDİLİYOR...' : 'RED'}
                     </button>
@@ -3991,11 +3991,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       <div className="overflow-y-auto p-5 custom-scrollbar sm:p-7">
         <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4">
-            <div className="text-[9px] font-black uppercase tracking-widest text-violet-500">Bekleyen Transfer</div>
+            <div className="text-[11px] font-black uppercase tracking-widest text-violet-500">Bekleyen Transfer</div>
             <div className="mt-1 text-2xl font-black text-violet-800">{transferBekleyenTalepler.length}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
-            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Kural</div>
+            <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Kural</div>
             <div className="mt-1 text-xs font-bold leading-5 text-slate-600">
               Bu aşamada cihazın mağazası değişmez. WingSM aynı IMEI'nin hedef mağazaya transferini doğruladığında transfer tamamlanacak.
             </div>
@@ -4011,7 +4011,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
           <div className="overflow-x-auto rounded-[28px] border border-slate-200">
             <table className="w-full min-w-[980px] text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
                   <th className="px-5 py-4">IMEI</th>
                   <th className="px-5 py-4">Cihaz</th>
                   <th className="px-5 py-4">Hafıza</th>
@@ -4035,7 +4035,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       <td className="px-5 py-4 font-mono text-[11px] font-black text-slate-800">{request?.imei || '-'}</td>
                       <td className="px-5 py-4">
                         <div className="font-black text-slate-900">{markaModel}</div>
-                        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">İstek #{request?.request_id || '-'}</div>
+                        <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">İstek #{request?.request_id || '-'}</div>
                       </td>
                       <td className="px-5 py-4 font-bold text-slate-600">{request?.memory || '-'}</td>
                       <td className="px-5 py-4">
@@ -4047,7 +4047,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       </td>
                       <td className="px-5 py-4 font-bold text-slate-500">{formatTransferDate(request?.sent_at || request?.decision_at)}</td>
                       <td className="px-5 py-4 text-right">
-                        <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-violet-700">
+                        <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-violet-700">
                           WINGSM TRANSFERİ BEKLENİYOR
                         </span>
                       </td>
@@ -4158,7 +4158,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       <div className="overflow-y-auto p-5 custom-scrollbar sm:p-7">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">KAYIT SAYISI</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">KAYIT SAYISI</div>
             <div className="mt-1 text-2xl font-black text-slate-900">{hareketGecmisiRows.length}</div>
           </div>
           <div className="max-w-xl text-right text-[10px] font-semibold leading-5 text-slate-400">
@@ -4178,7 +4178,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
           <div className="overflow-x-auto rounded-[28px] border border-slate-200">
             <table className="w-full min-w-[1150px] text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
                   <th className="px-5 py-4">Tarih</th>
                   <th className="px-5 py-4">IMEI</th>
                   <th className="px-5 py-4">Cihaz</th>
@@ -4205,13 +4205,13 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       <td className="px-5 py-4 font-mono text-[11px] font-black text-slate-800">{event?.imei || '-'}</td>
                       <td className="px-5 py-4">
                         <div className="font-black text-slate-900">{deviceName}</div>
-                        <div className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{event?.memory || '-'}</div>
+                        <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">{event?.memory || '-'}</div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-wider ${getHistoryEventStyle(event?.event_type)}`}>
+                        <span className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wider ${getHistoryEventStyle(event?.event_type)}`}>
                           {getHistoryEventLabel(event?.event_type)}
                         </span>
-                        {reason && <div className="mt-1 max-w-[220px] text-[9px] font-semibold text-rose-500">{reason}</div>}
+                        {reason && <div className="mt-1 max-w-[220px] text-[11px] font-semibold text-rose-500">{reason}</div>}
                       </td>
                       <td className="px-5 py-4">
                         {from || to ? (

@@ -1242,7 +1242,7 @@ function ChannelBadge({
 
   return (
     <div
-      className={`inline-flex min-w-[104px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-[7px] font-black uppercase tracking-wide ${meta.className}`}
+      className={`inline-flex min-w-[104px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-[10px] font-black uppercase tracking-wide ${meta.className}`}
       title={`${channel}: ${meta.label}`}
     >
       <span>
@@ -3764,7 +3764,7 @@ export default function Merkez() {
         <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-950 px-6 py-7 text-white sm:px-8">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/70">
+              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200/70">
                 Entegrasyonlar / Merkez
               </div>
 
@@ -3773,7 +3773,7 @@ export default function Merkez() {
                   Merkezi IMEI Stok
                 </h2>
 
-                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[8px] font-black uppercase text-cyan-100">
+                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black uppercase text-cyan-100">
                   ADIM 1
                 </span>
               </div>
@@ -3785,10 +3785,10 @@ export default function Merkez() {
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                   Son Okuma
                 </div>
-                <div className="mt-0.5 text-[9px] font-black text-white">
+                <div className="mt-0.5 text-[11px] font-black text-white">
                   {formatDateTime(
                     center.data
                       ?.checkedAt
@@ -3803,7 +3803,7 @@ export default function Merkez() {
                   setAddSuccess("");
                   setAddOpen(true);
                 }}
-                className="h-10 rounded-xl border border-white/15 bg-white px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
+                className="h-10 rounded-xl border border-white/15 bg-white px-4 text-[10px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
               >
                 + Cihaz Ekle
               </button>
@@ -3818,7 +3818,7 @@ export default function Merkez() {
                   );
                   setBulkOpen(true);
                 }}
-                className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-white/15"
+                className="h-10 rounded-xl border border-white/15 bg-white/10 px-4 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-white/15"
               >
                 + Toplu Cihaz Ekle
               </button>
@@ -3854,7 +3854,7 @@ export default function Merkez() {
                   );
                   excelInputRef.current?.click();
                 }}
-                className="h-10 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 text-[8px] font-black uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-400/15"
+                className="h-10 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-4 text-[10px] font-black uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-400/15"
               >
                 Excel ile Yükle
               </button>
@@ -3867,7 +3867,7 @@ export default function Merkez() {
                 disabled={
                   center.loading
                 }
-                className="h-10 rounded-xl bg-cyan-500 px-4 text-[8px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-50"
+                className="h-10 rounded-xl bg-cyan-500 px-4 text-[10px] font-black uppercase tracking-wide text-slate-950 transition hover:bg-cyan-400 disabled:cursor-wait disabled:opacity-50"
               >
                 {center.loading
                   ? "Yenileniyor..."
@@ -3878,7 +3878,7 @@ export default function Merkez() {
         </div>
 
         {center.error && (
-          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[9px] font-black text-rose-700 sm:px-6">
+          <div className="border-b border-rose-200 bg-rose-50 px-5 py-3 text-[11px] font-black text-rose-700 sm:px-6">
             {center.error}
           </div>
         )}
@@ -3886,7 +3886,7 @@ export default function Merkez() {
         {!center.data
           ?.channelMembershipTableReady &&
           center.success && (
-            <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-[8px] font-bold text-amber-800 sm:px-6">
+            <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-[10px] font-bold text-amber-800 sm:px-6">
               Kanal IMEI üyelik tablosu bulunamadı. N11 durumları eski availableImeis kayıtlarından okunuyor; İkas/İdefix üyelikleri için ADIM 8 migration gerekir.
             </div>
           )}
@@ -3907,7 +3907,7 @@ export default function Merkez() {
                     : "border-slate-200 bg-white"
                 }`}
               >
-                <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                   {card.label}
                 </div>
 
@@ -3915,7 +3915,7 @@ export default function Merkez() {
                   {card.value}
                 </div>
 
-                <div className="mt-1 text-[8px] font-semibold text-slate-400">
+                <div className="mt-1 text-[10px] font-semibold text-slate-400">
                   {card.detail}
                 </div>
               </div>
@@ -3933,7 +3933,7 @@ export default function Merkez() {
                     true
                   )
                 }
-                className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
+                className={`rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wide ${
                   onlyAvailable
                     ? "bg-slate-950 text-white"
                     : "border border-slate-200 bg-white text-slate-500"
@@ -3949,7 +3949,7 @@ export default function Merkez() {
                     false
                   )
                 }
-                className={`rounded-xl px-3 py-2 text-[8px] font-black uppercase tracking-wide ${
+                className={`rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wide ${
                   !onlyAvailable
                     ? "bg-slate-950 text-white"
                     : "border border-slate-200 bg-white text-slate-500"
@@ -3958,7 +3958,7 @@ export default function Merkez() {
                 Tüm Durumlar
               </button>
 
-              <span className="rounded-full bg-white px-2.5 py-1.5 text-[8px] font-black text-slate-500 ring-1 ring-slate-200">
+              <span className="rounded-full bg-white px-2.5 py-1.5 text-[10px] font-black text-slate-500 ring-1 ring-slate-200">
                 Ürün Grubu:{" "}
                 {
                   visibleGroups.length
@@ -3992,7 +3992,7 @@ export default function Merkez() {
                   )
                 }
                 placeholder="IMEI, ürün, renk, mağaza ara..."
-                className="h-10 w-[320px] max-w-[75vw] rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[9px] font-semibold text-slate-700 outline-none transition focus:border-cyan-400"
+                className="h-10 w-[320px] max-w-[75vw] rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[11px] font-semibold text-slate-700 outline-none transition focus:border-cyan-400"
               />
             </div>
           </div>
@@ -4000,7 +4000,7 @@ export default function Merkez() {
           {selectedDeviceIds.length > 0 && (
             <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/70 px-5 py-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-blue-600 px-3 py-1.5 text-[8px] font-black uppercase text-white">
+                <span className="rounded-full bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase text-white">
                   {selectedDeviceIds.length} IMEI Seçildi
                 </span>
 
@@ -4014,7 +4014,7 @@ export default function Merkez() {
                       null
                     );
                   }}
-                  className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-[8px] font-black uppercase text-blue-700"
+                  className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-blue-700"
                 >
                   Seçimi Temizle
                 </button>
@@ -4028,7 +4028,7 @@ export default function Merkez() {
                       "N11"
                     )
                   }
-                  className="h-10 rounded-xl bg-slate-950 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
+                  className="h-10 rounded-xl bg-slate-950 px-4 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-slate-800"
                 >
                   N11'e Hazırla
                 </button>
@@ -4040,7 +4040,7 @@ export default function Merkez() {
                       "IKAS"
                     )
                   }
-                  className="h-10 rounded-xl bg-blue-600 px-4 text-[8px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
+                  className="h-10 rounded-xl bg-blue-600 px-4 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-blue-700"
                 >
                   İkas'a Hazırla
                 </button>
@@ -4052,7 +4052,7 @@ export default function Merkez() {
                       "IDEFIX"
                     )
                   }
-                  className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-4 text-[8px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
+                  className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-4 text-[10px] font-black uppercase tracking-wide text-violet-700 transition hover:bg-violet-100"
                 >
                   İdefix'e Hazırla
                 </button>
@@ -4067,7 +4067,7 @@ export default function Merkez() {
                 Merkezi IMEI stoğu okunuyor...
               </div>
 
-              <div className="mt-2 text-[9px] font-semibold text-slate-400">
+              <div className="mt-2 text-[11px] font-semibold text-slate-400">
                 stock_devices ve kanal üyelikleri birleştiriliyor.
               </div>
             </div>
@@ -4078,7 +4078,7 @@ export default function Merkez() {
                 Cihaz bulunamadı
               </div>
 
-              <div className="mt-2 text-[9px] font-semibold text-slate-400">
+              <div className="mt-2 text-[11px] font-semibold text-slate-400">
                 Filtreyi veya aramayı değiştir.
               </div>
             </div>
@@ -4117,26 +4117,26 @@ export default function Merkez() {
                           </div>
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black text-slate-600">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">
                               {group.memory}
                             </span>
 
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[7px] font-black text-slate-600">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">
                               {group.color}
                             </span>
 
-                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[7px] font-black text-violet-700">
+                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">
                               Grade {group.grade}
                             </span>
 
-                            <span className="rounded-full bg-blue-100 px-2 py-1 text-[7px] font-black text-blue-700">
+                            <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black text-blue-700">
                               {group.warranty}
                             </span>
                           </div>
                         </div>
 
                         <div>
-                          <div className="text-[7px] font-black uppercase text-slate-400">
+                          <div className="text-[10px] font-black uppercase text-slate-400">
                             IMEI
                           </div>
                           <div className="mt-1 text-[13px] font-black text-slate-900">
@@ -4161,7 +4161,7 @@ export default function Merkez() {
                                 channel
                               }
                             >
-                              <div className="text-[7px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 {
                                   channel ===
                                   "IKAS"
@@ -4214,7 +4214,7 @@ export default function Merkez() {
                       {open && (
                         <>
                           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                            <div className="text-[8px] font-bold text-slate-500">
+                            <div className="text-[10px] font-bold text-slate-500">
                               Kanal gönderimi için yalnızca AVAILABLE IMEI'ler seçilebilir.
                             </div>
 
@@ -4260,7 +4260,7 @@ export default function Merkez() {
                                     null
                                   );
                                 }}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-600"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-600"
                               >
                                 AVAILABLE Tümünü Seç
                               </button>
@@ -4300,7 +4300,7 @@ export default function Merkez() {
                                     null
                                   );
                                 }}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[7px] font-black uppercase text-slate-500"
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500"
                               >
                                 Grup Seçimini Kaldır
                               </button>
@@ -4309,7 +4309,7 @@ export default function Merkez() {
 
                           <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
                           <div className="min-w-[1040px]">
-                            <div className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                            <div className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
                               <div>
                                 Seç
                               </div>
@@ -4358,7 +4358,7 @@ export default function Merkez() {
                                     key={
                                       device.id
                                     }
-                                    className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0"
+                                    className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[10px] last:border-0"
                                   >
                                     <div>
                                       <input
@@ -4413,7 +4413,7 @@ export default function Merkez() {
                                           "-"}
                                       </div>
 
-                                      <div className="mt-1 text-[7px] font-bold text-slate-400">
+                                      <div className="mt-1 text-[10px] font-bold text-slate-400">
                                         {device
                                           ?.memory ||
                                           "-"}{" "}
@@ -4430,7 +4430,7 @@ export default function Merkez() {
 
                                     <div>
                                       <span
-                                        className={`inline-flex rounded-full px-2 py-1 text-[7px] font-black uppercase ${deviceMeta.className}`}
+                                        className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black uppercase ${deviceMeta.className}`}
                                       >
                                         {
                                           deviceMeta.label
@@ -4483,7 +4483,7 @@ export default function Merkez() {
           )}
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[8px] font-bold text-slate-400 sm:px-6">
+        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-bold text-slate-400 sm:px-6">
           MERKEZ · N11 + İkas + İdefix gerçek gönderim aktif
         </div>
       </div>
@@ -4504,7 +4504,7 @@ export default function Merkez() {
           <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
               <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
                   Merkez · Kanal Gönderim Merkezi
                 </div>
 
@@ -4514,7 +4514,7 @@ export default function Merkez() {
                   )} Ön Kontrol
                 </h3>
 
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
                   N11 ve İkas'ta ön kontrol kullanılabilir. İdefix'te kontroller gönderim sırasında otomatik çalışır; ayrı ön kontrol gerekmez.
                 </p>
               </div>
@@ -4540,13 +4540,13 @@ export default function Merkez() {
 
             <div className="space-y-5 px-5 py-6 sm:px-7">
               {channelError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {channelError}
                 </div>
               )}
 
               <div>
-                <div className="mb-2 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">
                   Kanal
                 </div>
 
@@ -4599,7 +4599,7 @@ export default function Merkez() {
                             false
                           );
                         }}
-                        className={`h-12 rounded-xl border text-[9px] font-black uppercase transition ${
+                        className={`h-12 rounded-xl border text-[11px] font-black uppercase transition ${
                           sendChannel ===
                           channel
                             ? "border-blue-600 bg-blue-600 text-white"
@@ -4617,7 +4617,7 @@ export default function Merkez() {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-[7px] font-black uppercase text-slate-400">
+                  <div className="text-[10px] font-black uppercase text-slate-400">
                     Seçili IMEI
                   </div>
                   <div className="mt-1 text-2xl font-black text-slate-950">
@@ -4628,7 +4628,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Satış Fiyatı
                   </label>
                   <input
@@ -4653,7 +4653,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Liste Fiyatı
                   </label>
                   <input
@@ -4687,7 +4687,7 @@ export default function Merkez() {
                   )
                 ) && (
                 <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-violet-700">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-violet-700">
                     İdefix Katalog Barkodu · Sadece İlk Eşleştirme
                   </label>
                   <input
@@ -4713,7 +4713,7 @@ export default function Merkez() {
                     placeholder="Katalogda mevcut üründe global barkod"
                     className="h-12 w-full rounded-xl border border-violet-200 bg-white px-4 text-[10px] font-black text-slate-800 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
                   />
-                  <div className="mt-2 text-[7px] font-bold leading-4 text-violet-700">
+                  <div className="mt-2 text-[10px] font-bold leading-4 text-violet-700">
                     Bu alan yalnızca ürün CNETMOBİL İdefix havuzunda ilk kez açılırken görünür. Bir kez doğru katalog barkoduyla eşleşince sistem kaydeder; sonraki aynı model/hafıza/renk/kalite cihazlarda N11 gibi otomatik kullanır.
                   </div>
                 </div>
@@ -4723,7 +4723,7 @@ export default function Merkez() {
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
+                      <div className="text-[10px] font-black uppercase text-slate-400">
                         Toplam
                       </div>
                       <div className="mt-1 text-xl font-black text-slate-900">
@@ -4734,7 +4734,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                      <div className="text-[10px] font-black uppercase text-emerald-600">
                         Gönderilebilir
                       </div>
                       <div className="mt-1 text-xl font-black text-emerald-700">
@@ -4745,7 +4745,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
+                      <div className="text-[10px] font-black uppercase text-rose-600">
                         Engelli
                       </div>
                       <div className="mt-1 text-xl font-black text-rose-700">
@@ -4757,7 +4757,7 @@ export default function Merkez() {
                   </div>
 
                   <div className="border-t border-slate-200 bg-white px-4 py-3">
-                    <div className="flex flex-wrap gap-2 text-[8px] font-black">
+                    <div className="flex flex-wrap gap-2 text-[10px] font-black">
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
                         {channelLabel(
                           channelPreview.channel
@@ -4792,12 +4792,12 @@ export default function Merkez() {
                           }`}
                         >
                           <div>
-                            <div className="font-mono text-[8px] font-black text-slate-900">
+                            <div className="font-mono text-[10px] font-black text-slate-900">
                               {
                                 item.imei
                               }
                             </div>
-                            <div className="mt-1 text-[7px] font-bold text-slate-400">
+                            <div className="mt-1 text-[10px] font-bold text-slate-400">
                               {
                                 item.status
                               }
@@ -4805,7 +4805,7 @@ export default function Merkez() {
                           </div>
 
                           <div>
-                            <div className="text-[8px] font-black text-slate-800">
+                            <div className="text-[10px] font-black text-slate-800">
                               {item.brand}{" "}
                               {item.model} ·{" "}
                               {item.memory} ·{" "}
@@ -4824,7 +4824,7 @@ export default function Merkez() {
                                       key={
                                         index
                                       }
-                                      className="text-[7px] font-bold text-rose-700"
+                                      className="text-[10px] font-bold text-rose-700"
                                     >
                                       •{" "}
                                       {
@@ -4839,7 +4839,7 @@ export default function Merkez() {
 
                           <div className="text-right">
                             <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
                                 item.eligible
                                   ? "bg-emerald-100 text-emerald-700"
                                   : "bg-rose-100 text-rose-700"
@@ -4859,13 +4859,13 @@ export default function Merkez() {
 
               {channelPreview?.canProceed && (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
+                  <div className="text-[11px] font-black text-emerald-800">
                     ✓ Tüm IMEI'ler {channelLabel(
                       sendChannel
                     )} gönderimine hazır.
                   </div>
 
-                  <div className="mt-1 text-[7px] font-semibold leading-4 text-emerald-700">
+                  <div className="mt-1 text-[10px] font-semibold leading-4 text-emerald-700">
                     {sendChannel ===
                     "N11"
                       ? "N11 için gerçek gönderim aktif. Gönderim öncesi kontrol tekrar yapılır ve mevcut çalışan N11 motoru kullanılır."
@@ -4879,7 +4879,7 @@ export default function Merkez() {
 
               {n11SendNotice && (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
+                  <div className="text-[11px] font-black text-emerald-800">
                     ✓ {n11SendNotice}
                   </div>
                 </div>
@@ -4887,7 +4887,7 @@ export default function Merkez() {
 
               {ikasSendNotice && (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-emerald-800">
+                  <div className="text-[11px] font-black text-emerald-800">
                     ✓ {ikasSendNotice}
                   </div>
                 </div>
@@ -4895,7 +4895,7 @@ export default function Merkez() {
 
               {idefixSendNotice && (
                 <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
-                  <div className="text-[9px] font-black text-violet-800">
+                  <div className="text-[11px] font-black text-violet-800">
                     ✓ {idefixSendNotice}
                   </div>
                 </div>
@@ -4904,7 +4904,7 @@ export default function Merkez() {
               {idefixSendResults.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">
                       Gerçek İdefix Gönderim Sonucu
                     </div>
                   </div>
@@ -4935,21 +4935,21 @@ export default function Merkez() {
                           >
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                               <div>
-                                <div className="text-[9px] font-black text-slate-900">
+                                <div className="text-[11px] font-black text-slate-900">
                                   {result.title}
                                 </div>
 
-                                <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                <div className="mt-1 text-[10px] font-bold text-slate-500">
                                   {result.color} · Barkod {result.barcode || "-"}
                                 </div>
 
-                                <div className="mt-1 text-[7px] font-bold text-slate-500">
+                                <div className="mt-1 text-[10px] font-bold text-slate-500">
                                   IMEI: {result.addedImeis.join(", ")}
                                 </div>
                               </div>
 
                               <span
-                                className={`inline-flex self-start rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                                className={`inline-flex self-start rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
                                   pending
                                     ? "bg-amber-100 text-amber-700"
                                     : "bg-emerald-100 text-emerald-700"
@@ -4966,7 +4966,7 @@ export default function Merkez() {
                                 <div className="text-[6px] font-black uppercase text-slate-400">
                                   İşlem
                                 </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                <div className="mt-1 text-[10px] font-black text-slate-700">
                                   {result.action ===
                                   "FAST_LISTING"
                                     ? "Hızlı Katalog"
@@ -4981,7 +4981,7 @@ export default function Merkez() {
                                 <div className="text-[6px] font-black uppercase text-slate-400">
                                   Stok
                                 </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                <div className="mt-1 text-[10px] font-black text-slate-700">
                                   {result.beforeStock} → {result.afterStock}
                                 </div>
                               </div>
@@ -4991,7 +4991,7 @@ export default function Merkez() {
                                   Durum
                                 </div>
                                 <div
-                                  className={`mt-1 text-[7px] font-black ${
+                                  className={`mt-1 text-[10px] font-black ${
                                     pending
                                       ? "text-amber-700"
                                       : "text-emerald-700"
@@ -5007,14 +5007,14 @@ export default function Merkez() {
                                 <div className="text-[6px] font-black uppercase text-slate-400">
                                   Listing
                                 </div>
-                                <div className="mt-1 text-[7px] font-black text-slate-700">
+                                <div className="mt-1 text-[10px] font-black text-slate-700">
                                   #{result.listingId || "-"}
                                 </div>
                               </div>
                             </div>
 
                             {result.message && (
-                              <div className="mt-2 text-[7px] font-bold text-slate-500">
+                              <div className="mt-2 text-[10px] font-bold text-slate-500">
                                 {result.message}
                               </div>
                             )}
@@ -5029,7 +5029,7 @@ export default function Merkez() {
               {ikasSendResults.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">
                       Gerçek İkas Gönderim Sonucu
                     </div>
                   </div>
@@ -5046,20 +5046,20 @@ export default function Merkez() {
                         >
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <div className="text-[9px] font-black text-slate-900">
+                              <div className="text-[11px] font-black text-slate-900">
                                 {result.title}
                               </div>
 
-                              <div className="mt-1 text-[7px] font-bold text-slate-500">
+                              <div className="mt-1 text-[10px] font-bold text-slate-500">
                                 {result.color} · SKU {result.sku || "-"}
                               </div>
 
-                              <div className="mt-1 text-[7px] font-bold text-slate-500">
+                              <div className="mt-1 text-[10px] font-bold text-slate-500">
                                 IMEI: {result.addedImeis.join(", ")}
                               </div>
                             </div>
 
-                            <span className="inline-flex self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[7px] font-black uppercase text-emerald-700">
+                            <span className="inline-flex self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">
                               Gönderildi
                             </span>
                           </div>
@@ -5069,7 +5069,7 @@ export default function Merkez() {
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 İşlem
                               </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                              <div className="mt-1 text-[10px] font-black text-slate-700">
                                 {result.action === "CREATE_PRODUCT"
                                   ? "Yeni Ürün"
                                   : result.action === "ADD_VARIANT"
@@ -5082,7 +5082,7 @@ export default function Merkez() {
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 Stok
                               </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                              <div className="mt-1 text-[10px] font-black text-slate-700">
                                 {result.beforeStock} → {result.afterStock}
                               </div>
                             </div>
@@ -5091,7 +5091,7 @@ export default function Merkez() {
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 Satış
                               </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                              <div className="mt-1 text-[10px] font-black text-slate-700">
                                 {formatMoney(result.salePrice)}
                               </div>
                             </div>
@@ -5100,7 +5100,7 @@ export default function Merkez() {
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 Liste
                               </div>
-                              <div className="mt-1 text-[7px] font-black text-slate-700">
+                              <div className="mt-1 text-[10px] font-black text-slate-700">
                                 {formatMoney(result.listPrice)}
                               </div>
                             </div>
@@ -5109,7 +5109,7 @@ export default function Merkez() {
                               <div className="text-[6px] font-black uppercase text-slate-400">
                                 Satış Kanalı
                               </div>
-                              <div className="mt-1 text-[7px] font-black text-emerald-700">
+                              <div className="mt-1 text-[10px] font-black text-emerald-700">
                                 {result.salesChannelVisibility?.status === "VISIBLE"
                                   ? `Açık · ${result.salesChannelVisibility?.name || "İkas"}`
                                   : "-"}
@@ -5126,7 +5126,7 @@ export default function Merkez() {
               {n11SendResults.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-[8px] font-black uppercase tracking-wide text-slate-600">
+                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">
                       Gerçek N11 Gönderim Sonucu
                     </div>
                   </div>
@@ -5147,7 +5147,7 @@ export default function Merkez() {
                               : "bg-rose-50/50"
                           }`}
                         >
-                          <div className="font-mono text-[8px] font-black text-slate-900">
+                          <div className="font-mono text-[10px] font-black text-slate-900">
                             {
                               result.imei
                             }
@@ -5155,7 +5155,7 @@ export default function Merkez() {
 
                           <div>
                             <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ${
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
                                 result.success
                                   ? result.status ===
                                     "LISTED"
@@ -5173,7 +5173,7 @@ export default function Merkez() {
                             </span>
                           </div>
 
-                          <div className="text-[8px] font-bold text-slate-600">
+                          <div className="text-[10px] font-bold text-slate-600">
                             {
                               result.message
                             }
@@ -5186,10 +5186,10 @@ export default function Merkez() {
               )}
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <div className="text-[8px] font-black text-amber-800">
+                <div className="text-[10px] font-black text-amber-800">
                   Tekrar gönderme koruması aktif
                 </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-amber-700">
+                <div className="mt-1 text-[10px] font-semibold leading-4 text-amber-700">
                   Aynı IMEI bu kanalda online_channel_devices, bağlı listing veya eski N11 IMEI havuzunda bulunursa ön kontrol engeller.
                 </div>
               </div>
@@ -5209,7 +5209,7 @@ export default function Merkez() {
                     false
                   )
                 }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[10px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
               >
                 Kapat
               </button>
@@ -5226,7 +5226,7 @@ export default function Merkez() {
                   onClick={() => {
                     void runChannelPreview();
                   }}
-                  className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+                  className="h-11 rounded-xl bg-blue-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
                 >
                   {channelLoading
                     ? "Kontrol Ediliyor..."
@@ -5248,7 +5248,7 @@ export default function Merkez() {
                   onClick={() => {
                     void sendSelectedToN11();
                   }}
-                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {n11Sending
                     ? "N11'e Gönderiliyor..."
@@ -5270,7 +5270,7 @@ export default function Merkez() {
                   onClick={() => {
                     void sendSelectedToIkas();
                   }}
-                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="h-11 rounded-xl bg-emerald-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {ikasSending
                     ? "İkas'a Gönderiliyor..."
@@ -5292,7 +5292,7 @@ export default function Merkez() {
                   onClick={() => {
                     void sendSelectedToIdefix();
                   }}
-                  className="h-11 rounded-xl bg-violet-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="h-11 rounded-xl bg-violet-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {idefixSending
                     ? "İdefix'e Gönderiliyor..."
@@ -5320,7 +5320,7 @@ export default function Merkez() {
           <div className="my-4 w-full max-w-[1100px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
               <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">
                   Online · Merkez
                 </div>
 
@@ -5328,7 +5328,7 @@ export default function Merkez() {
                   Excel ile Cihaz Yükle
                 </h3>
 
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
                   Aynı Excel içinde farklı marka, model, hafıza, renk ve grade cihazlar olabilir. Önce tüm satırlar kontrol edilir.
                 </p>
               </div>
@@ -5347,26 +5347,26 @@ export default function Merkez() {
 
             <div className="space-y-5 px-5 py-6 sm:px-7">
               {excelError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {excelError}
                 </div>
               )}
 
               {excelSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700">
                   ✓ {excelSuccess}
                 </div>
               )}
 
               <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                     Seçili Dosya
                   </div>
                   <div className="mt-1 text-[10px] font-black text-slate-800">
                     {excelFileName || "Dosya seçilmedi"}
                   </div>
-                  <div className="mt-1 text-[8px] font-semibold text-slate-500">
+                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
                     Okunan cihaz satırı: {excelRows.length}
                   </div>
                 </div>
@@ -5377,7 +5377,7 @@ export default function Merkez() {
                   onClick={() =>
                     excelInputRef.current?.click()
                   }
-                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[8px] font-black uppercase text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black uppercase text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
                 >
                   Başka Excel Seç
                 </button>
@@ -5387,7 +5387,7 @@ export default function Merkez() {
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="overflow-x-auto">
                     <div className="min-w-[930px]">
-                      <div className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
                         <div>Satır</div>
                         <div>IMEI</div>
                         <div>Marka</div>
@@ -5407,7 +5407,7 @@ export default function Merkez() {
                           (row) => (
                             <div
                               key={`${row.rowNumber}-${row.imei}`}
-                              className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-100 px-3 py-2.5 text-[8px] last:border-0"
+                              className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-100 px-3 py-2.5 text-[10px] last:border-0"
                             >
                               <div className="font-black text-slate-400">
                                 {row.rowNumber}
@@ -5438,7 +5438,7 @@ export default function Merkez() {
                         )}
 
                       {excelRows.length > 12 && (
-                        <div className="bg-slate-50 px-4 py-3 text-center text-[8px] font-black text-slate-500">
+                        <div className="bg-slate-50 px-4 py-3 text-center text-[10px] font-black text-slate-500">
                           + {excelRows.length - 12} satır daha
                         </div>
                       )}
@@ -5451,7 +5451,7 @@ export default function Merkez() {
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
+                      <div className="text-[10px] font-black uppercase text-slate-400">
                         Toplam
                       </div>
                       <div className="mt-1 text-xl font-black text-slate-900">
@@ -5460,7 +5460,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                      <div className="text-[10px] font-black uppercase text-emerald-600">
                         Geçerli
                       </div>
                       <div className="mt-1 text-xl font-black text-emerald-700">
@@ -5469,7 +5469,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
+                      <div className="text-[10px] font-black uppercase text-rose-600">
                         Hatalı
                       </div>
                       <div className="mt-1 text-xl font-black text-rose-700">
@@ -5489,13 +5489,13 @@ export default function Merkez() {
                             key={`${item.rowNumber}-${item.imei}-${index}`}
                             className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[70px_170px_1fr]"
                           >
-                            <div className="text-[8px] font-black text-rose-500">
+                            <div className="text-[10px] font-black text-rose-500">
                               Satır {item.rowNumber || "-"}
                             </div>
-                            <div className="font-mono text-[8px] font-black text-rose-800">
+                            <div className="font-mono text-[10px] font-black text-rose-800">
                               {item.imei || "-"}
                             </div>
-                            <div className="text-[8px] font-bold text-rose-700">
+                            <div className="text-[10px] font-bold text-rose-700">
                               {item.reason}
                             </div>
                           </div>
@@ -5503,7 +5503,7 @@ export default function Merkez() {
                       )}
                     </div>
                   ) : (
-                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
+                    <div className="bg-emerald-50 px-4 py-3 text-[10px] font-black text-emerald-700">
                       ✓ Excel'deki tüm cihazlar temiz. Kayıt yapılabilir.
                     </div>
                   )}
@@ -5511,10 +5511,10 @@ export default function Merkez() {
               )}
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
+                <div className="text-[10px] font-black text-slate-700">
                   Zorunlu Excel kolonları
                 </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                <div className="mt-1 text-[10px] font-semibold leading-4 text-slate-500">
                   IMEI · Marka · Model · Hafıza · Renk · Grade · Garanti. Durum, mağaza, pil, fiyat, değişen parça ve kutu/fatura bu dosyada kullanılmaz.
                 </div>
               </div>
@@ -5527,7 +5527,7 @@ export default function Merkez() {
                 onClick={() =>
                   setExcelOpen(false)
                 }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[10px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
               >
                 Vazgeç
               </button>
@@ -5544,7 +5544,7 @@ export default function Merkez() {
                     "preview"
                   );
                 }}
-                className="h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-6 text-[8px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-50"
+                className="h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-6 text-[10px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-50"
               >
                 {excelLoading
                   ? "Kontrol Ediliyor..."
@@ -5562,7 +5562,7 @@ export default function Merkez() {
                     "commit"
                   );
                 }}
-                className="h-11 rounded-xl bg-emerald-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="h-11 rounded-xl bg-emerald-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 {excelLoading
                   ? "Kaydediliyor..."
@@ -5591,7 +5591,7 @@ export default function Merkez() {
           <div className="my-4 w-full max-w-[1040px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
               <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
                   Online · Merkez
                 </div>
 
@@ -5599,7 +5599,7 @@ export default function Merkez() {
                   Toplu Cihaz Ekle
                 </h3>
 
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
                   Ortak ürün bilgilerini bir kez gir, IMEI'leri topluca yapıştır. Önce kontrol edilir; hata varsa hiçbir cihaz kaydedilmez.
                 </p>
               </div>
@@ -5618,20 +5618,20 @@ export default function Merkez() {
 
             <div className="space-y-5 px-5 py-6 sm:px-7">
               {bulkError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {bulkError}
                 </div>
               )}
 
               {bulkSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700">
                   ✓ {bulkSuccess}
                 </div>
               )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Marka
                   </label>
                   <input
@@ -5649,7 +5649,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Model
                   </label>
                   <input
@@ -5667,7 +5667,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Hafıza
                   </label>
                   <input
@@ -5685,7 +5685,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Renk
                   </label>
                   <input
@@ -5703,7 +5703,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Grade
                   </label>
                   <select
@@ -5721,13 +5721,13 @@ export default function Merkez() {
                     <option value="B">B</option>
                     <option value="C">C</option>
                   </select>
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                  <div className="mt-1.5 text-[10px] font-bold text-slate-400">
                     A → Mükemmel · B → Çok İyi · C → İyi
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Garanti
                   </label>
                   <input
@@ -5747,11 +5747,11 @@ export default function Merkez() {
 
               <div>
                 <div className="mb-2 flex items-end justify-between gap-3">
-                  <label className="block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     IMEI Listesi
                   </label>
 
-                  <span className="text-[7px] font-bold text-slate-400">
+                  <span className="text-[10px] font-bold text-slate-400">
                     Her satıra 1 IMEI · En fazla 500
                   </span>
                 </div>
@@ -5779,7 +5779,7 @@ export default function Merkez() {
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-slate-400">
+                      <div className="text-[10px] font-black uppercase text-slate-400">
                         Toplam
                       </div>
                       <div className="mt-1 text-xl font-black text-slate-900">
@@ -5788,7 +5788,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-emerald-600">
+                      <div className="text-[10px] font-black uppercase text-emerald-600">
                         Geçerli
                       </div>
                       <div className="mt-1 text-xl font-black text-emerald-700">
@@ -5797,7 +5797,7 @@ export default function Merkez() {
                     </div>
 
                     <div className="p-4 text-center">
-                      <div className="text-[7px] font-black uppercase text-rose-600">
+                      <div className="text-[10px] font-black uppercase text-rose-600">
                         Hatalı
                       </div>
                       <div className="mt-1 text-xl font-black text-rose-700">
@@ -5817,10 +5817,10 @@ export default function Merkez() {
                             key={`${item.imei}-${index}`}
                             className="grid gap-1 bg-rose-50/60 px-4 py-3 sm:grid-cols-[170px_1fr]"
                           >
-                            <div className="font-mono text-[8px] font-black text-rose-800">
+                            <div className="font-mono text-[10px] font-black text-rose-800">
                               {item.imei || "Boş"}
                             </div>
-                            <div className="text-[8px] font-bold text-rose-700">
+                            <div className="text-[10px] font-bold text-rose-700">
                               {item.reason}
                             </div>
                           </div>
@@ -5828,7 +5828,7 @@ export default function Merkez() {
                       )}
                     </div>
                   ) : (
-                    <div className="bg-emerald-50 px-4 py-3 text-[8px] font-black text-emerald-700">
+                    <div className="bg-emerald-50 px-4 py-3 text-[10px] font-black text-emerald-700">
                       ✓ Tüm IMEI'ler temiz. Toplu kayıt yapılabilir.
                     </div>
                   )}
@@ -5836,10 +5836,10 @@ export default function Merkez() {
               )}
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
+                <div className="text-[10px] font-black text-slate-700">
                   Güvenli toplu kayıt
                 </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                <div className="mt-1 text-[10px] font-semibold leading-4 text-slate-500">
                   Önizlemede hatalı veya daha önce kayıtlı tek bir IMEI bile varsa toplu kayıt açılmaz. Kayıt anında da tekrar kontrol edilir ve işlem tek transaction içinde tamamlanır.
                 </div>
               </div>
@@ -5852,7 +5852,7 @@ export default function Merkez() {
                 onClick={() =>
                   setBulkOpen(false)
                 }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[10px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
               >
                 Vazgeç
               </button>
@@ -5865,7 +5865,7 @@ export default function Merkez() {
                     "preview"
                   );
                 }}
-                className="h-11 rounded-xl border border-blue-200 bg-blue-50 px-6 text-[8px] font-black uppercase tracking-wide text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-50"
+                className="h-11 rounded-xl border border-blue-200 bg-blue-50 px-6 text-[10px] font-black uppercase tracking-wide text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-50"
               >
                 {bulkLoading
                   ? "Kontrol Ediliyor..."
@@ -5883,7 +5883,7 @@ export default function Merkez() {
                     "commit"
                   );
                 }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="h-11 rounded-xl bg-blue-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 {bulkLoading
                   ? "Kaydediliyor..."
@@ -5913,7 +5913,7 @@ export default function Merkez() {
           <div className="my-4 w-full max-w-[980px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-5 border-b border-slate-200 px-5 py-5 sm:px-7">
               <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-blue-600">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
                   Online · Merkez
                 </div>
 
@@ -5921,7 +5921,7 @@ export default function Merkez() {
                   Cihaz Ekle
                 </h3>
 
-                <p className="mt-1 text-[9px] font-semibold leading-5 text-slate-500">
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
                   Cihaz bilgilerini gir. Kayıt yalnızca Merkez stoğuna eklenir; N11, İkas veya başka bir kanala gönderilmez.
                 </p>
               </div>
@@ -5940,19 +5940,19 @@ export default function Merkez() {
 
             <div className="space-y-5 px-5 py-6 sm:px-7">
               {addError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {addError}
                 </div>
               )}
 
               {addSuccess && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700">
                   ✓ {addSuccess}
                 </div>
               )}
 
               <div>
-                <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                   IMEI
                 </label>
 
@@ -5981,7 +5981,7 @@ export default function Merkez() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Marka
                   </label>
 
@@ -6002,7 +6002,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Model
                   </label>
 
@@ -6023,7 +6023,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Hafıza
                   </label>
 
@@ -6044,7 +6044,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Renk
                   </label>
 
@@ -6065,7 +6065,7 @@ export default function Merkez() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Grade
                   </label>
 
@@ -6097,13 +6097,13 @@ export default function Merkez() {
                     </option>
                   </select>
 
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                  <div className="mt-1.5 text-[10px] font-bold text-slate-400">
                     A → Mükemmel · B → Çok İyi · C → İyi
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase tracking-wide text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Garanti
                   </label>
 
@@ -6122,17 +6122,17 @@ export default function Merkez() {
                     className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-bold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                   />
 
-                  <div className="mt-1.5 text-[7px] font-bold text-slate-400">
+                  <div className="mt-1.5 text-[10px] font-bold text-slate-400">
                     12 AY / 12 Ay / 1 Yıl → 12 Ay olarak standartlaştırılır.
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[8px] font-black text-slate-700">
+                <div className="text-[10px] font-black text-slate-700">
                   Bu adımda yalnızca cihaz kaydı yapılır.
                 </div>
-                <div className="mt-1 text-[7px] font-semibold leading-4 text-slate-500">
+                <div className="mt-1 text-[10px] font-semibold leading-4 text-slate-500">
                   Fiyat ve N11 / İkas / İdefix gönderimi daha sonra kanal seçildiğinde girilecek. Pil, mağaza, değişen parça ve kutu/fatura cihaz giriş formunda kullanılmaz.
                 </div>
               </div>
@@ -6145,7 +6145,7 @@ export default function Merkez() {
                 onClick={() =>
                   setAddOpen(false)
                 }
-                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[8px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-5 text-[10px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
               >
                 Vazgeç
               </button>
@@ -6156,7 +6156,7 @@ export default function Merkez() {
                 onClick={() => {
                   void saveSingleDevice();
                 }}
-                className="h-11 rounded-xl bg-blue-600 px-6 text-[8px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
+                className="h-11 rounded-xl bg-blue-600 px-6 text-[10px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50"
               >
                 {addSaving
                   ? "Kaydediliyor..."

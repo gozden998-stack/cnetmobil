@@ -2537,7 +2537,7 @@ export default function Online() {
                     <option value="stock_desc">Stok ↓</option>
                     <option value="stock_asc">Stok ↑</option>
                   </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">▼</span>
                 </div>
               </div>
             </div>
@@ -2545,7 +2545,7 @@ export default function Online() {
             {showFilterPanel && activeSection !== "orders" ? (
               <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_1fr_auto]">
                 <label>
-                  <div className="mb-1 text-[9px] font-black uppercase tracking-wider text-slate-400">Marka</div>
+                  <div className="mb-1 text-[11px] font-black uppercase tracking-wider text-slate-400">Marka</div>
                   <input
                     value={filterBrand}
                     onChange={(event) => setFilterBrand(event.target.value)}
@@ -2554,7 +2554,7 @@ export default function Online() {
                   />
                 </label>
                 <label>
-                  <div className="mb-1 text-[9px] font-black uppercase tracking-wider text-slate-400">Hafıza</div>
+                  <div className="mb-1 text-[11px] font-black uppercase tracking-wider text-slate-400">Hafıza</div>
                   <input
                     value={filterMemory}
                     onChange={(event) => setFilterMemory(event.target.value)}
@@ -2714,7 +2714,7 @@ export default function Online() {
                           <div className="font-mono text-[12px] font-black text-slate-900">
                             {order.orderNumber || "—"}
                           </div>
-                          <div className="mt-1 text-[9px] font-bold text-slate-400">
+                          <div className="mt-1 text-[11px] font-bold text-slate-400">
                             Paket: {order.packageId || "—"}
                           </div>
                         </div>
@@ -2833,7 +2833,7 @@ export default function Online() {
             ) : (
               <div className="overflow-x-auto">
                 <div className="min-w-[1160px]">
-                  <div className="grid grid-cols-[minmax(500px,2.5fr)_0.5fr_0.7fr_0.85fr_0.85fr_1.15fr] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-3 text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">
+                  <div className="grid grid-cols-[minmax(500px,2.5fr)_0.5fr_0.7fr_0.85fr_0.85fr_1.15fr] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
                     <div>Ürün</div>
                     <div>Stok</div>
                     <div>Durum</div>
@@ -2883,12 +2883,12 @@ export default function Online() {
                           <div className="min-w-0">
                             <div className="truncate text-[12px] font-black text-slate-950">{productTitle}</div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">{gradeText}</span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">{color}</span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">{memory}</span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-600">Yenilenmiş</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{gradeText}</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{color}</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{memory}</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">Yenilenmiş</span>
                             </div>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[8px] font-bold text-slate-400">
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[10px] font-bold text-slate-400">
                               <span>SKU: <span className="font-mono text-slate-500">{item.external_stock_code || "—"}</span></span>
                               <span className="text-slate-300">|</span>
                               <span>N11 ID: <span className="font-mono text-slate-500">{item.external_product_id || "Henüz yok"}</span></span>
@@ -2898,21 +2898,21 @@ export default function Online() {
 
                         <div>
                           <div className="text-[14px] font-black text-slate-950">{Number(item.quantity || 0)}</div>
-                          <div className="text-[8px] font-bold text-slate-400">Adet</div>
+                          <div className="text-[10px] font-bold text-slate-400">Adet</div>
                         </div>
 
                         <div>
-                          <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[9px] font-black ring-1 ${status.className}`}>{status.label}</span>
+                          <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[11px] font-black ring-1 ${status.className}`}>{status.label}</span>
                         </div>
 
                         <div>
                           <div className="text-[12px] font-black text-slate-950">{formatMoney(Number(item.sale_price || 0))}</div>
-                          <div className="mt-0.5 text-[8px] font-bold text-slate-400">N11 Satış Fiyatı</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">N11 Satış Fiyatı</div>
                         </div>
 
                         <div>
                           <div className="text-[12px] font-black text-slate-950">{formatMoney(Number(item.list_price || 0))}</div>
-                          <div className="mt-0.5 text-[8px] font-bold text-slate-400">N11 Liste Fiyatı</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">N11 Liste Fiyatı</div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -2920,7 +2920,7 @@ export default function Online() {
                             type="button"
                             onClick={() => openEditModal(item)}
                             disabled={actionSaving}
-                            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           >
                             Düzenle
                           </button>
@@ -2928,7 +2928,7 @@ export default function Online() {
                             type="button"
                             onClick={() => openPriceModal(item)}
                             disabled={actionSaving}
-                            className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-[9px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-[11px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                           >
                             Fiyat
                           </button>
@@ -3662,7 +3662,7 @@ export default function Online() {
                       placeholder="A"
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
-                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                    <div className="mt-1 text-[11px] font-bold text-slate-400">
                       A → A Kalite · B → B Kalite · C → C Kalite otomatik çevrilir.
                     </div>
                   </label>
@@ -3682,7 +3682,7 @@ export default function Online() {
                       placeholder="12 Ay"
                       className="h-12 w-full rounded-xl border border-slate-200 px-4 text-[13px] font-semibold outline-none focus:border-blue-400"
                     />
-                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                    <div className="mt-1 text-[11px] font-bold text-slate-400">
                       12AY / 12 Ay → 12 Ay Garantili olarak otomatik kullanılır.
                     </div>
                   </label>
@@ -3734,7 +3734,7 @@ export default function Online() {
                       </span>
                     </label>
 
-                    <p className="mt-1.5 text-[9px] font-semibold leading-4 text-violet-500">
+                    <p className="mt-1.5 text-[11px] font-semibold leading-4 text-violet-500">
                       İşaretlerseniz N11 açıldıktan hemen sonra aynı cihaz için
                       İdefix'e de gönderilir. İdefix fiyatları N11 fiyatından
                       bağımsızdır, aşağıya kendiniz girin.

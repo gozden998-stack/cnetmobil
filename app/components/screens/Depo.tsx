@@ -131,13 +131,13 @@ function StatCard({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
           {label}
         </p>
         <p className="mt-0.5 truncate text-[18px] font-black leading-none tracking-[-0.03em] text-slate-950">
           {value}
         </p>
-        <p className="mt-1 truncate text-[8px] font-semibold text-slate-400">
+        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
           {footer}
         </p>
       </div>
@@ -578,7 +578,7 @@ export default function Depo() {
       {/* ÜST HERO */}
       <section className="overflow-hidden rounded-[26px] border border-orange-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.055)]">
         <div className="flex min-h-[122px] flex-col justify-center px-7 py-5 sm:px-8">
-          <div className="text-[8px] font-black uppercase tracking-[0.2em] text-orange-600">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600">
             CNETMOBİL V2
           </div>
 
@@ -666,20 +666,20 @@ export default function Depo() {
               <h3 className="truncate text-[17px] font-black tracking-[-0.03em] text-slate-950">
                 Depo Ürün Listesi
               </h3>
-              <p className="truncate text-[9px] font-semibold text-slate-400">
+              <p className="truncate text-[11px] font-semibold text-slate-400">
                 IMEI stoklarını görüntüleyin ve kullanılan cihazları işaretleyin.
               </p>
             </div>
           </div>
 
-          <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1.5 text-[8px] font-black text-orange-600">
+          <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1.5 text-[10px] font-black text-orange-600">
             {filteredRows.length} Ürün
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <div className="min-w-[560px]">
-            <div className="flex border-y border-slate-200 bg-slate-50/90 px-4 py-3 text-[8px] font-black uppercase tracking-[0.05em] text-slate-500">
+            <div className="flex border-y border-slate-200 bg-slate-50/90 px-4 py-3 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
               <div className="flex-[3]">CİHAZ BİLGİSİ</div>
               <div className="flex-[2] border-l border-slate-200 pl-4 text-center">
                 İMEİ BİLGİSİ
@@ -698,7 +698,7 @@ export default function Depo() {
                   <p className="text-[11px] font-black text-slate-700">
                     DEPO YÜKLENİYOR...
                   </p>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     Kayıtlar sunucudan getiriliyor.
                   </p>
                 </div>
@@ -712,7 +712,7 @@ export default function Depo() {
                   <p className="text-[11px] font-black text-slate-700">
                     KAYIT BULUNAMADI
                   </p>
-                  <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     Arama kelimesini değiştirerek tekrar deneyin.
                   </p>
                 </div>
@@ -778,7 +778,7 @@ export default function Depo() {
 
                       <div className="flex flex-[1] justify-end border-l border-slate-100 pl-4">
                         {isUsed ? (
-                          <span className="rounded-lg bg-red-100 px-2.5 py-1 text-[9px] font-black tracking-widest text-red-600">
+                          <span className="rounded-lg bg-red-100 px-2.5 py-1 text-[11px] font-black tracking-widest text-red-600">
                             {guncelDurum}
                           </span>
                         ) : pendingImei === row.imei ? (
@@ -838,7 +838,7 @@ export default function Depo() {
                                 usingImei
                               )
                             }
-                            className="rounded-xl bg-orange-500 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
+                            className="rounded-xl bg-orange-500 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
                           >
                             {isSaving
                               ? "KAYDEDİLİYOR..."
@@ -855,7 +855,7 @@ export default function Depo() {
         </div>
 
         <div className="flex items-center justify-end gap-3 px-5 py-3">
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[8px] font-black text-slate-500">
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">
             {filteredRows.length} kayıt listeleniyor
           </span>
         </div>

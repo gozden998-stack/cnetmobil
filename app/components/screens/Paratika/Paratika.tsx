@@ -1330,7 +1330,7 @@ export default function Paratika() {
                                 <span className="text-lg font-black leading-none">
                                   {item.month}
                                 </span>
-                                <span className="mt-0.5 text-[7px] font-black uppercase tracking-wide text-slate-300">
+                                <span className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-slate-300">
                                   {item.month === 1
                                     ? 'Çekim'
                                     : 'Taksit'}
@@ -1354,7 +1354,7 @@ export default function Paratika() {
                                 </div>
 
                                 {item.label ? (
-                                  <div className="mt-1 inline-flex rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-700">
+                                  <div className="mt-1 inline-flex rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-amber-700">
                                     {item.label}
                                   </div>
                                 ) : null}
@@ -1362,7 +1362,7 @@ export default function Paratika() {
                             </div>
 
                             <div className="text-right">
-                              <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                              <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">
                                 Toplam
                               </div>
 
@@ -1526,7 +1526,7 @@ export default function Paratika() {
                     onClick={() =>
                       void loadPersonnel()
                     }
-                    className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[9px] font-black text-rose-700 shadow-sm"
+                    className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-black text-rose-700 shadow-sm"
                   >
                     TEKRAR DENE
                   </button>
@@ -2105,7 +2105,7 @@ export default function Paratika() {
                         'APPROVED' ? (
                           <div className="flex min-w-[340px] items-start gap-3">
                             <div className="min-w-[112px]">
-                              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-600">
+                              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-600">
                                 ÜÖT
                               </div>
 
@@ -2119,7 +2119,7 @@ export default function Paratika() {
                             <div className="mt-1 h-8 w-px bg-slate-200" />
 
                             <div className="min-w-0 flex-1">
-                              <div className="text-[9px] font-black uppercase tracking-[0.14em] text-blue-600">
+                              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-blue-600">
                                 ÖSN
                               </div>
 
@@ -2186,7 +2186,7 @@ export default function Paratika() {
                         ) : payment.status ===
                           'FAILED' ? (
                           <div className="max-w-[260px] rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                            <div className="text-[9px] font-black uppercase tracking-[0.12em] text-red-500">
+                            <div className="text-[11px] font-black uppercase tracking-[0.12em] text-red-500">
                               HATA NEDENİ
                             </div>
 
@@ -2196,7 +2196,7 @@ export default function Paratika() {
                             </div>
 
                             {payment.responseCode ? (
-                              <div className="mt-1 text-[9px] font-black text-red-400">
+                              <div className="mt-1 text-[11px] font-black text-red-400">
                                 KOD:{' '}
                                 {payment.responseCode}
                               </div>

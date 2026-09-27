@@ -507,7 +507,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
               </div>
 
               <div className="min-w-0">
-                <div className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-200/70">
+                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-200/70">
                   CNETMOBIL LIVE
                 </div>
                 <h1 className="mt-1 truncate text-2xl font-black tracking-tight sm:text-3xl">
@@ -553,7 +553,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
           <aside className="border-b border-slate-200 bg-slate-50/70 p-4 lg:border-b-0 lg:border-r">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                   İhaleler
                 </div>
                 <div className="mt-0.5 text-xs font-black text-slate-700">
@@ -564,7 +564,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
               <button
                 type="button"
                 onClick={() => loadAuctions()}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[9px] font-black text-slate-500"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-500"
               >
                 YENİLE
               </button>
@@ -601,13 +601,13 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span
-                        className={`rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide ${
+                        className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wide ${
                           STATUS_STYLE[auction.status]
                         }`}
                       >
                         {STATUS_LABEL[auction.status]}
                       </span>
-                      <span className="text-[8px] font-bold text-slate-400">
+                      <span className="text-[10px] font-bold text-slate-400">
                         #{auction.id}
                       </span>
                     </div>
@@ -621,7 +621,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
 
                     <div className="mt-4 flex items-end justify-between gap-3">
                       <div>
-                        <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                           Güncel
                         </div>
                         <div className="mt-0.5 text-base font-black text-blue-700">
@@ -630,7 +630,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                       </div>
 
                       <div className="text-right">
-                        <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                           Teklif
                         </div>
                         <div className="mt-0.5 text-xs font-black text-slate-700">
@@ -673,7 +673,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                         ) : (
                           <div className="text-center text-slate-300">
                             <GavelIcon className="mx-auto h-10 w-10" />
-                            <div className="mt-2 text-[9px] font-black uppercase tracking-wider">
+                            <div className="mt-2 text-[11px] font-black uppercase tracking-wider">
                               Ürün Görseli
                             </div>
                           </div>
@@ -683,13 +683,13 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${
                               STATUS_STYLE[selectedAuction.status]
                             }`}
                           >
                             {STATUS_LABEL[selectedAuction.status]}
                           </span>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[9px] font-black text-slate-500">
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-500">
                             {scopeLabel(selectedAuction.channel_scope)}
                           </span>
                         </div>
@@ -749,7 +749,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                         : "border-slate-200 bg-slate-50"
                     }`}
                   >
-                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                       Güncel Teklif
                     </div>
                     <div className="mt-2 text-4xl font-black tracking-tight text-slate-900">
@@ -757,7 +757,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                     </div>
 
                     <div className="mt-5 rounded-2xl border border-white bg-white/80 p-4 shadow-sm">
-                      <div className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                         Kalan Süre
                       </div>
                       <div
@@ -777,7 +777,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
 
                     {selectedAuction.winner_bid_id && (
                       <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="text-[8px] font-black uppercase tracking-wider text-emerald-600">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600">
                           Kazanan
                         </div>
                         <div className="mt-1 text-sm font-black text-emerald-800">
@@ -796,7 +796,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                 <div className="rounded-[24px] border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                     <div>
-                      <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
+                      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">
                         Teklif Ver
                       </div>
                       <h3 className="mt-1 text-xl font-black text-slate-900">
@@ -859,7 +859,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                   <div className="rounded-[24px] border border-violet-200 bg-violet-50/40 p-5 sm:p-6">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                       <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-600">
+                        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-violet-600">
                           Super Admin Kontrolü
                         </div>
                         <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -982,14 +982,14 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                   <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                       <div>
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                           Teklif Akışı
                         </div>
                         <h3 className="mt-0.5 text-base font-black text-slate-900">
                           {bids.length} teklif
                         </h3>
                       </div>
-                      <div className="text-[9px] font-bold text-slate-400">
+                      <div className="text-[11px] font-bold text-slate-400">
                         2 sn canlı yenilenir
                       </div>
                     </div>
@@ -1032,20 +1032,20 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                                     </span>
 
                                     {bid.is_mine && (
-                                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[8px] font-black text-blue-700">
+                                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">
                                         SEN
                                       </span>
                                     )}
 
                                     {isWinner && (
-                                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[8px] font-black text-emerald-700">
+                                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
                                         KAZANAN
                                       </span>
                                     )}
                                   </div>
 
                                   {isSuperAdmin && (
-                                    <div className="mt-0.5 truncate text-[9px] font-semibold text-violet-600">
+                                    <div className="mt-0.5 truncate text-[11px] font-semibold text-violet-600">
                                       {bid.bidder_branch || "-"}
                                       {bid.bidder_name &&
                                       bid.bidder_name !== bid.bidder_branch
@@ -1054,7 +1054,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                                     </div>
                                   )}
 
-                                  <div className="mt-0.5 text-[8px] font-semibold text-slate-400">
+                                  <div className="mt-0.5 text-[10px] font-semibold text-slate-400">
                                     {dateTime(bid.created_at)}
                                   </div>
                                 </div>
@@ -1066,7 +1066,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                                     {tl(bid.amount)}
                                   </div>
                                   {index === 0 && (
-                                    <div className="text-[8px] font-black uppercase tracking-wide text-blue-600">
+                                    <div className="text-[10px] font-black uppercase tracking-wide text-blue-600">
                                       En Yüksek
                                     </div>
                                   )}
@@ -1083,7 +1083,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                                         })
                                       }
                                       disabled={busy}
-                                      className="rounded-lg bg-emerald-600 px-3 py-2 text-[8px] font-black text-white disabled:opacity-50"
+                                      className="rounded-lg bg-emerald-600 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50"
                                     >
                                       KAZANAN SEÇ
                                     </button>
@@ -1097,7 +1097,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                   </div>
 
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
-                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                       İhale Kuralları
                     </div>
 
@@ -1116,7 +1116,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                           key={rule}
                           className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3"
                         >
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[8px] font-black text-white">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-[10px] font-black text-white">
                             {index + 1}
                           </span>
                           <p className="text-[10px] font-semibold leading-5 text-slate-600">
@@ -1127,14 +1127,14 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                     </div>
 
                     <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                         Başlangıç
                       </div>
                       <div className="mt-1 text-[10px] font-bold text-slate-700">
                         {dateTime(selectedAuction.starts_at)}
                       </div>
 
-                      <div className="mt-3 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="mt-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
                         Planlanan Bitiş
                       </div>
                       <div className="mt-1 text-[10px] font-bold text-slate-700">
@@ -1157,7 +1157,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">
                   SUPER ADMIN
                 </div>
                 <h2 className="mt-1 text-2xl font-black text-slate-900">
@@ -1227,7 +1227,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
               />
 
               <label className="block">
-                <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+                <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                   Kanal
                 </span>
                 <select
@@ -1247,7 +1247,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
               </label>
 
               <div className="block sm:col-span-2">
-                <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+                <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                   İhale Süresi
                 </span>
 
@@ -1339,7 +1339,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
               </div>
 
               <label className="block sm:col-span-2">
-                <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+                <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                   Açıklama
                 </span>
                 <textarea
@@ -1384,7 +1384,7 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-      <div className="text-[7px] font-black uppercase tracking-wider text-slate-400">
+      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
         {label}
       </div>
       <div className="mt-1 truncate text-[10px] font-black text-slate-700">
@@ -1412,7 +1412,7 @@ function AdminButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`h-10 rounded-xl border px-4 text-[9px] font-black transition disabled:opacity-40 ${
+      className={`h-10 rounded-xl border px-4 text-[11px] font-black transition disabled:opacity-40 ${
         danger
           ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white"
           : primary
@@ -1442,7 +1442,7 @@ function CreateField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+      <span className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
         {label}
       </span>
       <input

@@ -322,7 +322,7 @@ function ProductPanel({
 
         <span
           className={[
-            "shrink-0 rounded-full px-3 py-1.5 text-[9px] font-black",
+            "shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black",
             isApple
               ? "bg-blue-50 text-blue-600"
               : "bg-emerald-50 text-emerald-600",
@@ -334,7 +334,7 @@ function ProductPanel({
 
       <div className="overflow-x-auto">
         <div className="min-w-[650px]">
-          <div className="grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-y border-slate-200 bg-slate-50/80 text-[8px] font-black uppercase tracking-[0.04em] text-slate-500">
+          <div className="grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-y border-slate-200 bg-slate-50/80 text-[10px] font-black uppercase tracking-[0.04em] text-slate-500">
             <div className="px-2 py-3 text-center">#</div>
             <div className="px-3 py-3">Ürün Adı</div>
             <div className="px-2 py-3 text-center">Hafıza</div>
@@ -384,7 +384,7 @@ function ProductPanel({
                     getRowToneClass(row),
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-bold text-slate-500">
+                  <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-bold text-slate-500">
                     {index + 1}
                   </div>
 
@@ -403,7 +403,7 @@ function ProductPanel({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-center px-2 py-[9px] text-[9px] font-black text-slate-700">
+                  <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-black text-slate-700">
                     {row.memory || "-"}
                   </div>
 
@@ -456,7 +456,7 @@ function ProductPanel({
 
         <span
           className={[
-            "rounded-full px-3 py-1.5 text-[9px] font-black",
+            "rounded-full px-3 py-1.5 text-[11px] font-black",
             isApple
               ? "bg-blue-50 text-blue-500"
               : "bg-emerald-50 text-emerald-500",
@@ -656,10 +656,10 @@ export default function CepTablet({
 
             <div className="min-w-0">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-blue-600">
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-600">
                   CNETMOBİL V2
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[8px] font-black text-emerald-600">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-600">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   CANLI
                 </span>
@@ -689,7 +689,7 @@ export default function CepTablet({
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-wider text-slate-400">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                     Toplam Ürün
                   </p>
                   <p className="text-lg font-black text-slate-950">{products.length}</p>
@@ -710,11 +710,11 @@ export default function CepTablet({
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-wider text-slate-400">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                     Son Güncelleme
                   </p>
                   <p className="text-[10px] font-black text-slate-950">Anlık</p>
-                  <p className="text-[8px] font-semibold text-slate-400">Otomatik</p>
+                  <p className="text-[10px] font-semibold text-slate-400">Otomatik</p>
                 </div>
               </div>
             </div>
@@ -732,10 +732,10 @@ export default function CepTablet({
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-wider text-slate-400">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                     Veri Kaynağı
                   </p>
-                  <p className="text-[9px] font-black leading-tight text-slate-950">
+                  <p className="text-[11px] font-black leading-tight text-slate-950">
                     Cnetmobil Fiyat Listesi
                   </p>
                 </div>
@@ -855,7 +855,7 @@ export default function CepTablet({
                 key={item}
                 onClick={() => setBrand(item)}
                 className={[
-                  "shrink-0 rounded-xl border px-4 py-2 text-[9px] font-black transition",
+                  "shrink-0 rounded-xl border px-4 py-2 text-[11px] font-black transition",
                   active
                     ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/15"
                     : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600",
@@ -894,7 +894,7 @@ export default function CepTablet({
       </div>
 
       {/* ALT BİLGİ */}
-      <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[9px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[11px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
         <span>Fiyatlar mevcut Cnetmobil fiyat listesinden görüntülenmektedir.</span>
         <span>
           Gösterilen: {filtered.length} / {products.length} ürün

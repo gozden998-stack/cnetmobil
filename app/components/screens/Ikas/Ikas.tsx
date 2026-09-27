@@ -1769,7 +1769,7 @@ export default function Ikas() {
                             id
                           )
                         }
-                        className={`rounded-xl px-3.5 py-2 text-[9px] font-black uppercase transition ${
+                        className={`rounded-xl px-3.5 py-2 text-[11px] font-black uppercase transition ${
                           orderSection ===
                           id
                             ? id ===
@@ -1794,7 +1794,7 @@ export default function Ikas() {
                     )
                   )}
 
-                  <div className="ml-auto self-center text-[8px] font-bold text-slate-400">
+                  <div className="ml-auto self-center text-[10px] font-bold text-slate-400">
                     Canlı kontrol:
                     30 sn
                   </div>
@@ -1818,7 +1818,7 @@ export default function Ikas() {
               ) : (
                 <div className="overflow-x-auto">
                   <div className="min-w-[1120px]">
-                    <div className="grid grid-cols-[130px_150px_minmax(280px,1fr)_70px_120px_100px_140px_130px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                    <div className="grid grid-cols-[130px_150px_minmax(280px,1fr)_70px_120px_100px_140px_130px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
                       <div>
                         Sipariş No
                       </div>
@@ -1853,7 +1853,7 @@ export default function Ikas() {
                           key={
                             order.id
                           }
-                          className="grid min-h-[72px] grid-cols-[130px_150px_minmax(280px,1fr)_70px_120px_100px_140px_130px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0 hover:bg-slate-50/60"
+                          className="grid min-h-[72px] grid-cols-[130px_150px_minmax(280px,1fr)_70px_120px_100px_140px_130px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[10px] last:border-0 hover:bg-slate-50/60"
                         >
                           <div>
                             <div className="font-black text-slate-900">
@@ -1861,7 +1861,7 @@ export default function Ikas() {
                                 order.orderNumber
                               }
                             </div>
-                            <div className="mt-1 text-[7px] font-bold text-slate-400">
+                            <div className="mt-1 text-[10px] font-bold text-slate-400">
                               {dateTime(
                                 order.orderedAt
                               )}
@@ -1875,7 +1875,7 @@ export default function Ikas() {
                                 ?.name ||
                                 "-"}
                             </div>
-                            <div className="mt-1 truncate text-[7px] font-bold text-slate-400">
+                            <div className="mt-1 truncate text-[10px] font-bold text-slate-400">
                               {order
                                 .customer
                                 ?.phone ||
@@ -1902,7 +1902,7 @@ export default function Ikas() {
                                   pkg
                                     ?.trackingNumber
                               ) ? (
-                              <div className="mt-1 text-[7px] font-bold text-violet-600">
+                              <div className="mt-1 text-[10px] font-bold text-violet-600">
                                 Takip:{" "}
                                 {order.packages
                                   .map(
@@ -1940,7 +1940,7 @@ export default function Ikas() {
 
                           <div>
                             <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-[7px] font-black uppercase ring-1 ${meta.className}`}
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ring-1 ${meta.className}`}
                             >
                               {
                                 meta.label
@@ -1969,7 +1969,7 @@ export default function Ikas() {
                                   orderActionId ===
                                   order.id
                                 }
-                                className="h-9 rounded-xl bg-violet-600 px-3 text-[7px] font-black uppercase text-white transition hover:bg-violet-700 disabled:opacity-50"
+                                className="h-9 rounded-xl bg-violet-600 px-3 text-[10px] font-black uppercase text-white transition hover:bg-violet-700 disabled:opacity-50"
                               >
                                 {orderActionId ===
                                 order.id
@@ -1977,7 +1977,7 @@ export default function Ikas() {
                                   : meta.button}
                               </button>
                             ) : (
-                              <span className="text-[8px] font-bold text-slate-400">
+                              <span className="text-[10px] font-bold text-slate-400">
                                 Tamamlandı
                               </span>
                             )}
@@ -2060,7 +2060,7 @@ export default function Ikas() {
                                     "-"
                                 )}
                               </div>
-                              <div className="mt-1 text-[8px] font-bold text-slate-400">
+                              <div className="mt-1 text-[10px] font-bold text-slate-400">
                                 {String(
                                   product
                                     ?.brand
@@ -2076,7 +2076,7 @@ export default function Ikas() {
                             </div>
 
                             <div>
-                              <div className="text-[7px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Stok
                               </div>
                               <div className="mt-1 text-[11px] font-black text-slate-900">
@@ -2085,10 +2085,10 @@ export default function Ikas() {
                             </div>
 
                             <div>
-                              <div className="text-[7px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Satış
                               </div>
-                              <div className="mt-1 text-[9px] font-black text-slate-800">
+                              <div className="mt-1 text-[11px] font-black text-slate-800">
                                 {money(
                                   productVariants
                                     .length >
@@ -2103,10 +2103,10 @@ export default function Ikas() {
                             </div>
 
                             <div>
-                              <div className="text-[7px] font-black uppercase text-slate-400">
+                              <div className="text-[10px] font-black uppercase text-slate-400">
                                 Liste
                               </div>
-                              <div className="mt-1 text-[9px] font-black text-slate-800">
+                              <div className="mt-1 text-[11px] font-black text-slate-800">
                                 {money(
                                   productVariants
                                     .length >
@@ -2130,7 +2130,7 @@ export default function Ikas() {
                           {expanded ? (
                             <div className="mt-3 overflow-x-auto rounded-[16px] border border-slate-200">
                               <div className="min-w-[1080px]">
-                                <div className="grid grid-cols-[200px_110px_130px_130px_minmax(120px,1fr)_390px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                                <div className="grid grid-cols-[200px_110px_130px_130px_minmax(120px,1fr)_390px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-slate-400">
                                   <div>
                                     Varyant
                                   </div>
@@ -2175,7 +2175,7 @@ export default function Ikas() {
                                         key={
                                           variant?.id
                                         }
-                                        className="grid grid-cols-[200px_110px_130px_130px_minmax(120px,1fr)_390px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[8px] last:border-0"
+                                        className="grid grid-cols-[200px_110px_130px_130px_minmax(120px,1fr)_390px] items-center gap-3 border-b border-slate-100 px-4 py-3 text-[10px] last:border-0"
                                       >
                                         <div>
                                           <div className="font-black text-slate-900">
@@ -2183,7 +2183,7 @@ export default function Ikas() {
                                               variant
                                             )}
                                           </div>
-                                          <div className="mt-1 truncate font-mono text-[7px] font-bold text-slate-400">
+                                          <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-400">
                                             {String(
                                               variant?.sku ||
                                                 "-"
@@ -2193,7 +2193,7 @@ export default function Ikas() {
 
                                         <div>
                                           <span
-                                            className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black ${
+                                            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${
                                               quantity >
                                               0
                                                 ? "bg-emerald-50 text-emerald-700"
@@ -2247,7 +2247,7 @@ export default function Ikas() {
                                                 quantity
                                               );
                                             }}
-                                            className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[8px] font-black text-slate-700 disabled:opacity-40"
+                                            className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-black text-slate-700 disabled:opacity-40"
                                           >
                                             -1
                                           </button>
@@ -2274,7 +2274,7 @@ export default function Ikas() {
                                                 quantity
                                               );
                                             }}
-                                            className="h-8 rounded-lg border border-rose-200 bg-rose-50 px-3 text-[8px] font-black text-rose-700 disabled:opacity-40"
+                                            className="h-8 rounded-lg border border-rose-200 bg-rose-50 px-3 text-[10px] font-black text-rose-700 disabled:opacity-40"
                                           >
                                             0 Yap
                                           </button>
@@ -2302,7 +2302,7 @@ export default function Ikas() {
                                               )
                                             }
                                             inputMode="numeric"
-                                            className="h-8 w-[58px] rounded-lg border border-slate-200 px-2 text-center text-[8px] font-black"
+                                            className="h-8 w-[58px] rounded-lg border border-slate-200 px-2 text-center text-[10px] font-black"
                                           />
 
                                           <button
@@ -2325,7 +2325,7 @@ export default function Ikas() {
                                                 quantity
                                               );
                                             }}
-                                            className="h-8 rounded-lg bg-slate-950 px-3 text-[8px] font-black text-white disabled:opacity-40"
+                                            className="h-8 rounded-lg bg-slate-950 px-3 text-[10px] font-black text-white disabled:opacity-40"
                                           >
                                             {stockBusyId ===
                                             key
@@ -2341,7 +2341,7 @@ export default function Ikas() {
                                                 variant
                                               )
                                             }
-                                            className="h-8 rounded-lg bg-violet-600 px-3 text-[8px] font-black text-white hover:bg-violet-700"
+                                            className="h-8 rounded-lg bg-violet-600 px-3 text-[10px] font-black text-white hover:bg-violet-700"
                                           >
                                             Fiyat
                                           </button>
@@ -2382,7 +2382,7 @@ export default function Ikas() {
           <div className="my-10 w-full max-w-[620px] overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-violet-600">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">
                   İkas · Fiyat Yönetimi
                 </div>
 
@@ -2390,7 +2390,7 @@ export default function Ikas() {
                   Fiyat Değiştir
                 </h3>
 
-                <div className="mt-1 text-[8px] font-bold text-slate-500">
+                <div className="mt-1 text-[10px] font-bold text-slate-500">
                   {
                     priceTarget.productName
                   }{" "}
@@ -2419,7 +2419,7 @@ export default function Ikas() {
 
             <div className="space-y-4 px-6 py-6">
               {priceError ? (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[9px] font-black text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-black text-rose-700">
                   {
                     priceError
                   }
@@ -2427,7 +2427,7 @@ export default function Ikas() {
               ) : null}
 
               {priceSuccess ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[9px] font-black text-emerald-700">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700">
                   ✓{" "}
                   {
                     priceSuccess
@@ -2437,7 +2437,7 @@ export default function Ikas() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase text-slate-500">
                     İkas Satış Fiyatı
                   </label>
 
@@ -2467,7 +2467,7 @@ export default function Ikas() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[8px] font-black uppercase text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase text-slate-500">
                     İkas Liste Fiyatı
                   </label>
 
@@ -2509,7 +2509,7 @@ export default function Ikas() {
                     null
                   )
                 }
-                className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[8px] font-black uppercase text-slate-600"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-black uppercase text-slate-600"
               >
                 Kapat
               </button>
@@ -2522,7 +2522,7 @@ export default function Ikas() {
                 onClick={() => {
                   void savePrice();
                 }}
-                className="h-10 rounded-xl bg-violet-600 px-5 text-[8px] font-black uppercase text-white disabled:opacity-50"
+                className="h-10 rounded-xl bg-violet-600 px-5 text-[10px] font-black uppercase text-white disabled:opacity-50"
               >
                 {priceSaving
                   ? "Kaydediliyor..."
