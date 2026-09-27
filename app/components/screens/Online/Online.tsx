@@ -2691,7 +2691,70 @@ export default function Online() {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {selectedOrders.map((order, index) => (
+                    <div key={`m-${order.packageId || order.orderNumber || "order"}-${index}`} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-mono text-[12px] font-black text-slate-900">{order.orderNumber || "—"}</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-slate-400">Paket: {order.packageId || "—"}</div>
+                        </div>
+                        <span
+                          className={`inline-flex shrink-0 rounded-full px-3 py-1 text-[10px] font-black ring-1 ${
+                            orderSection === "new"
+                              ? "bg-blue-50 text-blue-700 ring-blue-100"
+                              : orderSection === "preparing"
+                              ? "bg-amber-50 text-amber-700 ring-amber-100"
+                              : orderSection === "shipped"
+                              ? "bg-violet-50 text-violet-700 ring-violet-100"
+                              : "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                          }`}
+                        >
+                          {orderSection === "new"
+                            ? "Yeni Sipariş"
+                            : orderSection === "preparing"
+                            ? "Kargoya Hazırlanıyor"
+                            : orderSection === "shipped"
+                            ? "Kargoda"
+                            : "Teslim Edildi"}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-[13px] font-black text-slate-900">{order.customerFullName || "—"}</div>
+                      <div className="text-[10px] font-semibold text-slate-400">{order.customerEmail || "—"}</div>
+
+                      <div className="mt-2 line-clamp-2 text-[12px] font-bold leading-5 text-slate-800">
+                        {order.productSummary || "—"}
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-600">
+                        <span>{order.totalQuantity} adet · <span className="font-black text-slate-900">{formatMoney(Number(order.totalAmount || 0))}</span></span>
+                        <span>{order.city || "—"}{order.district ? ` / ${order.district}` : ""}</span>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {formatDate(order.agreedDeliveryDate || order.lastModifiedDate)}
+                        </span>
+                        {orderSection === "new" ? (
+                          <button
+                            type="button"
+                            onClick={() => void approveOrder(order)}
+                            disabled={orderActionId === (order.packageId || order.orderNumber || "")}
+                            className="h-9 rounded-xl bg-blue-600 px-4 text-[10px] font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {orderActionId === (order.packageId || order.orderNumber || "") ? "ONAYLANIYOR..." : "ONAYLA"}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">—</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <div className="min-w-[1500px]">
                     <div className="grid grid-cols-[0.85fr_1.1fr_1.8fr_0.5fr_0.8fr_0.85fr_0.8fr_0.95fr_1fr] items-center bg-slate-50 px-4 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500">
                       <div>Sipariş No</div>
@@ -2815,6 +2878,7 @@ export default function Online() {
                     ))}
                   </div>
                 </div>
+                </>
               )
             ) : sortedListings.length === 0 ? (
               <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
@@ -2831,7 +2895,93 @@ export default function Online() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="divide-y divide-slate-100 md:hidden">
+                {sortedListings.map((item) => {
+                  const status = getStatusBadge(
+                    item.product_status,
+                    item.sale_status,
+                    Number(item.quantity || 0),
+                    item.sync_status
+                  );
+
+                  const brand = item.brand || item.device_brand || "—";
+                  const model = item.model || item.device_model || "—";
+                  const memory = item.memory || item.device_memory || "—";
+                  const color = item.color || item.device_color || "—";
+                  const gradeRaw = item.grade || item.device_grade || "—";
+
+                  const gradeText = (() => {
+                    const normalized = String(gradeRaw).trim().toUpperCase();
+                    if (normalized === "A" || normalized === "A KALITE" || normalized === "A KALİTE") return "Mükemmel";
+                    if (normalized === "B" || normalized === "B KALITE" || normalized === "B KALİTE") return "Çok İyi";
+                    if (normalized === "C" || normalized === "C KALITE" || normalized === "C KALİTE") return "İyi";
+                    return String(gradeRaw);
+                  })();
+
+                  const productTitle = [
+                    brand,
+                    model,
+                    memory !== "—" ? memory : "",
+                    color !== "—" ? color : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" - ");
+
+                  return (
+                    <div key={`m-${item.id}`} className="px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100 text-[25px] shadow-sm">📱</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12px] font-black text-slate-950">{productTitle}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{gradeText}</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{color}</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{memory}</span>
+                          </div>
+                        </div>
+                        <span className={`inline-flex shrink-0 items-center rounded-lg px-2.5 py-1 text-[11px] font-black ring-1 ${status.className}`}>{status.label}</span>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                          <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Stok</div>
+                          <div className="text-[12px] font-black text-slate-950">{Number(item.quantity || 0)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                          <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Satış Fiy.</div>
+                          <div className="text-[12px] font-black text-slate-950">{formatMoney(Number(item.sale_price || 0))}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                          <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Liste Fiy.</div>
+                          <div className="text-[12px] font-black text-slate-950">{formatMoney(Number(item.list_price || 0))}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
+                          disabled={actionSaving}
+                          className="h-9 flex-1 rounded-lg border border-slate-200 bg-white text-[11px] font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openPriceModal(item)}
+                          disabled={actionSaving}
+                          className="h-9 flex-1 rounded-lg border border-blue-100 bg-blue-50 text-[11px] font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          Fiyat
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <div className="min-w-[1160px]">
                   <div className="grid grid-cols-[minmax(500px,2.5fr)_0.5fr_0.7fr_0.85fr_0.85fr_1.15fr] items-center border-b border-slate-200 bg-slate-50/90 px-4 py-3 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
                     <div>Ürün</div>
@@ -2938,7 +3088,7 @@ export default function Online() {
                   })}
                 </div>
               </div>
-
+              </>
             )}
           </div>
 
@@ -3317,7 +3467,37 @@ export default function Online() {
                     </div>
                   ) : null}
 
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <div className="overflow-hidden rounded-2xl border border-slate-200">
+                    <div className="divide-y divide-slate-100 md:hidden">
+                      {bulkPreview.rows.map((row) => (
+                        <div key={`m-${row.rowNumber}-${row.imei}`} className="px-4 py-3 text-[11px] font-semibold text-slate-700">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono font-black text-slate-800">{row.imei || "—"}</span>
+                            <span className="font-black text-slate-500">#{row.rowNumber}</span>
+                          </div>
+                          <div className="mt-1">
+                            {row.brand || "—"} {row.model || "—"} · {row.memory || "—"} · {row.color || "—"} · Grade {row.grade || "—"}
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="font-black">
+                              Satış: {row.salePrice === null ? "—" : formatMoney(row.salePrice)} · Liste: {row.listPrice === null ? "—" : formatMoney(row.listPrice)}
+                            </span>
+                            {row.valid ? (
+                              <span className="inline-flex shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                                HAZIR
+                              </span>
+                            ) : null}
+                          </div>
+                          {!row.valid && (
+                            <div className="mt-1 text-[10px] font-bold leading-5 text-red-600">
+                              {row.errors.join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
                     <div className="min-w-[1450px]">
                       <div className="grid grid-cols-[0.45fr_1.15fr_0.75fr_1.2fr_0.7fr_0.75fr_0.55fr_0.75fr_0.8fr_0.8fr_1.5fr] bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
                         <div>Satır</div>
@@ -3373,6 +3553,7 @@ export default function Online() {
                           </div>
                         </div>
                       ))}
+                    </div>
                     </div>
                   </div>
 
