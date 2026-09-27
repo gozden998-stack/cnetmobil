@@ -1047,6 +1047,8 @@ export default function Paratika() {
                 <td style="mso-number-format:'#,##0.00';">
                   ${returnAmount.toFixed(2)}
                 </td>
+                <td></td>
+                <td></td>
               </tr>
             `;
           })
@@ -1079,6 +1081,8 @@ export default function Paratika() {
                   <th>Ödeme Tarihi</th>
                   <th>ÖSN</th>
                   <th>Bayiye Geri Dönüş Tutarı</th>
+                  <th>wingsm paratika kasa</th>
+                  <th>fark tutar</th>
                 </tr>
               </thead>
               <tbody>
