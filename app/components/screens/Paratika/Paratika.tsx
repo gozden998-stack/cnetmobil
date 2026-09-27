@@ -193,33 +193,43 @@ function money(value: number) {
   }).format(Number(value || 0));
 }
 
+// Paratika'nın bize kestiği gerçek komisyon oranları (Paratika merchant
+// panelindeki "Taksit Sayısı / Paratika Komisyon Bedeli" tablosundan).
+// Bu tablo yalnızca "Excel İndir" ile üretilen "Bayiye Geri Dönüş Tutarı"
+// sütunu için kullanılır — INSTALLMENT_CALCULATOR (yukarıdaki taksit
+// hesaplama aracı) ile karıştırılmamalı, ona dokunulmadı.
+const PARATIKA_MERCHANT_COMMISSION_RATES: Record<number, number> = {
+  1: 0,
+  2: 3.23,
+  3: 5,
+  4: 6.97,
+  5: 8.83,
+  6: 10.6,
+  7: 12.57,
+  8: 14.44,
+  9: 16.31,
+  10: 18.18,
+  11: 20.05,
+  12: 21.92,
+};
+
 function dealerReturnAmount(
   amount: number,
   installmentCount: number
 ) {
-  const installment =
-    INSTALLMENT_CALCULATOR.find(
-      (item) =>
-        item.month === installmentCount
-    );
-
-  if (!installment) {
-    return Number(amount || 0);
-  }
-
-  const multiplier =
-    1 + installment.rate / 100;
+  const commissionRate =
+    PARATIKA_MERCHANT_COMMISSION_RATES[installmentCount];
 
   if (
-    !Number.isFinite(multiplier) ||
-    multiplier <= 0
+    commissionRate === undefined ||
+    !Number.isFinite(commissionRate)
   ) {
     return Number(amount || 0);
   }
 
   return (
-    Number(amount || 0) /
-    multiplier
+    Number(amount || 0) *
+    (1 - commissionRate / 100)
   );
 }
 
