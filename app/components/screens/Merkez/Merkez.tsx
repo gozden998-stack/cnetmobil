@@ -4307,7 +4307,46 @@ export default function Merkez() {
                             </div>
                           </div>
 
-                          <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+                          <div className="mt-3 space-y-2 rounded-2xl border border-slate-200 p-2 md:hidden">
+                            {(Array.isArray(group?.devices) ? group.devices : []).map((device: any) => {
+                              const deviceMeta = deviceStatusMeta(device?.status);
+
+                              return (
+                                <div key={`m-${device.id}`} className="rounded-xl border border-slate-100 p-3">
+                                  <div className="flex items-start gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDeviceIds.includes(Number(device.id))}
+                                      disabled={device?.status !== "AVAILABLE"}
+                                      onChange={() => toggleDeviceSelection(Number(device.id))}
+                                      className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-30"
+                                      title={device?.status === "AVAILABLE" ? "Kanal gönderimi için seç" : "Yalnızca AVAILABLE cihaz seçilebilir"}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-[11px] font-black text-slate-900">{device.imei}</div>
+                                      <div className="mt-0.5 text-[10px] font-black text-slate-800">
+                                        {device?.brand || "-"} {device?.model || "-"}
+                                      </div>
+                                      <div className="mt-0.5 text-[10px] font-bold text-slate-400">
+                                        {device?.memory || "-"} · {device?.color || "-"} · Grade {device?.grade || "-"} · Mağaza: {device?.current_branch_code || "-"}
+                                      </div>
+                                    </div>
+                                    <span className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase ${deviceMeta.className}`}>
+                                      {deviceMeta.label}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    <ChannelBadge channel="N11" status={device?.channels?.N11?.status} />
+                                    <ChannelBadge channel="IKAS" status={device?.channels?.IKAS?.status} />
+                                    <ChannelBadge channel="IDEFIX" status={device?.channels?.IDEFIX?.status} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-3 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
                           <div className="min-w-[1040px]">
                             <div className="grid grid-cols-[42px_170px_120px_minmax(170px,1fr)_120px_120px_120px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
                               <div>
@@ -5385,7 +5424,30 @@ export default function Merkez() {
 
               {excelRows.length > 0 && (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="overflow-x-auto">
+                  <div className="divide-y divide-slate-100 md:hidden">
+                    {excelRows.slice(0, 12).map((row) => (
+                      <div key={`m-${row.rowNumber}-${row.imei}`} className="px-3 py-2.5 text-[10px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-black text-slate-900">{row.imei || "-"}</span>
+                          <span className="font-black text-slate-400">#{row.rowNumber}</span>
+                        </div>
+                        <div className="mt-1 font-bold text-slate-700">
+                          {row.brand || "-"} {row.model || "-"} · {row.memory || "-"} · {row.color || "-"}
+                        </div>
+                        <div className="mt-0.5 font-bold text-slate-500">
+                          Grade {row.grade || "-"} · Garanti: {row.warranty || "-"}
+                        </div>
+                      </div>
+                    ))}
+
+                    {excelRows.length > 12 && (
+                      <div className="bg-slate-50 px-4 py-3 text-center text-[10px] font-black text-slate-500">
+                        + {excelRows.length - 12} satır daha
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
                     <div className="min-w-[930px]">
                       <div className="grid grid-cols-[55px_155px_105px_170px_95px_100px_70px_90px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
                         <div>Satır</div>
