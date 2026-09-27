@@ -199,17 +199,17 @@ function money(value: number) {
 // sütunu için kullanılır — INSTALLMENT_CALCULATOR (yukarıdaki taksit
 // hesaplama aracı) ile karıştırılmamalı, ona dokunulmadı.
 const PARATIKA_MERCHANT_COMMISSION_RATES: Record<number, number> = {
-  1: 0,
-  2: 3.23,
+  1: 0.75,
+  2: 3.33,
   3: 5,
-  4: 6.97,
-  5: 8.83,
-  6: 10.6,
-  7: 12.57,
-  8: 14.44,
-  9: 16.31,
-  10: 18.18,
-  11: 20.05,
+  4: 7.07,
+  5: 8.93,
+  6: 10.7,
+  7: 12.67,
+  8: 14.54,
+  9: 16.41,
+  10: 18.28,
+  11: 20.15,
   12: 21.92,
 };
 
