@@ -636,6 +636,20 @@ const VODAFONE_IPLER: string[] = [
 const PARTNER_BRANCH_KEY = "ZUMAY KANALI";
 const PARTNER_DISPLAY_NAME = "CNETMOBIL PARTNER";
 
+// Belirli model/hafıza kombinasyonları için nakit/takas teklif tavanı.
+// Cihaz durumu (mükemmel dahil) ne olursa olsun bu tutar geçilmez.
+const PURCHASE_PRICE_CAPS: Array<{ model: string; capacity: string; maxPrice: number }> = [
+  { model: 'iPhone 13', capacity: '128GB', maxPrice: 25000 },
+];
+
+function getPurchasePriceCap(modelName: string, capacityLabel: string | undefined | null) {
+  const normalizedCapacity = String(capacityLabel || '').replace(/\s+/g, '').toUpperCase();
+  const rule = PURCHASE_PRICE_CAPS.find(
+    (item) => item.model === modelName && item.capacity === normalizedCapacity
+  );
+  return rule ? rule.maxPrice : null;
+}
+
 function personelIpYetkili(branch: string, currentIp: string) {
   if (MASTER_IPLER.includes(currentIp)) return true;
 
@@ -1966,7 +1980,14 @@ export default function CnetmobilCmrFinalUltimate() {
           takasDestekYuzdesi = config.Takas_Barem_1k_25k !== undefined ? Number(config.Takas_Barem_1k_25k) : 12.5;
       }
 
-      const finalTrade = Math.round(finalCash * (1 + (takasDestekYuzdesi / 100)));
+      let finalTrade = Math.round(finalCash * (1 + (takasDestekYuzdesi / 100)));
+
+      const priceCap = getPurchasePriceCap(selectedModelName, selectedCapacity?.cap);
+      if (priceCap !== null) {
+        finalCash = Math.min(finalCash, priceCap);
+        finalTrade = Math.min(finalTrade, priceCap);
+      }
+
       setPrices({ cash: finalTrade > 0 ? finalCash : 0, trade: finalTrade > 0 ? finalTrade : 0 });
       
       if (customOffer && parseInt(customOffer) > finalCash) {
@@ -1990,7 +2011,11 @@ export default function CnetmobilCmrFinalUltimate() {
       disTakasYuzdesi = config.Takas_Barem_1k_25k !== undefined ? Number(config.Takas_Barem_1k_25k) : 12.5;
   }
 
-  const calculatedTradePrice = Math.round(finalCashPrice * (1 + (disTakasYuzdesi / 100)));
+  let calculatedTradePrice = Math.round(finalCashPrice * (1 + (disTakasYuzdesi / 100)));
+  const tradePriceCap = getPurchasePriceCap(selectedModelName, selectedCapacity?.cap);
+  if (tradePriceCap !== null) {
+    calculatedTradePrice = Math.min(calculatedTradePrice, tradePriceCap);
+  }
   const finalTradePrice = isCustomTradeOfferActive && customTradeOffer ? Math.min(parseInt(customTradeOffer) || 0, calculatedTradePrice) : calculatedTradePrice;
 
   const handleFinalProcess = async (actionType: 'print' | 'whatsapp' | 'NAKİT ALINDI' | 'TAKAS ALINDI' | 'ALINMADI') => {
