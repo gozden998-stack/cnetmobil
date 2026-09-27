@@ -908,7 +908,21 @@ export default function DisKanal({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {visibleRows.length === 0 ? (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                <SearchIcon />
+              </div>
+              <p className="text-[11px] font-black text-slate-700">Ürün bulunamadı</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                Arama kelimesini değiştirerek tekrar deneyin.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+        <div className="hidden overflow-x-auto md:block">
           <div className={tableMinWidthClass}>
             <div
               className={`grid ${tableGridClass} border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500`}
@@ -930,20 +944,7 @@ export default function DisKanal({
               )}
             </div>
 
-            {visibleRows.length === 0 ? (
-              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
-                <div>
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                    <SearchIcon />
-                  </div>
-                  <p className="text-[11px] font-black text-slate-700">Ürün bulunamadı</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                    Arama kelimesini değiştirerek tekrar deneyin.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              visibleRows.map((row, index) => {
+              {visibleRows.map((row, index) => {
                 const operationPrice = canUsePurchaseFlow
                   ? parsePanelMoney(row.price)
                   : 0;
@@ -1012,10 +1013,94 @@ export default function DisKanal({
                     )}
                   </div>
                 );
-              })
-            )}
+              })}
           </div>
         </div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {visibleRows.map((row, index) => {
+            const operationPrice = canUsePurchaseFlow
+              ? parsePanelMoney(row.price)
+              : 0;
+
+            return (
+              <div
+                key={`m-${row.name}-${index}`}
+                className={`px-4 py-3 ${
+                  row.highlighted
+                    ? isZumay
+                      ? "bg-red-50/80"
+                      : "bg-teal-50/80"
+                    : index % 2 === 0
+                    ? "bg-white"
+                    : "bg-slate-50/35"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-400">
+                    #{index + 1}
+                  </span>
+                  {row.highlighted && (
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        isZumay ? "bg-red-500" : "bg-teal-500"
+                      }`}
+                    />
+                  )}
+                  <span
+                    className={`flex-1 text-[12px] font-black ${
+                      row.highlighted ? accentText : "text-slate-900"
+                    }`}
+                  >
+                    {row.name}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                        Fiyat
+                      </div>
+                      <div
+                        className={`text-[13px] font-black ${
+                          row.highlighted ? accentText : "text-slate-950"
+                        }`}
+                      >
+                        {String(row.price || "-")}
+                      </div>
+                    </div>
+
+                    {isVodafone && (
+                      <div>
+                        <div className="text-[8px] font-black uppercase tracking-wide text-purple-500">
+                          Vodafone
+                        </div>
+                        <div className="text-[13px] font-black text-purple-600">
+                          {String(row.vodafonePrice || "-")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {canUsePurchaseFlow && (
+                    <button
+                      type="button"
+                      onClick={() => openPurchase(row)}
+                      disabled={operationPrice <= 0}
+                      className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-[11px] font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
+                    >
+                      CİHAZ AL
+                      <span className="text-[13px]">→</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-3 px-5 py-3">
           <button

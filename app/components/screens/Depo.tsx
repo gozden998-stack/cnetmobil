@@ -677,7 +677,37 @@ export default function Depo() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {loading ? (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+                <BoxIcon className="h-5 w-5" />
+              </div>
+              <p className="text-[11px] font-black text-slate-700">
+                DEPO YÜKLENİYOR...
+              </p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                Kayıtlar sunucudan getiriliyor.
+              </p>
+            </div>
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                <SearchIcon />
+              </div>
+              <p className="text-[11px] font-black text-slate-700">
+                KAYIT BULUNAMADI
+              </p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                Arama kelimesini değiştirerek tekrar deneyin.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+        <div className="hidden overflow-x-auto md:block">
           <div className="min-w-[560px]">
             <div className="flex border-y border-slate-200 bg-slate-50/90 px-4 py-3 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
               <div className="flex-[3]">CİHAZ BİLGİSİ</div>
@@ -689,36 +719,7 @@ export default function Depo() {
               </div>
             </div>
 
-            {loading ? (
-              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
-                <div>
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
-                    <BoxIcon className="h-5 w-5" />
-                  </div>
-                  <p className="text-[11px] font-black text-slate-700">
-                    DEPO YÜKLENİYOR...
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                    Kayıtlar sunucudan getiriliyor.
-                  </p>
-                </div>
-              </div>
-            ) : filteredRows.length === 0 ? (
-              <div className="flex min-h-[220px] items-center justify-center px-6 text-center">
-                <div>
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                    <SearchIcon />
-                  </div>
-                  <p className="text-[11px] font-black text-slate-700">
-                    KAYIT BULUNAMADI
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                    Arama kelimesini değiştirerek tekrar deneyin.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              filteredRows.map(
+              {filteredRows.map(
                 (row, i) => {
                   const guncelDurum =
                     instantUsed[row.imei]?.durum ||
@@ -849,10 +850,106 @@ export default function Depo() {
                     </div>
                   );
                 }
-              )
-            )}
+              )}
           </div>
         </div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {filteredRows.map((row, i) => {
+            const guncelDurum = instantUsed[row.imei]?.durum || row.durum;
+            const isUsed = kullanildiMi(guncelDurum);
+            const isSaving = usingImei === row.imei;
+
+            return (
+              <div
+                key={`m-${row.rowNumber}-${row.imei}`}
+                className={`px-4 py-3 ${
+                  isUsed ? "bg-red-50/70" : i % 2 === 0 ? "bg-white" : "bg-slate-50/40"
+                }`}
+              >
+                <div
+                  style={{ textDecoration: isUsed ? "line-through" : "none" }}
+                  className={`truncate text-[12px] font-black ${
+                    isUsed ? "text-red-700 opacity-70" : "text-slate-900"
+                  }`}
+                >
+                  {row.cihaz || "-"}
+                </div>
+                <div
+                  style={{ textDecoration: isUsed ? "line-through" : "none" }}
+                  className={`mt-0.5 text-[11px] font-black ${
+                    isUsed ? "text-red-500 opacity-70" : "text-emerald-600"
+                  }`}
+                >
+                  {row.imei || "-"}
+                </div>
+
+                <div className="mt-2">
+                  {isUsed ? (
+                    <span className="inline-block rounded-lg bg-red-100 px-2.5 py-1 text-[11px] font-black tracking-widest text-red-600">
+                      {guncelDurum}
+                    </span>
+                  ) : pendingImei === row.imei ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={nameInput}
+                        onChange={(event) => setNameInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            void handleImeiKullan(row.imei, nameInput);
+                          } else if (event.key === "Escape") {
+                            setPendingImei(null);
+                            setNameInput("");
+                          }
+                        }}
+                        placeholder="Ad Soyad"
+                        className="h-9 flex-1 rounded-lg border border-orange-300 bg-white px-2 text-[11px] font-bold text-slate-800 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleImeiKullan(row.imei, nameInput)}
+                        disabled={!nameInput.trim() || Boolean(usingImei)}
+                        title="Onayla"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white transition hover:bg-emerald-600 disabled:opacity-50"
+                      >
+                        <CheckIcon className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingImei(null);
+                          setNameInput("");
+                        }}
+                        title="Vazgeç"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingImei(row.imei);
+                        setNameInput("");
+                      }}
+                      disabled={Boolean(usingImei)}
+                      className="w-full rounded-xl bg-orange-500 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      {isSaving ? "KAYDEDİLİYOR..." : "KULLAN"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+          </>
+        )}
 
         <div className="flex items-center justify-end gap-3 px-5 py-3">
           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black text-slate-500">

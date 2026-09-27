@@ -1138,7 +1138,92 @@ export default function Idefix() {
                 İdefix siparişleri yükleniyor...
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="divide-y divide-slate-100 md:hidden">
+                {filteredOrders.map((order) => {
+                  const status = text(order.status).toLowerCase();
+                  const firstItem = Array.isArray(order.items) ? order.items[0] : null;
+                  const busy = orderActionId === order.id;
+
+                  return (
+                    <div key={`m-${order.id}`} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-[11px] font-black text-slate-950">{order.orderNumber || `#${order.id}`}</div>
+                          <div className="mt-0.5 text-[10px] font-semibold text-slate-400">{formatDateTime(order.orderDate)}</div>
+                        </div>
+                        <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${orderStatusClass(order.status)}`}>
+                          {orderStatusLabel(order.status, order.statusDescription)}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 flex items-start gap-2.5">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                          {firstItem?.image ? (
+                            <img src={firstItem.image} alt={firstItem.productName || "Ürün"} className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-lg">📱</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-black leading-4 text-slate-900">{firstItem?.productName || "İdefix Ürünü"}</div>
+                          <div className="mt-1 text-[10px] font-semibold text-slate-400">{order.items?.length || 0} kalem · {money(order.discountedTotalPrice)}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2">
+                        <div className="text-[11px] font-black text-slate-800">{order.customerContactName || order.shippingAddress?.fullName || "-"}</div>
+                        <div className="mt-0.5 text-[10px] font-semibold text-slate-500">{[order.shippingAddress?.county, order.shippingAddress?.city].filter(Boolean).join(" / ") || "-"}</div>
+                      </div>
+
+                      <div className="mt-2 text-[10px] font-semibold text-slate-500">
+                        <span className="font-black text-slate-700">{order.cargoCompany || order.cargoProfileName || "Kargo bekleniyor"}</span>
+                        {order.cargoTrackingNumber && <span className="ml-2 text-violet-600">Takip: {order.cargoTrackingNumber}</span>}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {["created", "shipment_ready"].includes(status) && (
+                          <button type="button" onClick={() => runOrderAction(order, "PICKING")} disabled={busy} className="h-9 rounded-lg border border-amber-200 bg-amber-50 px-3 text-[10px] font-black text-amber-700 disabled:opacity-50">
+                            {busy ? "..." : "Hazırlamaya Başla"}
+                          </button>
+                        )}
+
+                        {status === "shipment_picking" && (
+                          <button type="button" onClick={() => runOrderAction(order, "INVOICED")} disabled={busy} className="h-9 rounded-lg border border-blue-200 bg-blue-50 px-3 text-[10px] font-black text-blue-700 disabled:opacity-50">
+                            {busy ? "..." : "Faturalandı"}
+                          </button>
+                        )}
+
+                        {status === "shipment_invoiced" && !order.cargoTrackingNumber && (
+                          <button type="button" onClick={() => runOrderAction(order, "TRACKING")} disabled={busy} className="h-9 rounded-lg bg-violet-700 px-3 text-[10px] font-black text-white disabled:opacity-50">
+                            {busy ? "..." : "Kargoya Ver"}
+                          </button>
+                        )}
+
+                        {(order.cargoTrackingNumber || order.cargoTrackingUrl) && (
+                          <button type="button" onClick={() => openTracking(order)} className="h-9 rounded-lg border border-violet-200 bg-violet-50 px-3 text-[10px] font-black text-violet-700">
+                            Kargo Takip
+                          </button>
+                        )}
+
+                        {status === "shipment_in_cargo" && !order.cargoTrackingNumber && (
+                          <span className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[10px] font-black text-slate-500">
+                            Takip kodu bekleniyor
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredOrders.length === 0 && (
+                  <div className="px-5 py-16 text-center text-[10px] font-bold text-slate-400">
+                    Bu filtrede İdefix siparişi bulunamadı.
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[1250px] text-left">
                   <thead>
                     <tr className="border-b border-slate-200 bg-white text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1252,6 +1337,7 @@ export default function Idefix() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         ) : tab === "n11migrate" ? (
@@ -1301,7 +1387,98 @@ export default function Idefix() {
                 N11 taşıma adayları yükleniyor...
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="divide-y divide-slate-100 md:hidden">
+                {n11Candidates.map((candidate) => {
+                  const draft = n11PriceDrafts[candidate.imei] || {
+                    salePrice: "",
+                    listPrice: "",
+                    warranty: "",
+                  };
+                  const rowState = n11RowState[candidate.imei];
+
+                  return (
+                    <div key={`m-${candidate.imei}`} className="px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={Boolean(n11Selected[candidate.imei])}
+                          onChange={(event) =>
+                            setN11Selected((current) => ({
+                              ...current,
+                              [candidate.imei]: event.target.checked,
+                            }))
+                          }
+                          disabled={rowState?.loading || n11BulkTransferring}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[11px] font-black text-slate-950">
+                            {candidate.title || `${candidate.brand} ${candidate.model}`.trim()}
+                          </div>
+                          <div className="mt-1 font-mono text-[10px] font-black text-slate-500">{candidate.imei}</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{candidate.memory || "-"}</span>
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{candidate.color || "-"}</span>
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">{candidate.grade || "-"}</span>
+                          </div>
+                          <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                            N11: {money(candidate.n11SalePrice)} · Liste: {money(candidate.n11ListPrice)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-3 gap-1.5">
+                        <input
+                          value={draft.warranty}
+                          onChange={(event) => setN11Price(candidate.imei, "warranty", event.target.value)}
+                          disabled={rowState?.loading || n11BulkTransferring}
+                          placeholder="Garanti"
+                          className="h-9 min-w-0 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                        />
+                        <input
+                          value={draft.salePrice}
+                          onChange={(event) => setN11Price(candidate.imei, "salePrice", event.target.value)}
+                          disabled={rowState?.loading || n11BulkTransferring}
+                          placeholder="Satış Fiy."
+                          className="h-9 min-w-0 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                        />
+                        <input
+                          value={draft.listPrice}
+                          onChange={(event) => setN11Price(candidate.imei, "listPrice", event.target.value)}
+                          disabled={rowState?.loading || n11BulkTransferring}
+                          placeholder="Liste Fiy."
+                          className="h-9 min-w-0 rounded-lg border border-slate-200 px-2 text-[10px] font-semibold outline-none focus:border-violet-400 disabled:bg-slate-50"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => void transferN11Candidate(candidate)}
+                        disabled={rowState?.loading || n11BulkTransferring}
+                        className="mt-2 h-9 w-full rounded-lg bg-violet-700 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {rowState?.loading ? "AKTARILIYOR..." : "İDEFİX'E AKTAR"}
+                      </button>
+
+                      {rowState?.error && (
+                        <div className="mt-1.5 text-[10px] font-bold leading-4 text-rose-600">{rowState.error}</div>
+                      )}
+                      {rowState?.success && (
+                        <div className="mt-1.5 text-[10px] font-bold leading-4 text-emerald-600">{rowState.success}</div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {n11Candidates.length === 0 && (
+                  <div className="px-5 py-14 text-center text-[10px] font-bold text-slate-400">
+                    Taşınacak yeni N11 ürünü bulunamadı.
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[1200px] text-left">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1466,6 +1643,7 @@ export default function Idefix() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         ) : loading ? (
@@ -1473,7 +1651,77 @@ export default function Idefix() {
             İdefix verileri yükleniyor...
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredProducts.map((product, index) => {
+              const open = isOpenProduct(product);
+
+              return (
+                <div key={`m-${product.barcode || product.productMainId || index}`} className="px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-lg">
+                      📱
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[11px] font-black text-slate-950">
+                        {product.title || "İdefix Ürünü"}
+                      </div>
+                      <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                        SKU: {product.vendorStockCode || "-"} · Barkod: {product.barcode || "-"}
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
+                        open ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {open ? "Yayında" : "Kapalı"}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Stok</div>
+                      <div className="text-[12px] font-black text-slate-950">{Number(product.inventoryQuantity || 0)}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Satış Fiyatı</div>
+                      <div className="text-[12px] font-black text-slate-950">{money(product.price)}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Liste Fiyatı</div>
+                      <div className="text-[12px] font-black text-slate-950">{money(product.comparePrice || product.price)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="h-9 flex-1 rounded-lg border border-slate-200 bg-white text-[10px] font-black text-slate-700"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPriceModal(product)}
+                      disabled={!product.barcode || priceSaving}
+                      className="h-9 flex-1 rounded-lg border border-blue-200 bg-blue-50 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Fiyat
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredProducts.length === 0 && (
+              <div className="px-5 py-14 text-center text-[10px] font-bold text-slate-400">
+                Bu sekmede gösterilecek İdefix ürünü bulunamadı.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1050px] text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1596,6 +1844,7 @@ export default function Idefix() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 

@@ -332,46 +332,116 @@ function ProductPanel({
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[650px]">
-          <div className="grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-y border-slate-200 bg-slate-50/80 text-[10px] font-black uppercase tracking-[0.04em] text-slate-500">
-            <div className="px-2 py-3 text-center">#</div>
-            <div className="px-3 py-3">Ürün Adı</div>
-            <div className="px-2 py-3 text-center">Hafıza</div>
-            <div className="bg-rose-50/80 px-3 py-3 text-right text-rose-500">
-              Kampanya
+      {visibleRows.length === 0 ? (
+        <div className="flex min-h-[210px] items-center justify-center px-6 text-center">
+          <div>
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <SearchIcon />
             </div>
-            <div className="px-3 py-3 text-right">Satış</div>
-            <div className="px-3 py-3 text-right">Resmi Fiyat</div>
+            <p className="text-xs font-black text-slate-700">Ürün bulunamadı</p>
+            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+              Arama veya filtreleri değiştirin.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="hidden overflow-x-auto md:block">
+            <div className="min-w-[650px]">
+              <div className="grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-y border-slate-200 bg-slate-50/80 text-[10px] font-black uppercase tracking-[0.04em] text-slate-500">
+                <div className="px-2 py-3 text-center">#</div>
+                <div className="px-3 py-3">Ürün Adı</div>
+                <div className="px-2 py-3 text-center">Hafıza</div>
+                <div className="bg-rose-50/80 px-3 py-3 text-right text-rose-500">
+                  Kampanya
+                </div>
+                <div className="px-3 py-3 text-right">Satış</div>
+                <div className="px-3 py-3 text-right">Resmi Fiyat</div>
+              </div>
+
+              {visibleRows.map((row, index) => {
+                if (row.sectionHeader) {
+                  return (
+                    <div
+                      key={`${row.side}-${row.name}-${index}`}
+                      className={[
+                        "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200",
+                        getSectionHeaderClass(row.visualGroup),
+                      ].join(" ")}
+                    >
+                      <div className="col-span-6 flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.08em]">
+                        <span className="h-2 w-2 rounded-full bg-current opacity-60" />
+                        {row.name}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={`${row.side}-${row.name}-${index}`}
+                    className={[
+                      "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200/70 transition last:border-b-0 hover:brightness-[0.98]",
+                      getRowToneClass(row),
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-bold text-slate-500">
+                      {index + 1}
+                    </div>
+
+                    <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
+                      {row.highlighted && (
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.16)]" />
+                      )}
+                      <span
+                        title={row.name}
+                        className={[
+                          "truncate text-[10px] font-black tracking-[-0.01em]",
+                          row.highlighted ? "text-amber-800" : "text-slate-800",
+                        ].join(" ")}
+                      >
+                        {row.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-black text-slate-700">
+                      {row.memory || "-"}
+                    </div>
+
+                    <PriceCell
+                      value={row.campaign}
+                      variant="campaign"
+                      active={priceType === "campaign"}
+                    />
+                    <PriceCell
+                      value={row.sale}
+                      variant="sale"
+                      active={priceType === "sale"}
+                    />
+                    <PriceCell
+                      value={row.official}
+                      variant="official"
+                      active={priceType === "official"}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {visibleRows.length === 0 ? (
-            <div className="flex min-h-[210px] items-center justify-center px-6 text-center">
-              <div>
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                  <SearchIcon />
-                </div>
-                <p className="text-xs font-black text-slate-700">Ürün bulunamadı</p>
-                <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                  Arama veya filtreleri değiştirin.
-                </p>
-              </div>
-            </div>
-          ) : (
-            visibleRows.map((row, index) => {
+          <div className="divide-y divide-slate-200/70 md:hidden">
+            {visibleRows.map((row, index) => {
               if (row.sectionHeader) {
                 return (
                   <div
                     key={`${row.side}-${row.name}-${index}`}
                     className={[
-                      "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200",
+                      "flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.08em]",
                       getSectionHeaderClass(row.visualGroup),
                     ].join(" ")}
                   >
-                    <div className="col-span-6 flex items-center gap-2 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.08em]">
-                      <span className="h-2 w-2 rounded-full bg-current opacity-60" />
-                      {row.name}
-                    </div>
+                    <span className="h-2 w-2 rounded-full bg-current opacity-60" />
+                    {row.name}
                   </div>
                 );
               }
@@ -379,55 +449,81 @@ function ProductPanel({
               return (
                 <div
                   key={`${row.side}-${row.name}-${index}`}
-                  className={[
-                    "grid grid-cols-[42px_minmax(250px,1fr)_82px_105px_96px_106px] border-b border-slate-200/70 transition last:border-b-0 hover:brightness-[0.98]",
-                    getRowToneClass(row),
-                  ].join(" ")}
+                  className={["px-4 py-3", getRowToneClass(row)].join(" ")}
                 >
-                  <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-bold text-slate-500">
-                    {index + 1}
-                  </div>
-
-                  <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400">
+                      #{index + 1}
+                    </span>
                     {row.highlighted && (
                       <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.16)]" />
                     )}
                     <span
-                      title={row.name}
                       className={[
-                        "truncate text-[10px] font-black tracking-[-0.01em]",
+                        "flex-1 text-[12px] font-black tracking-[-0.01em]",
                         row.highlighted ? "text-amber-800" : "text-slate-800",
                       ].join(" ")}
                     >
                       {row.name}
                     </span>
+                    <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">
+                      {row.memory || "-"}
+                    </span>
                   </div>
 
-                  <div className="flex items-center justify-center px-2 py-[9px] text-[11px] font-black text-slate-700">
-                    {row.memory || "-"}
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div
+                      className={[
+                        "rounded-xl px-2 py-1.5 text-center",
+                        priceType === "campaign"
+                          ? "bg-blue-50 ring-1 ring-inset ring-blue-100"
+                          : "bg-rose-50/60",
+                      ].join(" ")}
+                    >
+                      <div className="text-[8px] font-black uppercase tracking-wide text-rose-500">
+                        Kampanya
+                      </div>
+                      <div className="text-[11px] font-black text-rose-600">
+                        {String(row.campaign || "-")}
+                      </div>
+                    </div>
+                    <div
+                      className={[
+                        "rounded-xl px-2 py-1.5 text-center",
+                        priceType === "sale"
+                          ? "bg-blue-50 ring-1 ring-inset ring-blue-100"
+                          : "bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                        Satış
+                      </div>
+                      <div className="text-[11px] font-black text-slate-900">
+                        {String(row.sale || "-")}
+                      </div>
+                    </div>
+                    <div
+                      className={[
+                        "rounded-xl px-2 py-1.5 text-center",
+                        priceType === "official"
+                          ? "bg-blue-50 ring-1 ring-inset ring-blue-100"
+                          : "bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                        Resmi
+                      </div>
+                      <div className="text-[11px] font-black text-slate-500">
+                        {String(row.official || "-")}
+                      </div>
+                    </div>
                   </div>
-
-                  <PriceCell
-                    value={row.campaign}
-                    variant="campaign"
-                    active={priceType === "campaign"}
-                  />
-                  <PriceCell
-                    value={row.sale}
-                    variant="sale"
-                    active={priceType === "sale"}
-                  />
-                  <PriceCell
-                    value={row.official}
-                    variant="official"
-                    active={priceType === "official"}
-                  />
                 </div>
               );
-            })
-          )}
-        </div>
-      </div>
+            })}
+          </div>
+        </>
+      )}
 
       <div className="flex items-center justify-between gap-3 px-5 py-3.5">
         <button
