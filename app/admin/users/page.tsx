@@ -588,7 +588,53 @@ export default function SuperAdminUsersPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredUsers.map((user) => (
+              <div key={`m-${user.id}`} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-black text-slate-900">{user.email || "E-posta yok"}</div>
+                    <div className="text-[10px] text-slate-400">ID #{user.id} · {user.branch}</div>
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black ${
+                      user.active ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {user.active ? "Aktif" : "Pasif"}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex border rounded-full px-2.5 py-1 text-[10px] font-black ${roleBadgeClass(user)}`}>
+                    {roleLabel(user)}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    {user.roleCode === "super_admin" ? "Tam yetki" : `${user.effectivePermissions?.length || 0} aktif yetki`}
+                  </span>
+                </div>
+
+                <div className="mt-1.5 text-[10px] font-semibold text-slate-500">
+                  Son giriş: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString("tr-TR") : "Henüz giriş yok"}
+                </div>
+
+                <button
+                  onClick={() => openEdit(user)}
+                  className="mt-2 h-9 w-full rounded-xl bg-slate-900 text-[11px] font-black text-white hover:bg-slate-800"
+                >
+                  Düzenle
+                </button>
+              </div>
+            ))}
+
+            {!usersLoading && filteredUsers.length === 0 && (
+              <div className="px-6 py-14 text-center text-slate-400 font-semibold">
+                Kullanıcı bulunamadı.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1000px]">
               <thead className="bg-slate-50/80">
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-500">

@@ -1059,7 +1059,7 @@ export default function DisKanal({
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                         Fiyat
                       </div>
                       <div
@@ -1073,7 +1073,7 @@ export default function DisKanal({
 
                     {isVodafone && (
                       <div>
-                        <div className="text-[8px] font-black uppercase tracking-wide text-purple-500">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-purple-500">
                           Vodafone
                         </div>
                         <div className="text-[13px] font-black text-purple-600">

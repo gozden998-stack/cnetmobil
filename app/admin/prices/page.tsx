@@ -291,7 +291,37 @@ export default function AdminPricesPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredRows.map((row) => (
+              <div key={`m-${row.rowNumber}`} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-[13px] font-black text-slate-900">{row.brand} {row.model}</div>
+                    <div className="text-[11px] font-semibold text-slate-500">{row.capacity}</div>
+                  </div>
+                  <button
+                    onClick={() => openEdit(row)}
+                    disabled={!canEdit}
+                    className="h-9 shrink-0 rounded-xl bg-blue-600 px-3 text-[11px] font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    Değiştir
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-[12px]">
+                  <span className="font-bold text-slate-500">Baz: <span className="font-black tabular-nums text-slate-900">{money(row.basePrice)} TL</span></span>
+                  <span className="font-bold text-slate-500">Min: <span className="font-black tabular-nums text-slate-700">{money(row.minPrice)} TL</span></span>
+                </div>
+              </div>
+            ))}
+
+            {!loading && filteredRows.length === 0 && (
+              <div className="px-6 py-16 text-center text-slate-400 font-semibold">
+                Kayıt bulunamadı.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px]">
               <thead className="bg-slate-50">
                 <tr className="text-left text-xs font-black uppercase tracking-wider text-slate-500">

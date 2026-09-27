@@ -171,7 +171,82 @@ export default function YoneticiPaneli({
                     <p className="text-sm font-medium">Bu kriterlere uygun kayıt bulunmuyor.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto custom-scrollbar pb-2">
+                  <>
+                  <div className="flex flex-col gap-2 md:hidden">
+                    {filteredAlimlar.map((item, i) => {
+                      const rawDevice = item.data[2] || '';
+                      const parts = rawDevice.split(' #EKSPERTİZ# ');
+                      const mainDevice = parts[0];
+                      const cleanDevice = mainDevice.replace(/\[NAKİT ALINDI\]/g, '').replace(/\[TAKAS ALINDI\]/g, '').replace(/\[ALINMADI\]/g, '').trim();
+                      const ekspertizData = parts.length > 1 ? parts[1] : '';
+
+                      let rawDate = item.data[6] || item.data[7] || '---';
+                      let datePart = rawDate.split(' ')[0] || '---';
+                      let timePart = rawDate.split(' ')[1] || '';
+
+                      const rowStr = item.data.join(" ");
+                      let statusBadge = "bg-slate-800/50 text-slate-400 border-slate-700/50";
+                      let statusText = "BEKLEMEDE";
+                      let dotColor = "bg-slate-500";
+
+                      if (rowStr.includes('[NAKİT ALINDI]')) {
+                        statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                        statusText = "NAKİT ALIM";
+                        dotColor = "bg-emerald-400";
+                      } else if (rowStr.includes('[TAKAS ALINDI]')) {
+                        statusBadge = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                        statusText = "TAKAS ALIM";
+                        dotColor = "bg-blue-400";
+                      } else if (rowStr.includes('[ALINMADI]')) {
+                        statusBadge = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                        statusText = "İPTAL";
+                        dotColor = "bg-rose-400";
+                      }
+
+                      return (
+                        <div key={`m-${i}`} className="bg-slate-900/30 border border-slate-800/50 rounded-xl p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-sm font-semibold text-slate-200">{item.data[1] || 'Bilinmiyor'}</span>
+                              <div className="mt-0.5 text-[11px] font-mono text-slate-500">{item.data[3] || 'IMEI YOK'}</div>
+                            </div>
+                            <div className={`shrink-0 px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase border inline-flex items-center gap-1.5 ${statusBadge}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
+                              {statusText}
+                            </div>
+                          </div>
+
+                          <div className="mt-2 text-[11px] text-slate-500">
+                            {datePart} {timePart} · <span className="font-bold text-indigo-400 uppercase tracking-wider">{item.data[0]}</span>
+                          </div>
+
+                          <div className="mt-2 flex flex-col items-start gap-1.5">
+                            <span className="text-sm font-medium text-slate-200">{cleanDevice}</span>
+                            {ekspertizData && (
+                              <button onClick={() => setEkspertizModalData({ customer: item.data[1], device: cleanDevice, data: ekspertizData })} className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors">
+                                Ekspertiz Formunu Gör
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            {statusText === 'İPTAL' ? (
+                              <span className="font-semibold text-slate-600 text-sm">---</span>
+                            ) : (
+                              <span className="font-bold text-white text-base">
+                                {parseInt(item.data[5] || item.data[4] || 0).toLocaleString()} <span className="text-slate-400 text-sm font-normal">₺</span>
+                              </span>
+                            )}
+                            <button onClick={() => deleteAlim(item.sheetIndex)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-2 rounded-lg transition-all" title="Kaydı Sil">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="hidden overflow-x-auto custom-scrollbar pb-2 md:block">
                     <div className="min-w-[1100px] flex flex-col">
                       <div className="grid grid-cols-[140px_200px_140px_1fr_120px_60px] gap-4 px-6 py-3 bg-slate-950/50 border border-slate-800/80 rounded-xl font-semibold text-xs text-slate-400 mb-2">
                         <div>TARİH / ŞUBE</div>
@@ -263,6 +338,7 @@ export default function YoneticiPaneli({
                       </div>
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             </div>

@@ -575,7 +575,7 @@ export default function WingsmScoreRulesPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] text-left">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-[8px] font-black uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                           <th className="px-4 py-3">Kâr Alt Sınır</th>
                           <th className="px-4 py-3">Kâr Üst Sınır</th>
                           <th className="px-4 py-3">Puan</th>
@@ -619,7 +619,7 @@ export default function WingsmScoreRulesPage() {
                                   type="button"
                                   onClick={() => toggleActive(rule)}
                                   disabled={rs.loading}
-                                  className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-black transition disabled:opacity-50 ${
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black transition disabled:opacity-50 ${
                                     rule.active
                                       ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                                       : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -634,7 +634,7 @@ export default function WingsmScoreRulesPage() {
                                     type="button"
                                     onClick={() => saveRow(rule)}
                                     disabled={rs.loading}
-                                    className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[8px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="h-8 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {rs.loading ? "KAYDEDİLİYOR..." : "KAYDET"}
                                   </button>
@@ -643,19 +643,19 @@ export default function WingsmScoreRulesPage() {
                                     type="button"
                                     onClick={() => deleteRow(rule)}
                                     disabled={rs.loading || !rule.active}
-                                    className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[8px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[10px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     SİL
                                   </button>
                                 </div>
 
                                 {rs.error && (
-                                  <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-rose-600">
+                                  <div className="mt-2 max-w-[220px] text-[10px] font-bold leading-4 text-rose-600">
                                     {rs.error}
                                   </div>
                                 )}
                                 {rs.success && (
-                                  <div className="mt-2 max-w-[220px] text-[8px] font-bold leading-4 text-emerald-600">
+                                  <div className="mt-2 max-w-[220px] text-[10px] font-bold leading-4 text-emerald-600">
                                     {rs.success}
                                   </div>
                                 )}
@@ -668,12 +668,12 @@ export default function WingsmScoreRulesPage() {
                   </div>
 
                   <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
-                    <div className="mb-2 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-400">
                       {group.label} için yeni aralık ekle
                     </div>
                     <div className="flex flex-wrap items-end gap-2">
                       <label>
-                        <div className="mb-1 text-[9px] font-bold text-slate-400">Alt Sınır</div>
+                        <div className="mb-1 text-[11px] font-bold text-slate-400">Alt Sınır</div>
                         <input
                           value={draft.profit_min}
                           onChange={(e) => updateNewBracketDraft(group.classCode, "profit_min", e.target.value)}
@@ -682,7 +682,7 @@ export default function WingsmScoreRulesPage() {
                         />
                       </label>
                       <label>
-                        <div className="mb-1 text-[9px] font-bold text-slate-400">Üst Sınır</div>
+                        <div className="mb-1 text-[11px] font-bold text-slate-400">Üst Sınır</div>
                         <input
                           value={draft.profit_max}
                           onChange={(e) => updateNewBracketDraft(group.classCode, "profit_max", e.target.value)}
@@ -691,7 +691,7 @@ export default function WingsmScoreRulesPage() {
                         />
                       </label>
                       <label>
-                        <div className="mb-1 text-[9px] font-bold text-slate-400">Puan</div>
+                        <div className="mb-1 text-[11px] font-bold text-slate-400">Puan</div>
                         <input
                           value={draft.score}
                           onChange={(e) => updateNewBracketDraft(group.classCode, "score", e.target.value)}
@@ -703,16 +703,16 @@ export default function WingsmScoreRulesPage() {
                         type="button"
                         onClick={() => addBracket(group.classCode, group.label)}
                         disabled={state.loading}
-                        className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[9px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {state.loading ? "EKLENİYOR..." : "ARALIK EKLE"}
                       </button>
                     </div>
                     {state.error && (
-                      <div className="mt-2 text-[9px] font-bold text-rose-600">{state.error}</div>
+                      <div className="mt-2 text-[11px] font-bold text-rose-600">{state.error}</div>
                     )}
                     {state.success && (
-                      <div className="mt-2 text-[9px] font-bold text-emerald-600">{state.success}</div>
+                      <div className="mt-2 text-[11px] font-bold text-emerald-600">{state.success}</div>
                     )}
                   </div>
                 </section>

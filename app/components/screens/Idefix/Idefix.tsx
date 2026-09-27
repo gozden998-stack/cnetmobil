@@ -1681,15 +1681,15 @@ export default function Idefix() {
 
                   <div className="mt-2 grid grid-cols-3 gap-2">
                     <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Stok</div>
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Stok</div>
                       <div className="text-[12px] font-black text-slate-950">{Number(product.inventoryQuantity || 0)}</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Satış Fiyatı</div>
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Satış Fiyatı</div>
                       <div className="text-[12px] font-black text-slate-950">{money(product.price)}</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 px-2 py-1.5 text-center">
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">Liste Fiyatı</div>
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Liste Fiyatı</div>
                       <div className="text-[12px] font-black text-slate-950">{money(product.comparePrice || product.price)}</div>
                     </div>
                   </div>

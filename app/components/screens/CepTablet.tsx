@@ -480,7 +480,7 @@ function ProductPanel({
                           : "bg-rose-50/60",
                       ].join(" ")}
                     >
-                      <div className="text-[8px] font-black uppercase tracking-wide text-rose-500">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-rose-500">
                         Kampanya
                       </div>
                       <div className="text-[11px] font-black text-rose-600">
@@ -495,7 +495,7 @@ function ProductPanel({
                           : "bg-slate-50",
                       ].join(" ")}
                     >
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                         Satış
                       </div>
                       <div className="text-[11px] font-black text-slate-900">
@@ -510,7 +510,7 @@ function ProductPanel({
                           : "bg-slate-50",
                       ].join(" ")}
                     >
-                      <div className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                         Resmi
                       </div>
                       <div className="text-[11px] font-black text-slate-500">

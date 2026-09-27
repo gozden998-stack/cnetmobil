@@ -1122,8 +1122,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{title}</h4>
                         {esikYuzde != null && (
                             isRiskli ?
-                            <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded w-max border border-rose-200">%{esikYuzde} Altı (Riskli)</span> :
-                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded w-max border border-emerald-200">Baraj Geçildi</span>
+                            <span className="text-[11px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded w-max border border-rose-200">%{esikYuzde} Altı (Riskli)</span> :
+                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded w-max border border-emerald-200">Baraj Geçildi</span>
                         )}
                     </div>
                     {puan !== undefined && <span className="text-[10px] font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">Puan: {puan}</span>}
@@ -1237,7 +1237,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 <div>
                                     <div className="mb-1 flex items-center gap-2">
                                         <span className="text-[13px] font-bold text-slate-500">{selamlama} 👋</span>
-                                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-700">
+                                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
                                             Aktif
                                         </span>
                                     </div>
@@ -1261,9 +1261,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </svg>
                                 </div>
                                 <div>
-                                    <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Bugün</div>
+                                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Bugün</div>
                                     <div className="text-[12px] font-black capitalize leading-tight text-slate-800">{tarihMetni}</div>
-                                    <div className="text-[9px] font-bold capitalize text-slate-400">{gunMetni}</div>
+                                    <div className="text-[11px] font-bold capitalize text-slate-400">{gunMetni}</div>
                                 </div>
                             </div>
 
@@ -1272,7 +1272,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     {weatherIcon(weather.weatherCode)}
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="truncate text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                    <div className="truncate text-[11px] font-black uppercase tracking-wider text-slate-400">
                                         {weather.city || weatherLocationForBranch(selectedBranch).city}
                                     </div>
                                     {weather.loading ? (
@@ -1282,7 +1282,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <div className="text-[18px] font-black leading-none text-slate-900">
                                                 {Math.round(weather.temperature)}°C
                                             </div>
-                                            <div className="mt-1 text-[9px] font-bold text-slate-500">
+                                            <div className="mt-1 text-[11px] font-bold text-slate-500">
                                                 {weatherDescription(weather.weatherCode)}
                                                 {weather.apparentTemperature !== null
                                                     ? ` · Hissedilen ${Math.round(weather.apparentTemperature)}°`
@@ -1290,7 +1290,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="mt-1 text-[9px] font-bold text-slate-400">Hava bilgisi alınamadı</div>
+                                        <div className="mt-1 text-[11px] font-bold text-slate-400">Hava bilgisi alınamadı</div>
                                     )}
                                 </div>
                             </div>
@@ -1302,9 +1302,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </svg>
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Son Güncelleme</div>
+                                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Son Güncelleme</div>
                                     <div className="truncate text-[11px] font-black leading-tight text-slate-800">{lastUpdatedDate || 'Bilinmiyor'}</div>
-                                    <div className="mt-0.5 flex items-center gap-1.5 text-[9px] font-bold text-emerald-600">
+                                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                         Veriler güncel
                                     </div>
@@ -1317,7 +1317,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <div className="text-[11px] font-black leading-snug text-slate-800">
                                         Küçük adımlar, büyük başarılar getirir.
                                     </div>
-                                    <div className="mt-1 text-[9px] font-black text-violet-600">Cnetmobil</div>
+                                    <div className="mt-1 text-[11px] font-black text-violet-600">Cnetmobil</div>
                                 </div>
                             </div>
                         </div>
@@ -1340,7 +1340,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         <h2 className="text-[15px] font-black tracking-tight text-[#102A56]">
                                             Duyurular & Bildirimler
                                         </h2>
-                                        <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
+                                        <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
                                             Fiyat ve yeni ürün hareketleri • Gün sonuna kadar görünür
                                         </p>
                                     </div>
@@ -1371,7 +1371,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 >
                                     Bildirimler
                                     {activeNewPriceCount > 0 && (
-                                        <span className="absolute -right-2 -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[8px] font-black text-white shadow-md">
+                                        <span className="absolute -right-2 -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md">
                                             {activeNewPriceCount}
                                         </span>
                                     )}
@@ -1410,7 +1410,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 📢
                                             </div>
                                             <p className="text-[11px] font-black text-slate-700">Aktif duyuru bulunmuyor</p>
-                                            <p className="mt-1 text-[9px] text-slate-400">Yeni duyurular burada görünecek.</p>
+                                            <p className="mt-1 text-[11px] text-slate-400">Yeni duyurular burada görünecek.</p>
                                         </div>
                                     )}
                                 </div>
@@ -1450,7 +1450,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="min-w-0">
                                                                         <div className="flex flex-wrap items-center gap-2">
-                                                                            <span className={`text-[9px] font-semibold uppercase tracking-wide ${
+                                                                            <span className={`text-[11px] font-semibold uppercase tracking-wide ${
                                                                                 item.direction === 'new'
                                                                                     ? 'text-blue-600'
                                                                                     : 'text-rose-600'
@@ -1458,12 +1458,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                                 {item.direction === 'new' ? 'Yeni Ürün Eklendi' : 'Fiyat Değişti'}
                                                                             </span>
                                                                             {isFresh && (
-                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-white">
+                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
                                                                                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                                                                                     Yeni
                                                                                 </span>
                                                                             )}
-                                                                            <span className="text-[8px] font-medium text-slate-400">
+                                                                            <span className="text-[10px] font-medium text-slate-400">
                                                                                 {item.category}
                                                                             </span>
                                                                         </div>
@@ -1491,7 +1491,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                                     <span className="text-[11px] font-medium text-slate-900">
                                                                                         {formatPriceTl(item.newPrice)}
                                                                                     </span>
-                                                                                    <span className={`text-[9px] font-medium ${
+                                                                                    <span className={`text-[11px] font-medium ${
                                                                                         isDown ? 'text-emerald-600' : 'text-rose-600'
                                                                                     }`}>
                                                                                         {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
@@ -1502,7 +1502,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                     </div>
 
                                                                     <div className="flex shrink-0 items-center gap-2">
-                                                                        <span className="whitespace-nowrap text-[8px] font-medium text-slate-400">
+                                                                        <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
                                                                             {getPriceDateTimeLabel(item.changedAt)}
                                                                         </span>
                                                                         <svg className="h-4 w-4 text-slate-300 transition-colors group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1524,7 +1524,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 </svg>
                                             </div>
                                             <p className="text-[11px] font-black text-slate-700">Henüz fiyat değişikliği yok</p>
-                                            <p className="mt-1 text-[9px] text-slate-400">
+                                            <p className="mt-1 text-[11px] text-slate-400">
                                                 Sheets'te fiyat değiştiğinde otomatik burada görünecek.
                                             </p>
                                         </div>
@@ -1547,7 +1547,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         >
                             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
                                 <div>
-                                    <div className={`text-[9px] font-black uppercase tracking-[0.16em] ${
+                                    <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${
                                         selectedPriceNotification.direction === 'new'
                                             ? 'text-blue-500'
                                             : 'text-rose-500'
@@ -1559,7 +1559,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <h3 className="mt-1 text-lg font-black leading-tight text-[#102A56]">
                                         {selectedPriceNotification.name}
                                     </h3>
-                                    <div className="mt-1 text-[9px] font-bold text-slate-400">
+                                    <div className="mt-1 text-[11px] font-bold text-slate-400">
                                         {selectedPriceNotification.category} · {getPriceDateTimeLabel(selectedPriceNotification.changedAt)}
                                     </div>
                                 </div>
@@ -1578,7 +1578,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div className="p-6">
                                 {selectedPriceNotification.direction === 'new' ? (
                                     <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-500">
                                             Ürün Fiyatı
                                         </span>
                                         <div className="mt-1 text-xl font-black text-blue-700">
@@ -1592,14 +1592,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Eski Fiyat</span>
                                                 <div className="mt-1 text-xl font-black text-slate-700">
                                                     {formatPriceTl(selectedPriceNotification.oldPrice)}
                                                 </div>
                                             </div>
 
                                             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                                                <span className="text-[8px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-blue-500">Yeni Fiyat</span>
                                                 <div className="mt-1 text-xl font-black text-blue-700">
                                                     {formatPriceTl(selectedPriceNotification.newPrice)}
                                                 </div>
@@ -1613,7 +1613,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         }`}>
                                             <div className="flex items-center justify-between gap-4">
                                                 <div>
-                                                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Değişim</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Değişim</span>
                                                     <div className={`mt-1 text-lg font-black ${
                                                         selectedPriceNotification.direction === 'down'
                                                             ? 'text-emerald-700'
@@ -1625,7 +1625,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                 </div>
 
                                                 <div className="text-right">
-                                                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Durum</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Durum</span>
                                                     <div className={`mt-1 text-[11px] font-black ${
                                                         selectedPriceNotification.direction === 'down'
                                                             ? 'text-emerald-700'
@@ -1641,7 +1641,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </>
                                 )}
 
-                                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-[9px]">
+                                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-[11px]">
                                     <span className="font-bold text-slate-400">Değişiklik zamanı</span>
                                     <span className="font-black text-slate-700">
                                         {new Date(selectedPriceNotification.changedAt).toLocaleString('tr-TR')}
@@ -1662,11 +1662,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
                                 </svg>
                             </div>
-                            <div className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-black text-blue-600">
+                            <div className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600">
                                 %{tamamlananYuzde}
                             </div>
                         </div>
-                        <div className="mt-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Satış</div>
+                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Satış</div>
                         <div className="mt-1 flex items-end gap-2">
                             <span className="text-3xl font-black tracking-tight text-[#102A56]">{anaSatis}</span>
                             <span className="pb-1 text-[12px] font-black text-slate-400">/ {anaHedef}</span>
@@ -1683,9 +1683,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20V10m0 0l-4 4m4-4 4 4M5 4h14" />
                                 </svg>
                             </div>
-                            <div className="text-[9px] font-black text-emerald-600">AY SONU</div>
+                            <div className="text-[11px] font-black text-emerald-600">AY SONU</div>
                         </div>
-                        <div className="mt-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Tahmini Ay Sonu</div>
+                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Tahmini Ay Sonu</div>
                         <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{anaProjeksiyon}</div>
                         <div className="mt-3 text-[10px] font-bold text-slate-400">
                             Güncel tempoya göre projeksiyon
@@ -1699,9 +1699,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 10.1c-.783-.57-.38-1.81.588-1.81h4.915a1 1 0 00.95-.69l1.616-4.674z" />
                                 </svg>
                             </div>
-                            <div className="rounded-full bg-violet-50 px-2.5 py-1 text-[9px] font-black text-violet-600">PUAN</div>
+                            <div className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">PUAN</div>
                         </div>
-                        <div className="mt-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Puan</div>
+                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Puan</div>
                         <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{magazaAnlikPuan.toFixed(1)}</div>
                         <div className="mt-3 text-[10px] font-bold text-slate-400">
                             Tahmini: <span className="font-black text-violet-600">{magazaTahminPuan.toFixed(1)}</span>
@@ -1715,9 +1715,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3a8 8 0 108 8h-8V3zM15 3.5A8 8 0 0120.5 9H15V3.5z" />
                                 </svg>
                             </div>
-                            <div className="rounded-full bg-orange-50 px-2.5 py-1 text-[9px] font-black text-orange-600">KALAN</div>
+                            <div className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-600">KALAN</div>
                         </div>
-                        <div className="mt-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Kalan Hedef</div>
+                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Kalan Hedef</div>
                         <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{kalanHedef}</div>
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
                             <div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.max(0, 100 - tamamlananYuzde)}%` }} />
@@ -1741,14 +1741,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
 
                             <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
-                                <span className="rounded-lg bg-blue-600 px-4 py-1.5 text-[9px] font-black text-white">Adet</span>
-                                <span className="px-4 py-1.5 text-[9px] font-black text-slate-400">Ciro</span>
-                                <span className="px-4 py-1.5 text-[9px] font-black text-slate-400">Puan</span>
+                                <span className="rounded-lg bg-blue-600 px-4 py-1.5 text-[11px] font-black text-white">Adet</span>
+                                <span className="px-4 py-1.5 text-[11px] font-black text-slate-400">Ciro</span>
+                                <span className="px-4 py-1.5 text-[11px] font-black text-slate-400">Puan</span>
                             </div>
                         </div>
 
                         <div className="p-4 sm:p-5">
-                            <div className="mb-3 flex flex-wrap items-center gap-4 text-[9px] font-bold text-slate-400">
+                            <div className="mb-3 flex flex-wrap items-center gap-4 text-[11px] font-bold text-slate-400">
                                 <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Günlük Satış</span>
                                 <span className="flex items-center gap-1.5"><span className="h-[2px] w-5 border-t-2 border-dashed border-slate-400" /> Hedef</span>
                                 <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Kümülatif</span>
@@ -1817,15 +1817,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                             <div className="mt-1 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3">
                                 <div>
-                                    <div className="text-[8px] font-black uppercase tracking-wider text-slate-400">Hedef</div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Hedef</div>
                                     <div className="mt-1 text-lg font-black text-slate-800">{anaHedef}</div>
                                 </div>
                                 <div>
-                                    <div className="text-[8px] font-black uppercase tracking-wider text-slate-400">Mevcut</div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Mevcut</div>
                                     <div className="mt-1 text-lg font-black text-blue-600">{anaSatis}</div>
                                 </div>
                                 <div>
-                                    <div className="text-[8px] font-black uppercase tracking-wider text-slate-400">Tahmin</div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tahmin</div>
                                     <div className="mt-1 text-lg font-black text-emerald-600">{anaProjeksiyon}</div>
                                 </div>
                             </div>
@@ -1837,9 +1837,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="mb-3 flex items-center justify-between">
                             <div>
                                 <h3 className="text-[15px] font-black text-[#102A56]">Mağaza Sıralaması</h3>
-                                <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-slate-400">Adet Tamamlama</p>
+                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Adet Tamamlama</p>
                             </div>
-                            <button type="button" onClick={() => setActiveDrawer('magaza')} className="text-[9px] font-black text-blue-600 hover:text-blue-700">
+                            <button type="button" onClick={() => setActiveDrawer('magaza')} className="text-[11px] font-black text-blue-600 hover:text-blue-700">
                                 Tümünü Gör →
                             </button>
                         </div>
@@ -1860,7 +1860,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className="truncate text-[10px] font-black uppercase text-slate-800">{magaza.name}</span>
-                                                <span className="text-[9px] font-black text-slate-500">%{magaza.tamamlama}</span>
+                                                <span className="text-[11px] font-black text-slate-500">%{magaza.tamamlama}</span>
                                             </div>
                                             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                                                 <div
@@ -1882,9 +1882,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         <div className="mb-3 flex items-center justify-between">
                             <div>
                                 <h3 className="text-[15px] font-black text-[#102A56]">En İyi Personeller</h3>
-                                <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-slate-400">Tahmini Puan</p>
+                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tahmini Puan</p>
                             </div>
-                            <button type="button" onClick={() => setActiveDrawer('personel')} className="text-[9px] font-black text-blue-600 hover:text-blue-700">
+                            <button type="button" onClick={() => setActiveDrawer('personel')} className="text-[11px] font-black text-blue-600 hover:text-blue-700">
                                 Tümünü Gör →
                             </button>
                         </div>
@@ -1910,7 +1910,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="truncate text-[10px] font-black text-slate-800">{personel.isim}</div>
-                                        <div className="truncate text-[8px] font-bold uppercase text-slate-400">{personel.magaza}</div>
+                                        <div className="truncate text-[10px] font-bold uppercase text-slate-400">{personel.magaza}</div>
                                     </div>
                                     <div className="text-[10px] font-black text-[#102A56]">{personel.puanTahmin} Puan</div>
                                 </button>
@@ -1937,10 +1937,10 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="text-[13px] font-black text-slate-800">Personel Durumu</div>
-                                <div className="mt-0.5 text-[9px] font-bold text-slate-400">Aktif mağaza personelleri</div>
+                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Aktif mağaza personelleri</div>
                                 <div className="mt-2 flex items-end gap-2">
                                     <span className="text-2xl font-black text-[#102A56]">{aktifPersonelSayisi}</span>
-                                    <span className="pb-1 text-[9px] font-black text-blue-600">/ {toplamPersonelSayisi} toplam</span>
+                                    <span className="pb-1 text-[11px] font-black text-blue-600">/ {toplamPersonelSayisi} toplam</span>
                                 </div>
                             </div>
                             <span className="text-blue-500 transition group-hover:translate-x-1">→</span>
@@ -1958,7 +1958,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="text-[13px] font-black text-slate-800">Mağaza Hedefleri</div>
-                                <div className="mt-0.5 text-[9px] font-bold text-slate-400">Aylık gerçekleşme</div>
+                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Aylık gerçekleşme</div>
                                 <div className="mt-2 text-2xl font-black text-[#102A56]">%{tamamlananYuzde}</div>
                             </div>
                             <span className="text-emerald-500 transition group-hover:translate-x-1">→</span>
@@ -1976,7 +1976,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="text-[13px] font-black text-slate-800">İzinler</div>
-                                <div className="mt-0.5 text-[9px] font-bold text-slate-400">Personel izin takvimi</div>
+                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Personel izin takvimi</div>
                                 <div className="mt-2 text-[10px] font-black text-violet-600">Takvimi Gör</div>
                             </div>
                             <span className="text-violet-500 transition group-hover:translate-x-1">→</span>
@@ -2003,7 +2003,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 <section className="mb-6 rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,0.04)]">
                     <div className="mb-3">
                         <h3 className="text-[14px] font-black text-[#102A56]">Hızlı Erişim</h3>
-                        <p className="text-[9px] font-bold text-slate-400">Sık kullandığınız işlemlere hızlıca ulaşın</p>
+                        <p className="text-[11px] font-bold text-slate-400">Sık kullandığınız işlemlere hızlıca ulaşın</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
@@ -2029,7 +2029,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     type="button"
                                     key={item.label}
                                     onClick={() => setAppMode(item.mode)}
-                                    className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border px-3 text-[9px] font-black transition hover:-translate-y-0.5 ${toneClasses[item.tone]}`}
+                                    className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-black transition hover:-translate-y-0.5 ${toneClasses[item.tone]}`}
                                 >
                                     <span className="text-base">{item.icon}</span>
                                     {item.label}
@@ -2037,17 +2037,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             );
                         })}
 
-                        <button type="button" onClick={() => setActiveModal('hedefler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 text-[9px] font-black text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-300">
+                        <button type="button" onClick={() => setActiveModal('hedefler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 text-[11px] font-black text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-300">
                             <span className="text-base">◎</span> Hedefler
                         </button>
 
                         {isCmr && (
-                            <button type="button" onClick={() => setActiveModal('izinler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 text-[9px] font-black text-purple-700 transition hover:-translate-y-0.5 hover:border-purple-300">
+                            <button type="button" onClick={() => setActiveModal('izinler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 text-[11px] font-black text-purple-700 transition hover:-translate-y-0.5 hover:border-purple-300">
                                 <span className="text-base">▦</span> İzinler
                             </button>
                         )}
 
-                        <button type="button" onClick={() => setActiveModal('departman')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[9px] font-black text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400">
+                        <button type="button" onClick={() => setActiveModal('departman')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-black text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400">
                             <span className="text-base">▥</span> Raporlar
                         </button>
                     </div>
@@ -2103,7 +2103,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                 <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${barWidthPercent}%` }}></div>
                                             </div>
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-24 text-right">
+                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 w-24 text-right">
                                                 AY SONU TAHMİN
                                             </span>
                                         </div>
@@ -2139,15 +2139,15 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                         
                                         <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                             <div className="text-center border-r border-slate-200">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Anlık Puan</p>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Anlık Puan</p>
                                                 <p className="text-sm font-black text-slate-800">{m.data.anlikPuan.toFixed(1)}</p>
                                             </div>
                                             <div className="text-center border-r border-slate-200">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Toplam Puan</p>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Toplam Puan</p>
                                                 <p className="text-sm font-black text-slate-800">{m.data.hedefPuan.toFixed(1)}</p>
                                             </div>
                                             <div className="text-center">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Kalan Adet</p>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Kalan Adet</p>
                                                 <p className="text-sm font-black text-rose-500">{kalanAdet}</p>
                                             </div>
                                         </div>
