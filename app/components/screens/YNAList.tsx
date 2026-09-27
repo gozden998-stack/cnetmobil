@@ -187,72 +187,104 @@ function ProductList({
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[430px]">
-          <div className="grid grid-cols-[42px_minmax(250px,1fr)_120px] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
-            <div className="px-2 py-3 text-center">#</div>
-            <div className="px-3 py-3">Ürün Adı</div>
-            <div className="bg-purple-50/70 px-3 py-3 text-right text-purple-600">
-              Fiyatı (TL)
+      {visibleRows.length === 0 ? (
+        <div className="flex min-h-[190px] items-center justify-center px-6 text-center">
+          <div>
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+              <SearchIcon className="h-4 w-4" />
             </div>
+            <p className="text-[10px] font-black text-slate-700">
+              Ürün bulunamadı
+            </p>
+            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+              Arama kelimesini değiştirin.
+            </p>
           </div>
-
-          {visibleRows.length === 0 ? (
-            <div className="flex min-h-[190px] items-center justify-center px-6 text-center">
-              <div>
-                <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                  <SearchIcon className="h-4 w-4" />
-                </div>
-                <p className="text-[10px] font-black text-slate-700">
-                  Ürün bulunamadı
-                </p>
-                <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                  Arama kelimesini değiştirin.
-                </p>
+        </div>
+      ) : (
+        <>
+        <div className="hidden overflow-x-auto md:block">
+          <div className="min-w-[430px]">
+            <div className="grid grid-cols-[42px_minmax(250px,1fr)_120px] border-y border-slate-200 bg-slate-50/90 text-[10px] font-black uppercase tracking-[0.05em] text-slate-500">
+              <div className="px-2 py-3 text-center">#</div>
+              <div className="px-3 py-3">Ürün Adı</div>
+              <div className="bg-purple-50/70 px-3 py-3 text-right text-purple-600">
+                Fiyatı (TL)
               </div>
             </div>
-          ) : (
-            visibleRows.map((row, index) => (
-              <div
-                key={`${side}-${row.name}-${index}`}
-                className={`grid grid-cols-[42px_minmax(250px,1fr)_120px] border-b border-slate-100 last:border-b-0 transition hover:bg-purple-50/45 ${
-                  row.highlighted
-                    ? "bg-amber-50/75"
-                    : index % 2 === 0
-                    ? "bg-white"
-                    : "bg-slate-50/35"
-                }`}
-              >
-                <div className="flex items-center justify-center px-2 py-[9px] text-[10px] font-bold text-slate-400">
-                  {index + 1}
-                </div>
 
-                <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
-                  {row.highlighted && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]" />
-                  )}
-                  <span
-                    title={row.name}
-                    className={`truncate text-[11px] font-black ${
-                      row.highlighted ? "text-amber-700" : "text-slate-900"
-                    }`}
-                  >
-                    {row.name}
-                  </span>
-                </div>
-
+              {visibleRows.map((row, index) => (
                 <div
-                  className={`flex items-center justify-end whitespace-nowrap border-l border-slate-100 px-3 py-[9px] text-[10px] font-black ${
-                    row.highlighted ? "text-amber-600" : "text-purple-700"
+                  key={`${side}-${row.name}-${index}`}
+                  className={`grid grid-cols-[42px_minmax(250px,1fr)_120px] border-b border-slate-100 last:border-b-0 transition hover:bg-purple-50/45 ${
+                    row.highlighted
+                      ? "bg-amber-50/75"
+                      : index % 2 === 0
+                      ? "bg-white"
+                      : "bg-slate-50/35"
                   }`}
                 >
-                  {String(row.price || "-")}
+                  <div className="flex items-center justify-center px-2 py-[9px] text-[10px] font-bold text-slate-400">
+                    {index + 1}
+                  </div>
+
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-[9px]">
+                    {row.highlighted && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]" />
+                    )}
+                    <span
+                      title={row.name}
+                      className={`truncate text-[11px] font-black ${
+                        row.highlighted ? "text-amber-700" : "text-slate-900"
+                      }`}
+                    >
+                      {row.name}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`flex items-center justify-end whitespace-nowrap border-l border-slate-100 px-3 py-[9px] text-[10px] font-black ${
+                      row.highlighted ? "text-amber-600" : "text-purple-700"
+                    }`}
+                  >
+                    {String(row.price || "-")}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))}
+          </div>
         </div>
-      </div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {visibleRows.map((row, index) => (
+            <div
+              key={`m-${side}-${row.name}-${index}`}
+              className={`flex items-center justify-between gap-2 px-4 py-3 ${
+                row.highlighted ? "bg-amber-50/75" : index % 2 === 0 ? "bg-white" : "bg-slate-50/35"
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">#{index + 1}</span>
+                {row.highlighted && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />}
+                <span
+                  className={`truncate text-[12px] font-black ${
+                    row.highlighted ? "text-amber-700" : "text-slate-900"
+                  }`}
+                >
+                  {row.name}
+                </span>
+              </div>
+              <span
+                className={`shrink-0 text-[13px] font-black ${
+                  row.highlighted ? "text-amber-600" : "text-purple-700"
+                }`}
+              >
+                {String(row.price || "-")}
+              </span>
+            </div>
+          ))}
+        </div>
+          </>
+        )}
 
       <div className="flex items-center justify-between gap-3 px-5 py-3">
         <button
