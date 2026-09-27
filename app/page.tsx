@@ -3173,7 +3173,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </div>
 
                 <div className="hidden min-w-[120px] md:block">
-                  {isMasterAccess ? (
+                  {(isAdmin || isMasterAccess) ? (
                     <select
                       value={selectedBranch}
                       onChange={(e) => setSelectedBranch(e.target.value)}
@@ -4018,7 +4018,7 @@ export default function CnetmobilCmrFinalUltimate() {
                 </button>
               </div>
 
-              {isMasterAccess && (
+              {(isAdmin || isMasterAccess) && (
                 <div className="mt-4">
                   <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.2em] text-blue-100/60">
                     Mağaza Değiştir
