@@ -4017,6 +4017,25 @@ export default function CnetmobilCmrFinalUltimate() {
                   </svg>
                 </button>
               </div>
+
+              {isMasterAccess && (
+                <div className="mt-4">
+                  <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.2em] text-blue-100/60">
+                    Mağaza Değiştir
+                  </label>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="h-11 w-full cursor-pointer rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-black text-white outline-none"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.name} value={b.name} className="text-slate-900">
+                        {b.name === PARTNER_BRANCH_KEY ? PARTNER_DISPLAY_NAME : b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-3 py-4">
