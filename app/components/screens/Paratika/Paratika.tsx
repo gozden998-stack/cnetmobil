@@ -1925,7 +1925,124 @@ export default function Paratika() {
             ) : null}
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar">
+          <div className="divide-y divide-slate-100 md:hidden">
+            {loading ? (
+              <div className="px-4 py-14 text-center text-xs font-black text-slate-400">
+                İŞLEMLER YÜKLENİYOR...
+              </div>
+            ) : payments.length === 0 ? (
+              <div className="px-4 py-14 text-center text-xs font-black text-slate-400">
+                KAYIT BULUNAMADI
+              </div>
+            ) : (
+              payments.map((payment) => (
+                <div key={`m-${payment.id}`} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[13px] font-black text-slate-900">{payment.customerName}</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-500">{displayPhone(payment.customerPhone)}</div>
+                    </div>
+                    <span
+                      className={`inline-flex shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-black ${STATUS_CLASS[payment.status]}`}
+                    >
+                      {STATUS_TEXT[payment.status]}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-600">
+                    <span>{payment.branchCode} · #{payment.id}</span>
+                    <span className="text-[13px] font-black text-slate-950">{money(payment.amount)}</span>
+                  </div>
+
+                  <div className="mt-1 text-[10px] font-bold text-slate-400">
+                    {payment.wingsmPersonnelName || '-'} · {payment.numberOfInstallments || payment.installmentCount} TAKSİT · {dateTime(payment.paratikaCreatedAt || payment.linkCreatedAt || payment.createdAt)}
+                  </div>
+
+                  <div className="mt-2">
+                    {payment.status === 'APPROVED' ? (
+                      <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-600">ÜÖT</div>
+                          <div className="mt-0.5 whitespace-nowrap text-[11px] font-black text-slate-900">
+                            {merchantPaymentDate(payment.paratikaPaymentDate)}
+                          </div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-black uppercase tracking-[0.1em] text-blue-600">ÖSN</div>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <span className="max-w-[180px] truncate text-[11px] font-black text-slate-950">
+                              {payment.pgOrderId || payment.merchantPaymentId || '-'}
+                            </span>
+                            {payment.paratikaPaymentDate && (payment.pgOrderId || payment.merchantPaymentId) ? (
+                              <button
+                                type="button"
+                                title="ÜÖT + ÖSN kopyala"
+                                onClick={() =>
+                                  void copyInfo(
+                                    `uot-osn-m-${payment.id}`,
+                                    `${merchantPaymentDate(payment.paratikaPaymentDate)} ${payment.pgOrderId || payment.merchantPaymentId}`
+                                  )
+                                }
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500"
+                              >
+                                {copiedField === `uot-osn-m-${payment.id}` ? (
+                                  <span className="text-[10px] font-black">✓</span>
+                                ) : (
+                                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                  </svg>
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : payment.status === 'FAILED' ? (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                        <div className="text-[10px] font-black uppercase tracking-[0.1em] text-red-500">HATA NEDENİ</div>
+                        <div className="mt-1 text-[11px] font-bold leading-5 text-red-700">
+                          {payment.responseMsg || 'Ödeme banka/ödeme sistemi tarafından reddedildi.'}
+                        </div>
+                        {payment.responseCode ? (
+                          <div className="mt-1 text-[11px] font-black text-red-400">KOD: {payment.responseCode}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] font-semibold leading-5 text-slate-500">
+                        {payment.responseMsg || 'Ödeme bekleniyor'}
+                        {payment.paratikaDueDate ? ` · Son Tarih: ${dateTime(payment.paratikaDueDate)}` : ''}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void syncOne(payment.id)}
+                      disabled={syncingId === payment.id}
+                      className="h-9 flex-1 rounded-xl border border-slate-200 bg-white text-[10px] font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {syncingId === payment.id ? 'KONTROL...' : 'DURUMU KONTROL ET'}
+                    </button>
+
+                    {payment.paymentUrl && !['APPROVED', 'CANCELLED', 'EXPIRED'].includes(payment.status) ? (
+                      <button
+                        type="button"
+                        onClick={() => void copyPaymentLink(payment.paymentUrl!)}
+                        className="h-9 flex-1 rounded-xl bg-blue-50 text-[10px] font-black text-blue-700 transition hover:bg-blue-100"
+                      >
+                        LİNKİ KOPYALA
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto custom-scrollbar md:block">
             <table className="w-full min-w-[1320px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-black uppercase tracking-wide text-slate-400">
