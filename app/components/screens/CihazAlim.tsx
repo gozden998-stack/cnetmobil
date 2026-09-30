@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 
 type CihazAlimProps = {
   step: number;
@@ -179,6 +179,60 @@ function QuestionCard({
   );
 }
 
+// ======================================================
+// ZUMAY KANALI - "CİHAZ AL" ÖDEME TALEBİ
+// Dış Kanal'daki ödeme talebi sistemiyle (external_purchase_requests)
+// aynı altyapıyı kullanır. Sadece ZUMAY KANALI'nda (isZumay) gösterilir.
+// ======================================================
+
+type CihazAlForm = {
+  firstName: string;
+  lastName: string;
+  tc: string;
+  phone: string;
+  iban: string;
+  ibanHolder: string;
+};
+
+const EMPTY_CIHAZ_AL_FORM: CihazAlForm = {
+  firstName: "",
+  lastName: "",
+  tc: "",
+  phone: "",
+  iban: "",
+  ibanHolder: "",
+};
+
+function normalizeTcInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 11);
+}
+
+function normalizePhoneInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 15);
+}
+
+function normalizeIbanInput(value: string) {
+  return value
+    .replace(/\s+/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 26);
+}
+
+function prettyIban(value: string) {
+  return value.replace(/(.{4})/g, "$1 ").trim();
+}
+
+function formatTry(value: unknown) {
+  const number = Number(value || 0);
+
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    minimumFractionDigits: 2,
+  }).format(Number.isFinite(number) ? number : 0);
+}
+
 export default function CihazAlim({
   step,
   setStep,
@@ -230,6 +284,119 @@ export default function CihazAlim({
   const accentFocus = isZumay
     ? "focus:border-red-400 focus:ring-red-50"
     : "focus:border-blue-400 focus:ring-blue-50";
+
+  // ----------------------------------------------------
+  // ZUMAY KANALI - "CİHAZ AL" ÖDEME TALEBİ
+  // ----------------------------------------------------
+  const [cihazAlOpen, setCihazAlOpen] = useState(false);
+  const [cihazAlPriceType, setCihazAlPriceType] = useState<"NAKİT" | "TAKAS" | null>(null);
+  const [cihazAlForm, setCihazAlForm] = useState<CihazAlForm>(EMPTY_CIHAZ_AL_FORM);
+  const [cihazAlSubmitting, setCihazAlSubmitting] = useState(false);
+  const [cihazAlError, setCihazAlError] = useState("");
+  const [cihazAlRequestNo, setCihazAlRequestNo] = useState("");
+  const [cihazAlLockedAmount, setCihazAlLockedAmount] = useState(0);
+  const [cihazAlCompleted, setCihazAlCompleted] = useState(false);
+
+  const cihazAlAmount = cihazAlPriceType === "TAKAS" ? finalTradePrice : finalCashPrice;
+  const zumayImeiMissing = isZumay && String(customer.imei || "").length !== 15;
+
+  const cihazAlDeviceName = [
+    selectedModelName,
+    selectedCapacity?.cap,
+    selectedModelName === "iPhone 13" && selectedColor !== "Diğer" ? selectedColor : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const cihazAlFormValid = useMemo(() => {
+    return Boolean(
+      cihazAlForm.firstName.trim() &&
+        cihazAlForm.lastName.trim() &&
+        /^\d{11}$/.test(cihazAlForm.tc) &&
+        cihazAlForm.phone.replace(/\D/g, "").length >= 10 &&
+        /^TR\d{24}$/.test(cihazAlForm.iban) &&
+        cihazAlForm.ibanHolder.trim()
+    );
+  }, [cihazAlForm]);
+
+  function openCihazAl(type: "NAKİT" | "TAKAS") {
+    const nameParts = (customer.name || "").trim().split(/\s+/).filter(Boolean);
+
+    setCihazAlForm({
+      ...EMPTY_CIHAZ_AL_FORM,
+      firstName: nameParts[0] || "",
+      lastName: nameParts.slice(1).join(" "),
+      phone: normalizePhoneInput(customer.phone || ""),
+    });
+
+    setCihazAlPriceType(type);
+    setCihazAlError("");
+    setCihazAlOpen(true);
+  }
+
+  function closeCihazAl() {
+    if (cihazAlSubmitting) return;
+    setCihazAlOpen(false);
+    setCihazAlPriceType(null);
+  }
+
+  function updateCihazAlForm<K extends keyof CihazAlForm>(field: K, value: CihazAlForm[K]) {
+    setCihazAlForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitCihazAl() {
+    if (!cihazAlFormValid || cihazAlSubmitting || !cihazAlPriceType) return;
+
+    setCihazAlSubmitting(true);
+    setCihazAlError("");
+
+    try {
+      const response = await fetch("/api/external-purchase", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceName: cihazAlDeviceName,
+          amount: cihazAlAmount,
+          imei: customer.imei,
+          firstName: cihazAlForm.firstName.trim(),
+          lastName: cihazAlForm.lastName.trim(),
+          tc: cihazAlForm.tc,
+          phone: cihazAlForm.phone,
+          iban: cihazAlForm.iban,
+          ibanHolder: cihazAlForm.ibanHolder.trim(),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Ödeme talebi oluşturulamadı.");
+      }
+
+      setPurchaseType(cihazAlPriceType);
+      setCihazAlRequestNo(String(data.request?.requestNo || ""));
+      setCihazAlLockedAmount(cihazAlAmount);
+      setCihazAlCompleted(true);
+      setCihazAlOpen(false);
+    } catch (error: any) {
+      setCihazAlError(error?.message || "Ödeme talebi oluşturulamadı.");
+    } finally {
+      setCihazAlSubmitting(false);
+    }
+  }
+
+  function resetCihazAl() {
+    setCihazAlOpen(false);
+    setCihazAlPriceType(null);
+    setCihazAlForm(EMPTY_CIHAZ_AL_FORM);
+    setCihazAlError("");
+    setCihazAlRequestNo("");
+    setCihazAlLockedAmount(0);
+    setCihazAlCompleted(false);
+    resetSelection();
+  }
 
   const brandLogo = (brand: string) => {
     const brandInfo = brandDb.find((item: any) => item?.name === brand);
@@ -944,64 +1111,100 @@ export default function CihazAlim({
                   1. İşlem Türünü Seçin
                 </p>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={!canProceed || purchaseType !== null}
-                    onClick={() => {
-                      setPurchaseType("NAKİT");
-                      handleFinalProcess("NAKİT ALINDI");
-                    }}
-                    className={[
-                      "h-11 rounded-xl text-[11px] font-black uppercase transition",
-                      purchaseType === "NAKİT"
-                        ? "bg-emerald-500 text-white"
-                        : canProceed && !purchaseType
-                        ? "bg-slate-800 text-slate-200 hover:bg-emerald-500 hover:text-white"
-                        : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
-                    ].join(" ")}
-                  >
-                    Nakit
-                  </button>
+                {cihazAlCompleted ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-400">
+                      Ödeme Talebi Gönderildi
+                    </div>
+                    <div className="mt-1 text-[18px] font-black text-white">{cihazAlRequestNo}</div>
+                    <div className="mt-1 text-[13px] font-black text-emerald-400">{formatTry(cihazAlLockedAmount)}</div>
+                    <p className="mt-2 text-[10px] font-semibold text-slate-400">
+                      Fiyat kilitlendi, değiştirilemez. Onay/ödeme durumunu Dış Kanal &gt; Ödeme Taleplerim'den takip edin.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetCihazAl}
+                      className={`mt-4 h-11 w-full rounded-xl text-[11px] font-black uppercase text-white ${accentBg} ${accentHover}`}
+                    >
+                      Yeni İşlem Başlat
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={!canProceed || purchaseType !== null || zumayImeiMissing}
+                        onClick={() => {
+                          if (isZumay) {
+                            openCihazAl("NAKİT");
+                            return;
+                          }
+                          setPurchaseType("NAKİT");
+                          handleFinalProcess("NAKİT ALINDI");
+                        }}
+                        className={[
+                          "h-11 rounded-xl text-[11px] font-black uppercase transition",
+                          purchaseType === "NAKİT"
+                            ? "bg-emerald-500 text-white"
+                            : canProceed && !purchaseType
+                            ? "bg-slate-800 text-slate-200 hover:bg-emerald-500 hover:text-white"
+                            : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
+                        ].join(" ")}
+                      >
+                        {isZumay ? "Nakit · Cihaz Al" : "Nakit"}
+                      </button>
 
-                  <button
-                    type="button"
-                    disabled={!canProceed || purchaseType !== null}
-                    onClick={() => {
-                      setPurchaseType("TAKAS");
-                      handleFinalProcess("TAKAS ALINDI");
-                    }}
-                    className={[
-                      "h-11 rounded-xl text-[11px] font-black uppercase transition",
-                      purchaseType === "TAKAS"
-                        ? `${accentBg} text-white`
-                        : canProceed && !purchaseType
-                        ? `bg-slate-800 text-slate-200 ${accentHover} hover:text-white`
-                        : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
-                    ].join(" ")}
-                  >
-                    Takas
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        disabled={!canProceed || purchaseType !== null || zumayImeiMissing}
+                        onClick={() => {
+                          if (isZumay) {
+                            openCihazAl("TAKAS");
+                            return;
+                          }
+                          setPurchaseType("TAKAS");
+                          handleFinalProcess("TAKAS ALINDI");
+                        }}
+                        className={[
+                          "h-11 rounded-xl text-[11px] font-black uppercase transition",
+                          purchaseType === "TAKAS"
+                            ? `${accentBg} text-white`
+                            : canProceed && !purchaseType
+                            ? `bg-slate-800 text-slate-200 ${accentHover} hover:text-white`
+                            : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
+                        ].join(" ")}
+                      >
+                        {isZumay ? "Takas · Cihaz Al" : "Takas"}
+                      </button>
+                    </div>
 
-                <button
-                  type="button"
-                  disabled={!canProceed || purchaseType !== null}
-                  onClick={() => {
-                    setPurchaseType("ALINMADI");
-                    handleFinalProcess("ALINMADI");
-                  }}
-                  className={[
-                    "mt-2 h-10 w-full rounded-xl text-[11px] font-black uppercase transition",
-                    purchaseType === "ALINMADI"
-                      ? "bg-red-500 text-white"
-                      : canProceed && !purchaseType
-                      ? "bg-slate-800 text-red-400 hover:bg-red-500 hover:text-white"
-                      : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
-                  ].join(" ")}
-                >
-                  Alınmadı
-                </button>
+                    {zumayImeiMissing && (
+                      <p className="mt-2 text-center text-[10px] font-bold text-amber-400">
+                        Ödeme talebi için 15 haneli IMEI girilmesi gerekiyor.
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={!canProceed || purchaseType !== null}
+                      onClick={() => {
+                        setPurchaseType("ALINMADI");
+                        handleFinalProcess("ALINMADI");
+                      }}
+                      className={[
+                        "mt-2 h-10 w-full rounded-xl text-[11px] font-black uppercase transition",
+                        purchaseType === "ALINMADI"
+                          ? "bg-red-500 text-white"
+                          : canProceed && !purchaseType
+                          ? "bg-slate-800 text-red-400 hover:bg-red-500 hover:text-white"
+                          : "cursor-not-allowed bg-slate-800 text-slate-600 opacity-40",
+                      ].join(" ")}
+                    >
+                      Alınmadı
+                    </button>
+                  </>
+                )}
 
                 <div className={`mt-5 border-t border-slate-800 pt-4 transition ${showDocs ? "opacity-100" : "pointer-events-none opacity-25"}`}>
                   <p className="text-center text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
@@ -1032,6 +1235,178 @@ export default function CihazAlim({
             </aside>
           </div>
         </section>
+      )}
+
+      {/* ==================================================== */}
+      {/* ZUMAY KANALI - CİHAZ AL ÖDEME TALEBİ MODALI */}
+      {/* ==================================================== */}
+      {cihazAlOpen && (
+        <div className="fixed inset-0 z-[280] flex items-start justify-center overflow-y-auto bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6">
+          <div className="w-full max-w-[640px] overflow-hidden rounded-[28px] bg-white shadow-2xl">
+            <div className={`flex items-center justify-between gap-4 px-5 py-4 text-white sm:px-6 ${accentBg}`}>
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">
+                  CNETMOBİL PARTNER
+                </div>
+                <h3 className="mt-1 truncate text-[19px] font-black tracking-[-0.03em]">
+                  Cihaz Al · Ödeme Talebi
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeCihazAl}
+                disabled={cihazAlSubmitting}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[calc(94vh-72px)] overflow-y-auto p-4 sm:p-6">
+              <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_180px]">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    SEÇİLEN CİHAZ
+                  </div>
+                  <div className="mt-1 break-words text-[13px] font-black text-slate-950">
+                    {cihazAlDeviceName}
+                  </div>
+                  <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
+                    IMEI: {customer.imei || "-"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                    {cihazAlPriceType === "TAKAS" ? "TAKAS TUTARI" : "NAKİT TUTARI"}
+                  </div>
+                  <div className={`mt-1 text-[18px] font-black ${accentText}`}>
+                    {formatTry(cihazAlAmount)}
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-2 text-[10px] font-semibold text-slate-400">
+                Talep gönderildikten sonra bu tutar kilitlenir, değiştirilemez.
+              </p>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <h4 className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                    Müşteri Bilgileri
+                  </h4>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">Ad</span>
+                    <input
+                      value={cihazAlForm.firstName}
+                      onChange={(e) => updateCihazAlForm("firstName", e.target.value)}
+                      maxLength={100}
+                      placeholder="Müşteri adı"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-bold text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">Soyad</span>
+                    <input
+                      value={cihazAlForm.lastName}
+                      onChange={(e) => updateCihazAlForm("lastName", e.target.value)}
+                      maxLength={100}
+                      placeholder="Müşteri soyadı"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-bold text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">T.C. Kimlik No</span>
+                    <input
+                      inputMode="numeric"
+                      value={cihazAlForm.tc}
+                      onChange={(e) => updateCihazAlForm("tc", normalizeTcInput(e.target.value))}
+                      maxLength={11}
+                      placeholder="11 hane"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-bold text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">Telefon</span>
+                    <input
+                      inputMode="tel"
+                      value={cihazAlForm.phone}
+                      onChange={(e) => updateCihazAlForm("phone", normalizePhoneInput(e.target.value))}
+                      placeholder="05XXXXXXXXX"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-bold text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-500" />
+                  <h4 className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                    Ödeme Bilgileri
+                  </h4>
+                </div>
+
+                <div className="grid gap-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">IBAN</span>
+                    <input
+                      value={prettyIban(cihazAlForm.iban)}
+                      onChange={(e) => updateCihazAlForm("iban", normalizeIbanInput(e.target.value))}
+                      placeholder="TR00 0000 0000 0000 0000 0000 00"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[11px] font-bold uppercase tracking-wide text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-black text-slate-500">IBAN Sahibi Ad Soyad</span>
+                    <input
+                      value={cihazAlForm.ibanHolder}
+                      onChange={(e) => updateCihazAlForm("ibanHolder", e.target.value)}
+                      maxLength={200}
+                      placeholder="Hesap sahibinin adı soyadı"
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-bold text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {cihazAlError && (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-black text-rose-700">
+                  {cihazAlError}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeCihazAl}
+                  disabled={cihazAlSubmitting}
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-5 text-[10px] font-black text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  VAZGEÇ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={submitCihazAl}
+                  disabled={!cihazAlFormValid || cihazAlSubmitting}
+                  className={`h-12 min-w-[220px] rounded-2xl px-6 text-[10px] font-black text-white shadow-lg transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
+                >
+                  {cihazAlSubmitting ? "GÖNDERİLİYOR..." : "ÖDEME TALEBİ GÖNDER"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
