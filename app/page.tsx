@@ -5,6 +5,7 @@ import YoneticiPaneli from './components/YoneticiPaneli';
 import CepTablet from './components/screens/CepTablet';
 import YNAList from './components/screens/YNAList';
 import DisKanal from './components/screens/DisKanal';
+import OdemeTalepleri from './components/screens/OdemeTalepleri';
 import KampanyaliSifir from './components/screens/KampanyaliSifir';
 import IkinciElApple from './components/screens/IkinciElApple';
 import IkinciElAndroid from './components/screens/IkinciElAndroid';
@@ -686,7 +687,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'odeme_talepleri'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -2262,6 +2263,7 @@ export default function CnetmobilCmrFinalUltimate() {
           ]
         },
         { id: 'alim', label: 'Cihaz Alım', visible: true },
+        { id: 'odeme_talepleri', label: 'Ödeme Talepleri', visible: isZumay },
         { id: 'paratika', label: 'Paratika', visible: !isZumay },
         { id: 'ihale', label: 'Mağazalar Arası İhale', visible: !isZumay && (isAdmin || isMasterAccess || selectedBranch.startsWith('CMR') || selectedBranch === 'VODAFONE KANALI') },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
@@ -4814,6 +4816,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   setAdminSheetEditor(currentAdminEditableSheet);
                 }
               }}
+              onOpenPaymentRequests={() => setAppMode('odeme_talepleri')}
             />
           ) :
 
@@ -5000,6 +5003,8 @@ export default function CnetmobilCmrFinalUltimate() {
               servisFiyatlari={servisFiyatlari}
               handleServisWhatsApp={handleServisWhatsApp}
             />
+          ) : appMode === 'odeme_talepleri' && step < 99 ? (
+            <OdemeTalepleri isZumay={isZumay} />
           ) : null}
         </main>
       </div>
