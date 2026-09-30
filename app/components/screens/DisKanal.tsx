@@ -8,7 +8,6 @@ type DisKanalProps = {
   isZumay?: boolean;
   canEdit?: boolean;
   onEdit?: () => void;
-  onOpenPaymentRequests?: () => void;
 };
 
 type DisKanalRow = {
@@ -205,7 +204,6 @@ export default function DisKanal({
   isZumay = false,
   canEdit = false,
   onEdit,
-  onOpenPaymentRequests,
 }: DisKanalProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -525,17 +523,6 @@ export default function DisKanal({
               } focus:bg-white focus:ring-4`}
             />
           </div>
-
-          {canUsePurchaseFlow && onOpenPaymentRequests && (
-            <button
-              type="button"
-              onClick={onOpenPaymentRequests}
-              className="inline-flex h-[49px] min-w-[175px] items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-[10px] font-black text-white shadow-lg transition hover:bg-slate-800"
-            >
-              <ReceiptIcon className="h-4 w-4" />
-              ÖDEME TALEPLERİ
-            </button>
-          )}
 
           {canEdit && onEdit && (
             <button
@@ -897,18 +884,13 @@ export default function DisKanal({
                       AYNI CİHAZA YENİ İŞLEM
                     </button>
 
-                    {onOpenPaymentRequests && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closePurchase();
-                          onOpenPaymentRequests();
-                        }}
-                        className="h-12 rounded-2xl bg-slate-950 text-[10px] font-black text-white transition hover:bg-slate-800"
-                      >
-                        ÖDEME TALEPLERİNE GİT
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={closePurchase}
+                      className="h-12 rounded-2xl bg-slate-950 text-[10px] font-black text-white transition hover:bg-slate-800"
+                    >
+                      KAPAT
+                    </button>
                   </div>
                 </div>
               ) : (

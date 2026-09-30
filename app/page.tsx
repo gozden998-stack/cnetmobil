@@ -4816,7 +4816,6 @@ export default function CnetmobilCmrFinalUltimate() {
                   setAdminSheetEditor(currentAdminEditableSheet);
                 }
               }}
-              onOpenPaymentRequests={() => setAppMode('odeme_talepleri')}
             />
           ) :
 
