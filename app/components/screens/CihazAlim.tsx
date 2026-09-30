@@ -186,6 +186,7 @@ function QuestionCard({
 // ======================================================
 
 type CihazAlForm = {
+  imei: string;
   firstName: string;
   lastName: string;
   tc: string;
@@ -194,7 +195,12 @@ type CihazAlForm = {
   ibanHolder: string;
 };
 
+function normalizeImeiInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 15);
+}
+
 const EMPTY_CIHAZ_AL_FORM: CihazAlForm = {
+  imei: "",
   firstName: "",
   lastName: "",
   tc: "",
@@ -298,7 +304,6 @@ export default function CihazAlim({
   const [cihazAlCompleted, setCihazAlCompleted] = useState(false);
 
   const cihazAlAmount = cihazAlPriceType === "TAKAS" ? finalTradePrice : finalCashPrice;
-  const zumayImeiMissing = isZumay && String(customer.imei || "").length !== 15;
 
   const cihazAlDeviceName = [
     selectedModelName,
@@ -310,7 +315,8 @@ export default function CihazAlim({
 
   const cihazAlFormValid = useMemo(() => {
     return Boolean(
-      cihazAlForm.firstName.trim() &&
+      /^\d{15}$/.test(cihazAlForm.imei) &&
+        cihazAlForm.firstName.trim() &&
         cihazAlForm.lastName.trim() &&
         /^\d{11}$/.test(cihazAlForm.tc) &&
         cihazAlForm.phone.replace(/\D/g, "").length >= 10 &&
@@ -324,6 +330,7 @@ export default function CihazAlim({
 
     setCihazAlForm({
       ...EMPTY_CIHAZ_AL_FORM,
+      imei: normalizeImeiInput(customer.imei || ""),
       firstName: nameParts[0] || "",
       lastName: nameParts.slice(1).join(" "),
       phone: normalizePhoneInput(customer.phone || ""),
@@ -359,7 +366,7 @@ export default function CihazAlim({
         body: JSON.stringify({
           deviceName: cihazAlDeviceName,
           amount: cihazAlAmount,
-          imei: customer.imei,
+          imei: cihazAlForm.imei,
           firstName: cihazAlForm.firstName.trim(),
           lastName: cihazAlForm.lastName.trim(),
           tc: cihazAlForm.tc,
@@ -1134,7 +1141,7 @@ export default function CihazAlim({
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        disabled={!canProceed || purchaseType !== null || zumayImeiMissing}
+                        disabled={!canProceed || purchaseType !== null}
                         onClick={() => {
                           if (isZumay) {
                             openCihazAl("NAKİT");
@@ -1157,7 +1164,7 @@ export default function CihazAlim({
 
                       <button
                         type="button"
-                        disabled={!canProceed || purchaseType !== null || zumayImeiMissing}
+                        disabled={!canProceed || purchaseType !== null}
                         onClick={() => {
                           if (isZumay) {
                             openCihazAl("TAKAS");
@@ -1178,12 +1185,6 @@ export default function CihazAlim({
                         {isZumay ? "Takas · Cihaz Al" : "Takas"}
                       </button>
                     </div>
-
-                    {zumayImeiMissing && (
-                      <p className="mt-2 text-center text-[10px] font-bold text-amber-400">
-                        Ödeme talebi için 15 haneli IMEI girilmesi gerekiyor.
-                      </p>
-                    )}
 
                     <button
                       type="button"
@@ -1272,9 +1273,6 @@ export default function CihazAlim({
                   <div className="mt-1 break-words text-[13px] font-black text-slate-950">
                     {cihazAlDeviceName}
                   </div>
-                  <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
-                    IMEI: {customer.imei || "-"}
-                  </div>
                 </div>
 
                 <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
@@ -1290,6 +1288,27 @@ export default function CihazAlim({
               <p className="mt-2 text-[10px] font-semibold text-slate-400">
                 Talep gönderildikten sonra bu tutar kilitlenir, değiştirilemez.
               </p>
+
+              <div className="mt-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <h4 className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                    Cihaz IMEI Numarası
+                  </h4>
+                </div>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-black text-slate-500">IMEI</span>
+                  <input
+                    inputMode="numeric"
+                    value={cihazAlForm.imei}
+                    onChange={(e) => updateCihazAlForm("imei", normalizeImeiInput(e.target.value))}
+                    maxLength={15}
+                    placeholder="15 haneli IMEI numarası"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                  />
+                </label>
+              </div>
 
               <div className="mt-5">
                 <div className="mb-3 flex items-center gap-2">
