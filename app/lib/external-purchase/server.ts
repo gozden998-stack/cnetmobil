@@ -826,7 +826,7 @@ export async function sendExternalPurchaseOtpSms(
 
   const content =
     approverPhones.length > 0
-      ? `CNETMOBIL odeme talebi onay kodu: ${code}. Musteri tel: ***${normalizePhone(phone).slice(-4)}. Kodu kimseyle paylasmayin.`
+      ? `CNETMOBIL odeme talebi onay kodu: ${code}. Kodu kimseyle paylasmayin.`
       : `CNETMOBIL dogrulama kodunuz: ${code}. Kodu kimseyle paylasmayin.`;
 
   try {
