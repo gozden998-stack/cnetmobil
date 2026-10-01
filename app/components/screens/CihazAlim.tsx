@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 type CihazAlimProps = {
   step: number;
@@ -303,6 +303,21 @@ export default function CihazAlim({
   const [cihazAlLockedAmount, setCihazAlLockedAmount] = useState(0);
   const [cihazAlCompleted, setCihazAlCompleted] = useState(false);
 
+  // ----------------------------------------------------
+  // SMS DOĞRULAMA (OTP)
+  // ----------------------------------------------------
+  const [cihazAlOtpCode, setCihazAlOtpCode] = useState("");
+  const [cihazAlOtpSent, setCihazAlOtpSent] = useState(false);
+  const [cihazAlOtpSending, setCihazAlOtpSending] = useState(false);
+  const [cihazAlOtpError, setCihazAlOtpError] = useState("");
+  const [cihazAlOtpCooldown, setCihazAlOtpCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cihazAlOtpCooldown <= 0) return;
+    const timer = window.setTimeout(() => setCihazAlOtpCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cihazAlOtpCooldown]);
+
   const cihazAlAmount = cihazAlPriceType === "TAKAS" ? finalTradePrice : finalCashPrice;
 
   const cihazAlDeviceName = [
@@ -325,6 +340,50 @@ export default function CihazAlim({
     );
   }, [cihazAlForm]);
 
+  const cihazAlOtpValid = /^\d{6}$/.test(cihazAlOtpCode);
+
+  // "ÖDEME TALEBİ GÖNDER" iki adımlı: önce SMS kodu gönderilir,
+  // kod girilince talep oluşturulur.
+  async function sendCihazAlOtp() {
+    if (!cihazAlFormValid || cihazAlOtpSending || cihazAlSubmitting) return;
+
+    setCihazAlOtpSending(true);
+    setCihazAlOtpError("");
+    setCihazAlError("");
+
+    try {
+      const response = await fetch("/api/external-purchase/otp/send", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cihazAlForm.phone }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Doğrulama kodu gönderilemedi.");
+      }
+
+      setCihazAlOtpSent(true);
+      setCihazAlOtpCode("");
+      setCihazAlOtpCooldown(120);
+    } catch (error: any) {
+      setCihazAlOtpError(error?.message || "Doğrulama kodu gönderilemedi.");
+    } finally {
+      setCihazAlOtpSending(false);
+    }
+  }
+
+  function onCihazAlPrimaryClick() {
+    if (cihazAlOtpSent) {
+      submitCihazAl();
+    } else {
+      sendCihazAlOtp();
+    }
+  }
+
   function openCihazAl(type: "NAKİT" | "TAKAS") {
     const nameParts = (customer.name || "").trim().split(/\s+/).filter(Boolean);
 
@@ -338,6 +397,10 @@ export default function CihazAlim({
 
     setCihazAlPriceType(type);
     setCihazAlError("");
+    setCihazAlOtpCode("");
+    setCihazAlOtpSent(false);
+    setCihazAlOtpError("");
+    setCihazAlOtpCooldown(0);
     setCihazAlOpen(true);
   }
 
@@ -348,13 +411,19 @@ export default function CihazAlim({
   }
 
   function updateCihazAlForm<K extends keyof CihazAlForm>(field: K, value: CihazAlForm[K]) {
+    if (field === "phone" && cihazAlOtpSent) {
+      setCihazAlOtpSent(false);
+      setCihazAlOtpCode("");
+      setCihazAlOtpCooldown(0);
+    }
     setCihazAlForm((current) => ({ ...current, [field]: value }));
   }
 
   async function submitCihazAl() {
-    if (!cihazAlFormValid || cihazAlSubmitting || !cihazAlPriceType) return;
+    if (!cihazAlFormValid || !cihazAlOtpValid || cihazAlSubmitting || !cihazAlPriceType) return;
 
     setCihazAlSubmitting(true);
+    setCihazAlOtpError("");
     setCihazAlError("");
 
     try {
@@ -373,6 +442,7 @@ export default function CihazAlim({
           phone: cihazAlForm.phone,
           iban: cihazAlForm.iban,
           ibanHolder: cihazAlForm.ibanHolder.trim(),
+          otpCode: cihazAlOtpCode,
         }),
       });
 
@@ -1398,9 +1468,44 @@ export default function CihazAlim({
                 </div>
               </div>
 
-              {cihazAlError && (
+              {cihazAlOtpSent && (
+                <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/60 p-4">
+                  <div className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                    SMS Doğrulama
+                  </div>
+                  <p className="mt-1 text-[10px] font-bold text-slate-500">
+                    {cihazAlForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.
+                  </p>
+
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={cihazAlOtpCode}
+                    onChange={(e) => setCihazAlOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    maxLength={6}
+                    placeholder="6 haneli kod"
+                    className="mt-3 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-center font-mono text-[16px] font-bold tracking-[0.5em] text-slate-900 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={sendCihazAlOtp}
+                    disabled={cihazAlOtpCooldown > 0 || cihazAlOtpSending || cihazAlSubmitting}
+                    className="mt-3 text-[10px] font-black text-red-600 transition hover:text-red-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                  >
+                    {cihazAlOtpSending
+                      ? "GÖNDERİLİYOR..."
+                      : cihazAlOtpCooldown > 0
+                      ? `KODU TEKRAR GÖNDER (${cihazAlOtpCooldown}sn)`
+                      : "KODU TEKRAR GÖNDER"}
+                  </button>
+                </div>
+              )}
+
+              {(cihazAlOtpError || cihazAlError) && (
                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-black text-rose-700">
-                  {cihazAlError}
+                  {cihazAlOtpError || cihazAlError}
                 </div>
               )}
 
@@ -1416,11 +1521,19 @@ export default function CihazAlim({
 
                 <button
                   type="button"
-                  onClick={submitCihazAl}
-                  disabled={!cihazAlFormValid || cihazAlSubmitting}
+                  onClick={onCihazAlPrimaryClick}
+                  disabled={
+                    cihazAlSubmitting ||
+                    cihazAlOtpSending ||
+                    (cihazAlOtpSent ? !cihazAlOtpValid : !cihazAlFormValid)
+                  }
                   className={`h-12 min-w-[220px] rounded-2xl px-6 text-[10px] font-black text-white shadow-lg transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
                 >
-                  {cihazAlSubmitting ? "GÖNDERİLİYOR..." : "ÖDEME TALEBİ GÖNDER"}
+                  {cihazAlSubmitting || cihazAlOtpSending
+                    ? "GÖNDERİLİYOR..."
+                    : cihazAlOtpSent
+                    ? "KODU DOĞRULA VE TALEBİ OLUŞTUR"
+                    : "ÖDEME TALEBİ GÖNDER"}
                 </button>
               </div>
             </div>

@@ -4,8 +4,10 @@ import {
   decryptSensitive,
   encryptSensitive,
   ensureExternalPurchaseImeiColumn,
+  ensureExternalPurchaseOtpTable,
   externalPurchasePool,
   formatTry,
+  hashOtpCode,
   maskPhone,
   normalizeIban,
   normalizeImei,
@@ -113,6 +115,11 @@ export async function POST(
     const ibanHolder =
       String(
         body?.ibanHolder || ""
+      ).trim();
+
+    const otpCode =
+      String(
+        body?.otpCode || ""
       ).trim();
 
     // ==================================================
@@ -249,6 +256,21 @@ export async function POST(
       );
     }
 
+    if (
+      !/^\d{6}$/.test(
+        otpCode
+      )
+    ) {
+      return noStore(
+        {
+          success: false,
+          message:
+            "SMS doğrulama kodu gereklidir.",
+        },
+        400
+      );
+    }
+
     // ==================================================
     // TRANSACTION
     // ==================================================
@@ -257,9 +279,70 @@ export async function POST(
       client
     );
 
+    await ensureExternalPurchaseOtpTable(
+      client
+    );
+
     await client.query(
       "BEGIN"
     );
+
+    // --------------------------------------------------
+    // SMS DOĞRULAMA KODU
+    //
+    // Kod, aynı transaction içinde atomik olarak
+    // tüketilir (consumed_at). Eşleşme yoksa / süresi
+    // geçmişse / daha önce kullanılmışsa talep oluşmaz.
+    // --------------------------------------------------
+
+    const otpResult =
+      await client.query(
+        `
+          UPDATE public.external_purchase_otp_codes
+          SET consumed_at = NOW()
+          WHERE phone = $1
+            AND code_hash = $2
+            AND consumed_at IS NULL
+            AND expires_at > NOW()
+            AND attempt_count < 5
+          RETURNING id
+        `,
+        [
+          phone,
+          hashOtpCode(
+            phone,
+            otpCode
+          ),
+        ]
+      );
+
+    if (otpResult.rowCount === 0) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      // Deneme sayacı ROLLBACK'ten SONRA, transaction dışında artırılır;
+      // aksi halde geri alınır ve kod sınırsız denenebilir.
+      await client.query(
+        `
+          UPDATE public.external_purchase_otp_codes
+          SET attempt_count = attempt_count + 1
+          WHERE phone = $1
+            AND consumed_at IS NULL
+            AND expires_at > NOW()
+        `,
+        [phone]
+      );
+
+      return noStore(
+        {
+          success: false,
+          message:
+            "SMS doğrulama kodu hatalı veya süresi dolmuş.",
+        },
+        400
+      );
+    }
 
     // --------------------------------------------------
     // YENİ İŞLEM

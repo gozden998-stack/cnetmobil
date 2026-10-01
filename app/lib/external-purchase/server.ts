@@ -367,6 +367,42 @@ export function normalizeImei(
 }
 
 // ======================================================
+// SMS DOĞRULAMA (OTP) TABLOSU
+// Diğer tablolar gibi bu repodan bağımsız, idempotent
+// CREATE TABLE IF NOT EXISTS ile garanti altına alınıyor.
+// ======================================================
+
+let otpTableEnsured = false;
+
+export async function ensureExternalPurchaseOtpTable(
+  client?: PoolClient
+) {
+  if (otpTableEnsured) return;
+
+  const db = client || externalPurchasePool;
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS public.external_purchase_otp_codes (
+      id SERIAL PRIMARY KEY,
+      phone TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      actor_user_id INTEGER,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      consumed_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS external_purchase_otp_codes_phone_idx
+    ON public.external_purchase_otp_codes (phone, created_at)
+  `);
+
+  otpTableEnsured = true;
+}
+
+// ======================================================
 // HASSAS VERİ ŞİFRELEME
 // TC / IBAN / IBAN SAHİBİ
 // AES-256-GCM
@@ -677,6 +713,153 @@ export function maskPhone(
     0,
     4
   )}***${digits.slice(-3)}`;
+}
+
+// ======================================================
+// SMS DOĞRULAMA (OTP) - EKOMESAJ
+// "Ödeme Talebi Gönder" öncesi müşteri telefonuna
+// 6 haneli doğrulama kodu gönderilir, kod hash'lenerek
+// saklanır, talep oluşturulurken tüketilir.
+// ======================================================
+
+export function generateOtpCode() {
+  return String(
+    crypto.randomInt(0, 1_000_000)
+  ).padStart(6, "0");
+}
+
+export function hashOtpCode(
+  phone: string,
+  code: string
+) {
+  return crypto
+    .createHash("sha256")
+    .update(`${phone}:${code}`)
+    .digest("hex");
+}
+
+// Ekomesaj "ülke kodu dahil tam numara" bekliyor (ör. 905xxxxxxxxx).
+function toEkoMesajPhone(phone: string) {
+  const digits = normalizePhone(phone);
+
+  if (digits.startsWith("90") && digits.length === 12) {
+    return digits;
+  }
+
+  if (digits.startsWith("0") && digits.length === 11) {
+    return `90${digits.slice(1)}`;
+  }
+
+  if (digits.length === 10) {
+    return `90${digits}`;
+  }
+
+  return digits;
+}
+
+export async function sendExternalPurchaseOtpSms(
+  phone: string,
+  code: string
+) {
+  const baseUrl =
+    process.env.EKOMESAJ_BASE_URL;
+
+  const username =
+    process.env.EKOMESAJ_USERNAME;
+
+  const password =
+    process.env.EKOMESAJ_PASSWORD;
+
+  const sender =
+    process.env.EKOMESAJ_SENDER;
+
+  if (!baseUrl || !username || !password || !sender) {
+    console.warn(
+      "Ekomesaj env eksik: EKOMESAJ_BASE_URL / EKOMESAJ_USERNAME / EKOMESAJ_PASSWORD / EKOMESAJ_SENDER"
+    );
+
+    return {
+      ok: false,
+      skipped: true,
+    };
+  }
+
+  const authHeader =
+    "Basic " +
+    Buffer.from(`${username}:${password}`).toString("base64");
+
+  try {
+    const response = await fetch(
+      `${baseUrl.replace(/\/$/, "")}/sms/create`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        // Ekomesaj /sms/create şeması: anlık (sendingType 1) tekil SMS.
+        // İçerik ASCII olduğu için encoding 0 yeterli.
+        body: JSON.stringify({
+          type: 1,
+          sendingType: 1,
+          title: "CNETMOBIL OTP",
+          content: `CNETMOBIL dogrulama kodunuz: ${code}. Kodu kimseyle paylasmayin.`,
+          numbers: [toEkoMesajPhone(phone)],
+          encoding: 0,
+          sender,
+          commercial: false,
+          skipAhsQuery: true,
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+
+    const raw = await response.text().catch(() => "");
+
+    // Yanıt: { data: { pkgID }, err: { code, status, message } }
+    let parsed: any = null;
+
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+
+    const hasError = Boolean(
+      parsed?.err?.code ||
+        parsed?.err?.message ||
+        (parsed && !parsed?.data?.pkgID)
+    );
+
+    if (!response.ok || hasError) {
+      console.error(
+        "Ekomesaj OTP gönderim hatası:",
+        response.status,
+        raw
+      );
+
+      return {
+        ok: false,
+        skipped: false,
+      };
+    }
+
+    return {
+      ok: true,
+      skipped: false,
+    };
+  } catch (error) {
+    console.error(
+      "Ekomesaj OTP gönderim istisnası:",
+      error
+    );
+
+    return {
+      ok: false,
+      skipped: false,
+    };
+  }
 }
 
 // ======================================================

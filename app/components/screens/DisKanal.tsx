@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 type DisKanalProps = {
   data: any[][];
@@ -217,6 +217,21 @@ export default function DisKanal({
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [createdRequestNo, setCreatedRequestNo] = useState("");
 
+  // ----------------------------------------------------
+  // SMS DOĞRULAMA (OTP)
+  // ----------------------------------------------------
+  const [purchaseOtpCode, setPurchaseOtpCode] = useState("");
+  const [purchaseOtpSent, setPurchaseOtpSent] = useState(false);
+  const [purchaseOtpSending, setPurchaseOtpSending] = useState(false);
+  const [purchaseOtpError, setPurchaseOtpError] = useState("");
+  const [purchaseOtpCooldown, setPurchaseOtpCooldown] = useState(0);
+
+  useEffect(() => {
+    if (purchaseOtpCooldown <= 0) return;
+    const timer = window.setTimeout(() => setPurchaseOtpCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [purchaseOtpCooldown]);
+
   const isVodafone = selectedBranch === "VODAFONE KANALI";
   const canUsePurchaseFlow = Boolean(isZumay);
   const accent = isZumay ? "red" : "teal";
@@ -305,6 +320,50 @@ export default function DisKanal({
     );
   }, [canUsePurchaseFlow, selectedRow, selectedAmount, purchaseForm]);
 
+  const purchaseOtpValid = /^\d{6}$/.test(purchaseOtpCode);
+
+  // "ÖDEME TALEBİ GÖNDER" iki adımlı: önce SMS kodu gönderilir,
+  // kod girilince talep oluşturulur.
+  async function sendPurchaseOtp() {
+    if (!purchaseFormValid || purchaseOtpSending || purchaseSubmitting) return;
+
+    setPurchaseOtpSending(true);
+    setPurchaseOtpError("");
+    setPurchaseMessage("");
+
+    try {
+      const response = await fetch("/api/external-purchase/otp/send", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: purchaseForm.phone }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Doğrulama kodu gönderilemedi.");
+      }
+
+      setPurchaseOtpSent(true);
+      setPurchaseOtpCode("");
+      setPurchaseOtpCooldown(120);
+    } catch (error: any) {
+      setPurchaseOtpError(error?.message || "Doğrulama kodu gönderilemedi.");
+    } finally {
+      setPurchaseOtpSending(false);
+    }
+  }
+
+  function onPurchasePrimaryClick() {
+    if (purchaseOtpSent) {
+      submitPurchase();
+    } else {
+      sendPurchaseOtp();
+    }
+  }
+
   function clearSearch() {
     setSearch("");
     setShowAll(false);
@@ -318,6 +377,10 @@ export default function DisKanal({
     setPurchaseForm(EMPTY_FORM);
     setPurchaseMessage("");
     setCreatedRequestNo("");
+    setPurchaseOtpCode("");
+    setPurchaseOtpSent(false);
+    setPurchaseOtpError("");
+    setPurchaseOtpCooldown(0);
     setPurchaseModalOpen(true);
   }
 
@@ -334,6 +397,11 @@ export default function DisKanal({
     key: K,
     value: PurchaseForm[K]
   ) {
+    if (key === "phone" && purchaseOtpSent) {
+      setPurchaseOtpSent(false);
+      setPurchaseOtpCode("");
+      setPurchaseOtpCooldown(0);
+    }
     setPurchaseForm((current) => ({
       ...current,
       [key]: value,
@@ -342,9 +410,10 @@ export default function DisKanal({
 
   async function submitPurchase() {
     if (!canUsePurchaseFlow) return;
-    if (!selectedRow || !purchaseFormValid || purchaseSubmitting) return;
+    if (!selectedRow || !purchaseFormValid || !purchaseOtpValid || purchaseSubmitting) return;
 
     setPurchaseSubmitting(true);
+    setPurchaseOtpError("");
     setPurchaseMessage("");
     setCreatedRequestNo("");
 
@@ -365,6 +434,7 @@ export default function DisKanal({
           phone: purchaseForm.phone,
           iban: purchaseForm.iban,
           ibanHolder: purchaseForm.ibanHolder.trim(),
+          otpCode: purchaseOtpCode,
         }),
       });
 
@@ -1024,9 +1094,44 @@ export default function DisKanal({
                     </div>
                   </div>
 
-                  {purchaseMessage && (
+                  {purchaseOtpSent && (
+                    <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                      <div className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                        SMS Doğrulama
+                      </div>
+                      <p className="mt-1 text-[10px] font-bold text-slate-500">
+                        {purchaseForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.
+                      </p>
+
+                      <input
+                        autoFocus
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={purchaseOtpCode}
+                        onChange={(e) => setPurchaseOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        maxLength={6}
+                        placeholder="6 haneli kod"
+                        className="mt-3 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-center font-mono text-[16px] font-bold tracking-[0.5em] text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={sendPurchaseOtp}
+                        disabled={purchaseOtpCooldown > 0 || purchaseOtpSending || purchaseSubmitting}
+                        className="mt-3 text-[10px] font-black text-blue-600 transition hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                      >
+                        {purchaseOtpSending
+                          ? "GÖNDERİLİYOR..."
+                          : purchaseOtpCooldown > 0
+                          ? `KODU TEKRAR GÖNDER (${purchaseOtpCooldown}sn)`
+                          : "KODU TEKRAR GÖNDER"}
+                      </button>
+                    </div>
+                  )}
+
+                  {(purchaseOtpError || purchaseMessage) && (
                     <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[10px] font-black text-rose-700">
-                      {purchaseMessage}
+                      {purchaseOtpError || purchaseMessage}
                     </div>
                   )}
 
@@ -1042,11 +1147,19 @@ export default function DisKanal({
 
                     <button
                       type="button"
-                      onClick={submitPurchase}
-                      disabled={!purchaseFormValid || purchaseSubmitting}
+                      onClick={onPurchasePrimaryClick}
+                      disabled={
+                        purchaseSubmitting ||
+                        purchaseOtpSending ||
+                        (purchaseOtpSent ? !purchaseOtpValid : !purchaseFormValid)
+                      }
                       className={`h-12 min-w-[220px] rounded-2xl px-6 text-[10px] font-black text-white shadow-lg transition disabled:cursor-not-allowed disabled:bg-slate-300 ${accentBg} ${accentHover}`}
                     >
-                      {purchaseSubmitting ? "GÖNDERİLİYOR..." : "ÖDEME TALEBİ GÖNDER"}
+                      {purchaseSubmitting || purchaseOtpSending
+                        ? "GÖNDERİLİYOR..."
+                        : purchaseOtpSent
+                        ? "KODU DOĞRULA VE TALEBİ OLUŞTUR"
+                        : "ÖDEME TALEBİ GÖNDER"}
                     </button>
                   </div>
                 </>
