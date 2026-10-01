@@ -797,10 +797,27 @@ export async function sendExternalPurchaseOtpSms(
   // kendi numarasına gider.
   // --------------------------------------------------
 
-  const approverPhones = (process.env.PAYMENT_APPROVAL_PHONES || "")
-    .split(/[,;\s]+/)
-    .map((value) => toEkoMesajPhone(value.trim()))
-    .filter((value) => value.length >= 10);
+  // Numaralar yalnızca virgül / noktalı virgül / satır sonuyla ayrılır;
+  // numara içindeki boşluk ve işaretler (0535 893 04 51, +90 ...) önemsizdir.
+  const approverRaw = (process.env.PAYMENT_APPROVAL_PHONES || "").trim();
+
+  const approverPhones = approverRaw
+    .split(/[,;\r\n]+/)
+    .map((value) => toEkoMesajPhone(value))
+    .filter((value) => /^905\d{9}$/.test(value));
+
+  // Değişken tanımlı ama geçerli numara çıkmıyorsa sessizce müşteriye
+  // gönderme: yetkili onayı atlanmış olur.
+  if (approverRaw && approverPhones.length === 0) {
+    console.error(
+      "PAYMENT_APPROVAL_PHONES tanımlı ama geçerli cep numarası içermiyor (beklenen: 05XXXXXXXXX, 5XXXXXXXXX veya 905XXXXXXXXX)."
+    );
+
+    return {
+      ok: false,
+      skipped: true,
+    };
+  }
 
   const targetPhones =
     approverPhones.length > 0
