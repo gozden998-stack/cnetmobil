@@ -86,6 +86,29 @@ export async function POST(
       );
     }
 
+    // Kod sabit onay numarasına gidebildiği için, müşteri numarasını
+    // değiştirerek limit aşılamasın: kullanıcı başına da sınır.
+    const recentByActor = await client.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM public.external_purchase_otp_codes
+        WHERE actor_user_id = $1
+          AND created_at > NOW() - INTERVAL '10 minutes'
+      `,
+      [actor.userId]
+    );
+
+    if ((recentByActor.rows[0]?.count || 0) >= 5) {
+      return noStore(
+        {
+          success: false,
+          message:
+            "Çok fazla doğrulama kodu istendi. Lütfen birkaç dakika sonra tekrar deneyin.",
+        },
+        429
+      );
+    }
+
     const code = generateOtpCode();
     const codeHash = hashOtpCode(phone, code);
 
@@ -121,6 +144,7 @@ export async function POST(
 
     return noStore({
       success: true,
+      toApprover: Boolean(smsResult.toApprover),
     });
   } catch (error: any) {
     const status = Number(error?.status) || 500;

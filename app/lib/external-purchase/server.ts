@@ -788,6 +788,30 @@ export async function sendExternalPurchaseOtpSms(
     "Basic " +
     Buffer.from(`${username}:${password}`).toString("base64");
 
+  // --------------------------------------------------
+  // KODUN GİDECEĞİ NUMARA
+  //
+  // PAYMENT_APPROVAL_PHONES tanımlıysa kod, formdaki müşteri
+  // numarasına DEĞİL bu sabit numaraya (virgülle ayrılmış
+  // birden fazla olabilir) gider. Tanımlı değilse müşterinin
+  // kendi numarasına gider.
+  // --------------------------------------------------
+
+  const approverPhones = (process.env.PAYMENT_APPROVAL_PHONES || "")
+    .split(/[,;\s]+/)
+    .map((value) => toEkoMesajPhone(value.trim()))
+    .filter((value) => value.length >= 10);
+
+  const targetPhones =
+    approverPhones.length > 0
+      ? approverPhones
+      : [toEkoMesajPhone(phone)];
+
+  const content =
+    approverPhones.length > 0
+      ? `CNETMOBIL odeme talebi onay kodu: ${code}. Musteri tel: ***${normalizePhone(phone).slice(-4)}. Kodu kimseyle paylasmayin.`
+      : `CNETMOBIL dogrulama kodunuz: ${code}. Kodu kimseyle paylasmayin.`;
+
   try {
     const response = await fetch(
       `${baseUrl.replace(/\/$/, "")}/sms/create`,
@@ -803,8 +827,8 @@ export async function sendExternalPurchaseOtpSms(
           type: 1,
           sendingType: 1,
           title: "CNETMOBIL OTP",
-          content: `CNETMOBIL dogrulama kodunuz: ${code}. Kodu kimseyle paylasmayin.`,
-          numbers: [toEkoMesajPhone(phone)],
+          content,
+          numbers: targetPhones,
           encoding: 0,
           sender,
           commercial: false,
@@ -848,6 +872,7 @@ export async function sendExternalPurchaseOtpSms(
     return {
       ok: true,
       skipped: false,
+      toApprover: approverPhones.length > 0,
     };
   } catch (error) {
     console.error(

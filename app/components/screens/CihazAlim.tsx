@@ -311,6 +311,7 @@ export default function CihazAlim({
   const [cihazAlOtpSending, setCihazAlOtpSending] = useState(false);
   const [cihazAlOtpError, setCihazAlOtpError] = useState("");
   const [cihazAlOtpCooldown, setCihazAlOtpCooldown] = useState(0);
+  const [cihazAlOtpToApprover, setCihazAlOtpToApprover] = useState(false);
 
   useEffect(() => {
     if (cihazAlOtpCooldown <= 0) return;
@@ -366,6 +367,7 @@ export default function CihazAlim({
         throw new Error(data?.message || "Doğrulama kodu gönderilemedi.");
       }
 
+      setCihazAlOtpToApprover(Boolean(data?.toApprover));
       setCihazAlOtpSent(true);
       setCihazAlOtpCode("");
       setCihazAlOtpCooldown(120);
@@ -1474,7 +1476,9 @@ export default function CihazAlim({
                     SMS Doğrulama
                   </div>
                   <p className="mt-1 text-[10px] font-bold text-slate-500">
-                    {cihazAlForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.
+                    {cihazAlOtpToApprover
+                      ? "Doğrulama kodu onay numarasına gönderildi. Kodu yetkiliden alıp girin."
+                      : `${cihazAlForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.`}
                   </p>
 
                   <input

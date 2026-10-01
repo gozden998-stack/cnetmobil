@@ -225,6 +225,7 @@ export default function DisKanal({
   const [purchaseOtpSending, setPurchaseOtpSending] = useState(false);
   const [purchaseOtpError, setPurchaseOtpError] = useState("");
   const [purchaseOtpCooldown, setPurchaseOtpCooldown] = useState(0);
+  const [purchaseOtpToApprover, setPurchaseOtpToApprover] = useState(false);
 
   useEffect(() => {
     if (purchaseOtpCooldown <= 0) return;
@@ -346,6 +347,7 @@ export default function DisKanal({
         throw new Error(data?.message || "Doğrulama kodu gönderilemedi.");
       }
 
+      setPurchaseOtpToApprover(Boolean(data?.toApprover));
       setPurchaseOtpSent(true);
       setPurchaseOtpCode("");
       setPurchaseOtpCooldown(120);
@@ -1100,7 +1102,9 @@ export default function DisKanal({
                         SMS Doğrulama
                       </div>
                       <p className="mt-1 text-[10px] font-bold text-slate-500">
-                        {purchaseForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.
+                        {purchaseOtpToApprover
+                          ? "Doğrulama kodu onay numarasına gönderildi. Kodu yetkiliden alıp girin."
+                          : `${purchaseForm.phone} numarasına 6 haneli doğrulama kodu gönderildi.`}
                       </p>
 
                       <input
