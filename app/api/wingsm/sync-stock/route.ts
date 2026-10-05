@@ -3818,6 +3818,7 @@ async function syncSnapshotToDatabase(
           // içermeyebilir. Her tür bağımsız denenir; biri başarısız olsa da
           // diğerlerinde kanıt aranır (kanıt yalnızca POZİTİF yönde kullanılır).
           let listsOk = 0;
+          const listCounts: Record<string, number | string> = {};
 
           for (const saleType of [
             undefined,
@@ -3833,13 +3834,17 @@ async function syncSnapshotToDatabase(
                   saleType,
                 });
 
-              salesRows =
-                salesRows.concat(
-                  extractWingSMMovementRows(salesPayload)
-                );
+              const typeRows =
+                extractWingSMMovementRows(salesPayload);
+
+              salesRows = salesRows.concat(typeRows);
+
+              listCounts[saleType || "normal"] =
+                typeRows.length;
 
               listsOk += 1;
             } catch (salesListError) {
+              listCounts[saleType || "normal"] = "HATA";
               console.error(
                 "WINGSM_SALES_LIST_ERROR:",
                 depot,
@@ -3848,6 +3853,17 @@ async function syncSnapshotToDatabase(
               );
             }
           }
+
+          // TEŞHİS: hangi depo için kaç satış satırı döndü, kaç aday var.
+          console.info(
+            "WINGSM_SALES_DEBUG:",
+            JSON.stringify({
+              depot,
+              candidates: group.length,
+              rows: listCounts,
+              sampleKeys: Object.keys(salesRows[0] || {}).slice(0, 20),
+            })
+          );
 
           if (listsOk === 0) {
             // Hiçbir liste alınamadıysa bu depodaki cihazlara dokunmayız;
@@ -3880,6 +3896,15 @@ async function syncSnapshotToDatabase(
               );
 
             if (!saleRow) {
+              console.info(
+                "WINGSM_SALE_NOT_FOUND:",
+                candidate.imei,
+                "depot",
+                depot,
+                "status",
+                candidate.status
+              );
+
               continue;
             }
 
