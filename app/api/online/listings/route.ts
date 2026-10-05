@@ -2738,6 +2738,58 @@ async function reconcilePendingN11Listing(listing: any) {
   };
 }
 
+async function promoteN11PendingMemberships(
+  listingId: number
+) {
+  if (!Number.isInteger(listingId) || listingId <= 0) {
+    return 0;
+  }
+
+  try {
+    const result = await getPool().query(
+      `
+        UPDATE public.online_channel_devices ocd
+        SET
+          membership_status = 'LISTED',
+          metadata =
+            COALESCE(ocd.metadata, '{}'::jsonb) ||
+            jsonb_build_object(
+              'externalProductId', ol.external_product_id,
+              'syncStatus', ol.sync_status,
+              'lastTaskStatus', ol.last_task_status,
+              'promotedToListedAt', now()
+            ),
+          listed_at = COALESCE(ocd.listed_at, now()),
+          updated_at = now()
+        FROM public.online_listings ol
+        WHERE ocd.channel = 'N11'
+          AND ocd.online_listing_id = ol.id
+          AND ocd.membership_status = 'PENDING_CREATE'
+          AND ol.id = $1
+          AND ol.channel = 'N11'
+          AND ol.external_product_id IS NOT NULL
+          AND TRIM(ol.external_product_id::text) <> ''
+          AND ol.sync_status = 'SYNCED'
+          AND (ol.raw_data->>'poolStockIncreasePending')
+            IS DISTINCT FROM 'true'
+      `,
+      [listingId]
+    );
+
+    return result.rowCount || 0;
+  } catch (error) {
+    // Üyelik güncellemesi başarısız olsa bile ilan kontrolü bozulmaz;
+    // bir sonraki kontrolde tekrar denenir.
+    console.error(
+      'N11_MEMBERSHIP_PROMOTE_ERROR:',
+      listingId,
+      error
+    );
+
+    return 0;
+  }
+}
+
 // ============================================================
 // GET /api/online/listings
 // Mevcut N11 taslaklarini/listinglerini PostgreSQL'den okur.
@@ -2762,18 +2814,42 @@ export async function GET(request: NextRequest) {
       ) || ''
     ).trim();
 
-    if (refreshN11 && stockCode) {
+    // Merkez ekranı kanal üyeliğindeki listing id ile sorar (havuz
+    // ilanlarında stockCode IMEI değildir).
+    const refreshListingId = Number(
+      requestUrl.searchParams.get(
+        'listingId'
+      ) || 0
+    );
+
+    if (
+      refreshN11 &&
+      (stockCode ||
+        (Number.isInteger(refreshListingId) &&
+          refreshListingId > 0))
+    ) {
       const existingResult =
-        await getPool().query(
-          `
-            SELECT *
-            FROM public.online_listings
-            WHERE channel = 'N11'
-              AND external_stock_code = $1
-            LIMIT 1
-          `,
-          [stockCode]
-        );
+        stockCode
+          ? await getPool().query(
+              `
+                SELECT *
+                FROM public.online_listings
+                WHERE channel = 'N11'
+                  AND external_stock_code = $1
+                LIMIT 1
+              `,
+              [stockCode]
+            )
+          : await getPool().query(
+              `
+                SELECT *
+                FROM public.online_listings
+                WHERE channel = 'N11'
+                  AND id = $1
+                LIMIT 1
+              `,
+              [refreshListingId]
+            );
 
       const existing =
         existingResult.rows[0];
@@ -2796,6 +2872,31 @@ export async function GET(request: NextRequest) {
           existing.raw_data
         );
 
+      // İlan N11'de zaten oluşmuş ve senkronsa N11'e tekrar sormayız:
+      // reconcilePendingN11Listing raw_data'yı ürün cevabıyla değiştirir
+      // ve havuz ilanının availableImeis listesini silerdi. Sadece bekleyen
+      // kanal üyelikleri güncellenir.
+      if (
+        existing.external_product_id &&
+        String(existing.sync_status || '').toUpperCase() === 'SYNCED' &&
+        existingRaw.poolStockIncreasePending !== true
+      ) {
+        const promoted =
+          await promoteN11PendingMemberships(
+            Number(existing.id)
+          );
+
+        return json({
+          success: true,
+          created: true,
+          pending: false,
+          state: 'CREATED',
+          alreadySynced: true,
+          promotedMemberships: promoted,
+          listing: existing,
+        });
+      }
+
       const reconciliation =
         existing.external_product_id &&
         existingRaw.poolStockIncreasePending === true
@@ -2805,6 +2906,15 @@ export async function GET(request: NextRequest) {
           : await reconcilePendingN11Listing(
               existing
             );
+
+      // N11'de ürün gerçekten oluştuysa, bu ilana bağlı "Hazırlanıyor"
+      // (PENDING_CREATE) kanal üyeliklerini "Gönderildi" (LISTED) yap.
+      // Eskiden üyelik sadece gönderim anında yazılıyordu; N11 create
+      // görevi o an kuyrukta olduğu için cihaz sonsuza dek
+      // "Hazırlanıyor" kalıyordu.
+      await promoteN11PendingMemberships(
+        Number(existing.id)
+      );
 
       if (
         reconciliation.state ===

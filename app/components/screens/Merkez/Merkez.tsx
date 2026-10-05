@@ -3528,6 +3528,201 @@ export default function Merkez() {
       [center.data]
     );
 
+  // N11 create görevi gönderim anında kuyrukta olduğu için cihaz
+  // "Hazırlanıyor" (PENDING_CREATE) kalır. Bu ilanları arka planda N11'e
+  // sorarız; ürün oluştuysa sunucu üyeliği "Gönderildi" yapar.
+  const pendingN11ListingIds =
+    useMemo(() => {
+      const ids =
+        new Set<number>();
+
+      for (const group of groups) {
+        const devices =
+          Array.isArray(
+            group?.devices
+          )
+            ? group.devices
+            : [];
+
+        for (const device of devices) {
+          const n11 =
+            device?.channels?.N11;
+
+          const listingId =
+            Number(
+              n11?.listingId
+            );
+
+          if (
+            String(
+              n11?.status || ""
+            ).toUpperCase() ===
+              "PENDING_CREATE" &&
+            Number.isInteger(
+              listingId
+            ) &&
+            listingId > 0
+          ) {
+            ids.add(listingId);
+          }
+        }
+      }
+
+      return Array.from(ids)
+        .sort((a, b) => a - b)
+        .join(",");
+    }, [groups]);
+
+  const n11ReconcileFailedRef =
+    useRef<Set<number>>(
+      new Set()
+    );
+
+  useEffect(() => {
+    if (!pendingN11ListingIds) {
+      return;
+    }
+
+    const listingIds =
+      pendingN11ListingIds
+        .split(",")
+        .map(Number);
+
+    let cancelled = false;
+    let running = false;
+
+    const reconcilePending =
+      async () => {
+        if (cancelled || running) {
+          return;
+        }
+
+        running = true;
+        let shouldReload = false;
+        const errors: string[] = [];
+
+        try {
+          // N11'e aynı anda çok istek atmamak için turda en fazla 5 ilan.
+          const batch =
+            listingIds
+              .filter(
+                (id) =>
+                  !n11ReconcileFailedRef.current.has(
+                    id
+                  )
+              )
+              .slice(0, 5);
+
+          for (const listingId of batch) {
+            if (cancelled) {
+              break;
+            }
+
+            try {
+              const response =
+                await fetch(
+                  `/api/online/listings?listingId=${listingId}&refreshN11=1`,
+                  {
+                    method: "GET",
+                    cache:
+                      "no-store",
+                    credentials:
+                      "same-origin",
+                  }
+                );
+
+              const payload =
+                await response
+                  .json()
+                  .catch(
+                    () => null
+                  );
+
+              if (
+                payload?.created ===
+                  true ||
+                payload?.state ===
+                  "CREATED"
+              ) {
+                shouldReload = true;
+              } else if (
+                payload?.state ===
+                  "ERROR" ||
+                payload?.state ===
+                  "POOL_ERROR" ||
+                response.status ===
+                  422
+              ) {
+                n11ReconcileFailedRef.current.add(
+                  listingId
+                );
+
+                errors.push(
+                  String(
+                    payload?.error ||
+                      `N11 ilanı #${listingId} oluşturulamadı.`
+                  )
+                );
+
+                shouldReload = true;
+              }
+            } catch {
+              // Arka plan kontrolü kullanıcı akışını bozmaz.
+            }
+          }
+
+          if (
+            errors.length > 0 &&
+            !cancelled
+          ) {
+            setN11SendNotice(
+              `N11 doğrulaması başarısız: ${errors.join(" | ")}`
+            );
+          }
+
+          if (
+            shouldReload &&
+            !cancelled
+          ) {
+            await loadCenter(
+              true
+            );
+          }
+        } finally {
+          running = false;
+        }
+      };
+
+    const firstCheckId =
+      window.setTimeout(
+        () => {
+          void reconcilePending();
+        },
+        3_000
+      );
+
+    const intervalId =
+      window.setInterval(
+        () => {
+          void reconcilePending();
+        },
+        20_000
+      );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(
+        firstCheckId
+      );
+      window.clearInterval(
+        intervalId
+      );
+    };
+  }, [
+    pendingN11ListingIds,
+    loadCenter,
+  ]);
+
   const visibleGroups =
     useMemo(() => {
       const q =
