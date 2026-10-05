@@ -1241,6 +1241,11 @@ export async function getWingSMSalesList(
       | Date
       | string
       | number;
+
+    // WingSM dokumani: temlik=1 (temlikli satislar, ör. N11), aktivasyon=1
+    // (aktivasyon turu satislar). Parametresiz cagri bu satis turlerini
+    // dondurmeyebilir; verilirse ilgili tur sorgulanir.
+    saleType?: "temlik" | "aktivasyon";
   }
 ) {
   const sirket =
@@ -1254,7 +1259,7 @@ export async function getWingSMSalesList(
     );
   }
 
-  const query = {
+  const query: Record<string, string | number> = {
     tarih:
       toWingSMDateNumber(
         params.startDate
@@ -1266,6 +1271,10 @@ export async function getWingSMSalesList(
           new Date()
       ),
   };
+
+  if (params.saleType) {
+    query[params.saleType] = 1;
+  }
 
   const documentedPath =
     `/api/b2b/satis/list/${encodeURIComponent(

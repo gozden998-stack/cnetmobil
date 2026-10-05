@@ -3808,15 +3808,48 @@ async function syncSnapshotToDatabase(
               Date.now()
             );
 
-          const salesPayload =
-            await getWingSMSalesList({
-              sirket: depot,
-              startDate: new Date(oldest),
-              endDate: new Date(),
-            });
+          // Satış türleri: normal, temlikli (ör. N11 online satışları) ve
+          // aktivasyon. WingSM dokümanına göre temlik/aktivasyon satışları
+          // ayrı parametreyle dönüyor; parametresiz liste bunları
+          // içermeyebilir. Her tür bağımsız denenir; biri başarısız olsa da
+          // diğerlerinde kanıt aranır (kanıt yalnızca POZİTİF yönde kullanılır).
+          let listsOk = 0;
 
-          salesRows =
-            extractWingSMMovementRows(salesPayload);
+          for (const saleType of [
+            undefined,
+            "temlik" as const,
+            "aktivasyon" as const,
+          ]) {
+            try {
+              const salesPayload =
+                await getWingSMSalesList({
+                  sirket: depot,
+                  startDate: new Date(oldest),
+                  endDate: new Date(),
+                  saleType,
+                });
+
+              salesRows =
+                salesRows.concat(
+                  extractWingSMMovementRows(salesPayload)
+                );
+
+              listsOk += 1;
+            } catch (salesListError) {
+              console.error(
+                "WINGSM_SALES_LIST_ERROR:",
+                depot,
+                saleType || "normal",
+                salesListError
+              );
+            }
+          }
+
+          if (listsOk === 0) {
+            // Hiçbir liste alınamadıysa bu depodaki cihazlara dokunmayız;
+            // sonraki turda tekrar denenir.
+            continue;
+          }
         } catch (salesListError) {
           console.error(
             "WINGSM_SALES_LIST_ERROR:",
@@ -3824,8 +3857,6 @@ async function syncSnapshotToDatabase(
             salesListError
           );
 
-          // Liste alınamadıysa bu depodaki hiçbir cihazı SOLD yapmayız;
-          // sonraki turda tekrar denenir.
           continue;
         }
 
