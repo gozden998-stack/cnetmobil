@@ -3758,10 +3758,14 @@ async function syncSnapshotToDatabase(
         new Map<string, SaleCandidate[]>();
 
       for (const candidate of candidates) {
+        // MERKEZ (001) her zaman aranır: CNET/CMR depolarındaki cihazlar
+        // WingSM'de Merkez üzerinden satılıyor, satış kaydı kendi depo
+        // kodunun satış listesinde değil 001'in listesinde duruyor.
         const branchCodes =
           [
             candidate.current_branch_code,
             candidate.extra_branch,
+            "MERKEZ",
           ].filter(Boolean);
 
         for (const branchCode of branchCodes) {
