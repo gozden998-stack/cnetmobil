@@ -2113,6 +2113,134 @@ function findImeiInRows(
 }
 
 // ======================================================
+// SATILAN CIHAZI KAPAT
+//
+// WingSM resmi satis listesinde kesin IMEI eslesmesi bulunan cihazi tek
+// transaction'da SOLD yapar. Cihazin uzerinde acik talep (PENDING / SENT /
+// TRANSFER_WAITING) veya bekleyen WingSM transferi varsa onlari da kapatir:
+// satilmis cihaz ne stokta ne de talep listesinde kalir.
+//
+// candidate.status, adayin secildigi andaki panel durumudur; arada baska
+// bir islem durumu degistirdiyse (UPDATE hic satir etkilemez) dokunmaz.
+// ======================================================
+
+async function markDeviceSoldFromWingSM(
+  pool: Pool,
+  candidate: {
+    id: number;
+    imei: string;
+    current_branch_code: string;
+    status: string;
+  },
+  saleRow: any
+): Promise<boolean> {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const flipped = await client.query(
+      `
+        UPDATE public.stock_devices
+        SET
+          status = 'SOLD',
+          wing_status = 'SOLD',
+          updated_at = NOW()
+        WHERE id = $1
+          AND status = $2
+        RETURNING id
+      `,
+      [candidate.id, candidate.status]
+    );
+
+    if (!flipped.rowCount) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    const closedRequests = await client.query(
+      `
+        UPDATE public.device_requests
+        SET
+          status = 'REJECTED',
+          decision_by = 'WINGSM_AUTO',
+          decision_at = NOW(),
+          reject_reason = 'SATILDI (WingSM otomatik)',
+          updated_at = NOW()
+        WHERE device_id = $1
+          AND status IN (
+            'PENDING',
+            'SENT',
+            'TRANSFER_WAITING'
+          )
+        RETURNING id
+      `,
+      [candidate.id]
+    );
+
+    const cancelledTransfers = await client.query(
+      `
+        UPDATE public.device_transfers
+        SET status = 'CANCELLED'
+        WHERE device_id = $1
+          AND status = 'WAITING_WING'
+        RETURNING id
+      `,
+      [candidate.id]
+    );
+
+    await client.query(
+      `
+        INSERT INTO public.stock_events (
+          device_id, imei, event_type,
+          from_branch_code, to_branch_code,
+          old_status, new_status,
+          performed_by, metadata
+        )
+        VALUES (
+          $1, $2, 'WINGSM_SALE_DETECTED',
+          $3, $3,
+          $4, 'SOLD',
+          'WINGSM_AUTO', $5::jsonb
+        )
+      `,
+      [
+        candidate.id,
+        candidate.imei,
+        candidate.current_branch_code,
+        candidate.status,
+        JSON.stringify({
+          evidence: saleRow,
+          closedRequestIds: closedRequests.rows.map(
+            (row) => row.id
+          ),
+          cancelledTransferIds: cancelledTransfers.rows.map(
+            (row) => row.id
+          ),
+        }),
+      ]
+    );
+
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+
+    console.error(
+      "WINGSM_MARK_SOLD_ERROR:",
+      candidate.imei,
+      error
+    );
+
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// ======================================================
 // LOCAL DEVICE STATE
 //
 // TRANSFER_WAITING ise burada magazayi DEGISTIRMIYORUZ.
@@ -3356,6 +3484,72 @@ async function syncSnapshotToDatabase(
             row.status === "MISSING" &&
             String(row.imei || "").trim().length > 0
         );
+
+      // TUTARSIZLIK ONARIMI: wing_status zaten MISSING ama panel durumu
+      // AVAILABLE/DETAILS_PENDING'e geri dönmüş cihazlar (ör. cihaz bir
+      // talepteyken WingSM'den kayboldu, talep reddedilince status
+      // AVAILABLE'a döndü). Yukarıdaki UPDATE "zaten MISSING" diye bunları
+      // hiç yakalamıyordu; cihaz ekranda satılabilir görünmeye devam
+      // ediyordu. Aynı güvenlik filtreleriyle durumu MISSING'e çekiyoruz ve
+      // satış tespitine adaylık veriyoruz. Aktif talebi olanlara dokunmaz.
+      const healedResult =
+        await client.query(
+          `
+            UPDATE public.stock_devices sd
+            SET
+              status = 'MISSING',
+              updated_at = NOW()
+            WHERE
+              sd.source = 'WINGSM'
+              AND sd.wing_status = 'MISSING'
+              AND sd.status IN (
+                'AVAILABLE',
+                'DETAILS_PENDING'
+              )
+              AND sd.current_branch_code =
+                ANY($1::text[])
+              AND NOT EXISTS (
+                SELECT 1
+                FROM public.device_requests dr
+                WHERE dr.device_id = sd.id
+                  AND dr.status IN (
+                    'PENDING',
+                    'SENT',
+                    'TRANSFER_WAITING'
+                  )
+              )
+              AND NOT (
+                COALESCE(sd.wing_product_code, '') =
+                  ANY($2::text[])
+              )
+              AND NOT (
+                (
+                  COALESCE(sd.wing_product_code, '') ||
+                  '|' ||
+                  sd.current_branch_code
+                ) = ANY($3::text[])
+              )
+            RETURNING
+              id,
+              imei,
+              current_branch_code,
+              wing_last_seen_at,
+              status
+          `,
+          [
+            snapshot.safeBranches,
+            snapshot.unsafeProductCodes,
+            snapshot.unsafeProductBranchPairs,
+          ]
+        );
+
+      freshlyMissingRows =
+        freshlyMissingRows.concat(
+          healedResult.rows.filter(
+            (row) =>
+              String(row.imei || "").trim().length > 0
+          )
+        );
     }
 
     // ==================================================
@@ -3429,129 +3623,256 @@ async function syncSnapshotToDatabase(
     // COMMIT ile zaten guvenlik altina alinmis durumda.
     // ==================================================
 
-    if (freshlyMissingRows.length) {
+    {
       const pool =
         getPool();
 
-      for (const candidate of freshlyMissingRows) {
-        try {
-          const lastSeen =
-            candidate.wing_last_seen_at
-              ? new Date(candidate.wing_last_seen_at)
-              : new Date(
-                  Date.now() - 30 * 24 * 60 * 60 * 1000
-                );
+      type SaleCandidate = {
+        id: number;
+        imei: string;
+        current_branch_code: string;
+        wing_last_seen_at: string | null;
+        status: string;
+        extra_branch?: string | null;
+      };
 
-          const candidateBranch =
-            String(
-              candidate.current_branch_code || ""
-            ) as BranchCode;
+      // Aday listesi:
+      // 1) Bu turda yeni MISSING olanlar ve onarılanlar (status MISSING).
+      // 2) Üzerinde AÇIK TALEP olduğu için status'u REQUESTED /
+      //    TRANSFER_WAITING kalan ama WingSM'den kaybolmuş cihazlar - her
+      //    tur. Satıldıysa talep olsa bile stoktan düşer, talep kapanır.
+      // 3) Her 5. dakikada: daha önce MISSING kalıp satış kanıtı henüz
+      //    bulunamamış cihazlar (son 7 gün). Eskiden kontrol sadece cihaz o
+      //    turda yeni kaybolduğunda bir kez yapılıyordu; WingSM satış kaydı
+      //    o anda listede yoksa cihaz sonsuza dek MISSING'de kalıyordu.
+      const candidates: SaleCandidate[] =
+        freshlyMissingRows.map(
+          (row) => ({
+            ...row,
+            status: "MISSING",
+            extra_branch: null,
+          })
+        );
 
-          const depot =
-            WINGSM_DEPOT_MAP[candidateBranch] || null;
+      const known =
+        new Set<number>(
+          candidates.map(
+            (row) => row.id
+          )
+        );
 
-          // 1) ONCELIKLI KONTROL: WingSM'in resmi satis listesi
-          // (get('/api/b2b/satis/list/:sirket')). Bu uc nokta zaten
-          // SADECE satislari donduruyor (alis=1 gondermedigimiz
-          // surece) - IMEI cevapta geciyorsa bu dogrudan "satildi"
-          // demektir, ayrica metin aramaya gerek yok.
-          let saleRow: any = null;
-
-          if (depot) {
-            try {
-              const salesPayload =
-                await getWingSMSalesList({
-                  sirket: depot,
-                  startDate: lastSeen,
-                  endDate: new Date(),
-                });
-
-              const salesRows =
-                extractWingSMMovementRows(salesPayload);
-
-              saleRow =
-                findImeiInRows(
-                  salesRows,
-                  String(candidate.imei || "")
-                );
-            } catch (salesListError) {
-              console.error(
-                "WINGSM_SALES_LIST_ERROR:",
-                candidate.imei,
-                salesListError
-              );
-            }
-          }
-
-          // NOT: eskiden burada bir "yedek kontrol" vardi -
-          // getWingSMProductMovementHistory (hareket gecmisi) sonucunda
-          // "SATIS" metni gecen ilk satiri kanit sayiyordu. Bu KALDIRILDI:
-          // somut bir vakada WingSM bu uc noktada seriNo filtresini
-          // dogru uygulamiyor, o depo/tarih araligindaki ALAKASIZ bir
-          // satisi (ornegin bir hafiza karti aksesuari) bizim IMEI'nin
-          // kaniti sanip yanlislikla SOLD isaretlemistik. Artik SADECE
-          // resmi satis listesi (yukarida, dogrudan IMEI eslesmesi
-          // arayan) kanit kabul ediliyor - bulunamazsa cihaz guvenli
-          // tarafta kalip MISSING'de bekliyor, sonraki turda tekrar
-          // denenecek.
-          if (!saleRow) {
-            continue;
-          }
-
-          const flipped =
-            await pool.query(
-              `
-                UPDATE public.stock_devices
-                SET
-                  status = 'SOLD',
-                  wing_status = 'SOLD',
-                  updated_at = NOW()
-                WHERE id = $1
-                  AND status = 'MISSING'
-              `,
-              [candidate.id]
-            );
-
-          if (!flipped.rowCount) {
-            // Bu aradaki bir baska islem (ör. yeni bir talep) durumu
-            // degistirmis olabilir - guvenli tarafta kal, dokunma.
-            continue;
-          }
-
+      try {
+        const activeResult =
           await pool.query(
             `
-              INSERT INTO public.stock_events (
-                device_id, imei, event_type,
-                from_branch_code, to_branch_code,
-                old_status, new_status,
-                performed_by, metadata
-              )
-              VALUES (
-                $1, $2, 'WINGSM_SALE_DETECTED',
-                $3, $3,
-                'MISSING', 'SOLD',
-                'WINGSM_AUTO', $4::jsonb
-              )
-            `,
-            [
-              candidate.id,
-              candidate.imei,
-              candidate.current_branch_code,
-              JSON.stringify({ evidence: saleRow }),
-            ]
+              SELECT
+                sd.id,
+                sd.imei,
+                sd.current_branch_code,
+                sd.wing_last_seen_at,
+                sd.status,
+                (
+                  SELECT dr.requester_branch_code
+                  FROM public.device_requests dr
+                  WHERE dr.device_id = sd.id
+                    AND dr.status IN (
+                      'PENDING',
+                      'SENT',
+                      'TRANSFER_WAITING'
+                    )
+                  ORDER BY dr.id DESC
+                  LIMIT 1
+                ) AS extra_branch
+              FROM public.stock_devices sd
+              WHERE
+                sd.source IN ('WINGSM', 'MIXED')
+                AND sd.wing_status = 'MISSING'
+                AND sd.status IN (
+                  'REQUESTED',
+                  'TRANSFER_WAITING'
+                )
+                AND COALESCE(TRIM(sd.imei), '') <> ''
+                AND sd.wing_last_seen_at >
+                  NOW() - INTERVAL '7 days'
+              ORDER BY sd.wing_last_seen_at DESC
+              LIMIT 100
+            `
           );
 
-          soldImeisForN11.push(
-            String(candidate.imei || "")
-          );
+        for (const row of activeResult.rows) {
+          if (!known.has(row.id)) {
+            known.add(row.id);
+            candidates.push(row);
+          }
+        }
+      } catch (activeListError) {
+        console.error(
+          "WINGSM_SALE_ACTIVE_LIST_ERROR:",
+          activeListError
+        );
+      }
 
-          soldViaSaleDetection += 1;
-        } catch (saleCheckError) {
+      if (Math.floor(Date.now() / 60_000) % 5 === 0) {
+        try {
+          const retryResult =
+            await pool.query(
+              `
+                SELECT
+                  id,
+                  imei,
+                  current_branch_code,
+                  wing_last_seen_at,
+                  status
+                FROM public.stock_devices
+                WHERE
+                  source IN ('WINGSM', 'MIXED')
+                  AND status = 'MISSING'
+                  AND wing_status = 'MISSING'
+                  AND COALESCE(TRIM(imei), '') <> ''
+                  AND wing_last_seen_at >
+                    NOW() - INTERVAL '7 days'
+                ORDER BY wing_last_seen_at DESC
+                LIMIT 300
+              `
+            );
+
+          for (const row of retryResult.rows) {
+            if (!known.has(row.id)) {
+              known.add(row.id);
+              candidates.push(row);
+            }
+          }
+        } catch (retryListError) {
           console.error(
-            "WINGSM_SALE_DETECTION_ERROR:",
-            candidate.imei,
-            saleCheckError
+            "WINGSM_SALE_RETRY_LIST_ERROR:",
+            retryListError
           );
+        }
+      }
+
+      // WingSM'e IMEI başına değil DEPO başına TEK satış listesi isteği.
+      // Aktif talebi olan cihaz için hem sahip hem talep eden mağazanın
+      // deposuna bakılır (cihaz transfer sonrası hedef depoda satılmış
+      // olabilir).
+      const byDepot =
+        new Map<string, SaleCandidate[]>();
+
+      for (const candidate of candidates) {
+        const branchCodes =
+          [
+            candidate.current_branch_code,
+            candidate.extra_branch,
+          ].filter(Boolean);
+
+        for (const branchCode of branchCodes) {
+          const depot =
+            WINGSM_DEPOT_MAP[
+              String(branchCode) as BranchCode
+            ] || null;
+
+          if (!depot) {
+            continue;
+          }
+
+          const key = String(depot);
+          const group = byDepot.get(key) || [];
+
+          if (!group.includes(candidate)) {
+            group.push(candidate);
+          }
+
+          byDepot.set(key, group);
+        }
+      }
+
+      const resolved =
+        new Set<number>();
+
+      for (const [depot, group] of byDepot) {
+        let salesRows: any[] = [];
+
+        try {
+          const oldest =
+            group.reduce(
+              (min, candidate) => {
+                const time =
+                  candidate.wing_last_seen_at
+                    ? new Date(
+                        candidate.wing_last_seen_at
+                      ).getTime()
+                    : Date.now() -
+                      30 * 24 * 60 * 60 * 1000;
+
+                return Math.min(min, time);
+              },
+              Date.now()
+            );
+
+          const salesPayload =
+            await getWingSMSalesList({
+              sirket: depot,
+              startDate: new Date(oldest),
+              endDate: new Date(),
+            });
+
+          salesRows =
+            extractWingSMMovementRows(salesPayload);
+        } catch (salesListError) {
+          console.error(
+            "WINGSM_SALES_LIST_ERROR:",
+            depot,
+            salesListError
+          );
+
+          // Liste alınamadıysa bu depodaki hiçbir cihazı SOLD yapmayız;
+          // sonraki turda tekrar denenir.
+          continue;
+        }
+
+        for (const candidate of group) {
+          if (resolved.has(candidate.id)) {
+            continue;
+          }
+
+          try {
+            // SADECE resmi satış listesinde doğrudan IMEI eşleşmesi kanıt
+            // sayılır (iade/takas satırları findImeiInRows içinde hariç).
+            // Bulunamazsa cihaza dokunulmaz.
+            const saleRow =
+              findImeiInRows(
+                salesRows,
+                String(candidate.imei || "")
+              );
+
+            if (!saleRow) {
+              continue;
+            }
+
+            const sold =
+              await markDeviceSoldFromWingSM(
+                pool,
+                candidate,
+                saleRow
+              );
+
+            if (!sold) {
+              continue;
+            }
+
+            resolved.add(candidate.id);
+
+            soldImeisForN11.push(
+              String(candidate.imei || "")
+            );
+
+            soldViaSaleDetection += 1;
+          } catch (saleCheckError) {
+            console.error(
+              "WINGSM_SALE_DETECTION_ERROR:",
+              candidate.imei,
+              saleCheckError
+            );
+          }
         }
       }
     }

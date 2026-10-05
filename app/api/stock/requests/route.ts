@@ -976,13 +976,25 @@ export async function PATCH(request: NextRequest) {
         [requestId, user.username, rejectReason]
       );
 
-      await client.query(
+      // Talep reddedilince cihaz stoğa döner. AMA talep açıkken cihaz WingSM
+      // stoğundan kaybolmuşsa (wing_status = MISSING, ör. satılmış), cihazı
+      // AVAILABLE yapmak onu satılabilir gösterir ve senkron bir daha
+      // kontrol etmezdi; bu durumda MISSING'de bırakıp satış tespitine veriyoruz.
+      const restoredResult = await client.query(
         `
           UPDATE public.stock_devices
-          SET status = 'AVAILABLE'
+          SET status = CASE
+            WHEN wing_status = 'MISSING' THEN 'MISSING'
+            ELSE 'AVAILABLE'
+          END
           WHERE id = $1
+          RETURNING status
         `,
         [requestRow.device_id]
+      );
+
+      const restoredStatus = String(
+        restoredResult.rows[0]?.status || 'AVAILABLE'
       );
 
       await client.query(
@@ -1001,7 +1013,7 @@ export async function PATCH(request: NextRequest) {
           VALUES (
             $1, $2, 'REQUEST_REJECTED',
             $3, $4,
-            'REQUESTED', 'AVAILABLE',
+            'REQUESTED', $7,
             $5,
             $6::jsonb
           )
@@ -1016,6 +1028,7 @@ export async function PATCH(request: NextRequest) {
             requestId,
             reason: rejectReason,
           }),
+          restoredStatus,
         ]
       );
 
