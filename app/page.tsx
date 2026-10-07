@@ -627,7 +627,7 @@ const MASTER_IPLER = [
 const VODAFONE_IPLER: string[] = [
   "95.70.226.118", // Vodafone Meydan
   "95.70.220.18",  // Vodafone Saray
-  "46.2.170.217",  // Vodafone Erna
+  "149.0.19.109",  // Vodafone Erna
   "94.54.124.85",  // Vodafone Tekira
 ];
 
