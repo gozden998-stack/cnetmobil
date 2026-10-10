@@ -19,7 +19,7 @@
 // yeşil, 2 açık yeşil, 3 beyaz, 4 kırmızı. Sıralamaya girmeyenler (müdür,
 // hedefsiz) kırmızı.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { magazaGostergeRengi, magazalariSirala, personelGostergeRengi } from "./degerPuanRenkleri";
 
@@ -58,6 +58,9 @@ type DegerPuanimReport = {
   period: { tarih: string; tarih2: string } | null;
   history?: Array<{ id: number; tarih: string; tarih2: string; computedAt: string }>;
   selectedHistoryId?: number | null;
+  bulunamadi?: boolean;
+  istenenGun?: string | null;
+  tamEsleme?: boolean;
   durum?: "guncel" | "bekleniyor" | null;
   gunBilgisi: { gecenGun: number; ayToplamGun: number; kalanGun: number } | null;
   stores: StoreRow[];
@@ -65,21 +68,6 @@ type DegerPuanimReport = {
 };
 
 type SortKey = "siralama" | "ad" | "puan" | "hedef" | "yuzde";
-
-const MONTHS_LONG_TR = [
-  "Ocak",
-  "Şubat",
-  "Mart",
-  "Nisan",
-  "Mayıs",
-  "Haziran",
-  "Temmuz",
-  "Ağustos",
-  "Eylül",
-  "Ekim",
-  "Kasım",
-  "Aralık",
-];
 
 function formatNumber(value: number, digits = 0) {
   if (!Number.isFinite(value)) return "-";
@@ -92,11 +80,51 @@ function formatPercent(value: number | null) {
   return `%${formatNumber(value, 2)}`;
 }
 
-// "2026-10" -> "Ekim 2026"
-function formatMonthLabel(period: string | null) {
-  const match = String(period || "").match(/^(\d{4})-(\d{2})$/);
-  if (!match) return "Rapor";
-  return `${MONTHS_LONG_TR[Number(match[2]) - 1] || match[2]} ${match[1]}`;
+// Türkiye saatine göre bugünün tarihi ("YYYY-MM-DD").
+function istanbulToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+// "YYYY-MM-DD" tarihine gün ekler/çıkarır.
+function shiftDay(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+// "2026-10-09" -> "09.10.2026"
+function formatIsoDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+// "09/10/2026" -> "2026-10-09" (biçim bozuksa null)
+function slashToIso(value: string): string | null {
+  const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+}
+
+// Gün seçicideki seçim: Bugün / Dün / Önceki Gün ya da takvimden bir tarih.
+type DayPick = { kind: "bugun" | "dun" | "onceki" | "tarih"; date?: string };
+
+function dayPickLabel(pick: DayPick): string {
+  if (pick.kind === "bugun") return "Bugün";
+  if (pick.kind === "dun") return "Dün";
+  if (pick.kind === "onceki") return "Önceki Gün";
+  return pick.date ? formatIsoDate(pick.date) : "Tarih";
+}
+
+// API'ye gidecek "yayın günü" (Bugün için null = en güncel rapor).
+function dayPickToGun(pick: DayPick): string | null {
+  const today = istanbulToday();
+  if (pick.kind === "dun") return shiftDay(today, -1);
+  if (pick.kind === "onceki") return shiftDay(today, -2);
+  if (pick.kind === "tarih" && pick.date && pick.date < today) return pick.date;
+  return null;
 }
 
 // { tarih: "01/10/2026", tarih2: "09/10/2026" } -> "01.10 - 09.10.2026"
@@ -259,6 +287,126 @@ function SortableTh({
   );
 }
 
+// Bugün / Dün / Önceki Gün seçici + takvim düğmesi (bölünmüş düğme).
+function DayPicker({
+  label,
+  disabled,
+  minDate,
+  maxDate,
+  onSelect,
+}: {
+  label: string;
+  disabled: boolean;
+  minDate?: string;
+  maxDate: string;
+  onSelect: (pick: DayPick) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const close = (event: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const choose = (pick: DayPick) => {
+    setOpen(false);
+    onSelect(pick);
+  };
+
+  const openCalendar = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    } else {
+      input.focus();
+      input.click();
+    }
+  };
+
+  const items: Array<{ label: string; pick: DayPick }> = [
+    { label: "Bugün", pick: { kind: "bugun" } },
+    { label: "Dün", pick: { kind: "dun" } },
+    { label: "Önceki Gün", pick: { kind: "onceki" } },
+  ];
+
+  return (
+    <div ref={wrapRef} className="relative inline-flex">
+      <div className="inline-flex h-11 overflow-hidden rounded-lg border border-blue-600 bg-white shadow-sm">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen((value) => !value)}
+          className="bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {label}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label="Gün seç"
+          onClick={() => setOpen((value) => !value)}
+          className="flex w-9 items-center justify-center border-l border-blue-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          <ChevronDownIcon className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label="Takvimden tarih seç"
+          onClick={openCalendar}
+          className="flex w-11 items-center justify-center border-l border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          <CalendarIcon className="h-5 w-5" />
+        </button>
+        <input
+          ref={dateInputRef}
+          type="date"
+          min={minDate}
+          max={maxDate}
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            if (event.target.value) {
+              onSelect({ kind: "tarih", date: event.target.value });
+              event.target.value = "";
+            }
+          }}
+          className="pointer-events-none absolute left-0 top-full h-0 w-0 opacity-0"
+        />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => choose(item.pick)}
+              className={`block w-full px-4 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 ${
+                item.label === label ? "bg-slate-100" : ""
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SELECT_WRAP =
   "relative flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white pl-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm";
 
@@ -267,16 +415,17 @@ export default function WingsmDegerPuanim() {
   const [error, setError] = useState("");
   const [report, setReport] = useState<DegerPuanimReport | null>(null);
 
+  const [pick, setPick] = useState<DayPick>({ kind: "bugun" });
   const [storeFilter, setStoreFilter] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortState>(null);
 
-  const fetchReport = async (historyId?: number | null) => {
+  const fetchReport = async (gun?: string | null) => {
     setLoading(true);
     setError("");
 
     try {
-      const query = historyId ? `?historyId=${historyId}` : "";
+      const query = gun ? `?gun=${gun}` : "";
       const res = await fetch(`/api/wingsm/deger-puanim${query}`, {
         method: "GET",
         credentials: "same-origin",
@@ -357,6 +506,11 @@ export default function WingsmDegerPuanim() {
     });
   }, [report, search, storeFilter, sort]);
 
+  const selectDay = (next: DayPick) => {
+    setPick(next);
+    void fetchReport(dayPickToGun(next));
+  };
+
   const toggleSort = (key: SortKey) => {
     setSort((current) => {
       const firstDir: "asc" | "desc" = key === "ad" || key === "siralama" ? "asc" : "desc";
@@ -399,7 +553,7 @@ export default function WingsmDegerPuanim() {
     return null;
   }
 
-  if (!report.hasSnapshot) {
+  if (!report.hasSnapshot && !report.bulunamadi) {
     return (
       <div className="animate-in fade-in duration-500 space-y-4">
         <h1 className="text-2xl font-black text-slate-800">Değer Puan Performansı</h1>
@@ -412,6 +566,14 @@ export default function WingsmDegerPuanim() {
 
   const history = report.history ?? [];
   const gun = report.gunBilgisi;
+
+  // Takvimde seçilebilecek en erken gün: kayıtlı en eski raporun yayın günü
+  // (bitiş + 1). Kayıt yoksa sınır konmaz.
+  const earliestEnd = history
+    .map((item) => slashToIso(item.tarih2))
+    .filter((value): value is string => Boolean(value))
+    .sort()[0];
+  const minPickDate = earliestEnd ? shiftDay(earliestEnd, 1) : undefined;
 
   const allStores = magazalariSirala(report.stores);
   const visibleStores = storeFilter ? allStores.filter((s) => s.branchLabel === storeFilter) : allStores;
@@ -443,29 +605,13 @@ export default function WingsmDegerPuanim() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <label className={SELECT_WRAP}>
-            <CalendarIcon className="h-4 w-4 flex-none text-slate-500" />
-            <span className="sr-only">Rapor</span>
-            <select
-              value={report.selectedHistoryId ?? ""}
-              disabled={loading}
-              onChange={(e) => void fetchReport(e.target.value ? Number(e.target.value) : null)}
-              className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none disabled:opacity-60"
-            >
-              <option value="">{formatMonthLabel(report.hedefPeriodu)} (en güncel)</option>
-              {history.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {formatRangeLong(item.tarih, item.tarih2)}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none whitespace-nowrap">
-              {report.selectedHistoryId && report.period
-                ? formatRangeLong(report.period.tarih, report.period.tarih2)
-                : formatMonthLabel(report.hedefPeriodu)}
-            </span>
-            <ChevronDownIcon className="pointer-events-none absolute right-3 h-4 w-4 text-slate-500" />
-          </label>
+          <DayPicker
+            label={dayPickLabel(pick)}
+            disabled={loading}
+            minDate={minPickDate}
+            maxDate={istanbulToday()}
+            onSelect={selectDay}
+          />
 
           <label className={SELECT_WRAP}>
             <StoreIcon className="h-4 w-4 flex-none text-slate-500" />
@@ -495,6 +641,33 @@ export default function WingsmDegerPuanim() {
         </div>
       </div>
 
+      {report.hasSnapshot && report.period && (
+        <div
+          className={`mt-4 rounded-xl border px-4 py-2.5 text-sm font-bold ${
+            report.selectedHistoryId
+              ? "border-amber-300 bg-amber-50 text-amber-900"
+              : "border-blue-200 bg-blue-50 text-blue-900"
+          }`}
+        >
+          {report.selectedHistoryId && report.istenenGun
+            ? `${formatIsoDate(report.istenenGun)} tarihli rapor: `
+            : "Güncel rapor: "}
+          {formatRangeLong(report.period.tarih, report.period.tarih2)} arası
+          {report.selectedHistoryId && report.tamEsleme === false && (
+            <span className="ml-1 font-semibold">
+              (o gün için ayrı rapor hazırlanmamıştı, en yakın önceki rapor gösteriliyor)
+            </span>
+          )}
+        </div>
+      )}
+
+      {report.bulunamadi && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white px-5 py-8 text-center text-sm font-bold text-slate-500">
+          {report.istenenGun ? `${formatIsoDate(report.istenenGun)} tarihi için` : "Bu tarih için"} kayıtlı rapor
+          bulunamadı.
+        </div>
+      )}
+
       {report.durum === "bekleniyor" && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
           Yeni günün raporu henüz güncellenmedi, aşağıda son rapor görünüyor.
@@ -507,6 +680,8 @@ export default function WingsmDegerPuanim() {
         </div>
       )}
 
+      {!report.bulunamadi && (
+        <>
       {/* MAĞAZA KARTLARI */}
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {visibleStores.map((store) => {
@@ -648,6 +823,8 @@ export default function WingsmDegerPuanim() {
           </table>
         </div>
       </section>
+        </>
+      )}
     </div>
   );
 }

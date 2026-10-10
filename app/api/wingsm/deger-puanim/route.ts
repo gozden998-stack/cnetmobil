@@ -196,7 +196,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!snapshotRow) {
+    // ?gun=YYYY-MM-DD: "o gün yayınlanan rapor". Rapor kuralı: bir günde yayınlanan
+    // rapor o günden BİR ÖNCEKİ güne kadardır (bugün 10'u ise rapor 01-09). Yani
+    // 9'unda yayınlanan rapor bitişi 8 olan rapordur. O gün için rapor yoksa
+    // ondan önceki en yakın rapor gösterilir (tamEsleme=false ile işaretlenir).
+    // Bugün ya da gelecek bir tarih verilirse "en güncel" rapora düşülür.
+    const gunParam = url.searchParams.get("gun");
+    const istenenGun = gunParam && /^\d{4}-\d{2}-\d{2}$/.test(gunParam) ? gunParam : null;
+    const gecmisGunIstendi = Boolean(istenenGun && !selectedHistoryId && istenenGun < istanbulToday());
+    let tamEsleme = true;
+
+    if (gecmisGunIstendi && istenenGun) {
+      try {
+        const result = await pool.query(
+          `
+            SELECT id, payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
+            FROM public.wingsm_deger_puan_history
+            WHERE range_end <= ($1::date - 1)
+            ORDER BY range_end DESC NULLS LAST, computed_at DESC
+            LIMIT 1
+          `,
+          [istenenGun]
+        );
+        if (result.rows[0]) {
+          snapshotRow = result.rows[0];
+          selectedHistoryId = Number(result.rows[0].id);
+          tamEsleme = result.rows[0].range_end_iso === previousDay(istenenGun);
+        }
+      } catch {
+        // Arşiv tablosu henüz yok — "bulunamadı" cevabı verilir.
+      }
+    }
+
+    if (!snapshotRow && !gecmisGunIstendi) {
       try {
         const result = await pool.query(
           `SELECT payload, computed_at FROM public.wingsm_deger_puan_snapshots ORDER BY computed_at DESC LIMIT 1`
@@ -229,6 +261,29 @@ export async function GET(request: NextRequest) {
     } catch {
       // Tablo henüz yok — boş liste.
       history = [];
+    }
+
+    if (!snapshotRow && gecmisGunIstendi) {
+      return json({
+        success: true,
+        hasSnapshot: false,
+        bulunamadi: true,
+        istenenGun,
+        computedAt: null,
+        myBranch,
+        hedefPeriodu: null,
+        period: null,
+        history,
+        selectedHistoryId: null,
+        durum: null,
+        gunBilgisi: null,
+        stores: [],
+        personnel: [],
+        genelLider: null,
+        totalSaleCount: 0,
+        totalScore: 0,
+        totalCarpanliPuan: 0,
+      });
     }
 
     if (!snapshotRow) {
@@ -330,6 +385,8 @@ export async function GET(request: NextRequest) {
       period: snapshot.period ?? null,
       history,
       selectedHistoryId,
+      istenenGun: gecmisGunIstendi ? istenenGun : null,
+      tamEsleme,
       // Sadece EN GÜNCEL rapor için "güncellendi / bekleniyor" bilgisi; geçmişten
       // seçilen eski raporda anlamsız olduğu için null.
       durum: selectedHistoryId ? null : reportFreshness(snapshot.period, snapshotRow.computed_at),
