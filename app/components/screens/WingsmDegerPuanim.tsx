@@ -61,11 +61,15 @@ type DegerPuanimReport = {
   bulunamadi?: boolean;
   istenenGun?: string | null;
   tamEsleme?: boolean;
+  aySonuPaylasim?: boolean;
   durum?: "guncel" | "bekleniyor" | null;
   gunBilgisi: { gecenGun: number; ayToplamGun: number; kalanGun: number } | null;
   stores: StoreRow[];
   personnel: PersonnelRow[];
 };
+
+// Ay sonu duyurusu (otomatik hesap ayın 28'inde durur). Metni buradan değiştirin.
+const AY_SONU_MESAJI = "Ay sonu raporu, ayın 1'inde yönetici tarafından gruptan paylaşılacaktır.";
 
 type SortKey = "siralama" | "ad" | "puan" | "hedef" | "yuzde";
 
@@ -567,6 +571,11 @@ export default function WingsmDegerPuanim() {
   const history = report.history ?? [];
   const gun = report.gunBilgisi;
 
+  // Ay sonu (28'i - ayın 1'i): otomatik hesap durur. Rapor güncel değilse
+  // "bekleniyor" yerine ay sonu duyurusu gösterilir; yönetici elle güncellerse
+  // normal "güncellendi" görünür.
+  const aySonuDuyurusu = Boolean(report.aySonuPaylasim) && report.durum === "bekleniyor";
+
   // Takvimde seçilebilecek en erken gün: kayıtlı en eski raporun yayın günü
   // (bitiş + 1). Kayıt yoksa sınır konmaz.
   const earliestEnd = history
@@ -591,7 +600,7 @@ export default function WingsmDegerPuanim() {
                 ✓ Rapor güncellendi
               </span>
             )}
-            {report.durum === "bekleniyor" && (
+            {report.durum === "bekleniyor" && !aySonuDuyurusu && (
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-700">
                 ⏳ Rapor bekleniyor
               </span>
@@ -668,7 +677,14 @@ export default function WingsmDegerPuanim() {
         </div>
       )}
 
-      {report.durum === "bekleniyor" && (
+      {aySonuDuyurusu && (
+        <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-bold text-violet-900">
+          📢 {AY_SONU_MESAJI}
+          <div className="mt-0.5 text-xs font-semibold text-violet-700">Aşağıda ayın son güncel raporu görünüyor.</div>
+        </div>
+      )}
+
+      {report.durum === "bekleniyor" && !aySonuDuyurusu && (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
           Yeni günün raporu henüz güncellenmedi, aşağıda son rapor görünüyor.
         </div>

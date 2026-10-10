@@ -27,6 +27,7 @@
 import { NextRequest } from "next/server";
 
 import { getPool, json, requireValidSession } from "../score-rules/_shared";
+import { isAutoRunDay } from "../_deger-puan-auto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,6 +151,10 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const queryBranchLabel = url.searchParams.get("branchLabel");
+
+    // Ayın 28'inden ayın 1'ine kadar otomatik hesap durur; ekran "ay sonu raporu
+    // ayın 1'inde yönetici tarafından gruptan paylaşılacak" yazısını gösterir.
+    const aySonuPaylasim = !isAutoRunDay(istanbulToday());
 
     const myBranch =
       auth.session.role === "personel"
@@ -276,6 +281,7 @@ export async function GET(request: NextRequest) {
         history,
         selectedHistoryId: null,
         durum: null,
+        aySonuPaylasim,
         gunBilgisi: null,
         stores: [],
         personnel: [],
@@ -297,6 +303,7 @@ export async function GET(request: NextRequest) {
         history,
         selectedHistoryId: null,
         durum: null,
+        aySonuPaylasim,
         gunBilgisi: null,
         stores: [],
         personnel: [],
@@ -387,6 +394,7 @@ export async function GET(request: NextRequest) {
       selectedHistoryId,
       istenenGun: gecmisGunIstendi ? istenenGun : null,
       tamEsleme,
+      aySonuPaylasim,
       // Sadece EN GÜNCEL rapor için "güncellendi / bekleniyor" bilgisi; geçmişten
       // seçilen eski raporda anlamsız olduğu için null.
       durum: selectedHistoryId ? null : reportFreshness(snapshot.period, snapshotRow.computed_at),
