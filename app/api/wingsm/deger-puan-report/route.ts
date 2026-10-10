@@ -25,6 +25,15 @@ import { NextRequest } from "next/server";
 import { wingSMRequest } from "@/app/lib/wingsm/server";
 import { getPool, json, requireAdminSession } from "../score-rules/_shared";
 import { saveHistoryRow } from "../_deger-puan-history";
+import {
+  addBranchSale,
+  normalizeName,
+  personnelIdentityKey,
+  pickPrimaryBranch,
+  pickTarget,
+  type BranchStat,
+  type PersonnelTargetEntry,
+} from "../_deger-puan-personnel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,12 +98,6 @@ function rowClassCode(row: any): string {
 function parseWingsmDate(value: string): { day: number; month: number; year: number } {
   const [gun, ay, yil] = value.split("/").map(Number);
   return { day: gun, month: ay, year: yil };
-}
-
-// Kişi/mağaza adlarını hedef tablosuyla eşleştirirken büyük/küçük harf ve
-// baştaki/sondaki boşluk farkları yüzünden kaçırmamak için normalize eder.
-function normalizeName(value: string): string {
-  return value.trim().toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
 }
 
 // ======================================================
@@ -327,7 +330,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Personel İSMİYLE tek satırdır (Excel gibi): başka mağazada yaptığı satış da
+    // kendi adına yazılır. Çarpan satışın yapıldığı mağazaya göre uygulanır.
     const personnelMap = new Map<string, PersonnelAgg>();
+    const personnelBranchStats = new Map<string, Map<string, BranchStat>>();
     const detailRows: Array<Record<string, unknown>> = [];
     const unmatched: Array<Record<string, unknown>> = [];
 
@@ -347,12 +353,14 @@ export async function POST(request: NextRequest) {
         storeAgg.totalScore += score;
       }
 
-      // Personel bazlı ((branchLabel, saticiKod || saticiAdi) anahtarıyla)
-      const personnelKey = `${branchLabel}::${saticiKod || saticiAdi}`;
+      // Personel bazlı (kişi adıyla — mağaza fark etmez)
+      const personnelKey = personnelIdentityKey(saticiAdi, saticiKod);
+      const saleMultiplier = multiplierByBranch.get(branchLabel) ?? 1;
       const existingPersonnel = personnelMap.get(personnelKey);
       if (existingPersonnel) {
         existingPersonnel.saleCount += 1;
         existingPersonnel.totalScore += score;
+        existingPersonnel.carpanliPuan += score * saleMultiplier;
       } else {
         personnelMap.set(personnelKey, {
           branchLabel,
@@ -360,7 +368,7 @@ export async function POST(request: NextRequest) {
           saticiAdi,
           saleCount: 1,
           totalScore: score,
-          carpanliPuan: 0,
+          carpanliPuan: score * saleMultiplier,
           hedef: null,
           isManager: false,
           hedefYuzdesi: null,
@@ -369,6 +377,13 @@ export async function POST(request: NextRequest) {
           siralamaPuani: 0,
         });
       }
+
+      let branchStats = personnelBranchStats.get(personnelKey);
+      if (!branchStats) {
+        branchStats = new Map<string, BranchStat>();
+        personnelBranchStats.set(personnelKey, branchStats);
+      }
+      addBranchSale(branchStats, branchLabel, score);
 
       // Detay
       detailRows.push({
@@ -401,9 +416,13 @@ export async function POST(request: NextRequest) {
       store.carpanliPuan = store.totalScore * store.multiplier;
     }
 
-    for (const person of personnelMap.values()) {
-      const multiplier = multiplierByBranch.get(person.branchLabel) ?? 1;
-      person.carpanliPuan = person.totalScore * multiplier;
+    // Tabloda görünen mağaza = en çok puan topladığı mağaza. (Çarpanlı puan
+    // satış satış toplandı, burada tekrar çarpılmaz.)
+    for (const [personnelKey, person] of personnelMap) {
+      const stats = personnelBranchStats.get(personnelKey);
+      if (stats) {
+        person.branchLabel = pickPrimaryBranch(stats) || person.branchLabel;
+      }
     }
 
     // --------------------------------------------------
@@ -440,7 +459,7 @@ export async function POST(request: NextRequest) {
     const projectionFactor = daysInMonth / daysElapsed;
 
     let storeTargetByBranch = new Map<string, number>();
-    let personnelTargetByKey = new Map<string, { hedef: number; isManager: boolean }>();
+    const personnelTargetsByName = new Map<string, PersonnelTargetEntry[]>();
 
     try {
       const storeTargetsResult = await pool.query(
@@ -463,12 +482,18 @@ export async function POST(request: NextRequest) {
         `,
         [period]
       );
-      personnelTargetByKey = new Map(
-        personnelTargetsResult.rows.map((r: any) => [
-          `${String(r.branch_label)}::${normalizeName(String(r.satici_adi))}`,
-          { hedef: Number(r.target_value), isManager: Boolean(r.is_manager) },
-        ])
-      );
+      // Hedef de isme göre aranır (Excel'deki VLOOKUP gibi); aynı isim birden
+      // fazla mağazada kayıtlıysa kişinin ana mağazasındaki seçilir.
+      for (const r of personnelTargetsResult.rows) {
+        const nameKey = normalizeName(String(r.satici_adi));
+        const list = personnelTargetsByName.get(nameKey) ?? [];
+        list.push({
+          branchLabel: String(r.branch_label),
+          hedef: Number(r.target_value),
+          isManager: Boolean(r.is_manager),
+        });
+        personnelTargetsByName.set(nameKey, list);
+      }
     } catch {
       // Tablo yok — hedefsiz kabul edilir, rapor yine de döner.
     }
@@ -497,8 +522,7 @@ export async function POST(request: NextRequest) {
     });
 
     for (const person of personnelMap.values()) {
-      const key = `${person.branchLabel}::${normalizeName(person.saticiAdi)}`;
-      const match = personnelTargetByKey.get(key);
+      const match = pickTarget(personnelTargetsByName.get(normalizeName(person.saticiAdi)), person.branchLabel);
 
       person.hedef = match ? match.hedef : null;
       person.isManager = match ? match.isManager : false;
