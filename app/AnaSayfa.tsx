@@ -338,8 +338,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
-    // Aylık Performans kartı: mevcut grafik ('adet') ya da WingSM 'Şirket Değer Puan' özeti
-    const [performansGorunum, setPerformansGorunum] = useState<'adet' | 'degerpuan'>('adet');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1655,204 +1653,22 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                     </div>
                 )}
 
-                {/* KPI KARTLARI - SADECE CMR */}
-                {isCmr && (
-                <section className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
-                        <div className="flex items-start justify-between">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
-                                </svg>
-                            </div>
-                            <div className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600">
-                                %{tamamlananYuzde}
-                            </div>
-                        </div>
-                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Satış</div>
-                        <div className="mt-1 flex items-end gap-2">
-                            <span className="text-3xl font-black tracking-tight text-[#102A56]">{anaSatis}</span>
-                            <span className="pb-1 text-[12px] font-black text-slate-400">/ {anaHedef}</span>
-                        </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${tamamlananYuzde}%` }} />
-                        </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
-                        <div className="flex items-start justify-between">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20V10m0 0l-4 4m4-4 4 4M5 4h14" />
-                                </svg>
-                            </div>
-                            <div className="text-[11px] font-black text-emerald-600">AY SONU</div>
-                        </div>
-                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Tahmini Ay Sonu</div>
-                        <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{anaProjeksiyon}</div>
-                        <div className="mt-3 text-[10px] font-bold text-slate-400">
-                            Güncel tempoya göre projeksiyon
-                        </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
-                        <div className="flex items-start justify-between">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.98 10.1c-.783-.57-.38-1.81.588-1.81h4.915a1 1 0 00.95-.69l1.616-4.674z" />
-                                </svg>
-                            </div>
-                            <div className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">PUAN</div>
-                        </div>
-                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Toplam Puan</div>
-                        <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{magazaAnlikPuan.toFixed(1)}</div>
-                        <div className="mt-3 text-[10px] font-bold text-slate-400">
-                            Tahmini: <span className="font-black text-violet-600">{magazaTahminPuan.toFixed(1)}</span>
-                        </div>
-                    </div>
-
-                    <div className="rounded-[20px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
-                        <div className="flex items-start justify-between">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3a8 8 0 108 8h-8V3zM15 3.5A8 8 0 0120.5 9H15V3.5z" />
-                                </svg>
-                            </div>
-                            <div className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-600">KALAN</div>
-                        </div>
-                        <div className="mt-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Kalan Hedef</div>
-                        <div className="mt-1 text-3xl font-black tracking-tight text-[#102A56]">{kalanHedef}</div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.max(0, 100 - tamamlananYuzde)}%` }} />
-                        </div>
-                    </div>
-                </section>
-                )}
-
-                {/* PERFORMANS + SIRALAMALAR - SADECE CMR */}
+                {/* ŞİRKET DEĞER PUAN + SIRALAMALAR - SADECE CMR (üstteki Toplam Satış / Tahmini Ay Sonu / Toplam Puan / Kalan Hedef kartları kaldırıldı) */}
                 {isCmr && (
                 <section className="mb-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.7fr)_minmax(300px,0.7fr)]">
 
-                    {/* AYLIK PERFORMANS */}
+                    {/* ŞİRKET DEĞER PUAN (WingSM) - eski aylık satış grafiği kaldırıldı */}
                     <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
                         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-black tracking-tight text-[#102A56]">Aylık Performans</h2>
+                                <h2 className="text-lg font-black tracking-tight text-[#102A56]">Şirket Değer Puan</h2>
                                 <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                                    {performansGorunum === 'degerpuan'
-                                        ? 'WingSM Değer Puan: mağaza ve personel sıralaması'
-                                        : 'Günlük gerçekleşen satış ve hedef projeksiyonu'}
+                                    WingSM Değer Puan: mağaza ve personel sıralaması
                                 </p>
                             </div>
-
-                            <div className="flex items-center gap-2 overflow-x-auto rounded-xl bg-slate-50 p-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setPerformansGorunum('adet')}
-                                    className={`rounded-lg px-3 py-1.5 text-[11px] font-black sm:px-4 ${performansGorunum === 'adet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    Adet
-                                </button>
-                                <span className="px-3 py-1.5 text-[11px] font-black text-slate-400 sm:px-4">Ciro</span>
-                                <span className="px-3 py-1.5 text-[11px] font-black text-slate-400 sm:px-4">Puan</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setPerformansGorunum('degerpuan')}
-                                    className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-black sm:px-4 ${performansGorunum === 'degerpuan' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    <span className="sm:hidden">Değer Puan</span>
-                                    <span className="hidden sm:inline">Şirket Değer Puan</span>
-                                </button>
-                            </div>
                         </div>
 
-                        {performansGorunum === 'degerpuan' ? (
-                            <SirketDegerPuanOzeti onTumunuGor={() => setAppMode('wingsm_deger_puan')} />
-                        ) : (
-                        <div className="p-4 sm:p-5">
-                            <div className="mb-3 flex flex-wrap items-center gap-4 text-[11px] font-bold text-slate-400">
-                                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Günlük Satış</span>
-                                <span className="flex items-center gap-1.5"><span className="h-[2px] w-5 border-t-2 border-dashed border-slate-400" /> Hedef</span>
-                                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Kümülatif</span>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <svg viewBox="0 0 760 240" className="h-[245px] min-w-[720px] w-full">
-                                    {[0, 1, 2, 3, 4].map((i) => {
-                                        const y = chartTop + (chartHeight / 4) * i;
-                                        return (
-                                            <line
-                                                key={`grid-${i}`}
-                                                x1={chartLeft}
-                                                x2={chartLeft + chartWidth}
-                                                y1={y}
-                                                y2={y}
-                                                stroke="#E8EEF6"
-                                                strokeWidth="1"
-                                            />
-                                        );
-                                    })}
-
-                                    {chartBars.map((bar) => {
-                                        const x = chartX(bar.day);
-                                        const maxDaily = Math.max(1, chartMaxValue / chartDayCount);
-                                        const barH = Math.min(38, Math.max(5, (bar.dailyValue / maxDaily) * 28));
-                                        return (
-                                            <rect
-                                                key={`bar-${bar.day}`}
-                                                x={x - 5}
-                                                y={chartTop + chartHeight - barH}
-                                                width="9"
-                                                height={barH}
-                                                rx="3"
-                                                fill="#60A5FA"
-                                                opacity="0.85"
-                                            />
-                                        );
-                                    })}
-
-                                    <polyline points={goalPoints} fill="none" stroke="#94A3B8" strokeWidth="2" strokeDasharray="6 6" />
-                                    <polyline points={actualPoints} fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                                    {chartCurrentDay < chartDayCount && (
-                                        <polyline points={projectionPoints} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeDasharray="5 5" strokeLinecap="round" />
-                                    )}
-
-                                    {Array.from({ length: chartDayCount }, (_, index) => index + 1)
-                                        .filter((d) => d === 1 || d === chartDayCount || d % 3 === 0)
-                                        .map((day) => (
-                                            <text
-                                                key={`day-${day}`}
-                                                x={chartX(day)}
-                                                y="226"
-                                                textAnchor="middle"
-                                                fontSize="8"
-                                                fontWeight="700"
-                                                fill="#94A3B8"
-                                            >
-                                                {day}
-                                            </text>
-                                        ))}
-
-                                    <circle cx={chartX(chartCurrentDay)} cy={chartY(anaSatis || 0)} r="5" fill="#2563EB" stroke="white" strokeWidth="3" />
-                                </svg>
-                            </div>
-
-                            <div className="mt-1 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3">
-                                <div>
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Hedef</div>
-                                    <div className="mt-1 text-lg font-black text-slate-800">{anaHedef}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Mevcut</div>
-                                    <div className="mt-1 text-lg font-black text-blue-600">{anaSatis}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tahmin</div>
-                                    <div className="mt-1 text-lg font-black text-emerald-600">{anaProjeksiyon}</div>
-                                </div>
-                            </div>
-                        </div>
-                        )}
+                        <SirketDegerPuanOzeti onTumunuGor={() => setAppMode('wingsm_deger_puan')} />
                     </div>
 
                     {/* MAĞAZA SIRALAMASI */}
