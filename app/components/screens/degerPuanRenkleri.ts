@@ -58,26 +58,29 @@ export function magazalariSirala<T extends { hedefYuzdesi: number | null }>(stor
 
 export type GostergeRengi = { text: string; bar: string };
 
-const GOSTERGE_KOYU_YESIL: GostergeRengi = { text: "text-green-600", bar: "bg-green-600" };
+const GOSTERGE_KOYU_YESIL: GostergeRengi = { text: "text-green-700", bar: "bg-green-700" };
 const GOSTERGE_ACIK_YESIL: GostergeRengi = { text: "text-green-600", bar: "bg-lime-400" };
-const GOSTERGE_GRI: GostergeRengi = { text: "text-slate-700", bar: "bg-slate-400" };
+// "Beyaz": içi beyaz, çerçeveli çubuk (tasarımdaki boş görünümlü çubuk).
+const GOSTERGE_BEYAZ: GostergeRengi = { text: "text-[#1b2559]", bar: "bg-white border border-slate-400" };
 const GOSTERGE_TURUNCU: GostergeRengi = { text: "text-orange-500", bar: "bg-orange-500" };
 const GOSTERGE_KIRMIZI: GostergeRengi = { text: "text-red-600", bar: "bg-red-500" };
 
-// Personel: 1-3 yeşil, 4-6 gri, 7 turuncu, diğerleri ve sıralamaya girmeyenler kırmızı.
+// Personel: 1 koyu yeşil, 2-3 açık yeşil, 4-6 beyaz, 7 turuncu, diğerleri ve
+// sıralamaya girmeyenler kırmızı.
 export function personelGostergeRengi(siralama: number | null): GostergeRengi {
   if (siralama === null || siralama < 1) return GOSTERGE_KIRMIZI;
-  if (siralama <= 3) return GOSTERGE_KOYU_YESIL;
-  if (siralama <= 6) return GOSTERGE_GRI;
+  if (siralama === 1) return GOSTERGE_KOYU_YESIL;
+  if (siralama <= 3) return GOSTERGE_ACIK_YESIL;
+  if (siralama <= 6) return GOSTERGE_BEYAZ;
   if (siralama === 7) return GOSTERGE_TURUNCU;
   return GOSTERGE_KIRMIZI;
 }
 
-// Mağaza: 1 koyu yeşil, 2 açık yeşil, 3 gri, 4 kırmızı.
+// Mağaza: 1 koyu yeşil, 2 açık yeşil, 3 beyaz, 4 kırmızı.
 export function magazaGostergeRengi(index: number, hedefVar: boolean): GostergeRengi {
   if (!hedefVar) return GOSTERGE_KIRMIZI;
   if (index === 0) return GOSTERGE_KOYU_YESIL;
   if (index === 1) return GOSTERGE_ACIK_YESIL;
-  if (index === 2) return GOSTERGE_GRI;
+  if (index === 2) return GOSTERGE_BEYAZ;
   return GOSTERGE_KIRMIZI;
 }

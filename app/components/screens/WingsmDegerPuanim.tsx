@@ -4,18 +4,20 @@
 //
 // CNETMOBIL - WingSM "Değer Puan Performansı" (personel ekranı)
 //
-// Ekran: başlık + rapor/mağaza seçicileri, "Lider Mağaza" ve "Kalan Gün"
-// kartları, sol tarafta Personel Performansı tablosu (sıra, puan, hedef,
-// gerçekleşme çubuğu, ödül), sağ tarafta Mağaza Performansı.
+// Ekran: başlık + rapor/mağaza seçicileri + "N gün kaldı", üstte 4 mağaza
+// kartı (sıra, hedef %, çubuk, gerçekleşen, ay sonu tahmini), altında tam
+// genişlikte Personel Performansı tablosu (sıra, puan, hedef, gerçekleşme
+// çubuğu, ödül).
 //
 // Veri app/api/wingsm/deger-puanim/route.ts'ten gelir. O uç canlı WingSM
 // hesabı YAPMAZ — adminin en son "HESAPLA" ile kaydettiği sonucu okur. Yani
 // admin raporu yeniden hesaplamadıkça rakamlar değişmez; ekranda "Son
 // güncelleme" ve "Rapor güncellendi / bekleniyor" bilgisi bu yüzden var.
 //
-// Renkler SIRAYA göre (bkz. degerPuanRenkleri.ts): personelde 1-3 yeşil, 4-6
-// gri, 7 turuncu, diğerleri kırmızı; mağazada 1 koyu yeşil, 2 açık yeşil,
-// 3 gri, 4 kırmızı. Sıralamaya girmeyenler (müdür, hedefsiz) kırmızı.
+// Renkler SIRAYA göre (bkz. degerPuanRenkleri.ts): personelde 1 koyu yeşil,
+// 2-3 açık yeşil, 4-6 beyaz, 7 turuncu, diğerleri kırmızı; mağazada 1 koyu
+// yeşil, 2 açık yeşil, 3 beyaz, 4 kırmızı. Sıralamaya girmeyenler (müdür,
+// hedefsiz) kırmızı.
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -221,7 +223,7 @@ function ProgressBar({ percent, barClass }: { percent: number | null; barClass: 
 
   return (
     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-      <div className={`h-full rounded-full ${barClass}`} style={{ width: `${width}%` }} />
+      <div className={`h-full rounded-full box-border ${barClass}`} style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -413,7 +415,6 @@ export default function WingsmDegerPuanim() {
 
   const allStores = magazalariSirala(report.stores);
   const visibleStores = storeFilter ? allStores.filter((s) => s.branchLabel === storeFilter) : allStores;
-  const leader = allStores.find((s) => s.hedefYuzdesi !== null) ?? null;
 
   return (
     <div className="animate-in fade-in duration-500 rounded-3xl bg-[#f3f8ff] p-3 sm:p-6">
@@ -421,58 +422,8 @@ export default function WingsmDegerPuanim() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-black text-[#1b2559] sm:text-3xl">Değer Puan Performansı</h1>
-          <p className="mt-1 text-sm text-slate-500">Personel ve mağaza hedeflerini tek ekrandan takip edin.</p>
-        </div>
-
-        <div className="flex flex-col gap-2 lg:items-end">
-          <div className="flex flex-wrap gap-2">
-            <label className={SELECT_WRAP}>
-              <CalendarIcon className="h-4 w-4 flex-none text-slate-500" />
-              <span className="sr-only">Rapor</span>
-              <select
-                value={report.selectedHistoryId ?? ""}
-                disabled={loading}
-                onChange={(e) => void fetchReport(e.target.value ? Number(e.target.value) : null)}
-                className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none disabled:opacity-60"
-              >
-                <option value="">{formatMonthLabel(report.hedefPeriodu)} (en güncel)</option>
-                {history.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {formatRangeLong(item.tarih, item.tarih2)}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none whitespace-nowrap">
-                {report.selectedHistoryId && report.period
-                  ? formatRangeLong(report.period.tarih, report.period.tarih2)
-                  : formatMonthLabel(report.hedefPeriodu)}
-              </span>
-              <ChevronDownIcon className="pointer-events-none absolute right-3 h-4 w-4 text-slate-500" />
-            </label>
-
-            <label className={SELECT_WRAP}>
-              <StoreIcon className="h-4 w-4 flex-none text-slate-500" />
-              <span className="sr-only">Mağaza</span>
-              <select
-                value={storeFilter}
-                onChange={(e) => setStoreFilter(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none"
-              >
-                <option value="">Tüm Mağazalar</option>
-                {allStores.map((store) => (
-                  <option key={store.depotCode} value={store.branchLabel}>
-                    {formatStoreName(store.branchLabel)}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none whitespace-nowrap">
-                {storeFilter ? formatStoreName(storeFilter) : "Tüm Mağazalar"}
-              </span>
-              <ChevronDownIcon className="pointer-events-none absolute right-3 h-4 w-4 text-slate-500" />
-            </label>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
+          <p className="mt-1 text-xs font-semibold text-slate-400">Son güncelleme: {formatComputedAt(report.computedAt)}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
             {report.durum === "guncel" && (
               <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700">
                 ✓ Rapor güncellendi
@@ -488,8 +439,59 @@ export default function WingsmDegerPuanim() {
                 Eski rapor görüntüleniyor
               </span>
             ) : null}
-            <span>Son güncelleme: {formatComputedAt(report.computedAt)}</span>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <label className={SELECT_WRAP}>
+            <CalendarIcon className="h-4 w-4 flex-none text-slate-500" />
+            <span className="sr-only">Rapor</span>
+            <select
+              value={report.selectedHistoryId ?? ""}
+              disabled={loading}
+              onChange={(e) => void fetchReport(e.target.value ? Number(e.target.value) : null)}
+              className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none disabled:opacity-60"
+            >
+              <option value="">{formatMonthLabel(report.hedefPeriodu)} (en güncel)</option>
+              {history.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {formatRangeLong(item.tarih, item.tarih2)}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none whitespace-nowrap">
+              {report.selectedHistoryId && report.period
+                ? formatRangeLong(report.period.tarih, report.period.tarih2)
+                : formatMonthLabel(report.hedefPeriodu)}
+            </span>
+            <ChevronDownIcon className="pointer-events-none absolute right-3 h-4 w-4 text-slate-500" />
+          </label>
+
+          <label className={SELECT_WRAP}>
+            <StoreIcon className="h-4 w-4 flex-none text-slate-500" />
+            <span className="sr-only">Mağaza</span>
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-9 pr-9 text-sm font-semibold text-slate-700 outline-none"
+            >
+              <option value="">Tüm Mağazalar</option>
+              {allStores.map((store) => (
+                <option key={store.depotCode} value={store.branchLabel}>
+                  {formatStoreName(store.branchLabel)}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none whitespace-nowrap">
+              {storeFilter ? formatStoreName(storeFilter) : "Tüm Mağazalar"}
+            </span>
+            <ChevronDownIcon className="pointer-events-none absolute right-3 h-4 w-4 text-slate-500" />
+          </label>
+
+          <span className="flex h-11 items-center gap-2 rounded-xl border border-blue-300 bg-white px-3 text-sm font-bold text-blue-700 shadow-sm">
+            <CalendarIcon className="h-4 w-4 flex-none" />
+            {gun ? `${gun.kalanGun} gün kaldı` : "-"}
+          </span>
         </div>
       </div>
 
@@ -505,160 +507,147 @@ export default function WingsmDegerPuanim() {
         </div>
       )}
 
-      {/* Özet kartları */}
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 lg:ml-auto lg:max-w-[560px]">
-        <div className="flex items-center gap-2 rounded-2xl bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
-          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-violet-100 text-violet-600 sm:h-14 sm:w-14">
-            <StoreIcon className="h-4 w-4 sm:h-7 sm:w-7" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-slate-400">Lider Mağaza</div>
-            <div className="text-sm font-black leading-tight text-[#1b2559] sm:text-2xl">
-              {leader ? formatStoreName(leader.branchLabel) : "-"}
+      {/* MAĞAZA KARTLARI */}
+      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        {visibleStores.map((store) => {
+          const index = allStores.findIndex((s) => s.depotCode === store.depotCode);
+          const colors = magazaGostergeRengi(index, store.hedefYuzdesi !== null);
+
+          return (
+            <div key={store.depotCode} className="relative rounded-2xl bg-white p-3 shadow-sm sm:p-4">
+              {/* Mağaza sıralama puanı: 1. mağaza 10 puan, 2. mağaza 5 puan */}
+              {store.siralamaPuani > 0 && (
+                <span
+                  className={`absolute -top-2.5 right-3 rounded-full px-2.5 py-0.5 text-[11px] font-black shadow-sm ${
+                    index === 0 ? "bg-green-700 text-white" : "bg-lime-400 text-green-900"
+                  }`}
+                >
+                  {store.siralamaPuani} PUAN
+                </span>
+              )}
+              <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <span className="inline-flex h-6 w-6 flex-none items-center justify-center rounded-full bg-blue-50 text-[10px] font-black text-blue-700 sm:h-7 sm:w-7 sm:text-[11px]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="truncate text-sm font-black text-[#1b2559]">
+                    {formatStoreName(store.branchLabel)}
+                  </span>
+                </div>
+                <span className={`flex-none text-base font-black sm:text-xl ${colors.text}`}>
+                  {formatPercent(store.hedefYuzdesi)}
+                </span>
+              </div>
+
+              <div className="mt-3">
+                <ProgressBar percent={store.hedefYuzdesi} barClass={colors.bar} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 divide-x divide-slate-100">
+                <div className="pr-2">
+                  <div className="text-[11px] font-semibold text-slate-400">Gerçekleşen</div>
+                  <div className="text-sm font-black text-[#1b2559] sm:text-lg">{formatNumber(store.carpanliPuan)}</div>
+                </div>
+                <div className="pl-3">
+                  <div className="text-[11px] font-semibold text-slate-400">Ay sonu tahmini</div>
+                  <div className="text-sm font-black text-[#1b2559] sm:text-lg">{formatNumber(store.projeksiyon)}</div>
+                </div>
+              </div>
             </div>
+          );
+        })}
+        {visibleStores.length === 0 && (
+          <div className="col-span-full rounded-2xl bg-white py-6 text-center text-xs font-bold text-slate-400">
+            Mağaza bulunamadı.
           </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-2xl bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
-          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-orange-100 text-orange-500 sm:h-14 sm:w-14">
-            <CalendarIcon className="h-4 w-4 sm:h-7 sm:w-7" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-slate-400">Kalan Gün</div>
-            <div className="text-base font-black text-[#1b2559] sm:text-2xl">{gun ? gun.kalanGun : "-"}</div>
-          </div>
-        </div>
+        )}
       </div>
 
-      <div className="mt-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        {/* PERSONEL PERFORMANSI */}
-        <section className="rounded-2xl bg-white p-3 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-lg font-black text-[#1b2559] sm:text-xl">Personel Performansı</h2>
-              <p className="text-xs font-semibold text-slate-400">{personnelRows.length} personel</p>
-            </div>
-            <label className="relative block sm:w-64">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <span className="sr-only">Personel ara</span>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Personel ara..."
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-blue-400"
-              />
-            </label>
+      {/* PERSONEL PERFORMANSI */}
+      <section className="mt-5 rounded-2xl bg-white p-3 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-black text-[#1b2559] sm:text-xl">Personel Performansı</h2>
+            <p className="text-xs font-semibold text-slate-400">{personnelRows.length} personel</p>
           </div>
+          <label className="relative block sm:w-72">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+            <span className="sr-only">Personel ara</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Personel ara..."
+              className="h-10 w-full rounded-lg border border-blue-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            />
+          </label>
+        </div>
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-slate-50">
-                  <SortableTh label="Sıra" sortKey="siralama" sort={sort} onToggle={toggleSort} className="rounded-l-lg" />
-                  <SortableTh label="Personel" sortKey="ad" sort={sort} onToggle={toggleSort} />
-                  <SortableTh label="Toplam Puan" sortKey="puan" sort={sort} onToggle={toggleSort} className="hidden text-center sm:table-cell" />
-                  <SortableTh label="Hedef" sortKey="hedef" sort={sort} onToggle={toggleSort} className="hidden text-center sm:table-cell" />
-                  <SortableTh label="Gerçekleşme" sortKey="yuzde" sort={sort} onToggle={toggleSort} />
-                  <th className="rounded-r-lg px-1.5 py-3 text-center sm:px-2 text-[11px] font-bold text-slate-500">Ödül</th>
-                </tr>
-              </thead>
-              <tbody>
-                {personnelRows.map((person, index) => {
-                  const ranked = !person.isManager && person.hedefYuzdesi !== null;
-                  const rank = ranked ? person.siralama : null;
-                  const colors = personelGostergeRengi(rank);
-                  const percent = ranked ? person.hedefYuzdesi : null;
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/70">
+                <SortableTh label="Sıra" sortKey="siralama" sort={sort} onToggle={toggleSort} className="rounded-l-lg" />
+                <SortableTh label="Personel" sortKey="ad" sort={sort} onToggle={toggleSort} />
+                <SortableTh label="Toplam Puan" sortKey="puan" sort={sort} onToggle={toggleSort} className="hidden text-right sm:table-cell" />
+                <SortableTh label="Hedef" sortKey="hedef" sort={sort} onToggle={toggleSort} className="hidden text-right sm:table-cell" />
+                <SortableTh label="Gerçekleşme" sortKey="yuzde" sort={sort} onToggle={toggleSort} />
+                <th className="rounded-r-lg px-1.5 py-3 text-center text-[11px] font-bold text-slate-500 sm:px-2">Ödül</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personnelRows.map((person, index) => {
+                const ranked = !person.isManager && person.hedefYuzdesi !== null;
+                const rank = ranked ? person.siralama : null;
+                const colors = personelGostergeRengi(rank);
+                const percent = ranked ? person.hedefYuzdesi : null;
 
-                  return (
-                    <tr
-                      key={`${person.branchLabel}-${person.saticiKod || person.saticiAdi}-${index}`}
-                      className="border-b border-slate-100 last:border-0"
-                    >
-                      <td className="px-1.5 py-2.5 sm:px-2">
-                        <RankBadge rank={rank} />
-                      </td>
-                      <td className="px-1.5 py-2.5 sm:px-2 text-sm font-semibold text-[#1b2559]">
-                        {titleCaseTr(person.saticiAdi || person.saticiKod)}
-                        <div className="text-[11px] font-semibold text-slate-400 sm:hidden">
-                          {formatNumber(person.carpanliPuan)} puan
-                        </div>
-                      </td>
-                      <td className="hidden px-1.5 py-2.5 sm:px-2 text-center text-sm font-semibold text-slate-700 sm:table-cell">
-                        {formatNumber(person.carpanliPuan)}
-                      </td>
-                      <td className="hidden px-1.5 py-2.5 sm:px-2 text-center text-sm font-semibold text-slate-700 sm:table-cell">
-                        {formatNumber(person.hedef ?? 0)}
-                      </td>
-                      <td className="px-1.5 py-2.5 sm:px-2">
-                        <div className="flex flex-col items-start gap-1 sm:min-w-[150px] sm:flex-row sm:items-center sm:gap-2">
-                          <span className={`flex-none text-xs font-bold sm:w-16 sm:text-sm ${colors.text}`}>
-                            {formatPercent(percent)}
-                          </span>
-                          <div className="w-16 sm:w-auto sm:flex-1">
-                            <ProgressBar percent={percent} barClass={colors.bar} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-1.5 py-2.5 sm:px-2 text-center">
-                        <span className="inline-flex min-w-7 items-center sm:min-w-9 justify-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                          {person.siralamaPuani > 0 ? person.siralamaPuani : "-"}
+                return (
+                  <tr
+                    key={`${person.branchLabel}-${person.saticiKod || person.saticiAdi}-${index}`}
+                    className="border-b border-slate-100 last:border-0"
+                  >
+                    <td className="px-1.5 py-2.5 sm:px-2">
+                      <RankBadge rank={rank} />
+                    </td>
+                    <td className="px-1.5 py-2.5 text-sm font-semibold text-[#1b2559] sm:px-2">
+                      {titleCaseTr(person.saticiAdi || person.saticiKod)}
+                      <div className="text-[11px] font-semibold text-slate-400 sm:hidden">
+                        {formatNumber(person.carpanliPuan)} puan
+                      </div>
+                    </td>
+                    <td className="hidden px-1.5 py-2.5 text-right text-sm font-semibold text-slate-700 sm:table-cell sm:px-2">
+                      {formatNumber(person.carpanliPuan)}
+                    </td>
+                    <td className="hidden px-1.5 py-2.5 text-right text-sm font-semibold text-slate-700 sm:table-cell sm:px-2">
+                      {formatNumber(person.hedef ?? 0)}
+                    </td>
+                    <td className="px-1.5 py-2.5 sm:w-[42%] sm:px-2">
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+                        <span className={`flex-none text-xs font-bold sm:w-20 sm:text-sm ${colors.text}`}>
+                          {formatPercent(percent)}
                         </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {personnelRows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-xs font-bold text-slate-400">
-                      {search || storeFilter ? "Aramanıza uyan personel bulunamadı." : "Bu dönemde satış bulunamadı."}
+                        <div className="w-16 sm:w-auto sm:flex-1">
+                          <ProgressBar percent={percent} barClass={colors.bar} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-1.5 py-2.5 text-center text-sm font-semibold text-slate-600 sm:px-2">
+                      {person.siralamaPuani > 0 ? person.siralamaPuani : "-"}
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* MAĞAZA PERFORMANSI */}
-        <section className="rounded-2xl bg-white p-3 shadow-sm sm:p-5">
-          <h2 className="text-lg font-black text-[#1b2559] sm:text-xl">Mağaza Performansı</h2>
-
-          <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
-              <span>Mağaza</span>
-              <span>Gerçekleşen</span>
-              <span className="text-right sm:text-left">Ay Sonu Tahmini</span>
-            </div>
-          </div>
-
-          <div className="mt-3 space-y-2.5">
-            {visibleStores.map((store) => {
-              const index = allStores.findIndex((s) => s.depotCode === store.depotCode);
-              const colors = magazaGostergeRengi(index, store.hedefYuzdesi !== null);
-
-              return (
-                <div key={store.depotCode} className="rounded-xl border border-slate-100 px-3 py-2.5 shadow-sm">
-                  <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
-                    <span className="text-sm font-black text-[#1b2559]">{formatStoreName(store.branchLabel)}</span>
-                    <span className="text-sm font-semibold text-slate-700">{formatNumber(store.carpanliPuan)}</span>
-                    <span className="text-right text-sm font-semibold text-slate-700 sm:text-left">
-                      {formatNumber(store.projeksiyon)}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <ProgressBar percent={store.hedefYuzdesi} barClass={colors.bar} />
-                    <span className={`w-16 flex-none text-right text-xs font-bold sm:text-sm ${colors.text}`}>
-                      {formatPercent(store.hedefYuzdesi)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {visibleStores.length === 0 && (
-              <div className="py-6 text-center text-xs font-bold text-slate-400">Mağaza bulunamadı.</div>
-            )}
-          </div>
-        </section>
-      </div>
+                );
+              })}
+              {personnelRows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-xs font-bold text-slate-400">
+                    {search || storeFilter ? "Aramanıza uyan personel bulunamadı." : "Bu dönemde satış bulunamadı."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
