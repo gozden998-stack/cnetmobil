@@ -1,3 +1,4 @@
+import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -337,6 +338,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
+    // Aylık Performans kartı: mevcut grafik ('adet') ya da WingSM 'Şirket Değer Puan' özeti
+    const [performansGorunum, setPerformansGorunum] = useState<'adet' | 'degerpuan'>('adet');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1736,17 +1739,36 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             <div>
                                 <h2 className="text-lg font-black tracking-tight text-[#102A56]">Aylık Performans</h2>
                                 <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                                    Günlük gerçekleşen satış ve hedef projeksiyonu
+                                    {performansGorunum === 'degerpuan'
+                                        ? 'WingSM Değer Puan: mağaza ve personel sıralaması'
+                                        : 'Günlük gerçekleşen satış ve hedef projeksiyonu'}
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
-                                <span className="rounded-lg bg-blue-600 px-4 py-1.5 text-[11px] font-black text-white">Adet</span>
-                                <span className="px-4 py-1.5 text-[11px] font-black text-slate-400">Ciro</span>
-                                <span className="px-4 py-1.5 text-[11px] font-black text-slate-400">Puan</span>
+                            <div className="flex items-center gap-2 overflow-x-auto rounded-xl bg-slate-50 p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setPerformansGorunum('adet')}
+                                    className={`rounded-lg px-3 py-1.5 text-[11px] font-black sm:px-4 ${performansGorunum === 'adet' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Adet
+                                </button>
+                                <span className="px-3 py-1.5 text-[11px] font-black text-slate-400 sm:px-4">Ciro</span>
+                                <span className="px-3 py-1.5 text-[11px] font-black text-slate-400 sm:px-4">Puan</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setPerformansGorunum('degerpuan')}
+                                    className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-black sm:px-4 ${performansGorunum === 'degerpuan' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <span className="sm:hidden">Değer Puan</span>
+                                    <span className="hidden sm:inline">Şirket Değer Puan</span>
+                                </button>
                             </div>
                         </div>
 
+                        {performansGorunum === 'degerpuan' ? (
+                            <SirketDegerPuanOzeti onTumunuGor={() => setAppMode('wingsm_deger_puan')} />
+                        ) : (
                         <div className="p-4 sm:p-5">
                             <div className="mb-3 flex flex-wrap items-center gap-4 text-[11px] font-bold text-slate-400">
                                 <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Günlük Satış</span>
@@ -1830,6 +1852,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 </div>
                             </div>
                         </div>
+                        )}
                     </div>
 
                     {/* MAĞAZA SIRALAMASI */}

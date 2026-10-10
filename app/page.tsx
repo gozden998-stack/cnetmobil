@@ -2269,7 +2269,7 @@ export default function CnetmobilCmrFinalUltimate() {
         { id: 'ihale', label: 'Mağazalar Arası İhale', visible: !isZumay && (isAdmin || isMasterAccess || selectedBranch.startsWith('CMR') || selectedBranch === 'VODAFONE KANALI') },
         { id: 'servis', label: 'Teknik Servis', visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay },
         { id: 'thh', label: 'THH Takip', visible: isMasterAccess },
-        { id: 'wingsm_deger_puan', label: 'WingSM Değer Puan', visible: selectedBranch.startsWith('CMR') && (isAdmin || accessRole === 'personel') }
+        { id: 'wingsm_deger_puan', label: 'WingSM Değer Puan', visible: selectedBranch.startsWith('CMR') && isAdmin } // Personelde menüde yer kaplamasın (Ana Sayfa > Aylık Performans > Şirket Değer Puan > Tümünü Gör ile açar); yönetici menüden de girer
       ]
     },
     {
