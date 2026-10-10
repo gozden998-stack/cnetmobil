@@ -1,3 +1,4 @@
+import { parseNotificationPrice } from './lib/notificationPrice';
 import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -29,8 +30,9 @@ type NotificationPricePoint = {
     updatedAt: number;
 };
 
-const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v3';
-const PRICE_SNAPSHOT_STORAGE_KEY = 'cnetmobil_price_snapshot_v3';
+// v4: fiyat çözümü düzeltildi ("12,500" eskiden 12 okunuyordu); eski yanlış kayıtlar atılır.
+const PRICE_NOTIFICATION_STORAGE_KEY = 'cnetmobil_price_notifications_v4';
+const PRICE_SNAPSHOT_STORAGE_KEY = 'cnetmobil_price_snapshot_v4';
 const PRICE_SPOKEN_STORAGE_KEY = 'cnetmobil_price_spoken_ids_v1';
 const PRICE_POLL_MS = 3000;
 const MAX_PRICE_NOTIFICATIONS = 50;
@@ -40,17 +42,6 @@ const PRICE_TRACKED_SHEETS = [
     'YNA LİST',
     '2.EL FİYAT LİSTESİ'
 ] as const;
-
-function parseNotificationPrice(value: any) {
-    if (value === null || value === undefined || value === '') return 0;
-    if (typeof value === 'number') return Math.floor(value);
-
-    let str = String(value).trim();
-    if (str.includes(',')) str = str.split(',')[0];
-
-    const digits = str.replace(/\D/g, '');
-    return digits ? parseInt(digits, 10) : 0;
-}
 
 function parseNotificationUpdatedAt(value: unknown) {
     const ms = Date.parse(String(value || ''));
