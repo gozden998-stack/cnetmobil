@@ -83,6 +83,56 @@ type SnapshotPayload = {
   totalCarpanliPuan: number;
 };
 
+// Türkiye saatine göre bugünün tarihi ("YYYY-MM-DD"). Sunucu saat dilimi ne
+// olursa olsun "gece 12'de yeni güne geçiş" Türkiye saatine göre yapılır.
+function istanbulToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+// "YYYY-MM-DD" -> bir önceki gün ("YYYY-MM-DD").
+function previousDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d - 1));
+  return date.toISOString().slice(0, 10);
+}
+
+// "DD/MM/YYYY" -> "YYYY-MM-DD" (biçim bozuksa null).
+function wingsmDateToIso(value: unknown): string | null {
+  const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+}
+
+// Rapor "güncel" sayılır: raporun bitiş tarihi DÜN ya da daha yeniyse. Gece
+// 12'de yeni güne geçilince bitiş tarihi artık "dün" olmadığı için rapor
+// "bekleniyor" olur; admin yeni günün raporunu hesaplayınca "güncellendi" olur.
+// Eski kayıtlarda aralık yoksa hesaplanma günü bugünse güncel sayılır.
+function reportFreshness(
+  period: { tarih: string; tarih2: string } | null | undefined,
+  computedAt: string
+): "guncel" | "bekleniyor" {
+  const today = istanbulToday();
+  const yesterday = previousDay(today);
+  const rangeEnd = wingsmDateToIso(period?.tarih2);
+
+  if (rangeEnd) {
+    return rangeEnd >= yesterday ? "guncel" : "bekleniyor";
+  }
+
+  const computedDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(computedAt));
+
+  return computedDay === today ? "guncel" : "bekleniyor";
+}
+
 export async function GET(request: NextRequest) {
   const auth = requireValidSession(request);
 
@@ -125,14 +175,60 @@ export async function GET(request: NextRequest) {
 
     let snapshotRow: { payload: SnapshotPayload; computed_at: string } | null = null;
 
+    // ?historyId=<numara>: geçmiş günlerin sonucunu göster ("dünkü rapor").
+    // Verilmezse EN SON hesap. Geçersiz/bulunamayan numara -> en son hesaba düşülür.
+    const historyIdParam = url.searchParams.get("historyId");
+    const historyId = historyIdParam !== null ? Number(historyIdParam) : null;
+    let selectedHistoryId: number | null = null;
+
+    if (historyId !== null && Number.isInteger(historyId) && historyId > 0) {
+      try {
+        const result = await pool.query(
+          `SELECT id, payload, computed_at FROM public.wingsm_deger_puan_history WHERE id = $1`,
+          [historyId]
+        );
+        if (result.rows[0]) {
+          snapshotRow = result.rows[0];
+          selectedHistoryId = Number(result.rows[0].id);
+        }
+      } catch {
+        // Tablo henüz yok — en son hesaba düşülür.
+      }
+    }
+
+    if (!snapshotRow) {
+      try {
+        const result = await pool.query(
+          `SELECT payload, computed_at FROM public.wingsm_deger_puan_snapshots ORDER BY computed_at DESC LIMIT 1`
+        );
+        snapshotRow = result.rows[0] ?? null;
+      } catch {
+        // Tablo yok (admin hiç hesaplamadı) — hasSnapshot: false ile devam.
+        snapshotRow = null;
+      }
+    }
+
+    // Seçilebilir geçmiş günler: en yeni tarih aralığı üstte, son 31 kayıt.
+    let history: Array<{ id: number; tarih: string; tarih2: string; computedAt: string }> = [];
+
     try {
       const result = await pool.query(
-        `SELECT payload, computed_at FROM public.wingsm_deger_puan_snapshots ORDER BY computed_at DESC LIMIT 1`
+        `
+          SELECT id, tarih, tarih2, computed_at
+          FROM public.wingsm_deger_puan_history
+          ORDER BY range_end DESC NULLS LAST, computed_at DESC
+          LIMIT 31
+        `
       );
-      snapshotRow = result.rows[0] ?? null;
+      history = result.rows.map((row: { id: number; tarih: string; tarih2: string; computed_at: string }) => ({
+        id: Number(row.id),
+        tarih: String(row.tarih),
+        tarih2: String(row.tarih2),
+        computedAt: new Date(row.computed_at).toISOString(),
+      }));
     } catch {
-      // Tablo yok (admin hiç hesaplamadı) — hasSnapshot: false ile devam.
-      snapshotRow = null;
+      // Tablo henüz yok — boş liste.
+      history = [];
     }
 
     if (!snapshotRow) {
@@ -142,6 +238,10 @@ export async function GET(request: NextRequest) {
         computedAt: null,
         myBranch,
         hedefPeriodu: null,
+        period: null,
+        history,
+        selectedHistoryId: null,
+        durum: null,
         gunBilgisi: null,
         stores: [],
         personnel: [],
@@ -160,8 +260,34 @@ export async function GET(request: NextRequest) {
     const snapshot: SnapshotPayload =
       typeof payload === "string" ? JSON.parse(payload) : payload;
 
-    const allPersonnel = Array.isArray(snapshot.personnel) ? snapshot.personnel : [];
-    const stores = Array.isArray(snapshot.stores) ? snapshot.stores : [];
+    // Personele sadece ekranın gösterdiği alanlar gider (beyaz liste): snapshot'a
+    // ileride yeni bir alan eklense bile (ör. satış başına kâr) sızmaz.
+    const allPersonnel: PersonnelRow[] = (Array.isArray(snapshot.personnel) ? snapshot.personnel : []).map((p) => ({
+      branchLabel: p.branchLabel,
+      saticiKod: p.saticiKod,
+      saticiAdi: p.saticiAdi,
+      saleCount: p.saleCount,
+      totalScore: p.totalScore,
+      carpanliPuan: p.carpanliPuan,
+      hedef: p.hedef,
+      isManager: p.isManager,
+      hedefYuzdesi: p.hedefYuzdesi,
+      projeksiyon: p.projeksiyon,
+      siralama: p.siralama,
+      siralamaPuani: p.siralamaPuani,
+    }));
+    const stores: StoreRow[] = (Array.isArray(snapshot.stores) ? snapshot.stores : []).map((s) => ({
+      branchLabel: s.branchLabel,
+      depotCode: s.depotCode,
+      saleCount: s.saleCount,
+      totalScore: s.totalScore,
+      multiplier: s.multiplier,
+      carpanliPuan: s.carpanliPuan,
+      hedef: s.hedef,
+      projeksiyon: s.projeksiyon,
+      hedefYuzdesi: s.hedefYuzdesi,
+      siralamaPuani: s.siralamaPuani,
+    }));
 
     // KAPSAM: kullanıcının açık talimatı — ekip tablosu SADECE kendi
     // mağazasını değil, CMR'nin 4 mağazasındaki TÜM personeli göstersin
@@ -201,6 +327,12 @@ export async function GET(request: NextRequest) {
       computedAt: new Date(snapshotRow.computed_at).toISOString(),
       myBranch,
       hedefPeriodu: snapshot.hedefPeriodu,
+      period: snapshot.period ?? null,
+      history,
+      selectedHistoryId,
+      // Sadece EN GÜNCEL rapor için "güncellendi / bekleniyor" bilgisi; geçmişten
+      // seçilen eski raporda anlamsız olduğu için null.
+      durum: selectedHistoryId ? null : reportFreshness(snapshot.period, snapshotRow.computed_at),
       gunBilgisi: snapshot.gunBilgisi,
       stores,
       personnel,

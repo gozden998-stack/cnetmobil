@@ -24,6 +24,7 @@ import { NextRequest } from "next/server";
 
 import { wingSMRequest } from "@/app/lib/wingsm/server";
 import { getPool, json, requireAdminSession } from "../score-rules/_shared";
+import { saveHistoryRow } from "../_deger-puan-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -141,6 +142,22 @@ type PersonnelAgg = {
   siralamaPuani: number;
 };
 
+// Opsiyonel gün sayısı girdisi: boş/undefined -> null (otomatik), 1..31 tam
+// sayı -> sayı, diğer her şey -> "invalid".
+function parseOptionalDayCount(value: unknown): number | null | "invalid" {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const n = Number(value);
+
+  if (!Number.isInteger(n) || n < 1 || n > 31) {
+    return "invalid";
+  }
+
+  return n;
+}
+
 // Bir satış satırı için (normalize edilmiş sınıf kodu, kârlılık) ikilisine
 // göre kuralı bulur. ARALIK YARI-AÇIK [profit_min, profit_max) — Excel'deki
 // her sütun başlığı o aralığın ALT sınırıdır: kârlılık TAM profit_max'a
@@ -180,6 +197,19 @@ export async function POST(request: NextRequest) {
 
     const tarih = toWingsmDate(data.bastar);
     const tarih2 = toWingsmDate(data.bittar);
+
+    // Projeksiyon için elle gün ayarı (Excel'deki "GÜN" ve "BU AY GÜN TOPLAM
+    // SAYISI" hücreleri). Boş bırakılırsa tarih aralığından otomatik hesaplanır.
+    const manualElapsed = parseOptionalDayCount(data.gecenGun);
+    const manualMonthDays = parseOptionalDayCount(data.ayToplamGun);
+
+    if (manualElapsed === "invalid" || manualMonthDays === "invalid") {
+      return json({ success: false, error: "Gün ayarı 1 ile 31 arasında bir tam sayı olmalıdır." }, 400);
+    }
+
+    if (manualElapsed !== null && manualMonthDays !== null && manualElapsed > manualMonthDays) {
+      return json({ success: false, error: "Geçen gün, ayın toplam gün sayısından büyük olamaz." }, 400);
+    }
 
     // --------------------------------------------------
     // 1) AKTİF PUAN KURALLARINI OKU (tek sorgu, sabit WHERE — parametre yok)
@@ -393,9 +423,20 @@ export async function POST(request: NextRequest) {
     // bittar farklı bir aydaysa (nadir, ör. ay sonu-başı geçişi) yine de
     // makul bir sonuç için bittar'ın ayını esas alıp o ayın gün sayısını
     // kullanıyoruz.
-    const daysInMonth = new Date(bittarYil, bittarAy, 0).getDate();
+    const autoDaysInMonth = new Date(bittarYil, bittarAy, 0).getDate();
     const bastarAsBittarAy = bittarAy === bastarAy && bittarYil === bastarYil ? bastarGun : 1;
-    const daysElapsed = Math.max(1, bittarGun - bastarAsBittarAy + 1);
+    const autoDaysElapsed = Math.max(1, bittarGun - bastarAsBittarAy + 1);
+
+    // Elle girilen değer varsa o kullanılır (Excel'de bu hücreler elle yazılıyor).
+    const daysInMonth = manualMonthDays !== null ? manualMonthDays : autoDaysInMonth;
+    const daysElapsed = manualElapsed !== null ? manualElapsed : autoDaysElapsed;
+
+    // Sadece geçen gün elle girilip ayın günü otomatikse, geçen gün ayın
+    // gününü aşamaz (ör. 31 gün yazıp Şubat'ta çalıştırmak).
+    if (daysElapsed > daysInMonth) {
+      return json({ success: false, error: "Geçen gün, ayın toplam gün sayısından büyük olamaz." }, 400);
+    }
+
     const projectionFactor = daysInMonth / daysElapsed;
 
     let storeTargetByBranch = new Map<string, number>();
@@ -547,6 +588,15 @@ export async function POST(request: NextRequest) {
       );
     } catch (snapshotError) {
       console.error("WINGSM_DEGER_PUAN_SNAPSHOT_SAVE_ERROR:", snapshotError);
+    }
+
+    // Geçmiş günlerin sonucu: aynı tarih aralığı güncellenir, farklı aralıklar
+    // ayrı kalır — personel "dünkü rapor"a bakabilsin. Yazılamasa bile admin'in
+    // cevabı bozulmaz.
+    try {
+      await saveHistoryRow(pool, responsePayload);
+    } catch (historyError) {
+      console.error("WINGSM_DEGER_PUAN_HISTORY_SAVE_ERROR:", historyError);
     }
 
     return json(responsePayload);

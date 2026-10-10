@@ -22,6 +22,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
+import {
+  magazaSatirRengi,
+  magazalariSirala,
+  personelSatirRengi,
+  SATIR_BEYAZ,
+} from "./degerPuanRenkleri";
+
 type ScoreRule = {
   id: number;
   class_code: string;
@@ -158,13 +165,22 @@ function formatDateInput(date: Date) {
   return `${day}.${month}.${year}`;
 }
 
+// Rapor bugünün satışları eksik olduğu için DÜNE kadar alınır (Excel'de de
+// "01-09" gibi bir önceki güne kadar). Ayın 1'inde dün önceki aya düşer; o
+// zaman başlangıç da o ayın 1'i olur, yani önceki ayın tamamı raporlanır.
+function yesterday() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return date;
+}
+
 function defaultBastar() {
-  const now = new Date();
-  return formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+  const end = yesterday();
+  return formatDateInput(new Date(end.getFullYear(), end.getMonth(), 1));
 }
 
 function defaultBittar() {
-  return formatDateInput(new Date());
+  return formatDateInput(yesterday());
 }
 
 function ruleToDraft(rule: ScoreRule): Draft {
@@ -207,6 +223,10 @@ export default function WingsmDegerPuan() {
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
+  // Projeksiyon için elle gün ayarı (Excel'deki GÜN / BU AY GÜN TOPLAM SAYISI
+  // hücreleri). Boş bırakılırsa tarih aralığından otomatik hesaplanır.
+  const [reportGecenGun, setReportGecenGun] = useState("");
+  const [reportAyToplamGun, setReportAyToplamGun] = useState("");
   const [reportState, setReportState] = useState<RowState>({ loading: false, error: "", success: "" });
   const [report, setReport] = useState<DegerPuanReport | null>(null);
 
@@ -218,7 +238,12 @@ export default function WingsmDegerPuan() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bastar: reportBastar, bittar: reportBittar }),
+        body: JSON.stringify({
+          bastar: reportBastar,
+          bittar: reportBittar,
+          gecenGun: reportGecenGun.trim(),
+          ayToplamGun: reportAyToplamGun.trim(),
+        }),
       });
 
       const payload = await res.json().catch(() => null);
@@ -1638,6 +1663,28 @@ export default function WingsmDegerPuan() {
                   className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-50"
                 />
               </label>
+              <label>
+                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Geçen gün (ops.)</div>
+                <input
+                  value={reportGecenGun}
+                  onChange={(e) => setReportGecenGun(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                  disabled={reportState.loading}
+                  placeholder="otomatik"
+                  inputMode="numeric"
+                  className="h-10 w-28 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+                />
+              </label>
+              <label>
+                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Ayın toplam günü (ops.)</div>
+                <input
+                  value={reportAyToplamGun}
+                  onChange={(e) => setReportAyToplamGun(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                  disabled={reportState.loading}
+                  placeholder="otomatik"
+                  inputMode="numeric"
+                  className="h-10 w-36 rounded-lg border border-slate-200 px-3 text-sm disabled:bg-slate-50"
+                />
+              </label>
               <button
                 type="button"
                 onClick={runReport}
@@ -1657,6 +1704,12 @@ export default function WingsmDegerPuan() {
                 </button>
               )}
             </div>
+
+            <p className="mt-3 text-[11px] font-semibold text-slate-400">
+              Projeksiyon = çarpanlı puan ÷ geçen gün × ayın toplam günü. Gün alanlarını boş bırakırsan tarih
+              aralığından otomatik hesaplanır; Excel&apos;deki gibi elle yazarsan o değerler kullanılır. Kalan gün =
+              ayın toplam günü − geçen gün.
+            </p>
 
             {reportState.error && (
               <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
@@ -1727,38 +1780,40 @@ export default function WingsmDegerPuan() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[820px] text-left">
+                  <table className="w-full min-w-[640px] text-left">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
-                        <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
-                        <th className="px-4 py-3">Çarpan</th>
                         <th className="px-4 py-3">Çarpanlı Puan</th>
                         <th className="px-4 py-3">Projeksiyon</th>
-                        <th className="px-4 py-3">Hedef</th>
-                        <th className="px-4 py-3">Hedef %</th>
+                        <th className="px-4 py-3">Sıralama (Hedef %)</th>
+                        <th className="px-4 py-3">Projex</th>
                         <th className="px-4 py-3">Puan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {report.stores.map((s) => (
-                        <tr key={s.depotCode}>
-                          <td className="px-4 py-3 text-[11px] font-bold">{s.branchLabel}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{s.saleCount}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.totalScore))}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.multiplier))}</td>
-                          <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(s.carpanliPuan))}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(Math.round(s.projeksiyon)))}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{s.hedef !== null ? formatNumber(String(s.hedef)) : "-"}</td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">
-                            {s.hedefYuzdesi !== null ? `${formatNumber(String(s.hedefYuzdesi.toFixed(2)))}%` : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-black text-emerald-600">
-                            {s.siralamaPuani > 0 ? s.siralamaPuani : ""}
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody>
+                      {magazalariSirala(report.stores).map((s, index) => {
+                        const projex = s.hedef !== null && s.hedef > 0 ? (s.projeksiyon / s.hedef) * 100 : null;
+
+                        return (
+                          <tr key={s.depotCode} className={magazaSatirRengi(index, s.hedefYuzdesi !== null)}>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-bold">{s.branchLabel}</td>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-semibold">{formatNumber(String(s.totalScore))}</td>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-black">{formatNumber(String(s.carpanliPuan))}</td>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-semibold">{formatNumber(String(Math.round(s.projeksiyon)))}</td>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-semibold">
+                              {s.hedefYuzdesi !== null ? `${formatNumber(String(s.hedefYuzdesi.toFixed(2)))}%` : "-"}
+                            </td>
+                            <td className="border-b border-slate-200 px-4 py-3 text-[11px] font-semibold">
+                              {projex !== null ? formatNumber(String(projex.toFixed(2))) : "-"}
+                            </td>
+                            <td className={`border-b border-slate-200 px-4 py-3 text-[11px] font-black ${SATIR_BEYAZ}`}>
+                              {s.siralamaPuani > 0 ? s.siralamaPuani : ""}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1767,13 +1822,12 @@ export default function WingsmDegerPuan() {
               <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">Personel Bazlı</div>
                 <div className="max-h-[460px] overflow-auto">
-                  <table className="w-full min-w-[880px] text-left">
+                  <table className="w-full min-w-[780px] text-left">
                     <thead>
                       <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-3">Mağaza</th>
                         <th className="px-4 py-3">Sıra</th>
                         <th className="px-4 py-3">Satıcı</th>
-                        <th className="px-4 py-3">Satış Adedi</th>
                         <th className="px-4 py-3">Toplam Puan</th>
                         <th className="px-4 py-3">Çarpanlı Puan</th>
                         <th className="px-4 py-3">Hedef</th>
@@ -1781,9 +1835,9 @@ export default function WingsmDegerPuan() {
                         <th className="px-4 py-3">Puan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody>
                       {report.personnel.map((p, i) => (
-                        <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`} className={p.isManager ? "opacity-60" : ""}>
+                        <tr key={`${p.branchLabel}-${p.saticiKod || p.saticiAdi}-${i}`} className={`border-b border-slate-200 ${personelSatirRengi(p.siralama)}`}>
                           <td className="px-4 py-3 text-[11px] font-bold">{p.branchLabel}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{p.siralama ?? "-"}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">
@@ -1794,21 +1848,20 @@ export default function WingsmDegerPuan() {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-[11px] font-semibold">{p.saleCount}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{formatNumber(String(p.totalScore))}</td>
                           <td className="px-4 py-3 text-[11px] font-black">{formatNumber(String(p.carpanliPuan))}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">{p.hedef !== null ? formatNumber(String(p.hedef)) : "-"}</td>
                           <td className="px-4 py-3 text-[11px] font-semibold">
                             {p.hedefYuzdesi !== null ? `${formatNumber(String(p.hedefYuzdesi.toFixed(2)))}%` : "-"}
                           </td>
-                          <td className="px-4 py-3 text-[11px] font-black text-emerald-600">
+                          <td className={`px-4 py-3 text-[11px] font-black ${SATIR_BEYAZ}`}>
                             {p.siralamaPuani > 0 ? p.siralamaPuani : ""}
                           </td>
                         </tr>
                       ))}
                       {report.personnel.length === 0 && (
                         <tr>
-                          <td colSpan={9} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-400">
                             Bu aralıkta satış bulunamadı.
                           </td>
                         </tr>
