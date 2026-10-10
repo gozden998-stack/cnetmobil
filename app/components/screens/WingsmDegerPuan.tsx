@@ -22,6 +22,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
+import WingsmDegerPuanim from "./WingsmDegerPuanim";
 import {
   magazaSatirRengi,
   magazalariSirala,
@@ -219,7 +220,7 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor">("kurallar");
+  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc">("kurallar");
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -1090,7 +1091,7 @@ export default function WingsmDegerPuan() {
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="mb-6 flex items-center gap-2 border-b border-slate-200">
+      <div className="mb-6 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
         <button
           type="button"
           onClick={() => setActiveTab("kurallar")}
@@ -1124,7 +1125,23 @@ export default function WingsmDegerPuan() {
         >
           Rapor
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("sonuc")}
+          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "sonuc"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Rapor Sonucu
+        </button>
       </div>
+
+      {/* RAPOR SONUCU: personelin gördüğü ekranın AYNISI (kayıtlı son rapor +
+          Bugün / Dün / Önceki Gün / takvim ile geçmiş günler). Yönetici de aynı
+          sonucu görür; HESAPLA ile otomatik günlük hesap buraya kaydolur. */}
+      {activeTab === "sonuc" && <WingsmDegerPuanim />}
 
       {activeTab === "kurallar" && (
       <>
