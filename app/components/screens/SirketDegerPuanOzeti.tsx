@@ -86,6 +86,29 @@ export default function SirketDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: () 
     };
   }, []);
 
+  // "Rapor bekleniyor" iken kart açık kalırsa, rapor hazırlanınca (günlük 10:00
+  // hesabı ya da yönetici HESAPLA) sayfayı yenilemeye gerek kalmadan dolsun.
+  const beklemede = report?.hasSnapshot === true && report.durum === "bekleniyor";
+
+  useEffect(() => {
+    if (!beklemede) return;
+
+    const id = window.setInterval(() => {
+      fetch("/api/wingsm/deger-puanim", { method: "GET", credentials: "same-origin", cache: "no-store" })
+        .then((res) => res.json().catch(() => null))
+        .then((payload) => {
+          if (payload?.success && payload.durum === "guncel") {
+            setReport(payload as DegerPuanimReport);
+          }
+        })
+        .catch(() => {
+          // Arka plan kontrolü kartı bozmaz.
+        });
+    }, 120_000);
+
+    return () => window.clearInterval(id);
+  }, [beklemede]);
+
   if (loading) {
     return (
       <div className="flex min-h-[200px] items-center justify-center text-sm font-bold text-slate-400">
@@ -117,15 +140,34 @@ export default function SirketDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: () 
 
   const aySonuDuyurusu = Boolean(report.aySonuPaylasim) && report.durum === "bekleniyor";
 
+  // Yeni gün başladı, rapor henüz hazır değil: eski günün rakamları gösterilmez.
+  if (beklemede) {
+    return (
+      <div className="p-4 sm:p-5">
+        <div className="mb-2 flex justify-end">
+          <button type="button" onClick={onTumunuGor} className="text-[11px] font-black text-blue-600 hover:text-blue-700">
+            Tümünü Gör →
+          </button>
+        </div>
+        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl bg-slate-50 px-6 py-10 text-center">
+          <div className="text-4xl">{aySonuDuyurusu ? "📢" : "⏳"}</div>
+          <div className="mt-3 text-xl font-black text-[#102A56]">
+            {aySonuDuyurusu ? "Ay sonu raporu" : "Rapor bekleniyor"}
+          </div>
+          <p className="mt-1.5 max-w-sm text-xs font-semibold text-slate-500">
+            {aySonuDuyurusu ? AY_SONU_MESAJI : "Yeni günün raporu hazırlandığında burada otomatik görünecek."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
           {report.durum === "guncel" && (
             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-emerald-700">✓ Rapor güncellendi</span>
-          )}
-          {report.durum === "bekleniyor" && !aySonuDuyurusu && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-700">⏳ Rapor bekleniyor</span>
           )}
           {report.period && (
             <span className="text-slate-500">
@@ -143,12 +185,6 @@ export default function SirketDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: () 
           Tümünü Gör →
         </button>
       </div>
-
-      {aySonuDuyurusu && (
-        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-bold text-violet-900">
-          📢 {AY_SONU_MESAJI}
-        </div>
-      )}
 
       {/* Mağazalar */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

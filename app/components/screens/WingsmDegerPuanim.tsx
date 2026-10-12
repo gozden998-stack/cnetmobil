@@ -481,6 +481,12 @@ export default function WingsmDegerPuanim() {
   // normal "güncellendi" görünür.
   const aySonuDuyurusu = Boolean(report.aySonuPaylasim) && report.durum === "bekleniyor";
 
+  // Yeni güne geçildi ve o günün raporu henüz hazır değil: ESKİ günün rakamları
+  // GÖSTERİLMEZ, ortada "Rapor bekleniyor" yazar; rapor gelince (günlük 10:00
+  // hesabı ya da yönetici HESAPLA) ekran kendiliğinden dolar. Geçmiş bir gün
+  // seçiliyse (Dün, Önceki Gün...) o günün raporu normal gösterilir.
+  const beklemede = report.durum === "bekleniyor" && !report.selectedHistoryId;
+
   // Takvimde seçilebilecek en erken gün: kayıtlı en eski raporun yayın günü
   // (bitiş + 1). Kayıt yoksa sınır konmaz.
   const earliestEnd = history
@@ -555,7 +561,7 @@ export default function WingsmDegerPuanim() {
         </div>
       </div>
 
-      {report.hasSnapshot && report.period && (
+      {report.hasSnapshot && report.period && !beklemede && (
         <div
           className={`mt-4 rounded-xl border px-4 py-2.5 text-sm font-bold ${
             report.selectedHistoryId
@@ -582,16 +588,18 @@ export default function WingsmDegerPuanim() {
         </div>
       )}
 
-      {aySonuDuyurusu && (
-        <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-bold text-violet-900">
-          📢 {AY_SONU_MESAJI}
-          <div className="mt-0.5 text-xs font-semibold text-violet-700">Aşağıda ayın son güncel raporu görünüyor.</div>
-        </div>
-      )}
-
-      {report.durum === "bekleniyor" && !aySonuDuyurusu && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
-          Yeni günün raporu henüz güncellenmedi, aşağıda son rapor görünüyor.
+      {beklemede && !report.bulunamadi && (
+        <div className="mt-6 flex min-h-[260px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-12 text-center shadow-sm">
+          <div className="text-5xl">{aySonuDuyurusu ? "📢" : "⏳"}</div>
+          <div className="mt-4 text-2xl font-black text-[#1b2559]">
+            {aySonuDuyurusu ? "Ay sonu raporu" : "Rapor bekleniyor"}
+          </div>
+          <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">
+            {aySonuDuyurusu ? AY_SONU_MESAJI : "Yeni günün raporu hazırlandığında burada otomatik görünecek."}
+          </p>
+          <p className="mt-3 text-xs font-semibold text-slate-400">
+            Önceki günün raporunu görmek için sağ üstteki seçiciden &quot;Dün&quot;ü seçebilirsiniz.
+          </p>
         </div>
       )}
 
@@ -601,7 +609,7 @@ export default function WingsmDegerPuanim() {
         </div>
       )}
 
-      {!report.bulunamadi && (
+      {!report.bulunamadi && !beklemede && (
         <>
       {/* MAĞAZA KARTLARI */}
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
