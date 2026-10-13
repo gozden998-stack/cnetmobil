@@ -209,7 +209,10 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const [itemQtyDrafts, setItemQtyDrafts] = useState<Record<number, string>>({});
   const [cart, setCart] = useState<Record<number, CartEntry>>({});
   const [cartOpen, setCartOpen] = useState(false);
-  const [cartShop, setCartShop] = useState(VODAFONE_SHOPS[0]);
+  // Vodafone tek oturum paylaştığı için hangi mağaza olduğunu kendileri seçer;
+  // seçim bu tarayıcıda hatırlanır. Hem sipariş hem liste bu mağazaya göre çalışır.
+  const [myShop, setMyShopState] = useState(VODAFONE_SHOPS[0]);
+  const [managerShopFilter, setManagerShopFilter] = useState("");
   const [cartSubmitting, setCartSubmitting] = useState(false);
   const [cartError, setCartError] = useState("");
 
@@ -255,6 +258,24 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }, POLL_MS);
     return () => window.clearInterval(intervalId);
   }, [load]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("cnet_supply_my_shop");
+      if (saved && VODAFONE_SHOPS.includes(saved)) setMyShopState(saved);
+    } catch {
+      // Tarayıcı depolaması kapalıysa seçim hatırlanmaz, ekran yine çalışır.
+    }
+  }, []);
+
+  const setMyShop = (shop: string) => {
+    setMyShopState(shop);
+    try {
+      window.localStorage.setItem("cnet_supply_my_shop", shop);
+    } catch {
+      // Hatırlanamasa da seçim bu oturumda geçerli.
+    }
+  };
 
   useEffect(() => {
     if (!notice) return;
@@ -445,7 +466,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          shopName: channel === "VODAFONE" ? cartShop : undefined,
+          shopName: channel === "VODAFONE" ? myShop : undefined,
           items,
         }),
       });
@@ -469,13 +490,26 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
   const activeCatalog = useMemo(() => catalog.filter((c) => c.isActive), [catalog]);
 
-  const pendingOrders = useMemo(
-    () => orders.filter((o) => o.status !== "GONDERILDI").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+  // Vodafone: sadece seçtiği mağazanın siparişleri. Yönetici: isterse tek mağazaya süzer.
+  // CMR zaten sunucudan sadece kendi mağazasının siparişlerini alır.
+  const visibleOrders = useMemo(() => {
+    if (!isManager && channel === "VODAFONE") return orders.filter((o) => o.shopName === myShop);
+    if (isManager && managerShopFilter) return orders.filter((o) => o.shopName === managerShopFilter);
+    return orders;
+  }, [orders, isManager, channel, myShop, managerShopFilter]);
+
+  const managerShops = useMemo(
+    () => Array.from(new Set(orders.map((o) => o.shopName))).sort((a, b) => a.localeCompare(b, "tr")),
     [orders]
   );
+
+  const pendingOrders = useMemo(
+    () => visibleOrders.filter((o) => o.status !== "GONDERILDI").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [visibleOrders]
+  );
   const sentOrders = useMemo(
-    () => orders.filter((o) => o.status === "GONDERILDI").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [orders]
+    () => visibleOrders.filter((o) => o.status === "GONDERILDI").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [visibleOrders]
   );
 
   // Yöneticinin "ne hazırlayacağım" görünümü: bekleyen siparişlerin ürün toplamı.
@@ -1008,6 +1042,26 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
       {isManager && tab === "rapor" && renderReport()}
 
+      {tab === "siparis" && !isManager && channel === "VODAFONE" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mağazanız</span>
+          {VODAFONE_SHOPS.map((shop) => (
+            <button
+              key={shop}
+              type="button"
+              onClick={() => setMyShop(shop)}
+              className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
+                myShop === shop
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {shop}
+            </button>
+          ))}
+        </div>
+      )}
+
       {tab === "siparis" && !isManager && (
         <section className="space-y-2">
           <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Ürünler</h3>
@@ -1082,6 +1136,36 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
             );
           })}
         </section>
+      )}
+
+      {tab === "siparis" && isManager && managerShops.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setManagerShopFilter("")}
+            className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
+                managerShopFilter === ""
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+          >
+            Tüm mağazalar
+          </button>
+          {managerShops.map((shop) => (
+            <button
+              key={shop}
+              type="button"
+              onClick={() => setManagerShopFilter(managerShopFilter === shop ? "" : shop)}
+              className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
+                managerShopFilter === shop
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {shop}
+            </button>
+          ))}
+        </div>
       )}
 
       {tab === "siparis" && isManager && pendingTotals.length > 0 && (
@@ -1286,8 +1370,8 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               <div className="px-6 pb-2">
                 <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Mağaza</label>
                 <select
-                  value={cartShop}
-                  onChange={(e) => setCartShop(e.target.value)}
+                  value={myShop}
+                  onChange={(e) => setMyShop(e.target.value)}
                   className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700"
                 >
                   {VODAFONE_SHOPS.map((shop) => (
