@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
 type TedarikProps = {
@@ -37,11 +37,16 @@ type CatalogItem = {
 
 type CartEntry = { itemName: string; quantity: number };
 
-type Tab = "siparis" | "rapor";
+type Tab = "urunler" | "siparis" | "gonderilen" | "rapor";
 
 const POLL_MS = 4000;
 
 const VODAFONE_SHOPS = ["MEYDAN", "SARAY", "ERNA", "TEKİRA"];
+
+// Yönetici mağaza düğmeleri: hiç sipariş vermemiş olsa bile tüm mağazalar görünsün.
+const ALL_SHOPS = ["CMR MERKEZ", "CMR CADDE", "CMR SARAY", "CMR KAPAKLI", ...VODAFONE_SHOPS];
+
+const SEEN_STORAGE_KEY = "cnet_supply_seen_orders";
 
 const REPORT_RANGES = [
   { label: "Son 7 gün", days: 7 },
@@ -57,6 +62,21 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
   HAZIRLANIYOR: "HAZIRLANIYOR",
   GONDERILDI: "GÖNDERİLDİ",
 };
+
+// Mağaza (personel) ekranında durumlar daha anlaşılır yazılır.
+const STAFF_STATUS_LABEL: Record<string, string> = {
+  BEKLEMEDE: "SİPARİŞ ALINDI",
+  HAZIRLANIYOR: "ONAYLANDI · HAZIRLANIYOR",
+  GONDERILDI: "GÖNDERİLDİ",
+};
+
+const STAFF_STEPS = [
+  { status: "BEKLEMEDE", label: "Sipariş alındı" },
+  { status: "HAZIRLANIYOR", label: "Onaylandı" },
+  { status: "GONDERILDI", label: "Gönderildi" },
+];
+
+const SEEN_SENT_STORAGE_KEY = "cnet_supply_seen_sent";
 
 const ORDER_STATUS_TONE: Record<string, string> = {
   BEKLEMEDE: "bg-amber-50 text-amber-700 border-amber-200",
@@ -192,7 +212,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const [orders, setOrders] = useState<SupplyOrder[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
 
-  const [tab, setTab] = useState<Tab>("siparis");
+  const [tab, setTab] = useState<Tab>(isAdmin ? "siparis" : "urunler");
   const [reportDays, setReportDays] = useState(30);
   const [reportShop, setReportShop] = useState<string | null>(null);
   const [sentVisible, setSentVisible] = useState(SENT_PAGE_SIZE);
@@ -213,6 +233,12 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   // seçim bu tarayıcıda hatırlanır. Hem sipariş hem liste bu mağazaya göre çalışır.
   const [myShop, setMyShopState] = useState(VODAFONE_SHOPS[0]);
   const [managerShopFilter, setManagerShopFilter] = useState("");
+  // Yöneticinin bu tarayıcıda "gördüm" dediği (mağaza düğmesine tıkladığı) siparişler.
+  // Görülmemiş yeni siparişi olan mağaza düğmesi yeşil yanıp söner.
+  const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
+  // Mağaza tarafı: "Gönderilenler" sekmesinde görülen gönderilmiş siparişler.
+  const [seenSentIds, setSeenSentIds] = useState<Set<number>>(new Set());
+  const prevStatusRef = useRef<Map<number, string> | null>(null);
   const [cartSubmitting, setCartSubmitting] = useState(false);
   const [cartError, setCartError] = useState("");
 
@@ -267,6 +293,32 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       // Tarayıcı depolaması kapalıysa seçim hatırlanmaz, ekran yine çalışır.
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SEEN_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) setSeenIds(new Set(parsed.map(Number).filter(Number.isFinite)));
+    } catch {
+      // Okunamazsa tüm bekleyen siparişler "yeni" sayılır.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SEEN_SENT_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) setSeenSentIds(new Set(parsed.map(Number).filter(Number.isFinite)));
+    } catch {
+      // Okunamazsa gönderilmiş siparişler "yeni" sayılır.
+    }
+  }, []);
+
+  // Oturum yöneticiyse (isAdmin prop'u geç gelebilir) mağaza sekmesinde kalma.
+  useEffect(() => {
+    if (isManager && tab === "urunler") setTab("siparis");
+    if (!isManager && tab === "rapor") setTab("urunler");
+  }, [isManager, tab]);
 
   const setMyShop = (shop: string) => {
     setMyShopState(shop);
@@ -479,7 +531,8 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
       setCart({});
       setCartOpen(false);
-      setNotice("Siparişiniz gönderildi.");
+      setNotice("Siparişiniz alındı.");
+      setTab("siparis");
       void load();
     } catch (err: any) {
       setCartError(err?.message || "Sipariş gönderilemedi.");
@@ -498,10 +551,91 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     return orders;
   }, [orders, isManager, channel, myShop, managerShopFilter]);
 
-  const managerShops = useMemo(
-    () => Array.from(new Set(orders.map((o) => o.shopName))).sort((a, b) => a.localeCompare(b, "tr")),
-    [orders]
+  const managerShops = useMemo(() => {
+    const extra = orders.map((o) => o.shopName).filter((name) => !ALL_SHOPS.includes(name));
+    return [...ALL_SHOPS, ...Array.from(new Set(extra))];
+  }, [orders]);
+
+  // Görülmemiş = bekleyen (BEKLEMEDE) ve yönetici o mağaza düğmesine henüz tıklamamış.
+  const unseenByShop = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const order of orders) {
+      if (order.status === "BEKLEMEDE" && !seenIds.has(order.id)) {
+        counts.set(order.shopName, (counts.get(order.shopName) || 0) + 1);
+      }
+    }
+
+    return counts;
+  }, [orders, seenIds]);
+
+  const markShopSeen = useCallback(
+    (shopName: string) => {
+      const ids = orders.filter((o) => o.shopName === shopName && !seenIds.has(o.id)).map((o) => o.id);
+      if (ids.length === 0) return;
+
+      const next = new Set(seenIds);
+      ids.forEach((id) => next.add(id));
+      setSeenIds(next);
+
+      try {
+        window.localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(Array.from(next).slice(-1000)));
+      } catch {
+        // Depolama kapalıysa sadece bu oturumda hatırlanır.
+      }
+    },
+    [orders, seenIds]
   );
+
+  // Mağaza tarafı: siparişin durumu değişince (onaylandı / gönderildi) haber ver.
+  useEffect(() => {
+    if (isManager) return;
+
+    const previous = prevStatusRef.current;
+    const messages: string[] = [];
+
+    if (previous) {
+      for (const order of visibleOrders) {
+        const before = previous.get(order.id);
+        if (before === undefined || before === order.status) continue;
+
+        if (order.status === "HAZIRLANIYOR") messages.push(`#${order.id} siparişiniz onaylandı, hazırlanıyor.`);
+        else if (order.status === "GONDERILDI") messages.push(`#${order.id} siparişiniz gönderildi.`);
+      }
+    }
+
+    prevStatusRef.current = new Map(visibleOrders.map((o) => [o.id, o.status]));
+
+    if (messages.length > 0) setNotice(messages.join(" "));
+  }, [isManager, visibleOrders]);
+
+  const unseenSentCount = useMemo(
+    () => visibleOrders.filter((o) => o.status === "GONDERILDI" && !seenSentIds.has(o.id)).length,
+    [visibleOrders, seenSentIds]
+  );
+
+  // "Gönderilenler" sekmesi açıkken gönderilmiş siparişler görüldü sayılır.
+  useEffect(() => {
+    if (isManager || tab !== "gonderilen") return;
+
+    const ids = visibleOrders.filter((o) => o.status === "GONDERILDI" && !seenSentIds.has(o.id)).map((o) => o.id);
+    if (ids.length === 0) return;
+
+    const next = new Set(seenSentIds);
+    ids.forEach((id) => next.add(id));
+    setSeenSentIds(next);
+
+    try {
+      window.localStorage.setItem(SEEN_SENT_STORAGE_KEY, JSON.stringify(Array.from(next).slice(-1000)));
+    } catch {
+      // Depolama kapalıysa sadece bu oturumda hatırlanır.
+    }
+  }, [isManager, tab, visibleOrders, seenSentIds]);
+
+  // Bir mağazanın siparişlerine bakarken gelen yeni siparişler de "görüldü" sayılır.
+  useEffect(() => {
+    if (isManager && tab !== "rapor" && managerShopFilter) markShopSeen(managerShopFilter);
+  }, [isManager, tab, managerShopFilter, markShopSeen]);
 
   const pendingOrders = useMemo(
     () => visibleOrders.filter((o) => o.status !== "GONDERILDI").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -608,10 +742,10 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     };
   }, [orders, reportDays, reportShop]);
 
-  const downloadExcel = () => {
+  const downloadExcel = (list: SupplyOrder[], prefix: string) => {
     const rows: Record<string, unknown>[] = [];
 
-    for (const order of report.scopedOrders) {
+    for (const order of list) {
       for (const it of order.items) {
         rows.push({
           SIPARIS_NO: order.id,
@@ -643,7 +777,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       day: "2-digit",
     }).format(new Date());
 
-    XLSX.writeFile(workbook, `Tedarik_Siparisleri_${today}.xlsx`);
+    XLSX.writeFile(workbook, `${prefix}_${today}.xlsx`);
   };
 
   const renderOrderCard = (order: SupplyOrder) => {
@@ -655,7 +789,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-black text-slate-900">{order.shopName}</span>
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
-              {ORDER_STATUS_LABEL[order.status] || order.status}
+              {(isManager ? ORDER_STATUS_LABEL : STAFF_STATUS_LABEL)[order.status] || order.status}
             </span>
             <span className="text-xs font-bold text-slate-400">
               #{order.id} · {totalQty} adet
@@ -707,6 +841,33 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
             </div>
           )}
         </div>
+
+        {!isManager && (
+          <div className="mt-3 flex items-center gap-1.5">
+            {STAFF_STEPS.map((step, index) => {
+              const currentIndex = STAFF_STEPS.findIndex((x) => x.status === order.status);
+              const reached = index <= currentIndex;
+
+              return (
+                <React.Fragment key={step.status}>
+                  {index > 0 && <div className={`h-0.5 flex-1 rounded-full ${reached ? "bg-emerald-400" : "bg-slate-200"}`} />}
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                        reached ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400"
+                      }`}
+                    >
+                      {reached ? "✓" : index + 1}
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-wide ${reached ? "text-emerald-700" : "text-slate-400"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-2 flex flex-col gap-1.5">
           {order.items.map((it) => {
@@ -824,7 +985,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
           <button
             type="button"
-            onClick={downloadExcel}
+            onClick={() => downloadExcel(report.scopedOrders, "Tedarik_Rapor")}
             className="ml-auto rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
           >
             Excel İndir
@@ -1005,27 +1166,70 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       </section>
 
       {isManager && (
-      <div className="flex gap-2">
-        {(
-          [
-            { id: "siparis", label: "Siparişler" },
-            { id: "rapor", label: "Rapor" },
-          ] as Array<{ id: Tab; label: string }>
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`rounded-xl border px-4 py-2.5 text-[11px] font-black uppercase tracking-wide transition ${
-              tab === item.id
-                ? "border-blue-500 bg-blue-600 text-white"
-                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { id: "siparis", label: `Siparişler${orders.some((o) => o.status !== "GONDERILDI") ? ` (${orders.filter((o) => o.status !== "GONDERILDI").length})` : ""}` },
+              { id: "gonderilen", label: "Gönderilenler" },
+              { id: "rapor", label: "Rapor" },
+            ] as Array<{ id: Tab; label: string }>
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`rounded-xl border px-4 py-2.5 text-[11px] font-black uppercase tracking-wide transition ${
+                tab === item.id
+                  ? "border-blue-500 bg-blue-600 text-white"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+
+          {tab !== "rapor" && (
+            <button
+              type="button"
+              onClick={() =>
+                tab === "siparis"
+                  ? downloadExcel(pendingOrders, "Tedarik_Bekleyen")
+                  : downloadExcel(sentOrders, "Tedarik_Gonderilen")
+              }
+              className="ml-auto rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+            >
+              Excel İndir
+            </button>
+          )}
+        </div>
+      )}
+
+      {!isManager && (
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { id: "urunler", label: "Ürünler" },
+              { id: "siparis", label: `Siparişlerim${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}` },
+              { id: "gonderilen", label: "Gönderilenler" },
+            ] as Array<{ id: Tab; label: string }>
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={`rounded-xl border px-4 py-2.5 text-[11px] font-black uppercase tracking-wide transition ${
+                tab === item.id
+                  ? "border-blue-500 bg-blue-600 text-white"
+                  : item.id === "gonderilen" && unseenSentCount > 0
+                  ? "animate-pulse border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/40"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {item.label}
+              {item.id === "gonderilen" && unseenSentCount > 0 && tab !== "gonderilen" ? ` · ${unseenSentCount} yeni` : ""}
+            </button>
+          ))}
+        </div>
       )}
 
       {error && (
@@ -1042,7 +1246,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
       {isManager && tab === "rapor" && renderReport()}
 
-      {tab === "siparis" && !isManager && channel === "VODAFONE" && (
+      {!isManager && channel === "VODAFONE" && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mağazanız</span>
           {VODAFONE_SHOPS.map((shop) => (
@@ -1062,7 +1266,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </div>
       )}
 
-      {tab === "siparis" && !isManager && (
+      {tab === "urunler" && !isManager && (
         <section className="space-y-2">
           <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Ürünler</h3>
 
@@ -1138,33 +1342,44 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </section>
       )}
 
-      {tab === "siparis" && isManager && managerShops.length > 1 && (
+      {isManager && tab !== "rapor" && (
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setManagerShopFilter("")}
             className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
-                managerShopFilter === ""
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
+              managerShopFilter === ""
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+            }`}
           >
             Tüm mağazalar
           </button>
-          {managerShops.map((shop) => (
-            <button
-              key={shop}
-              type="button"
-              onClick={() => setManagerShopFilter(managerShopFilter === shop ? "" : shop)}
-              className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
-                managerShopFilter === shop
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              {shop}
-            </button>
-          ))}
+          {managerShops.map((shop) => {
+            const unseen = unseenByShop.get(shop) || 0;
+            const active = managerShopFilter === shop;
+
+            return (
+              <button
+                key={shop}
+                type="button"
+                onClick={() => {
+                  setManagerShopFilter(active ? "" : shop);
+                  markShopSeen(shop);
+                }}
+                className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
+                  unseen > 0 && !active
+                    ? "animate-pulse border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/40"
+                    : active
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                {shop}
+                {unseen > 0 && !active ? ` · ${unseen} yeni` : ""}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1200,25 +1415,49 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
           )}
 
           {pendingOrders.map(renderOrderCard)}
+        </section>
+      )}
 
-          {sentOrders.length > 0 && (
-            <>
-              <h3 className="pt-3 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                Gönderilenler ({sentOrders.length})
-              </h3>
+      {tab === "gonderilen" && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+              Gönderilenler ({sentOrders.length})
+            </h3>
 
-              {sentOrders.slice(0, sentVisible).map(renderOrderCard)}
-
-              {sentOrders.length > sentVisible && (
+            {isManager &&
+              REPORT_RANGES.map((range) => (
                 <button
+                  key={range.days}
                   type="button"
-                  onClick={() => setSentVisible((count) => count + SENT_PAGE_SIZE)}
-                  className="w-full rounded-xl border border-slate-200 bg-white py-3 text-[11px] font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+                  onClick={() => setReportDays(range.days)}
+                  className={`rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase transition ${
+                    reportDays === range.days
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                  }`}
                 >
-                  Daha fazla göster
+                  {range.label}
                 </button>
-              )}
-            </>
+              ))}
+          </div>
+
+          {sentOrders.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-200 py-8 text-center text-[11px] font-bold text-slate-400">
+              Gönderilmiş sipariş yok.
+            </div>
+          )}
+
+          {sentOrders.slice(0, sentVisible).map(renderOrderCard)}
+
+          {sentOrders.length > sentVisible && (
+            <button
+              type="button"
+              onClick={() => setSentVisible((count) => count + SENT_PAGE_SIZE)}
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 text-[11px] font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+            >
+              Daha fazla göster
+            </button>
           )}
         </section>
       )}
