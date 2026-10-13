@@ -8,25 +8,12 @@ type TedarikProps = {
   selectedBranch: string;
 };
 
-type SupplyRequestRow = {
-  shopName: string;
-  quantity: number;
-  requestedByName: string;
-  updatedAt: string;
-};
-
-type PeriodItem = {
-  id: number;
-  itemName: string;
-  itemNote: string;
-  requests: SupplyRequestRow[];
-};
-
 type OrderStatus = "BEKLEMEDE" | "HAZIRLANIYOR" | "GONDERILDI";
 
 type SupplyOrderItem = {
   itemId: number;
   itemName: string;
+  itemNote: string;
   quantity: number;
   deliveredQuantity: number | null;
 };
@@ -36,21 +23,9 @@ type SupplyOrder = {
   shopName: string;
   status: OrderStatus;
   submittedByName: string;
+  createdAt: string;
   updatedAt: string;
   items: SupplyOrderItem[];
-};
-
-type SupplyPeriod = {
-  id: number;
-  title: string;
-  status: "DRAFT" | "LIVE" | "ENDED" | "CANCELLED";
-  durationMinutes: number | null;
-  startsAt: string | null;
-  endsAt: string | null;
-  createdByName: string;
-  createdAt: string;
-  items: PeriodItem[];
-  orders: SupplyOrder[];
 };
 
 type CatalogItem = {
@@ -62,30 +37,20 @@ type CatalogItem = {
 
 type CartEntry = { itemName: string; quantity: number };
 
+type Tab = "siparis" | "rapor";
+
 const POLL_MS = 4000;
 
 const VODAFONE_SHOPS = ["MEYDAN", "SARAY", "ERNA", "TEKİRA"];
 
-const DURATION_PRESETS = [
-  { label: "12 Saat", minutes: 12 * 60 },
-  { label: "24 Saat", minutes: 24 * 60 },
-  { label: "2 Gün", minutes: 2 * 24 * 60 },
-  { label: "3 Gün", minutes: 3 * 24 * 60 },
+const REPORT_RANGES = [
+  { label: "Son 7 gün", days: 7 },
+  { label: "Son 30 gün", days: 30 },
+  { label: "Son 90 gün", days: 90 },
+  { label: "Son 1 yıl", days: 365 },
 ];
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "TASLAK",
-  LIVE: "AÇIK",
-  ENDED: "KAPANDI",
-  CANCELLED: "İPTAL",
-};
-
-const STATUS_TONE: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-600 border-slate-200",
-  LIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  ENDED: "bg-blue-50 text-blue-700 border-blue-200",
-  CANCELLED: "bg-red-50 text-red-700 border-red-200",
-};
+const SENT_PAGE_SIZE = 15;
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
   BEKLEMEDE: "BEKLEMEDE",
@@ -146,15 +111,91 @@ function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+// Yatay çubuk grafik: tek seri (tek renk), değer çubuğun sağında yazar,
+// altındaki tablo/ikinci satır aynı veriyi sayı olarak da verir.
+function BarList({
+  rows,
+  emptyText,
+}: {
+  rows: Array<{ key: string; label: string; value: number; detail: string; onClick?: () => void; active?: boolean }>;
+  emptyText: string;
+}) {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-[11px] font-bold text-slate-400">
+        {emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {rows.map((row) => {
+        const content = (
+          <>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-xs font-black text-slate-700">{row.label}</span>
+              <span className="shrink-0 text-xs font-black text-slate-900">{row.value}</span>
+            </div>
+            <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-blue-500"
+                style={{ width: `${Math.max(2, (row.value / max) * 100)}%` }}
+              />
+            </div>
+            <div className="mt-0.5 text-[10px] font-semibold text-slate-400">{row.detail}</div>
+          </>
+        );
+
+        return row.onClick ? (
+          <button
+            key={row.key}
+            type="button"
+            onClick={row.onClick}
+            title={`${row.label}: ${row.value} adet - ${row.detail}`}
+            className={`block w-full rounded-xl px-2.5 py-1.5 text-left transition hover:bg-blue-50/60 ${
+              row.active ? "bg-blue-50 ring-1 ring-blue-200" : ""
+            }`}
+          >
+            {content}
+          </button>
+        ) : (
+          <div key={row.key} title={`${row.label}: ${row.value} adet - ${row.detail}`} className="px-2.5 py-1.5">
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="mt-1 text-2xl font-black text-slate-900">{value}</div>
+      {hint && <div className="mt-0.5 text-[10px] font-semibold text-slate-400">{hint}</div>}
+    </div>
+  );
+}
+
 export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   void selectedBranch;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [isManager, setIsManager] = useState(isAdmin);
   const [channel, setChannel] = useState<"CMR" | "VODAFONE" | null>(null);
-  const [periods, setPeriods] = useState<SupplyPeriod[]>([]);
+  const [orders, setOrders] = useState<SupplyOrder[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+
+  const [tab, setTab] = useState<Tab>("siparis");
+  const [reportDays, setReportDays] = useState(30);
+  const [reportShop, setReportShop] = useState<string | null>(null);
+  const [sentVisible, setSentVisible] = useState(SENT_PAGE_SIZE);
 
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [newItemName, setNewItemName] = useState("");
@@ -162,45 +203,42 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogError, setCatalogError] = useState("");
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createTitle, setCreateTitle] = useState("");
-  const [createDuration, setCreateDuration] = useState(DURATION_PRESETS[2].minutes);
-  const [createSaving, setCreateSaving] = useState(false);
-  const [createError, setCreateError] = useState("");
-
-  const [actionBusyId, setActionBusyId] = useState<number | null>(null);
-  const [expandedPeriodId, setExpandedPeriodId] = useState<number | null>(null);
   const [orderBusyId, setOrderBusyId] = useState<number | null>(null);
   const [deletingRequestKey, setDeletingRequestKey] = useState<string | null>(null);
 
   const [itemQtyDrafts, setItemQtyDrafts] = useState<Record<number, string>>({});
-  const [cart, setCart] = useState<{ periodId: number; entries: Record<number, CartEntry> } | null>(null);
+  const [cart, setCart] = useState<Record<number, CartEntry>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [cartShop, setCartShop] = useState(VODAFONE_SHOPS[0]);
   const [cartSubmitting, setCartSubmitting] = useState(false);
   const [cartError, setCartError] = useState("");
 
+  const [deliveredDrafts, setDeliveredDrafts] = useState<Record<string, string>>({});
+  const [savingDeliveredKey, setSavingDeliveredKey] = useState<string | null>(null);
+
+  // Sunucu bekleyen siparişleri her zaman, gönderilenleri son N gün için döner.
+  // Rapor aralığı seçilince aynı aralık istenir.
   const load = useCallback(async () => {
     try {
-      const [periodsRes, catalogRes] = await Promise.all([
-        fetch("/api/supply", { method: "GET", cache: "no-store", credentials: "same-origin" }),
+      const [ordersRes, catalogRes] = await Promise.all([
+        fetch(`/api/supply?gun=${reportDays}`, { method: "GET", cache: "no-store", credentials: "same-origin" }),
         fetch("/api/supply/catalog", { method: "GET", cache: "no-store", credentials: "same-origin" }),
       ]);
 
-      const periodsResult = await periodsRes.json().catch(() => ({}));
+      const ordersResult = await ordersRes.json().catch(() => ({}));
       const catalogResult = await catalogRes.json().catch(() => ({}));
 
-      if (!periodsRes.ok || !periodsResult?.ok) {
-        throw new Error(periodsResult?.error || "Tedarik verisi alınamadı.");
+      if (!ordersRes.ok || !ordersResult?.ok) {
+        throw new Error(ordersResult?.error || "Tedarik verisi alınamadı.");
       }
 
       if (!catalogRes.ok || !catalogResult?.ok) {
         throw new Error(catalogResult?.error || "Katalog verisi alınamadı.");
       }
 
-      setIsManager(Boolean(periodsResult.isManager));
-      setChannel(periodsResult.channel ?? null);
-      setPeriods(Array.isArray(periodsResult.periods) ? periodsResult.periods : []);
+      setIsManager(Boolean(ordersResult.isManager));
+      setChannel(ordersResult.channel ?? null);
+      setOrders(Array.isArray(ordersResult.orders) ? ordersResult.orders : []);
       setCatalog(Array.isArray(catalogResult.items) ? catalogResult.items : []);
       setError("");
     } catch (err: any) {
@@ -208,7 +246,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reportDays]);
 
   useEffect(() => {
     void load();
@@ -217,6 +255,12 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }, POLL_MS);
     return () => window.clearInterval(intervalId);
   }, [load]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeoutId = window.setTimeout(() => setNotice(""), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
 
   const submitNewCatalogItem = async () => {
     if (catalogSaving || !newItemName.trim()) return;
@@ -269,74 +313,13 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const submitCreatePeriod = async () => {
-    if (createSaving) return;
-
-    if (!createTitle.trim()) {
-      setCreateError("Başlık zorunludur.");
-      return;
-    }
-
-    setCreateSaving(true);
-    setCreateError("");
+  const deleteRequest = async (orderId: number, itemId: number) => {
+    const key = `${orderId}:${itemId}`;
+    if (deletingRequestKey) return;
+    setDeletingRequestKey(key);
 
     try {
-      const response = await fetch("/api/supply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ title: createTitle.trim(), durationMinutes: createDuration }),
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Dönem oluşturulamadı.");
-      }
-
-      setCreateOpen(false);
-      setCreateTitle("");
-      setCreateDuration(DURATION_PRESETS[2].minutes);
-      void load();
-    } catch (err: any) {
-      setCreateError(err?.message || "Dönem oluşturulamadı.");
-    } finally {
-      setCreateSaving(false);
-    }
-  };
-
-  const runPeriodAction = async (periodId: number, action: "START" | "END" | "CANCEL") => {
-    if (actionBusyId) return;
-    setActionBusyId(periodId);
-
-    try {
-      const response = await fetch(`/api/supply/${periodId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ action }),
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "İşlem başarısız.");
-      }
-
-      void load();
-    } catch (err: any) {
-      setError(err?.message || "İşlem başarısız.");
-    } finally {
-      setActionBusyId(null);
-    }
-  };
-
-  const deletePeriod = async (periodId: number) => {
-    if (actionBusyId) return;
-    setActionBusyId(periodId);
-
-    try {
-      const response = await fetch(`/api/supply/${periodId}`, {
+      const response = await fetch(`/api/supply/orders/${orderId}?itemId=${itemId}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -344,58 +327,30 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Silinemedi.");
+        throw new Error(result?.error || "Kalem silinemedi.");
       }
 
       void load();
     } catch (err: any) {
-      setError(err?.message || "Silinemedi.");
-    } finally {
-      setActionBusyId(null);
-    }
-  };
-
-  const deleteRequest = async (periodId: number, itemId: number, shopName: string) => {
-    const key = `${periodId}:${itemId}:${shopName}`;
-    if (deletingRequestKey) return;
-    setDeletingRequestKey(key);
-
-    try {
-      const response = await fetch(
-        `/api/supply/${periodId}/request?itemId=${itemId}&shopName=${encodeURIComponent(shopName)}`,
-        { method: "DELETE", credentials: "same-origin" }
-      );
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Talep silinemedi.");
-      }
-
-      void load();
-    } catch (err: any) {
-      setError(err?.message || "Talep silinemedi.");
+      setError(err?.message || "Kalem silinemedi.");
     } finally {
       setDeletingRequestKey(null);
     }
   };
 
-  const [deliveredDrafts, setDeliveredDrafts] = useState<Record<string, string>>({});
-  const [savingDeliveredKey, setSavingDeliveredKey] = useState<string | null>(null);
-
-  const saveDeliveredQuantity = async (periodId: number, itemId: number, shopName: string, value: string) => {
-    const key = `${periodId}:${itemId}:${shopName}`;
+  const saveDeliveredQuantity = async (orderId: number, itemId: number, value: string) => {
+    const key = `${orderId}:${itemId}`;
     const deliveredQuantity = Math.max(0, Number(value) || 0);
 
     if (savingDeliveredKey) return;
     setSavingDeliveredKey(key);
 
     try {
-      const response = await fetch(`/api/supply/${periodId}/request`, {
+      const response = await fetch(`/api/supply/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ itemId, shopName, deliveredQuantity }),
+        body: JSON.stringify({ itemId, deliveredQuantity }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -447,45 +402,32 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
   const setItemQtyDraft = (itemId: number, value: string) =>
     setItemQtyDrafts((prev) => ({ ...prev, [itemId]: value }));
 
-  const addToCart = (periodId: number, itemId: number, itemName: string, quantity: number) => {
-    setCart((prev) => {
-      const samePeriod = prev && prev.periodId === periodId;
-      const baseEntries = samePeriod ? prev!.entries : {};
-      const existing = baseEntries[itemId];
-
-      return {
-        periodId,
-        entries: {
-          ...baseEntries,
-          [itemId]: { itemName, quantity: (existing?.quantity || 0) + quantity },
-        },
-      };
-    });
+  const addToCart = (itemId: number, itemName: string, quantity: number) => {
+    setCart((prev) => ({
+      ...prev,
+      [itemId]: { itemName, quantity: (prev[itemId]?.quantity || 0) + quantity },
+    }));
   };
 
   const removeCartEntry = (itemId: number) => {
     setCart((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev.entries };
+      const next = { ...prev };
       delete next[itemId];
-      return Object.keys(next).length ? { periodId: prev.periodId, entries: next } : null;
+      return next;
     });
   };
 
   const updateCartQty = (itemId: number, quantity: number) => {
-    setCart((prev) => {
-      if (!prev || !prev.entries[itemId]) return prev;
-      return { periodId: prev.periodId, entries: { ...prev.entries, [itemId]: { ...prev.entries[itemId], quantity } } };
-    });
+    setCart((prev) => (prev[itemId] ? { ...prev, [itemId]: { ...prev[itemId], quantity } } : prev));
   };
 
   const cartEntries = useMemo(
-    () => (cart ? Object.entries(cart.entries).map(([itemId, entry]) => ({ itemId: Number(itemId), ...entry })) : []),
+    () => Object.entries(cart).map(([itemId, entry]) => ({ itemId: Number(itemId), ...entry })),
     [cart]
   );
 
   const submitCart = async () => {
-    if (!cart || cartSubmitting || cartEntries.length === 0) return;
+    if (cartSubmitting || cartEntries.length === 0) return;
 
     const items = cartEntries.map(({ itemId, quantity }) => ({ itemId, quantity }));
 
@@ -498,7 +440,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     setCartError("");
 
     try {
-      const response = await fetch(`/api/supply/${cart.periodId}/cart`, {
+      const response = await fetch("/api/supply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -514,8 +456,9 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         throw new Error(result?.error || "Sipariş gönderilemedi.");
       }
 
-      setCart(null);
+      setCart({});
       setCartOpen(false);
+      setNotice("Siparişiniz gönderildi.");
       void load();
     } catch (err: any) {
       setCartError(err?.message || "Sipariş gönderilemedi.");
@@ -524,33 +467,137 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
     }
   };
 
-  const downloadExcel = (period: SupplyPeriod) => {
-    const statusByShop = new Map(period.orders.map((o) => [o.shopName, o.status]));
-    const rows: Record<string, unknown>[] = [];
+  const activeCatalog = useMemo(() => catalog.filter((c) => c.isActive), [catalog]);
 
-    for (const item of period.items) {
-      if (!item.requests.length) {
-        rows.push({ URUN: item.itemName, NOT: item.itemNote, MAGAZA: "-", ADET: 0, DURUM: "-", TALEP_EDEN: "" });
-        continue;
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.status !== "GONDERILDI").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [orders]
+  );
+  const sentOrders = useMemo(
+    () => orders.filter((o) => o.status === "GONDERILDI").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [orders]
+  );
+
+  // Yöneticinin "ne hazırlayacağım" görünümü: bekleyen siparişlerin ürün toplamı.
+  const pendingTotals = useMemo(() => {
+    const totals = new Map<number, { itemName: string; quantity: number }>();
+
+    for (const order of pendingOrders) {
+      for (const it of order.items) {
+        const entry = totals.get(it.itemId) || { itemName: it.itemName, quantity: 0 };
+        entry.quantity += it.quantity;
+        totals.set(it.itemId, entry);
+      }
+    }
+
+    return Array.from(totals.values()).sort((a, b) => b.quantity - a.quantity);
+  }, [pendingOrders]);
+
+  // ---- RAPOR ----
+  const report = useMemo(() => {
+    const cutoff = Date.now() - reportDays * 86_400_000;
+    const inRange = orders.filter((o) => new Date(o.createdAt).getTime() >= cutoff);
+
+    const shops = new Map<
+      string,
+      { shopName: string; orderCount: number; requested: number; delivered: number; pendingOrders: number; sentOrders: number }
+    >();
+
+    for (const order of inRange) {
+      const shop = shops.get(order.shopName) || {
+        shopName: order.shopName,
+        orderCount: 0,
+        requested: 0,
+        delivered: 0,
+        pendingOrders: 0,
+        sentOrders: 0,
+      };
+
+      shop.orderCount += 1;
+      if (order.status === "GONDERILDI") shop.sentOrders += 1;
+      else shop.pendingOrders += 1;
+
+      for (const it of order.items) {
+        shop.requested += it.quantity;
+        shop.delivered += it.deliveredQuantity ?? 0;
       }
 
-      for (const req of item.requests) {
+      shops.set(order.shopName, shop);
+    }
+
+    const shopRows = Array.from(shops.values()).sort((a, b) => b.requested - a.requested);
+
+    const scoped = reportShop ? inRange.filter((o) => o.shopName === reportShop) : inRange;
+    const items = new Map<
+      number,
+      { itemName: string; requested: number; delivered: number; orderCount: number; shops: Set<string> }
+    >();
+
+    for (const order of scoped) {
+      for (const it of order.items) {
+        const entry = items.get(it.itemId) || {
+          itemName: it.itemName,
+          requested: 0,
+          delivered: 0,
+          orderCount: 0,
+          shops: new Set<string>(),
+        };
+        entry.requested += it.quantity;
+        entry.delivered += it.deliveredQuantity ?? 0;
+        entry.orderCount += 1;
+        entry.shops.add(order.shopName);
+        items.set(it.itemId, entry);
+      }
+    }
+
+    const itemRows = Array.from(items.entries())
+      .map(([itemId, entry]) => ({ itemId, ...entry, shopCount: entry.shops.size }))
+      .sort((a, b) => b.requested - a.requested);
+
+    return {
+      inRange,
+      shopRows,
+      itemRows,
+      scopedOrders: scoped,
+      totalOrders: scoped.length,
+      totalRequested: itemRows.reduce((sum, row) => sum + row.requested, 0),
+      totalDelivered: itemRows.reduce((sum, row) => sum + row.delivered, 0),
+      // Karşılanma yüzdesi sadece GÖNDERİLDİ siparişlerin istenenine göre:
+      // bekleyen siparişler henüz gönderilmediği için oranı düşürmesin.
+      sentRequested: scoped
+        .filter((o) => o.status === "GONDERILDI")
+        .reduce((sum, o) => sum + o.items.reduce((inner, it) => inner + it.quantity, 0), 0),
+      sentDelivered: scoped
+        .filter((o) => o.status === "GONDERILDI")
+        .reduce((sum, o) => sum + o.items.reduce((inner, it) => inner + (it.deliveredQuantity ?? 0), 0), 0),
+      pendingCount: scoped.filter((o) => o.status !== "GONDERILDI").length,
+    };
+  }, [orders, reportDays, reportShop]);
+
+  const downloadExcel = () => {
+    const rows: Record<string, unknown>[] = [];
+
+    for (const order of report.scopedOrders) {
+      for (const it of order.items) {
         rows.push({
-          URUN: item.itemName,
-          NOT: item.itemNote,
-          MAGAZA: req.shopName,
-          ADET: req.quantity,
-          DURUM: ORDER_STATUS_LABEL[statusByShop.get(req.shopName) || ""] || "-",
-          TALEP_EDEN: req.requestedByName,
+          SIPARIS_NO: order.id,
+          TARIH: formatDate(order.createdAt),
+          MAGAZA: order.shopName,
+          URUN: it.itemName,
+          NOT: it.itemNote,
+          ISTENEN: it.quantity,
+          GONDERILEN: it.deliveredQuantity ?? "",
+          DURUM: ORDER_STATUS_LABEL[order.status] || order.status,
+          SIPARIS_VEREN: order.submittedByName,
         });
       }
     }
 
     const worksheet = XLSX.utils.json_to_sheet(rows, {
-      header: ["URUN", "NOT", "MAGAZA", "ADET", "DURUM", "TALEP_EDEN"],
+      header: ["SIPARIS_NO", "TARIH", "MAGAZA", "URUN", "NOT", "ISTENEN", "GONDERILEN", "DURUM", "SIPARIS_VEREN"],
     });
 
-    worksheet["!cols"] = [{ wch: 34 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 22 }];
+    worksheet["!cols"] = [{ wch: 11 }, { wch: 18 }, { wch: 14 }, { wch: 34 }, { wch: 24 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 22 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Tedarik");
@@ -562,171 +609,322 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
       day: "2-digit",
     }).format(new Date());
 
-    XLSX.writeFile(workbook, `${period.title.replace(/[^a-zA-Z0-9ığüşöçİĞÜŞÖÇ]+/g, "_")}_${today}.xlsx`);
+    XLSX.writeFile(workbook, `Tedarik_Siparisleri_${today}.xlsx`);
   };
 
-  const livePeriods = useMemo(() => periods.filter((p) => p.status === "LIVE"), [periods]);
-  const otherPeriods = useMemo(() => periods.filter((p) => p.status !== "LIVE"), [periods]);
-  const activeCatalogCount = useMemo(() => catalog.filter((c) => c.isActive).length, [catalog]);
+  const renderOrderCard = (order: SupplyOrder) => {
+    const totalQty = order.items.reduce((sum, it) => sum + it.quantity, 0);
 
-  const renderOrdersSection = (period: SupplyPeriod) => (
-    <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
-      <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-        Mağaza Siparişleri{period.orders.length > 0 ? ` (${period.orders.length})` : ""}
-      </h5>
+    return (
+      <div key={order.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 shadow-sm sm:px-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-black text-slate-900">{order.shopName}</span>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
+              {ORDER_STATUS_LABEL[order.status] || order.status}
+            </span>
+            <span className="text-xs font-bold text-slate-400">
+              #{order.id} · {totalQty} adet
+            </span>
+          </div>
 
-      {period.orders.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-200 py-4 text-center text-[11px] font-bold text-slate-400">
-          Henüz sepet gönderilmedi.
+          {isManager && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {order.status === "BEKLEMEDE" && (
+                <button
+                  type="button"
+                  disabled={orderBusyId === order.id}
+                  onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black uppercase text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                >
+                  Hazırlanıyor Yap
+                </button>
+              )}
+              {order.status === "HAZIRLANIYOR" && (
+                <>
+                  <button
+                    type="button"
+                    disabled={orderBusyId === order.id}
+                    onClick={() => updateOrderStatus(order.id, "BEKLEMEDE")}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Beklemeye Al
+                  </button>
+                  <button
+                    type="button"
+                    disabled={orderBusyId === order.id}
+                    onClick={() => updateOrderStatus(order.id, "GONDERILDI")}
+                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    Gönderildi Yap
+                  </button>
+                </>
+              )}
+              {order.status === "GONDERILDI" && (
+                <button
+                  type="button"
+                  disabled={orderBusyId === order.id}
+                  onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Geri Al
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
 
-      {period.orders.map((order) => {
-        const totalQty = order.items.reduce((sum, it) => sum + it.quantity, 0);
+        <div className="mt-2 flex flex-col gap-1.5">
+          {order.items.map((it) => {
+            const key = `${order.id}:${it.itemId}`;
+            const deliveredDraft = deliveredDrafts[key];
+            const hasDelivered = it.deliveredQuantity !== null;
+            const fullyMatched = hasDelivered && it.deliveredQuantity === it.quantity;
+            const shortDelivered = hasDelivered && (it.deliveredQuantity as number) < it.quantity;
 
-        return (
-          <div key={order.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 sm:px-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-black text-slate-900">{order.shopName}</span>
-                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${ORDER_STATUS_TONE[order.status] || ""}`}>
-                  {ORDER_STATUS_LABEL[order.status] || order.status}
-                </span>
-                <span className="text-xs font-bold text-slate-400">{totalQty} adet</span>
-              </div>
-
-              {isManager && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {order.status === "BEKLEMEDE" && (
+            return (
+              <div key={it.itemId} className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 break-words text-xs font-black text-blue-700">{it.itemName}</span>
+                  {isManager && (
                     <button
                       type="button"
-                      disabled={orderBusyId === order.id}
-                      onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black uppercase text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                      disabled={deletingRequestKey === key}
+                      onClick={() => deleteRequest(order.id, it.itemId)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                      title="Bu kalemi sil"
                     >
-                      Hazırlanıyor Yap
-                    </button>
-                  )}
-                  {order.status === "HAZIRLANIYOR" && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={orderBusyId === order.id}
-                        onClick={() => updateOrderStatus(order.id, "BEKLEMEDE")}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        Beklemeye Al
-                      </button>
-                      <button
-                        type="button"
-                        disabled={orderBusyId === order.id}
-                        onClick={() => updateOrderStatus(order.id, "GONDERILDI")}
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
-                      >
-                        Gönderildi Yap
-                      </button>
-                    </>
-                  )}
-                  {order.status === "GONDERILDI" && (
-                    <button
-                      type="button"
-                      disabled={orderBusyId === order.id}
-                      onClick={() => updateOrderStatus(order.id, "HAZIRLANIYOR")}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Geri Al
+                      ×
                     </button>
                   )}
                 </div>
-              )}
-            </div>
 
-            <div className="mt-2 flex flex-col gap-1.5">
-              {order.items.map((it) => {
-                const key = `${period.id}:${it.itemId}:${order.shopName}`;
-                const deliveredDraft = deliveredDrafts[key];
-                const hasDelivered = it.deliveredQuantity !== null;
-                const fullyMatched = hasDelivered && it.deliveredQuantity === it.quantity;
-                const shortDelivered = hasDelivered && (it.deliveredQuantity as number) < it.quantity;
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-600">
+                    İstenen: {it.quantity}
+                  </span>
 
-                return (
-                  <div
-                    key={it.itemId}
-                    className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 break-words text-xs font-black text-blue-700">{it.itemName}</span>
-                      {isManager && (
-                        <button
-                          type="button"
-                          disabled={deletingRequestKey === key}
-                          onClick={() => deleteRequest(period.id, it.itemId, order.shopName)}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base text-red-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-                          title="Bu kalemi sil"
-                        >
-                          ×
-                        </button>
+                  {isManager ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-blue-400">Gönderilen</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={deliveredDraft ?? (it.deliveredQuantity ?? "")}
+                        onChange={(e) => setDeliveredDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                        onBlur={(e) => {
+                          if (e.target.value === "" || Number(e.target.value) === it.deliveredQuantity) return;
+                          void saveDeliveredQuantity(order.id, it.itemId, e.target.value);
+                        }}
+                        placeholder="-"
+                        className="h-9 w-16 rounded-md border border-blue-200 bg-white px-1.5 text-center text-sm font-black text-slate-700 outline-none focus:border-blue-400"
+                      />
+                      {savingDeliveredKey === key && (
+                        <span className="text-[10px] font-bold text-slate-400">kaydediliyor...</span>
                       )}
                     </div>
+                  ) : hasDelivered ? (
+                    <span
+                      className={`rounded-md px-2 py-1 text-xs font-black uppercase tracking-wide ${
+                        fullyMatched
+                          ? "bg-emerald-100 text-emerald-700"
+                          : shortDelivered
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      Gönderilen: {it.deliveredQuantity}
+                    </span>
+                  ) : (
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                      Henüz işaretlenmedi
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-600">
-                        İstenen: {it.quantity}
-                      </span>
+        <p className="mt-2 text-[11px] font-semibold text-slate-400">
+          Veren: {order.submittedByName || "-"} · {formatDate(order.createdAt)}
+          {order.status === "GONDERILDI" ? ` · Gönderildi: ${formatDate(order.updatedAt)}` : ""}
+        </p>
+      </div>
+    );
+  };
 
-                      {isManager ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-blue-400">Gönderilen</span>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            value={deliveredDraft ?? (it.deliveredQuantity ?? "")}
-                            onChange={(e) =>
-                              setDeliveredDrafts((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                            onBlur={(e) => {
-                              if (e.target.value === "" || Number(e.target.value) === it.deliveredQuantity) return;
-                              void saveDeliveredQuantity(period.id, it.itemId, order.shopName, e.target.value);
-                            }}
-                            placeholder="-"
-                            className="h-9 w-16 rounded-md border border-blue-200 bg-white px-1.5 text-center text-sm font-black text-slate-700 outline-none focus:border-blue-400"
-                          />
-                          {savingDeliveredKey === key && (
-                            <span className="text-[10px] font-bold text-slate-400">kaydediliyor...</span>
-                          )}
-                        </div>
-                      ) : hasDelivered ? (
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs font-black uppercase tracking-wide ${
-                            fullyMatched
-                              ? "bg-emerald-100 text-emerald-700"
-                              : shortDelivered
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          Gönderilen: {it.deliveredQuantity}
-                        </span>
-                      ) : (
-                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black uppercase tracking-wide text-slate-400">
-                          Henüz işaretlenmedi
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+  const renderReport = () => {
+    const allShopsRequested = report.shopRows.reduce((sum, shop) => sum + shop.requested, 0);
+    const fulfilmentPercent =
+      report.sentRequested > 0 ? Math.round((report.sentDelivered / report.sentRequested) * 100) : null;
 
-            <p className="mt-2 text-[11px] font-semibold text-slate-400">
-              Gönderen: {order.submittedByName || "-"} · {formatDate(order.updatedAt)}
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center gap-2">
+          {REPORT_RANGES.map((range) => (
+            <button
+              key={range.days}
+              type="button"
+              onClick={() => setReportDays(range.days)}
+              className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
+                reportDays === range.days
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {range.label}
+            </button>
+          ))}
+
+          {reportShop && (
+            <button
+              type="button"
+              onClick={() => setReportShop(null)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase text-slate-500 transition hover:bg-slate-50"
+            >
+              {reportShop} ✕ Tüm mağazalar
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={downloadExcel}
+            className="ml-auto rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Excel İndir
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Sipariş" value={report.totalOrders} hint={`${report.pendingCount} bekleyen`} />
+          <StatCard label="İstenen adet" value={report.totalRequested} />
+          <StatCard label="Gönderilen adet" value={report.totalDelivered} hint="Yöneticinin işaretlediği" />
+          <StatCard
+            label="Karşılanma"
+            value={fulfilmentPercent === null ? "-" : `%${fulfilmentPercent}`}
+            hint="Gönderilen siparişlerde gönderilen / istenen"
+          />
+        </div>
+
+        {(
+          <section className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-black uppercase tracking-wide text-slate-700">Hangi mağaza ne kadar istiyor</h3>
+            <p className="mb-3 mt-0.5 text-[10px] font-semibold text-slate-400">
+              Bir mağazaya tıklarsan aşağıdaki ürün raporu o mağazaya göre filtrelenir.
             </p>
+            <BarList
+              emptyText="Bu aralıkta sipariş yok."
+              rows={report.shopRows.map((shop) => ({
+                key: shop.shopName,
+                label: shop.shopName,
+                value: shop.requested,
+                detail: `${shop.orderCount} sipariş · ${shop.delivered} adet gönderildi · ${shop.pendingOrders} bekleyen`,
+                active: reportShop === shop.shopName,
+                onClick: () => setReportShop(reportShop === shop.shopName ? null : shop.shopName),
+              }))}
+            />
+          </section>
+        )}
+
+        <section className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-700">
+            En çok istenen ürünler{reportShop ? ` · ${reportShop}` : ""}
+          </h3>
+          <div className="mt-3">
+            <BarList
+              emptyText="Bu aralıkta sipariş yok."
+              rows={report.itemRows.slice(0, 10).map((row) => ({
+                key: String(row.itemId),
+                label: row.itemName,
+                value: row.requested,
+                detail: `${row.orderCount} siparişte · ${row.shopCount} mağaza · gönderilen ${row.delivered}`,
+              }))}
+            />
           </div>
-        );
-      })}
-    </div>
-  );
+        </section>
+
+        <section className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-3 text-sm font-black uppercase tracking-wide text-slate-700">
+            Mağaza tablosu
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-5 py-2.5">Mağaza</th>
+                  <th className="px-3 py-2.5 text-right">Sipariş</th>
+                  <th className="px-3 py-2.5 text-right">İstenen</th>
+                  <th className="px-3 py-2.5 text-right">Gönderilen</th>
+                  <th className="px-3 py-2.5 text-right">Bekleyen sipariş</th>
+                  <th className="px-5 py-2.5 text-right">Toplamdaki payı</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 font-semibold text-slate-700">
+                {report.shopRows.map((shop) => (
+                  <tr key={shop.shopName}>
+                    <td className="px-5 py-2.5 font-black text-slate-800">{shop.shopName}</td>
+                    <td className="px-3 py-2.5 text-right">{shop.orderCount}</td>
+                    <td className="px-3 py-2.5 text-right">{shop.requested}</td>
+                    <td className="px-3 py-2.5 text-right">{shop.delivered}</td>
+                    <td className="px-3 py-2.5 text-right">{shop.pendingOrders}</td>
+                    <td className="px-5 py-2.5 text-right">
+                      {allShopsRequested > 0 ? `%${Math.round((shop.requested / allShopsRequested) * 100)}` : "-"}
+                    </td>
+                  </tr>
+                ))}
+                {report.shopRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-6 text-center text-[11px] font-bold text-slate-400">
+                      Bu aralıkta sipariş yok.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-3 text-sm font-black uppercase tracking-wide text-slate-700">
+            Ürün tablosu{reportShop ? ` · ${reportShop}` : ""}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-5 py-2.5">Ürün</th>
+                  <th className="px-3 py-2.5 text-right">İstenen</th>
+                  <th className="px-3 py-2.5 text-right">Gönderilen</th>
+                  <th className="px-3 py-2.5 text-right">Sipariş</th>
+                  <th className="px-5 py-2.5 text-right">Mağaza</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 font-semibold text-slate-700">
+                {report.itemRows.map((row) => (
+                  <tr key={row.itemId}>
+                    <td className="px-5 py-2.5 font-black text-slate-800">{row.itemName}</td>
+                    <td className="px-3 py-2.5 text-right">{row.requested}</td>
+                    <td className="px-3 py-2.5 text-right">{row.delivered}</td>
+                    <td className="px-3 py-2.5 text-right">{row.orderCount}</td>
+                    <td className="px-5 py-2.5 text-right">{row.shopCount}</td>
+                  </tr>
+                ))}
+                {report.itemRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-6 text-center text-[11px] font-bold text-slate-400">
+                      Bu aralıkta sipariş yok.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -753,34 +951,48 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
               </h2>
               <p className="mt-1 text-xs font-semibold text-slate-500">
                 {isManager
-                  ? "Ürünleri bir kez ekle, dönem açtığında hepsi otomatik talebe açılır."
-                  : "İstediğiniz ürünleri sepete ekleyip tek seferde sipariş gönderin."}
+                  ? "Ürünleri bir kez kataloğa ekle; mağazalar her gün her saat sipariş verebilir."
+                  : "İstediğiniz ürünleri sepete ekleyip istediğiniz zaman sipariş gönderin."}
               </p>
             </div>
           </div>
 
           {isManager && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCatalogOpen(true)}
-                className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
-              >
-                <ListIcon className="h-4 w-4" />
-                Ürün Kataloğu ({activeCatalogCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreateOpen(true)}
-                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-blue-950/10 transition hover:bg-blue-500"
-              >
-                <PlusIcon />
-                Yeni Dönem Aç
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setCatalogOpen(true)}
+              className="flex h-12 items-center justify-center gap-2 self-start rounded-2xl border border-slate-200 bg-white px-4 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 sm:self-auto"
+            >
+              <ListIcon className="h-4 w-4" />
+              Ürün Kataloğu ({activeCatalog.length})
+            </button>
           )}
         </div>
       </section>
+
+      {isManager && (
+      <div className="flex gap-2">
+        {(
+          [
+            { id: "siparis", label: "Siparişler" },
+            { id: "rapor", label: "Rapor" },
+          ] as Array<{ id: Tab; label: string }>
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`rounded-xl border px-4 py-2.5 text-[11px] font-black uppercase tracking-wide transition ${
+              tab === item.id
+                ? "border-blue-500 bg-blue-600 text-white"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">
@@ -788,229 +1000,142 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </div>
       )}
 
-      {livePeriods.length > 0 && (
-        <section className="space-y-4">
-          <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
-            Açık Tedarik Dönemleri
-          </h3>
-
-          {livePeriods.map((period) => (
-            <div key={period.id} className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-lg font-black text-slate-900">{period.title}</h4>
-                    <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
-                      {STATUS_LABEL[period.status]}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10px] font-bold text-slate-400">
-                    Bitiş: {formatDate(period.endsAt)} · Açan: {period.createdByName || "-"}
-                  </p>
-                </div>
-
-                {isManager && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => downloadExcel(period)}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
-                    >
-                      Excel İndir
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionBusyId === period.id}
-                      onClick={() => runPeriodAction(period.id, "END")}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      Şimdi Kapat
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 space-y-2">
-                {period.items.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 py-6 text-center text-[11px] font-bold text-slate-400">
-                    Katalogda aktif ürün yok.
-                  </div>
-                )}
-
-                {period.items.map((item) => {
-                  const totalQty = item.requests.reduce((sum, r) => sum + r.quantity, 0);
-                  const inCart = cart?.periodId === period.id ? cart.entries[item.id] : undefined;
-
-                  return (
-                    <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 sm:px-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 break-words">
-                          <div className="font-black text-slate-900">{item.itemName}</div>
-                          {item.itemNote && (
-                            <div className="mt-0.5 text-xs font-semibold text-slate-400">{item.itemNote}</div>
-                          )}
-                        </div>
-
-                        {isManager ? (
-                          totalQty > 0 ? (
-                            <span className="self-start rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700 sm:self-auto">
-                              Toplam Talep: {totalQty}
-                            </span>
-                          ) : (
-                            <span className="text-xs font-bold text-slate-400">Henüz talep yok</span>
-                          )
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {inCart && (
-                              <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-black text-emerald-700">
-                                Sepette: {inCart.quantity}
-                              </span>
-                            )}
-                            <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setItemQtyDraft(item.id, String(Math.max(1, (Number(getItemQtyDraft(item.id)) || 1) - 1)))
-                                }
-                                className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
-                              >
-                                −
-                              </button>
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min={1}
-                                value={getItemQtyDraft(item.id)}
-                                onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
-                                className="h-11 w-14 border-x border-slate-200 bg-white text-center text-sm font-bold text-slate-700 outline-none"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setItemQtyDraft(item.id, String((Number(getItemQtyDraft(item.id)) || 1) + 1))
-                                }
-                                className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
-                              >
-                                +
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const qty = Math.max(1, Number(getItemQtyDraft(item.id)) || 1);
-                                addToCart(period.id, item.id, item.itemName, qty);
-                                setItemQtyDraft(item.id, "1");
-                              }}
-                              className="h-11 flex-1 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white transition hover:bg-blue-500 active:scale-95 sm:flex-none"
-                            >
-                              Sepete Ekle
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {renderOrdersSection(period)}
-            </div>
-          ))}
-        </section>
-      )}
-
-      {livePeriods.length === 0 && (
-        <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
-          <div className="text-sm font-black uppercase tracking-widest text-slate-400">
-            Şu an açık tedarik dönemi yok
-          </div>
+      {notice && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
+          {notice}
         </div>
       )}
 
-      {isManager && otherPeriods.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-            Geçmiş / Taslak Dönemler
-          </h3>
+      {isManager && tab === "rapor" && renderReport()}
 
-          {otherPeriods.map((period) => {
-            const isExpanded = expandedPeriodId === period.id;
+      {tab === "siparis" && !isManager && (
+        <section className="space-y-2">
+          <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Ürünler</h3>
+
+          {activeCatalog.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-200 py-8 text-center text-[11px] font-bold text-slate-400">
+              Şu an sipariş verilebilecek ürün yok.
+            </div>
+          )}
+
+          {activeCatalog.map((item) => {
+            const inCart = cart[item.id];
 
             return (
-              <div key={period.id} className="rounded-2xl border border-slate-100 bg-white px-5 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-slate-800">{period.title}</span>
-                      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide ${STATUS_TONE[period.status]}`}>
-                        {STATUS_LABEL[period.status]}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[10px] font-bold text-slate-400">
-                      Oluşturuldu: {formatDate(period.createdAt)}
-                    </p>
+              <div key={item.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 shadow-sm sm:px-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 break-words">
+                    <div className="font-black text-slate-900">{item.itemName}</div>
+                    {item.itemNote && (
+                      <div className="mt-0.5 text-xs font-semibold text-slate-400">{item.itemNote}</div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {period.status === "ENDED" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {inCart && (
+                      <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-black text-emerald-700">
+                        Sepette: {inCart.quantity}
+                      </span>
+                    )}
+                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                       <button
                         type="button"
-                        onClick={() => setExpandedPeriodId(isExpanded ? null : period.id)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-50"
+                        onClick={() =>
+                          setItemQtyDraft(item.id, String(Math.max(1, (Number(getItemQtyDraft(item.id)) || 1) - 1)))
+                        }
+                        className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
                       >
-                        {isExpanded ? "Gizle" : "Detay"}
+                        −
                       </button>
-                    )}
-
-                    {period.status === "ENDED" && (
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        value={getItemQtyDraft(item.id)}
+                        onChange={(e) => setItemQtyDraft(item.id, e.target.value)}
+                        className="h-11 w-14 border-x border-slate-200 bg-white text-center text-sm font-bold text-slate-700 outline-none"
+                      />
                       <button
                         type="button"
-                        onClick={() => downloadExcel(period)}
-                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-100"
+                        onClick={() =>
+                          setItemQtyDraft(item.id, String((Number(getItemQtyDraft(item.id)) || 1) + 1))
+                        }
+                        className="flex h-11 w-11 items-center justify-center text-base font-black text-slate-500 transition active:bg-slate-100"
                       >
-                        Excel İndir
+                        +
                       </button>
-                    )}
-
-                    {period.status === "DRAFT" && (
-                      <button
-                        type="button"
-                        disabled={actionBusyId === period.id}
-                        onClick={() => runPeriodAction(period.id, "START")}
-                        className="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        Başlat
-                      </button>
-                    )}
-
-                    {(period.status === "DRAFT" || period.status === "LIVE") && (
-                      <button
-                        type="button"
-                        disabled={actionBusyId === period.id}
-                        onClick={() => runPeriodAction(period.id, "CANCEL")}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                      >
-                        İptal Et
-                      </button>
-                    )}
-
-                    {["DRAFT", "ENDED", "CANCELLED"].includes(period.status) && (
-                      <button
-                        type="button"
-                        disabled={actionBusyId === period.id}
-                        onClick={() => deletePeriod(period.id)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                      >
-                        Sil
-                      </button>
-                    )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const qty = Math.max(1, Number(getItemQtyDraft(item.id)) || 1);
+                        addToCart(item.id, item.itemName, qty);
+                        setItemQtyDraft(item.id, "1");
+                      }}
+                      className="h-11 flex-1 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white transition hover:bg-blue-500 active:scale-95 sm:flex-none"
+                    >
+                      Sepete Ekle
+                    </button>
                   </div>
                 </div>
-
-                {isExpanded && renderOrdersSection(period)}
               </div>
             );
           })}
+        </section>
+      )}
+
+      {tab === "siparis" && isManager && pendingTotals.length > 0 && (
+        <section className="rounded-[24px] border border-amber-100 bg-amber-50/40 p-5">
+          <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-700">
+            Bekleyen siparişlerin ürün toplamı
+          </h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pendingTotals.map((row) => (
+              <span
+                key={row.itemName}
+                className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700"
+              >
+                {row.itemName}: <span className="text-amber-700">{row.quantity}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "siparis" && (
+        <section className="space-y-3">
+          <h3 className="text-[11px] font-black uppercase tracking-widest text-blue-600">
+            {isManager ? "Bekleyen siparişler" : "Siparişlerim"}
+            {pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}
+          </h3>
+
+          {pendingOrders.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-200 py-8 text-center text-[11px] font-bold text-slate-400">
+              {isManager ? "Bekleyen sipariş yok." : "Bekleyen siparişiniz yok."}
+            </div>
+          )}
+
+          {pendingOrders.map(renderOrderCard)}
+
+          {sentOrders.length > 0 && (
+            <>
+              <h3 className="pt-3 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                Gönderilenler ({sentOrders.length})
+              </h3>
+
+              {sentOrders.slice(0, sentVisible).map(renderOrderCard)}
+
+              {sentOrders.length > sentVisible && (
+                <button
+                  type="button"
+                  onClick={() => setSentVisible((count) => count + SENT_PAGE_SIZE)}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 text-[11px] font-black uppercase tracking-wide text-slate-500 transition hover:bg-slate-50"
+                >
+                  Daha fazla göster
+                </button>
+              )}
+            </>
+          )}
         </section>
       )}
 
@@ -1030,8 +1155,8 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
 
             <div className="overflow-y-auto px-6 py-5 space-y-4">
               <p className="text-[11px] font-semibold text-slate-400">
-                Buraya eklediğin ürünler kalıcı olarak kalır — her yeni dönemde tekrar eklemene gerek yok.
-                Bir ürünü artık istemiyorsan pasif yap, geçmiş talepler silinmez.
+                Buraya eklediğin aktif ürünlerin hepsi mağazalara her zaman sipariş için açıktır.
+                Bir ürünü artık istemiyorsan pasif yap, geçmiş siparişler silinmez.
               </p>
 
               <div className="flex items-center gap-2">
@@ -1102,80 +1227,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </div>
       )}
 
-      {createOpen && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-[32px] border border-slate-100 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Yeni Dönem Aç</h3>
-              <button
-                type="button"
-                onClick={() => setCreateOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-4 px-6 py-5">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Başlık</label>
-                <input
-                  value={createTitle}
-                  onChange={(e) => setCreateTitle(e.target.value)}
-                  placeholder="Örn: Eylül Tedarik Talebi"
-                  className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wide text-slate-400">Süre</label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {DURATION_PRESETS.map((preset) => (
-                    <button
-                      key={preset.minutes}
-                      type="button"
-                      onClick={() => setCreateDuration(preset.minutes)}
-                      className={`rounded-xl border px-3 py-2 text-[11px] font-black uppercase transition ${
-                        createDuration === preset.minutes
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <p className="text-[10px] font-semibold text-slate-400">
-                Başlattığında katalogdaki ({activeCatalogCount}) aktif ürünün tamamı otomatik talebe açılır.
-              </p>
-
-              {createError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
-                  {createError}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-100 px-6 py-4">
-              <button
-                type="button"
-                disabled={createSaving}
-                onClick={submitCreatePeriod}
-                className="h-12 w-full rounded-2xl bg-blue-600 text-xs font-black uppercase tracking-widest text-white transition hover:bg-blue-500 disabled:opacity-50"
-              >
-                {createSaving ? "Oluşturuluyor..." : "Taslak Olarak Oluştur"}
-              </button>
-              <p className="mt-2 text-center text-[10px] font-semibold text-slate-400">
-                Oluşturduktan sonra listeden "Başlat" ile talebe açarsın.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isManager && cart && cartEntries.length > 0 && !cartOpen && (
+      {!isManager && cartEntries.length > 0 && !cartOpen && (
         <button
           type="button"
           onClick={() => setCartOpen(true)}
@@ -1186,7 +1238,7 @@ export default function Tedarik({ isAdmin, selectedBranch }: TedarikProps) {
         </button>
       )}
 
-      {cartOpen && cart && (
+      {cartOpen && (
         <div className="fixed inset-0 z-[150] flex items-end justify-center bg-slate-900/80 p-4 backdrop-blur-md sm:items-center">
           <div className="w-full max-w-lg rounded-[32px] border border-slate-100 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">

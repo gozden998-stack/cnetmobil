@@ -138,15 +138,15 @@ export function resolveRequestShopName(
 // yonetiliyor), mevcut kod tabanindaki "CREATE TABLE IF NOT EXISTS"
 // deseniyle ayni (bkz. wingsm_deger_puan_snapshots).
 //
-// VERI MODELI (kullanicinin acik istegiyle basitlestirildi):
+// VERI MODELI (kullanicinin acik istegiyle: "donem yok, her gun her saat
+// siparis gecilebilsin"):
 // - supply_catalog_items: KALICI urun kataloğu. Yonetici bir urunu
-//   BIR KEZ ekler, sonraki tum donemlerde tekrar tekrar eklemeye
-//   gerek kalmaz.
-// - supply_periods: sadece "su an talebe acik mi" anahtari (baslik +
-//   sure + durum). Baslatilinca KATALOGTAKI TUM aktif urunler otomatik
-//   talebe acilir - donem bazinda ayrica urun secmeye gerek yok.
-// - supply_requests: bir donem + bir katalog urunu + bir magaza icin
-//   talep edilen adet.
+//   BIR KEZ ekler; aktif urunlerin hepsi her zaman siparise aciktir.
+// - supply_shop_orders / supply_shop_order_items: her sepet gonderimi
+//   bagimsiz bir siparis (durum BEKLEMEDE -> HAZIRLANIYOR -> GONDERILDI,
+//   kalem basina istenen / gonderilen adet).
+// - supply_periods / supply_requests / supply_orders: ESKI donem
+//   modeli; artik kullanilmiyor, sadece tek seferlik goc icin duruyor.
 // ======================================================
 
 // Ilk surumde (commit 10bb2b6) "supply_requests" tablosu farkli bir
@@ -182,9 +182,103 @@ async function migrateLegacySupplyRequestsTable(client: PoolClient) {
   }
 }
 
+// Tedarik artik "donem" tutmuyor: her gun her saat siparis gecilebilir.
+// Her sepet gonderimi BAGIMSIZ bir siparis (supply_shop_orders) olusturur,
+// kalemleri supply_shop_order_items'ta durur. Eski donem tablolari
+// (supply_periods / supply_requests / supply_orders) silinmedi; icindeki
+// siparisler asagidaki tek seferlik gocle yeni tablolara kopyalandi.
+let supplyTablesReady = false;
+
+async function ensureShopOrderTables(client: PoolClient) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS public.supply_shop_orders (
+      id SERIAL PRIMARY KEY,
+      shop_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'BEKLEMEDE',
+      submitted_by_user_key TEXT,
+      submitted_by_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      legacy_order_id INTEGER
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS public.supply_shop_order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER NOT NULL REFERENCES public.supply_shop_orders(id) ON DELETE CASCADE,
+      item_id INTEGER NOT NULL REFERENCES public.supply_catalog_items(id),
+      quantity INTEGER NOT NULL,
+      delivered_quantity INTEGER,
+      UNIQUE (order_id, item_id)
+    )
+  `);
+
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS supply_shop_orders_created_idx
+    ON public.supply_shop_orders (created_at DESC)
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS public.supply_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+
+  // Eski donem siparislerini BIR KEZ kopyala. Isaret satiri ayni islemde
+  // yazildigi icin yarisan iki istek ikinci kez kopyalayamaz, ve yonetici
+  // sonradan bir siparisi silse bile geri gelmez.
+  await client.query("BEGIN");
+
+  try {
+    const marker = await client.query(`
+      INSERT INTO public.supply_migrations (name)
+      VALUES ('shop_orders_from_periods')
+      ON CONFLICT (name) DO NOTHING
+      RETURNING name
+    `);
+
+    if (marker.rowCount) {
+      await client.query(`
+        INSERT INTO public.supply_shop_orders (
+          shop_name, status, submitted_by_user_key, submitted_by_name,
+          created_at, updated_at, legacy_order_id
+        )
+        SELECT o.shop_name, o.status, o.submitted_by_user_key, o.submitted_by_name,
+               o.created_at, o.updated_at, o.id
+        FROM public.supply_orders o
+        JOIN public.supply_periods p ON p.id = o.period_id
+        JOIN (
+          SELECT DISTINCT period_id, shop_name FROM public.supply_requests
+        ) r ON r.period_id = o.period_id AND r.shop_name = o.shop_name
+        WHERE p.status IN ('LIVE', 'ENDED')
+        ORDER BY o.id
+      `);
+
+      await client.query(`
+        INSERT INTO public.supply_shop_order_items (order_id, item_id, quantity, delivered_quantity)
+        SELECT n.id, r.item_id, r.quantity, r.delivered_quantity
+        FROM public.supply_shop_orders n
+        JOIN public.supply_orders o ON o.id = n.legacy_order_id
+        JOIN public.supply_requests r
+          ON r.period_id = o.period_id AND r.shop_name = o.shop_name
+        ON CONFLICT (order_id, item_id) DO NOTHING
+      `);
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}
+
 export async function ensureSupplyTables(
   client: PoolClient
 ) {
+  if (supplyTablesReady) return;
+
   await migrateLegacySupplyRequestsTable(client);
 
   await client.query(`
@@ -250,17 +344,9 @@ export async function ensureSupplyTables(
       UNIQUE (period_id, shop_name)
     )
   `);
-}
 
-export async function closeExpiredSupplyPeriods(
-  client: PoolClient
-) {
-  await client.query(`
-    UPDATE public.supply_periods
-    SET status = 'ENDED', updated_at = NOW()
-    WHERE status = 'LIVE'
-      AND ends_at IS NOT NULL
-      AND ends_at <= NOW()
-  `);
+  await ensureShopOrderTables(client);
+
+  supplyTablesReady = true;
 }
 
