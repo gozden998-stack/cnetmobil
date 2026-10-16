@@ -43,6 +43,34 @@ const VODAFONE_DEPOTS: Array<{ depotCode: string; branchLabel: string }> = [
 ];
 
 const MAX_DAYS = 62;
+
+// WingSM büyük tarih aralığında yavaşlayabiliyor ("operation was aborted due to
+// timeout"). Aralık kısa dilimlere bölünür, her dilim için daha uzun beklenir ve
+// bir deponun hatası diğer depoların sonucunu engellemez.
+const CHUNK_DAYS = 5;
+const REQUEST_TIMEOUT_MS = 60_000;
+
+function addDaysWingsm(value: string, days: number): string {
+  const date = wingsmToDate(value);
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
+}
+
+function splitRange(tarih: string, tarih2: string): Array<{ tarih: string; tarih2: string }> {
+  const chunks: Array<{ tarih: string; tarih2: string }> = [];
+  const last = wingsmToDate(tarih2).getTime();
+  let start = tarih;
+
+  while (wingsmToDate(start).getTime() <= last) {
+    const end = addDaysWingsm(start, CHUNK_DAYS - 1);
+    const chunkEnd = wingsmToDate(end).getTime() > last ? tarih2 : end;
+    chunks.push({ tarih: start, tarih2: chunkEnd });
+    start = addDaysWingsm(chunkEnd, 1);
+  }
+
+  return chunks;
+}
 const MAX_ROWS_RETURNED = 200;
 
 function wingsmToDate(value: string): Date {
@@ -175,23 +203,56 @@ export async function GET(request: NextRequest) {
       .filter(Boolean)
       .slice(0, 6);
 
-    // Depoları paralel oku (sıralı değil: istek zaman aşımı katlanmasın).
+    // Depolar paralel, her deponun tarih dilimleri sırayla okunur. Bir depo hata
+    // verirse diğerlerinin sonucu yine döner; hata depo durumunda gösterilir.
+    const chunks = splitRange(tarih, tarih2);
+
     const perDepot = await Promise.all(
       depots.map(async ({ depotCode, branchLabel }) => {
-        const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
-          method: "GET",
-          query: aktivasyon ? { tarih, tarih2, aktivasyon: "1" } : { tarih, tarih2 },
-        });
+        const startedAt = Date.now();
+        const rows: Array<Record<string, unknown>> = [];
+        let error: string | null = null;
 
-        return extractRows(result).map((row) => ({
-          ...(row && typeof row === "object" ? (row as Record<string, unknown>) : { value: row }),
-          __depo: depotCode,
-          __magaza: branchLabel,
-        }));
+        try {
+          for (const chunk of chunks) {
+            const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
+              method: "GET",
+              query: aktivasyon ? { ...chunk, aktivasyon: "1" } : chunk,
+              timeoutMs: REQUEST_TIMEOUT_MS,
+            });
+
+            for (const row of extractRows(result)) {
+              rows.push({
+                ...(row && typeof row === "object" ? (row as Record<string, unknown>) : { value: row }),
+                __depo: depotCode,
+                __magaza: branchLabel,
+              });
+            }
+          }
+        } catch (err) {
+          error = err instanceof Error ? err.message : "Bilinmeyen hata";
+        }
+
+        return {
+          status: {
+            depo: depotCode,
+            magaza: branchLabel,
+            rowCount: rows.length,
+            seconds: Math.round((Date.now() - startedAt) / 100) / 10,
+            error,
+          },
+          rows,
+        };
       })
     );
 
-    const allRows: Array<Record<string, unknown>> = perDepot.flat();
+    const depotStatus = perDepot.map((item) => item.status);
+
+    if (depotStatus.every((item) => item.error)) {
+      return json({ success: false, error: `WingSM'den veri alınamadı: ${depotStatus[0].error}`, depotStatus }, 502);
+    }
+
+    const allRows: Array<Record<string, unknown>> = perDepot.flatMap((item) => item.rows);
 
     // Alan istatistiği (tüm satırlar üzerinden, arama filtresinden ÖNCE).
     const fieldStats = new Map<string, { filled: number; example: unknown; types: Set<string> }>();
@@ -341,6 +402,7 @@ export async function GET(request: NextRequest) {
       kanal,
       sinif: sinifFilter || null,
       aktivasyon,
+      depotStatus,
       totalRows: allRows.length,
       scopeRows: scopeRows.length,
       siniflar,

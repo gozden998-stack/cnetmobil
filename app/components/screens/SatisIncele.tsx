@@ -46,6 +46,7 @@ type InceleResult = {
   kanal: "cmr" | "vodafone";
   sinif: string | null;
   scopeRows: number;
+  depotStatus: Array<{ depo: string; magaza: string; rowCount: number; seconds: number; error: string | null }>;
   siniflar: ClassStat[];
   puanOzeti: PuanOzeti | null;
   totalRows: number;
@@ -287,6 +288,21 @@ export default function SatisIncele() {
               Aramaya uyan: {result.matchedRows}
               {result.matchedRows > result.returnedRows ? ` (ilk ${result.returnedRows} gösteriliyor)` : ""}
             </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+            {result.depotStatus.map((item) => (
+              <span
+                key={item.depo}
+                title={item.error ?? undefined}
+                className={`rounded-full px-3 py-1 ${
+                  item.error ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {item.magaza} ({item.depo}):{" "}
+                {item.error ? `HATA - ${item.error}` : `${item.rowCount} satır · ${item.seconds} sn`}
+              </span>
+            ))}
           </div>
 
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">

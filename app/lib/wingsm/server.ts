@@ -25,6 +25,8 @@ type WingSMRequestOptions = {
     string | number | boolean | null | undefined
   >;
   body?: unknown;
+  // Varsayılan 20000. Sadece yavaş rapor/inceleme çağrıları daha uzun bekler.
+  timeoutMs?: number;
 };
 
 type WingSMTokenCache = {
@@ -731,7 +733,7 @@ export async function wingSMRequest<
 
           signal:
             AbortSignal.timeout(
-              20000
+              options.timeoutMs ?? 20000
             ),
         }
       );
