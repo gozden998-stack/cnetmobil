@@ -43,18 +43,26 @@ export const VODAFONE_BRANCH_LABELS = VODAFONE_DEPOTS.map((depot) => depot.branc
 // AYARLAR
 // ======================================================
 
+// WingSM'in satış listesi iki ayrı kaynaktan okunabilir: normal liste ve
+// "aktivasyon=1" (aktivasyon türü satışlar). Aktivasyon satışları normal listede
+// GELMİYOR olabilir; bu yüzden "ikisi" varsayılandır: iki liste birleştirilir ve
+// iki listede de BİREBİR aynı olan satırlar bir kez sayılır.
+export type SalesSource = "liste" | "aktivasyon" | "ikisi";
+
+export const SALES_SOURCES: SalesSource[] = ["liste", "aktivasyon", "ikisi"];
+
 export type VodafoneSettings = {
   sinif: string; // sayılacak mal sınıfı
   storeBonus: number[]; // mağaza sıralama puanları (1., 2., ...)
   personnelBonus: number[]; // personel sıralama puanları
-  aktivasyonFiltresi: boolean; // WingSM'e "sadece aktivasyon" süzgeciyle sor
+  kaynak: SalesSource; // WingSM satış kaynağı
 };
 
 export const DEFAULT_SETTINGS: VodafoneSettings = {
   sinif: "5AK",
   storeBonus: [10, 3],
   personnelBonus: [10, 5, 1],
-  aktivasyonFiltresi: false,
+  kaynak: "ikisi",
 };
 
 function cleanBonusList(value: unknown, fallback: number[]): number[] {
@@ -76,7 +84,12 @@ export function sanitizeSettings(input: unknown): VodafoneSettings {
     sinif: sinif || DEFAULT_SETTINGS.sinif,
     storeBonus: cleanBonusList(data.storeBonus, DEFAULT_SETTINGS.storeBonus),
     personnelBonus: cleanBonusList(data.personnelBonus, DEFAULT_SETTINGS.personnelBonus),
-    aktivasyonFiltresi: Boolean(data.aktivasyonFiltresi),
+    // Eski kayıtlarda "aktivasyonFiltresi: true" vardı -> "aktivasyon".
+    kaynak: SALES_SOURCES.includes(data.kaynak as SalesSource)
+      ? (data.kaynak as SalesSource)
+      : data.aktivasyonFiltresi === true
+        ? "aktivasyon"
+        : DEFAULT_SETTINGS.kaynak,
   };
 }
 
@@ -252,6 +265,89 @@ function splitRange(tarih: string, tarih2: string): Array<{ tarih: string; tarih
   return chunks;
 }
 
+export type SourceStats = {
+  liste: number; // normal listeden gelen satır
+  aktivasyon: number; // aktivasyon listesinden gelen satır
+  ortak: number; // iki listede de birebir aynı olan satır
+  birlesik: number; // sayıma giren satır
+};
+
+// Bir deponun satışlarını seçilen kaynaktan okur (5'er günlük dilimler, uzun bekleme).
+// "ikisi": her iki liste okunur, birleşim alınır; iki listede BİREBİR aynı olan satır
+// bir kez sayılır (aynı listede tekrar eden aynı satırlar korunur: çoklu küme birleşimi).
+export async function fetchDepotSales(
+  depotCode: string,
+  tarih: string,
+  tarih2: string,
+  kaynak: SalesSource
+): Promise<{ rows: Array<Record<string, unknown>>; stats: SourceStats }> {
+  const chunks = splitRange(tarih, tarih2);
+  const plain: Array<Record<string, unknown>> = [];
+  const akt: Array<Record<string, unknown>> = [];
+
+  for (const chunk of chunks) {
+    if (kaynak !== "aktivasyon") {
+      const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
+        method: "GET",
+        query: chunk,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
+      plain.push(...extractRows(result));
+    }
+
+    if (kaynak !== "liste") {
+      const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
+        method: "GET",
+        query: { ...chunk, aktivasyon: "1" },
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
+      akt.push(...extractRows(result));
+    }
+  }
+
+  const countKeys = (rows: Array<Record<string, unknown>>) => {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      const key = JSON.stringify(row);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  };
+
+  const plainCounts = countKeys(plain);
+  const aktCounts = countKeys(akt);
+
+  let ortak = 0;
+  for (const [key, count] of plainCounts) {
+    ortak += Math.min(count, aktCounts.get(key) ?? 0);
+  }
+
+  let rows: Array<Record<string, unknown>>;
+
+  if (kaynak === "liste") {
+    rows = plain;
+  } else if (kaynak === "aktivasyon") {
+    rows = akt;
+  } else {
+    // Birleşim: normal listenin hepsi + aktivasyon listesinde olup normalde bulunmayan fazlalık.
+    rows = [...plain];
+    const remaining = new Map(plainCounts);
+
+    for (const row of akt) {
+      const key = JSON.stringify(row);
+      const left = remaining.get(key) ?? 0;
+
+      if (left > 0) {
+        remaining.set(key, left - 1);
+      } else {
+        rows.push(row);
+      }
+    }
+  }
+
+  return { rows, stats: { liste: plain.length, aktivasyon: akt.length, ortak, birlesik: rows.length } };
+}
+
 export function istanbulTodayIso(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul",
@@ -348,6 +444,8 @@ export type VodafoneReport = {
   totals: { gerceklesen: number; projeksiyon: number; gerceklesenOrtalama: number; projeksiyonOrtalama: number };
   sinif: string;
   adetAlani: string | null;
+  kaynak: SalesSource;
+  kaynakOzeti: Array<{ magaza: string } & SourceStats>;
   rowsWithPuan: number;
   rowsWithoutPuan: number;
   withoutPuanExamples: string[];
@@ -405,30 +503,18 @@ export async function computeAndSaveVodafoneReport(input: {
   const projectionFactor = daysInMonth / daysElapsed;
 
   // ---- WingSM: 4 depo paralel, her deponun dilimleri sırayla ----
-  const chunks = splitRange(tarih, tarih2);
-
   const perDepot = await Promise.all(
     VODAFONE_DEPOTS.map(async ({ depotCode, branchLabel }) => {
-      const rows: Array<Record<string, unknown>> = [];
-
       try {
-        for (const chunk of chunks) {
-          const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
-            method: "GET",
-            query: settings.aktivasyonFiltresi ? { ...chunk, aktivasyon: "1" } : chunk,
-            timeoutMs: REQUEST_TIMEOUT_MS,
-          });
+        const { rows, stats } = await fetchDepotSales(depotCode, tarih, tarih2, settings.kaynak);
 
-          rows.push(...extractRows(result));
-        }
+        return { depotCode, branchLabel, rows, stats };
       } catch (error) {
         // Eksik veriyle yanlış rapor kaydetmemek için tüm hesap durur.
         throw new Error(
           `${branchLabel} (${depotCode}) satışları alınamadı: ${error instanceof Error ? error.message : "bilinmeyen hata"}`
         );
       }
-
-      return { depotCode, branchLabel, rows };
     })
   );
 
@@ -602,6 +688,8 @@ export async function computeAndSaveVodafoneReport(input: {
     },
     sinif: settings.sinif,
     adetAlani: qtyField,
+    kaynak: settings.kaynak,
+    kaynakOzeti: perDepot.map((depot) => ({ magaza: depot.branchLabel, ...depot.stats })),
     rowsWithPuan,
     rowsWithoutPuan,
     withoutPuanExamples: Array.from(examples),

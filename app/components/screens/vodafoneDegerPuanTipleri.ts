@@ -41,6 +41,8 @@ export type VodafoneReportView = {
   totals?: { gerceklesen: number; projeksiyon: number; gerceklesenOrtalama: number; projeksiyonOrtalama: number };
   sinif?: string;
   adetAlani?: string | null;
+  kaynak?: SalesSource;
+  kaynakOzeti?: Array<{ magaza: string; liste: number; aktivasyon: number; ortak: number; birlesik: number }>;
   rowsWithPuan?: number;
   rowsWithoutPuan?: number;
   withoutPuanExamples?: string[];
@@ -51,9 +53,11 @@ export type VodafoneReportView = {
   bulunamadi?: boolean;
 };
 
+export type SalesSource = "liste" | "aktivasyon" | "ikisi";
+
 export type VodafoneSettings = {
   sinif: string;
   storeBonus: number[];
   personnelBonus: number[];
-  aktivasyonFiltresi: boolean;
+  kaynak: SalesSource;
 };

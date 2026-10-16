@@ -472,15 +472,21 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
                 />
               </label>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={settings.aktivasyonFiltresi}
-                  onChange={(e) => setSettings({ ...settings, aktivasyonFiltresi: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                WingSM&apos;den sadece aktivasyon satışlarını iste (liste daha küçük/hızlı gelir; Satış Verisi&apos;nde aynı
-                sonucu verdiğini doğrulamadan açmayın)
+              <label className="block">
+                <div className="mb-1 text-[10px] font-black uppercase text-slate-500">WingSM satış kaynağı</div>
+                <select
+                  value={settings.kaynak}
+                  onChange={(e) => setSettings({ ...settings, kaynak: e.target.value as VodafoneSettings["kaynak"] })}
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="ikisi">Normal liste + aktivasyon listesi (tekrarsız) - önerilen</option>
+                  <option value="liste">Sadece normal satış listesi</option>
+                  <option value="aktivasyon">Sadece aktivasyon listesi</option>
+                </select>
+                <div className="mt-1 text-[11px] font-semibold text-slate-400">
+                  Aktivasyon satışları WingSM&apos;de ayrı bir listede gelebilir. Satış Verisi sekmesinde üç kaynağın satır
+                  sayılarını karşılaştırabilirsiniz.
+                </div>
               </label>
 
               <button

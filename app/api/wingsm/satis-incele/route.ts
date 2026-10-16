@@ -19,9 +19,9 @@
 
 import { NextRequest } from "next/server";
 
-import { wingSMRequest } from "@/app/lib/wingsm/server";
 import { json, requireAdminSession } from "../score-rules/_shared";
 import { DegerPuanInputError, toWingsmDate } from "../_deger-puan-compute";
+import { fetchDepotSales, SALES_SOURCES, type SalesSource } from "../vodafone/_vodafone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,56 +43,11 @@ const VODAFONE_DEPOTS: Array<{ depotCode: string; branchLabel: string }> = [
 ];
 
 const MAX_DAYS = 62;
-
-// WingSM büyük tarih aralığında yavaşlayabiliyor ("operation was aborted due to
-// timeout"). Aralık kısa dilimlere bölünür, her dilim için daha uzun beklenir ve
-// bir deponun hatası diğer depoların sonucunu engellemez.
-const CHUNK_DAYS = 5;
-const REQUEST_TIMEOUT_MS = 60_000;
-
-function addDaysWingsm(value: string, days: number): string {
-  const date = wingsmToDate(value);
-  date.setUTCDate(date.getUTCDate() + days);
-
-  return `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
-}
-
-function splitRange(tarih: string, tarih2: string): Array<{ tarih: string; tarih2: string }> {
-  const chunks: Array<{ tarih: string; tarih2: string }> = [];
-  const last = wingsmToDate(tarih2).getTime();
-  let start = tarih;
-
-  while (wingsmToDate(start).getTime() <= last) {
-    const end = addDaysWingsm(start, CHUNK_DAYS - 1);
-    const chunkEnd = wingsmToDate(end).getTime() > last ? tarih2 : end;
-    chunks.push({ tarih: start, tarih2: chunkEnd });
-    start = addDaysWingsm(chunkEnd, 1);
-  }
-
-  return chunks;
-}
 const MAX_ROWS_RETURNED = 200;
 
 function wingsmToDate(value: string): Date {
   const [day, month, year] = value.split("/").map(Number);
   return new Date(Date.UTC(year, month - 1, day));
-}
-
-type WingSMPayload = {
-  data?: { list?: unknown[] } | unknown[];
-  List?: unknown[];
-};
-
-function extractRows(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload;
-
-  const typed = (payload ?? {}) as WingSMPayload;
-
-  if (!Array.isArray(typed.data) && Array.isArray(typed.data?.list)) return typed.data.list;
-  if (Array.isArray(typed.data)) return typed.data;
-  if (Array.isArray(typed.List)) return typed.List;
-
-  return [];
 }
 
 // Arama için Türkçe karakterleri sadeleştirir: "ÖZEL" ile "OZEL", "ŞİŞE" ile
@@ -192,7 +147,14 @@ export async function GET(request: NextRequest) {
 
     // İsteğe bağlı: sadece bu mal sınıfındaki satırları incele / puanla (Vodafone: 5AK).
     const sinifFilter = normalizeClass(params.get("sinif"));
-    const aktivasyon = params.get("aktivasyon") === "1";
+    // Satış kaynağı: liste (varsayılan, eski davranış) / aktivasyon / ikisi (tekrarsız birleşim).
+    // Eski "aktivasyon=1" parametresi "aktivasyon" sayılır.
+    const kaynakParam = String(params.get("kaynak") || "").trim().toLowerCase();
+    const kaynak: SalesSource = SALES_SOURCES.includes(kaynakParam as SalesSource)
+      ? (kaynakParam as SalesSource)
+      : params.get("aktivasyon") === "1"
+        ? "aktivasyon"
+        : "liste";
 
     if (depots.length === 0) {
       return json({ success: false, error: "Geçersiz depo kodu." }, 400);
@@ -205,30 +167,18 @@ export async function GET(request: NextRequest) {
 
     // Depolar paralel, her deponun tarih dilimleri sırayla okunur. Bir depo hata
     // verirse diğerlerinin sonucu yine döner; hata depo durumunda gösterilir.
-    const chunks = splitRange(tarih, tarih2);
-
     const perDepot = await Promise.all(
       depots.map(async ({ depotCode, branchLabel }) => {
         const startedAt = Date.now();
-        const rows: Array<Record<string, unknown>> = [];
+        let rows: Array<Record<string, unknown>> = [];
+        let stats = { liste: 0, aktivasyon: 0, ortak: 0, birlesik: 0 };
         let error: string | null = null;
 
         try {
-          for (const chunk of chunks) {
-            const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
-              method: "GET",
-              query: aktivasyon ? { ...chunk, aktivasyon: "1" } : chunk,
-              timeoutMs: REQUEST_TIMEOUT_MS,
-            });
+          const fetched = await fetchDepotSales(depotCode, tarih, tarih2, kaynak);
 
-            for (const row of extractRows(result)) {
-              rows.push({
-                ...(row && typeof row === "object" ? (row as Record<string, unknown>) : { value: row }),
-                __depo: depotCode,
-                __magaza: branchLabel,
-              });
-            }
-          }
+          stats = fetched.stats;
+          rows = fetched.rows.map((row) => ({ ...row, __depo: depotCode, __magaza: branchLabel }));
         } catch (err) {
           error = err instanceof Error ? err.message : "Bilinmeyen hata";
         }
@@ -240,6 +190,7 @@ export async function GET(request: NextRequest) {
             rowCount: rows.length,
             seconds: Math.round((Date.now() - startedAt) / 100) / 10,
             error,
+            kaynakOzeti: stats,
           },
           rows,
         };
@@ -283,13 +234,27 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => a.name.localeCompare(b.name));
 
     // Sınıf özeti (süzmeden ÖNCE): hangi sınıftan kaç satır geldiğini gösterir.
-    const classStats = new Map<string, { sinif: string; adi: string; rowCount: number; qty: number }>();
+    const classQtyField = detectQtyField(allRows);
+    const classStats = new Map<
+      string,
+      { sinif: string; adi: string; rowCount: number; qty: number; puanliSatir: number; puan: number }
+    >();
 
     for (const row of allRows) {
       const sinif = normalizeClass(row.MalSinif) || "(boş)";
-      const stat = classStats.get(sinif) ?? { sinif, adi: "", rowCount: 0, qty: 0 };
+      const stat = classStats.get(sinif) ?? { sinif, adi: "", rowCount: 0, qty: 0, puanliSatir: 0, puan: 0 };
+      const classQtyRaw = classQtyField ? Number(row[classQtyField]) : NaN;
+      const classQty = Number.isFinite(classQtyRaw) ? classQtyRaw : 1;
+      const classPuan = parsePuan(row.MalAd);
+
       stat.rowCount += 1;
-      stat.qty += Number(row.MalMiktarI) || 0;
+      stat.qty += Number.isFinite(classQtyRaw) ? classQtyRaw : 0;
+
+      if (classPuan !== null) {
+        stat.puanliSatir += 1;
+        stat.puan += classPuan * classQty;
+      }
+
       if (!stat.adi && row.MalSinifAdI) stat.adi = String(row.MalSinifAdI);
       classStats.set(sinif, stat);
     }
@@ -401,7 +366,7 @@ export async function GET(request: NextRequest) {
       terms,
       kanal,
       sinif: sinifFilter || null,
-      aktivasyon,
+      kaynak,
       depotStatus,
       totalRows: allRows.length,
       scopeRows: scopeRows.length,
