@@ -51,6 +51,8 @@ export type VodafoneReportView = {
   durum?: "guncel" | "bekleniyor" | null;
   aySonuPaylasim?: boolean;
   bulunamadi?: boolean;
+  istenenGun?: string | null;
+  tamEsleme?: boolean;
 };
 
 export type SalesSource = "liste" | "aktivasyon" | "temlik" | "ikisi" | "hepsi";

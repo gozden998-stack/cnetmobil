@@ -16,7 +16,17 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import SatisIncele from "./SatisIncele";
 import VodafoneSonuc from "./VodafoneSonuc";
-import { formatComputedAt, formatRangeLong } from "./degerPuanOrtak";
+import { AY_SONU_MESAJI, formatRangeLong } from "./degerPuanOrtak";
+import {
+  DayPicker,
+  dayPickLabel,
+  dayPickToGun,
+  formatIsoDate,
+  istanbulToday,
+  shiftDay,
+  slashToIso,
+  type DayPick,
+} from "./degerPuanGunSecici";
 import type { VodafoneReportView, VodafoneSettings } from "./vodafoneDegerPuanTipleri";
 
 export type Kanal = "cmr" | "vodafone";
@@ -365,15 +375,16 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
   const [result, setResult] = useState<VodafoneReportView | null>(null);
   const [resultError, setResultError] = useState("");
   const [resultLoading, setResultLoading] = useState(false);
-  const [historyId, setHistoryId] = useState<number | null>(null);
+  // CMR'daki gibi: Bugün (en güncel rapor) / Dün / Önceki Gün / takvimden tarih.
+  const [pick, setPick] = useState<DayPick>({ kind: "bugun" });
   const [resultPeriod, setResultPeriod] = useState<string | null>(null);
 
-  const loadResult = useCallback(async (id: number | null, periodPick: string | null) => {
+  const loadResult = useCallback(async (gun: string | null, periodPick: string | null) => {
     setResultLoading(true);
     setResultError("");
 
     try {
-      const query = id ? `?historyId=${id}` : periodPick ? `?period=${encodeURIComponent(periodPick)}` : "";
+      const query = gun ? `?gun=${gun}` : periodPick ? `?period=${encodeURIComponent(periodPick)}` : "";
       const payload = await api<VodafoneReportView>(`/api/wingsm/vodafone/result${query}`);
       setResult(payload);
     } catch (err) {
@@ -385,8 +396,18 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
   }, []);
 
   useEffect(() => {
-    if (tab === "sonuc") void loadResult(historyId, resultPeriod);
-  }, [tab, historyId, resultPeriod, loadResult]);
+    if (tab === "sonuc") void loadResult(dayPickToGun(pick), resultPeriod);
+  }, [tab, pick, resultPeriod, loadResult]);
+
+  // Takvimde seçilebilecek en erken gün: kayıtlı en eski raporun yayın günü (bitiş + 1).
+  const minPickDate = useMemo(() => {
+    const earliest = (result?.history ?? [])
+      .map((item) => slashToIso(item.tarih2))
+      .filter((value): value is string => Boolean(value))
+      .sort()[0];
+
+    return earliest ? shiftDay(earliest, 1) : undefined;
+  }, [result]);
 
   // Dönem listesi: kayıtlı raporların ayları (en yeni üstte).
   const resultPeriods = useMemo(() => {
@@ -744,25 +765,46 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
             )}
             {result?.durum === "bekleniyor" && (
               <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
-                {result.aySonuPaylasim ? "Ay sonu: otomatik hesap durdu" : "Yeni günün raporu bekleniyor"}
+                {result.aySonuPaylasim ? "Ay sonu: otomatik hesap durdu" : "⏳ Rapor bekleniyor"}
+              </span>
+            )}
+            {result?.hasSnapshot && result.durum === null && (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
+                Eski rapor görüntüleniyor
               </span>
             )}
 
-            {result?.history && result.history.length > 0 && (
-              <select
-                value={historyId ?? ""}
-                onChange={(e) => setHistoryId(e.target.value ? Number(e.target.value) : null)}
-                className="ml-auto h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
-              >
-                <option value="">En güncel rapor</option>
-                {result.history.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {formatRangeLong(item.tarih, item.tarih2)} · {formatComputedAt(item.computedAt)}
-                  </option>
-                ))}
-              </select>
-            )}
+            <div className="ml-auto">
+              <DayPicker
+                label={dayPickLabel(pick)}
+                disabled={resultLoading}
+                minDate={minPickDate}
+                maxDate={istanbulToday()}
+                onSelect={(next) => {
+                  setResultPeriod(null);
+                  setPick(next);
+                }}
+              />
+            </div>
           </div>
+
+          {result?.hasSnapshot && result.period && result.durum !== "bekleniyor" && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-2.5 text-sm font-bold ${
+                result.durum === null
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : "border-blue-200 bg-blue-50 text-blue-900"
+              }`}
+            >
+              {result.istenenGun ? `${formatIsoDate(result.istenenGun)} tarihli rapor: ` : "Güncel rapor: "}
+              {formatRangeLong(result.period.tarih, result.period.tarih2)} arası
+              {result.istenenGun && result.tamEsleme === false && (
+                <span className="ml-1 font-semibold">
+                  (o gün için ayrı rapor hazırlanmamıştı, en yakın önceki rapor gösteriliyor)
+                </span>
+              )}
+            </div>
+          )}
 
           {resultLoading && <div className="text-sm font-bold text-slate-400">Yükleniyor...</div>}
 
@@ -772,20 +814,42 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
             </div>
           )}
 
-          {!resultLoading && result && !result.hasSnapshot && (
+          {!resultLoading && result && !result.hasSnapshot && result.bulunamadi && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center text-sm font-bold text-slate-500">
+              {result.istenenGun ? `${formatIsoDate(result.istenenGun)} tarihi için` : "Bu tarih için"} kayıtlı rapor bulunamadı.
+            </div>
+          )}
+
+          {!resultLoading && result && !result.hasSnapshot && !result.bulunamadi && (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm font-bold text-slate-400">
               Henüz Vodafone raporu hesaplanmadı. Önce Hedefler sekmesinden hedefleri girip Rapor sekmesinden HESAPLA&apos;ya
               basın; ya da günlük 10:00 hesabını bekleyin.
             </div>
           )}
 
-          {!resultLoading && result && result.hasSnapshot && (
+          {/* Yeni güne geçildi ve o günün raporu hazır değil: eski günün rakamları GÖSTERİLMEZ (CMR ile aynı). */}
+          {!resultLoading && result && result.hasSnapshot && result.durum === "bekleniyor" && (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-12 text-center shadow-sm">
+              <div className="text-5xl">{result.aySonuPaylasim ? "📢" : "⏳"}</div>
+              <div className="mt-4 text-2xl font-black text-[#1b2559]">
+                {result.aySonuPaylasim ? "Ay sonu raporu" : "Rapor bekleniyor"}
+              </div>
+              <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">
+                {result.aySonuPaylasim ? AY_SONU_MESAJI : "Yeni günün raporu hazırlandığında burada otomatik görünecek."}
+              </p>
+              <p className="mt-3 text-xs font-semibold text-slate-400">
+                Önceki günün raporunu görmek için sağ üstteki seçiciden &quot;Dün&quot;ü seçebilirsiniz.
+              </p>
+            </div>
+          )}
+
+          {!resultLoading && result && result.hasSnapshot && result.durum !== "bekleniyor" && (
             <VodafoneSonuc
               report={result}
               periods={resultPeriods}
               period={result.hedefPeriodu}
               onPeriodChange={(next) => {
-                setHistoryId(null);
+                setPick({ kind: "bugun" });
                 setResultPeriod(next === resultPeriods[0] ? null : next);
               }}
             />
