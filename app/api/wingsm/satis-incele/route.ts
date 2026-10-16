@@ -99,6 +99,25 @@ function parsePuan(productName: unknown): number | null {
   return match ? Number(match[1]) : null;
 }
 
+// Adet alanı satış satırında farklı adlarla gelebilir; ilk dolu olanı kullan.
+const QTY_FIELD_CANDIDATES = ["MalMiktarI", "Miktar", "MalMiktar", "MiktarI", "Adet", "AdetI"];
+
+function detectQtyField(rows: Array<Record<string, unknown>>): string | null {
+  for (const name of QTY_FIELD_CANDIDATES) {
+    if (rows.some((row) => row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== "")) {
+      return name;
+    }
+  }
+
+  return null;
+}
+
+// Kişi adı büyük/küçük harf ve boşluk farkına duyarsız (CMR Değer Puan ile aynı mantık).
+function personKey(name: string, code: string): string {
+  const normalized = name.trim().toLocaleUpperCase("tr-TR").replace(/\s+/g, " ");
+  return normalized ? normalized : `KOD:${code.trim()}`;
+}
+
 function rowText(row: Record<string, unknown>): string {
   return foldText(
     Object.values(row)
@@ -225,12 +244,25 @@ export async function GET(request: NextRequest) {
       rowsWithPuan: number;
       rowsWithoutPuan: number;
       withoutPuanExamples: string[];
+      adetAlani: string | null;
       byStore: Array<{ magaza: string; puan: number; rowCount: number }>;
-      bySeller: Array<{ magaza: string; saticiKod: string; saticiAdi: string; rowCount: number; qty: number; puan: number }>;
+      bySeller: Array<{
+        magaza: string;
+        magazalar: Array<{ magaza: string; puan: number }>;
+        saticiKod: string;
+        saticiAdi: string;
+        rowCount: number;
+        qty: number;
+        puan: number;
+      }>;
     } | null = null;
 
     if (sinifFilter) {
-      const sellers = new Map<string, { magaza: string; saticiKod: string; saticiAdi: string; rowCount: number; qty: number; puan: number }>();
+      const qtyField = detectQtyField(scopeRows);
+      const sellers = new Map<
+        string,
+        { saticiKod: string; saticiAdi: string; rowCount: number; qty: number; puan: number; perStore: Map<string, number> }
+      >();
       const stores = new Map<string, { magaza: string; puan: number; rowCount: number }>();
       const examples = new Set<string>();
       let rowsWithPuan = 0;
@@ -241,7 +273,7 @@ export async function GET(request: NextRequest) {
         const magaza = String(row.__magaza ?? "");
         const saticiKod = String(row.SaticiKod ?? "");
         const saticiAdi = String(row.SaticiAdI ?? "");
-        const qtyRaw = Number(row.MalMiktarI);
+        const qtyRaw = qtyField ? Number(row[qtyField]) : NaN;
         const qty = Number.isFinite(qtyRaw) ? qtyRaw : 1;
         const perUnit = parsePuan(row.MalAd);
 
@@ -255,11 +287,15 @@ export async function GET(request: NextRequest) {
         const puan = (perUnit ?? 0) * qty;
         total += puan;
 
-        const sellerKey = `${magaza}|${saticiKod || saticiAdi}`;
-        const seller = sellers.get(sellerKey) ?? { magaza, saticiKod, saticiAdi, rowCount: 0, qty: 0, puan: 0 };
+        // Kişi İSİMLE tek satırdır: başka mağazada satış yapsa da puanı kendi adına yazılır.
+        const sellerKey = personKey(saticiAdi, saticiKod);
+        const seller =
+          sellers.get(sellerKey) ??
+          { saticiKod, saticiAdi, rowCount: 0, qty: 0, puan: 0, perStore: new Map<string, number>() };
         seller.rowCount += 1;
         seller.qty += qty;
         seller.puan += puan;
+        seller.perStore.set(magaza, (seller.perStore.get(magaza) ?? 0) + puan);
         sellers.set(sellerKey, seller);
 
         const store = stores.get(magaza) ?? { magaza, puan: 0, rowCount: 0 };
@@ -273,8 +309,25 @@ export async function GET(request: NextRequest) {
         rowsWithPuan,
         rowsWithoutPuan,
         withoutPuanExamples: Array.from(examples),
+        adetAlani: qtyField,
         byStore: Array.from(stores.values()).sort((a, b) => b.puan - a.puan),
-        bySeller: Array.from(sellers.values()).sort((a, b) => b.puan - a.puan),
+        bySeller: Array.from(sellers.values())
+          .map((seller) => {
+            const magazalar = Array.from(seller.perStore.entries())
+              .map(([magaza, puan]) => ({ magaza, puan }))
+              .sort((a, b) => b.puan - a.puan);
+
+            return {
+              magaza: magazalar[0]?.magaza ?? "",
+              magazalar,
+              saticiKod: seller.saticiKod,
+              saticiAdi: seller.saticiAdi,
+              rowCount: seller.rowCount,
+              qty: seller.qty,
+              puan: seller.puan,
+            };
+          })
+          .sort((a, b) => b.puan - a.puan),
       };
     }
 

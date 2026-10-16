@@ -26,8 +26,17 @@ type PuanOzeti = {
   rowsWithPuan: number;
   rowsWithoutPuan: number;
   withoutPuanExamples: string[];
+  adetAlani: string | null;
   byStore: Array<{ magaza: string; puan: number; rowCount: number }>;
-  bySeller: Array<{ magaza: string; saticiKod: string; saticiAdi: string; rowCount: number; qty: number; puan: number }>;
+  bySeller: Array<{
+    magaza: string;
+    magazalar: Array<{ magaza: string; puan: number }>;
+    saticiKod: string;
+    saticiAdi: string;
+    rowCount: number;
+    qty: number;
+    puan: number;
+  }>;
 };
 
 type InceleResult = {
@@ -316,6 +325,13 @@ export default function SatisIncele() {
                   Toplam puan: <b>{result.puanOzeti.total}</b> · puanı okunan satır: {result.puanOzeti.rowsWithPuan} · puanı
                   okunamayan (0 sayılan) satır: {result.puanOzeti.rowsWithoutPuan}
                 </div>
+                <div
+                  className={`mt-1 text-[11px] font-bold ${result.puanOzeti.adetAlani ? "text-slate-500" : "text-red-600"}`}
+                >
+                  {result.puanOzeti.adetAlani
+                    ? `Adet alanı: ${result.puanOzeti.adetAlani}`
+                    : "Adet alanı bulunamadı: her satır 1 adet sayıldı. \"Gelen alanlar\" tablosuna bakın."}
+                </div>
                 {result.puanOzeti.withoutPuanExamples.length > 0 && (
                   <div className="mt-1 text-[11px] font-semibold text-amber-700">
                     Okunamayan örnekler: {result.puanOzeti.withoutPuanExamples.join(" | ")}
@@ -347,7 +363,7 @@ export default function SatisIncele() {
                     <thead>
                       <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                         <th className="px-4 py-2">Satıcı</th>
-                        <th className="px-4 py-2">Mağaza</th>
+                        <th className="px-4 py-2">Mağaza (puan)</th>
                         <th className="px-4 py-2 text-right">Satır</th>
                         <th className="px-4 py-2 text-right">Adet</th>
                         <th className="px-4 py-2 text-right">Puan</th>
@@ -355,9 +371,11 @@ export default function SatisIncele() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {result.puanOzeti.bySeller.map((seller) => (
-                        <tr key={`${seller.magaza}-${seller.saticiKod || seller.saticiAdi}`}>
+                        <tr key={seller.saticiAdi || seller.saticiKod}>
                           <td className="px-4 py-2 text-[11px] font-bold">{seller.saticiAdi || seller.saticiKod}</td>
-                          <td className="px-4 py-2 text-[11px] font-semibold">{seller.magaza}</td>
+                          <td className="px-4 py-2 text-[11px] font-semibold">
+                            {seller.magazalar.map((item) => `${item.magaza} (${item.puan})`).join(" + ")}
+                          </td>
                           <td className="px-4 py-2 text-right text-[11px] font-semibold">{seller.rowCount}</td>
                           <td className="px-4 py-2 text-right text-[11px] font-semibold">{seller.qty}</td>
                           <td className="px-4 py-2 text-right text-[11px] font-black">{seller.puan}</td>
