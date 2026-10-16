@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     const historyIdParam = url.searchParams.get("historyId");
     const historyId = historyIdParam !== null ? Number(historyIdParam) : null;
 
+    const periodParam = String(url.searchParams.get("period") || "").trim();
     const gunParam = url.searchParams.get("gun");
     const istenenGun = gunParam && /^\d{4}-\d{2}-\d{2}$/.test(gunParam) ? gunParam : null;
     const gecmisGunIstendi = Boolean(istenenGun && istenenGun < today);
@@ -55,6 +56,23 @@ export async function GET(request: NextRequest) {
         `SELECT id, payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
          FROM public.vdf_deger_puan_history WHERE id = $1`,
         [historyId]
+      );
+
+      if (result.rows[0]) {
+        row = result.rows[0];
+        selectedHistoryId = Number(result.rows[0].id);
+      }
+    }
+
+    // ?period=YYYY-MM: seçilen ayın en güncel raporu (geçmiş ay görüntüleme).
+    if (!row && /^\d{4}-\d{2}$/.test(periodParam)) {
+      const result = await pool.query(
+        `SELECT id, payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
+         FROM public.vdf_deger_puan_history
+         WHERE period = $1
+         ORDER BY range_end DESC NULLS LAST, computed_at DESC
+         LIMIT 1`,
+        [periodParam]
       );
 
       if (result.rows[0]) {

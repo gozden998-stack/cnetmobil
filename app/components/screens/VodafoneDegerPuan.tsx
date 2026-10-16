@@ -366,13 +366,14 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
   const [resultError, setResultError] = useState("");
   const [resultLoading, setResultLoading] = useState(false);
   const [historyId, setHistoryId] = useState<number | null>(null);
+  const [resultPeriod, setResultPeriod] = useState<string | null>(null);
 
-  const loadResult = useCallback(async (id: number | null) => {
+  const loadResult = useCallback(async (id: number | null, periodPick: string | null) => {
     setResultLoading(true);
     setResultError("");
 
     try {
-      const query = id ? `?historyId=${id}` : "";
+      const query = id ? `?historyId=${id}` : periodPick ? `?period=${encodeURIComponent(periodPick)}` : "";
       const payload = await api<VodafoneReportView>(`/api/wingsm/vodafone/result${query}`);
       setResult(payload);
     } catch (err) {
@@ -384,8 +385,22 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
   }, []);
 
   useEffect(() => {
-    if (tab === "sonuc") void loadResult(historyId);
-  }, [tab, historyId, loadResult]);
+    if (tab === "sonuc") void loadResult(historyId, resultPeriod);
+  }, [tab, historyId, resultPeriod, loadResult]);
+
+  // Dönem listesi: kayıtlı raporların ayları (en yeni üstte).
+  const resultPeriods = useMemo(() => {
+    const months = new Set<string>();
+
+    for (const item of result?.history ?? []) {
+      const parts = item.tarih2.split("/");
+      if (parts.length === 3) months.add(`${parts[2]}-${parts[1]}`);
+    }
+
+    if (result?.hedefPeriodu) months.add(result.hedefPeriodu);
+
+    return Array.from(months).sort().reverse();
+  }, [result]);
 
   const tabButton = (id: TabId, label: string) => (
     <button
@@ -722,7 +737,6 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
       {tab === "sonuc" && (
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black">Vodafone Rapor Sonucu</h1>
             {result?.durum === "guncel" && (
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700">
                 ✓ Rapor güncel
@@ -765,7 +779,17 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
             </div>
           )}
 
-          {!resultLoading && result && result.hasSnapshot && <VodafoneSonuc report={result} />}
+          {!resultLoading && result && result.hasSnapshot && (
+            <VodafoneSonuc
+              report={result}
+              periods={resultPeriods}
+              period={result.hedefPeriodu}
+              onPeriodChange={(next) => {
+                setHistoryId(null);
+                setResultPeriod(next === resultPeriods[0] ? null : next);
+              }}
+            />
+          )}
         </div>
       )}
     </div>
