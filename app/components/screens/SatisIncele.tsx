@@ -10,6 +10,7 @@
 // görmek. Sadece okur; /api/wingsm/satis-incele.
 
 import React, { useState } from "react";
+import { formatNumber } from "./degerPuanOrtak";
 
 type FieldInfo = {
   name: string;
@@ -20,8 +21,6 @@ type FieldInfo = {
 };
 
 type ClassStat = { sinif: string; adi: string; rowCount: number; qty: number; puanliSatir: number; puan: number };
-
-type Kaynak = "liste" | "aktivasyon" | "ikisi";
 
 type PuanOzeti = {
   total: number;
@@ -54,9 +53,10 @@ type InceleResult = {
     rowCount: number;
     seconds: number;
     error: string | null;
-    kaynakOzeti?: { liste: number; aktivasyon: number; ortak: number; birlesik: number };
+    kaynakOzeti?: { liste: number; aktivasyon: number; temlik: number; birlesik: number };
   }>;
   siniflar: ClassStat[];
+  gunler: Array<{ gun: string; satir: number; puan: number }>;
   puanOzeti: PuanOzeti | null;
   totalRows: number;
   matchedRows: number;
@@ -125,7 +125,6 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
   const [kanal, setKanal] = useState<Channel>(varsayilanKanal);
   const [depo, setDepo] = useState("");
   const [sinif, setSinif] = useState(varsayilanKanal === "vodafone" ? "5AK" : "");
-  const [kaynak, setKaynak] = useState<Kaynak>(varsayilanKanal === "vodafone" ? "ikisi" : "liste");
   const [ara, setAra] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -141,7 +140,8 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
       query.set("kanal", kanal);
       if (depo) query.set("depo", depo);
       if (sinif.trim()) query.set("sinif", sinif.trim());
-      query.set("kaynak", kaynak);
+      // Vodafone: tüm WingSM satış listeleri birlikte (tekrarsız); CMR: normal liste.
+      query.set("kaynak", kanal === "vodafone" ? "hepsi" : "liste");
       if (ara.trim()) query.set("ara", ara.trim());
 
       const res = await fetch(`/api/wingsm/satis-incele?${query.toString()}`, {
@@ -246,19 +246,6 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
               className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-sm uppercase disabled:bg-slate-50"
             />
           </label>
-          <label>
-            <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Satış kaynağı</div>
-            <select
-              value={kaynak}
-              onChange={(e) => setKaynak(e.target.value as Kaynak)}
-              disabled={loading}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-50"
-            >
-              <option value="liste">Normal liste</option>
-              <option value="aktivasyon">Sadece aktivasyon</option>
-              <option value="ikisi">İkisi (tekrarsız)</option>
-            </select>
-          </label>
           <label className="min-w-[220px] flex-1">
             <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Ara (ürün adı, sınıf, satıcı...)</div>
             <input
@@ -289,6 +276,7 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
         )}
       </div>
 
+
       {result && (
         <div className="mt-6 space-y-6">
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
@@ -316,12 +304,30 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
                   ? `HATA - ${item.error}`
                   : `${item.rowCount} satır · ${item.seconds} sn${
                       item.kaynakOzeti
-                        ? ` (liste ${item.kaynakOzeti.liste} / aktivasyon ${item.kaynakOzeti.aktivasyon} / ortak ${item.kaynakOzeti.ortak})`
+                        ? ` (liste ${item.kaynakOzeti.liste} / aktivasyon ${item.kaynakOzeti.aktivasyon} / temlik ${item.kaynakOzeti.temlik})`
                         : ""
                     }`}
               </span>
             ))}
           </div>
+
+          {result.gunler.length > 0 && (
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">
+                Gün gün satır ve puan{result.sinif ? ` (sınıf: ${result.sinif})` : ""}
+              </div>
+              <div className="flex flex-wrap gap-2 px-5 py-4">
+                {result.gunler.map((item) => (
+                  <div key={item.gun} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold">
+                    <div className="font-black text-slate-700">{item.gun}</div>
+                    <div className="text-slate-500">
+                      {item.satir} satır · <b className="text-slate-800">{formatNumber(item.puan)}</b> puan
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4 text-lg font-black">

@@ -47,9 +47,20 @@ export const VODAFONE_BRANCH_LABELS = VODAFONE_DEPOTS.map((depot) => depot.branc
 // "aktivasyon=1" (aktivasyon türü satışlar). Aktivasyon satışları normal listede
 // GELMİYOR olabilir; bu yüzden "ikisi" varsayılandır: iki liste birleştirilir ve
 // iki listede de BİREBİR aynı olan satırlar bir kez sayılır.
-export type SalesSource = "liste" | "aktivasyon" | "ikisi";
+export type SalesSource = "liste" | "aktivasyon" | "temlik" | "ikisi" | "hepsi";
 
-export const SALES_SOURCES: SalesSource[] = ["liste", "aktivasyon", "ikisi"];
+export const SALES_SOURCES: SalesSource[] = ["liste", "aktivasyon", "temlik", "ikisi", "hepsi"];
+
+export type ListName = "liste" | "aktivasyon" | "temlik";
+
+// Bir kaynağın hangi WingSM listelerinden oluştuğu.
+export function sourceLists(kaynak: SalesSource): ListName[] {
+  if (kaynak === "liste") return ["liste"];
+  if (kaynak === "aktivasyon") return ["aktivasyon"];
+  if (kaynak === "temlik") return ["temlik"];
+  if (kaynak === "ikisi") return ["liste", "aktivasyon"];
+  return ["liste", "aktivasyon", "temlik"];
+}
 
 export type VodafoneSettings = {
   sinif: string; // sayılacak mal sınıfı
@@ -62,7 +73,7 @@ export const DEFAULT_SETTINGS: VodafoneSettings = {
   sinif: "5AK",
   storeBonus: [10, 3],
   personnelBonus: [10, 5, 1],
-  kaynak: "ikisi",
+  kaynak: "hepsi",
 };
 
 function cleanBonusList(value: unknown, fallback: number[]): number[] {
@@ -84,12 +95,9 @@ export function sanitizeSettings(input: unknown): VodafoneSettings {
     sinif: sinif || DEFAULT_SETTINGS.sinif,
     storeBonus: cleanBonusList(data.storeBonus, DEFAULT_SETTINGS.storeBonus),
     personnelBonus: cleanBonusList(data.personnelBonus, DEFAULT_SETTINGS.personnelBonus),
-    // Eski kayıtlarda "aktivasyonFiltresi: true" vardı -> "aktivasyon".
-    kaynak: SALES_SOURCES.includes(data.kaynak as SalesSource)
-      ? (data.kaynak as SalesSource)
-      : data.aktivasyonFiltresi === true
-        ? "aktivasyon"
-        : DEFAULT_SETTINGS.kaynak,
+    // WingSM satış kaynağı kullanıcıya SORULMAZ: normal + aktivasyon + temlik listeleri her zaman
+    // birlikte okunur (tekrarsız). Eski kayıtlı değerler yok sayılır.
+    kaynak: "hepsi",
   };
 }
 
@@ -268,84 +276,128 @@ function splitRange(tarih: string, tarih2: string): Array<{ tarih: string; tarih
 export type SourceStats = {
   liste: number; // normal listeden gelen satır
   aktivasyon: number; // aktivasyon listesinden gelen satır
-  ortak: number; // iki listede de birebir aynı olan satır
+  temlik: number; // temlik listesinden gelen satır
   birlesik: number; // sayıma giren satır
 };
 
-// Bir deponun satışlarını seçilen kaynaktan okur (5'er günlük dilimler, uzun bekleme).
-// "ikisi": her iki liste okunur, birleşim alınır; iki listede BİREBİR aynı olan satır
-// bir kez sayılır (aynı listede tekrar eden aynı satırlar korunur: çoklu küme birleşimi).
+export type RawLists = Record<ListName, Array<Record<string, unknown>>>;
+
+// Satır tarihi -> YYYYMMDD sayısı ("09/10/2026", "09.10.2026" ya da "2026-10-09..."); okunamazsa null.
+export function rowDayKey(row: Record<string, unknown>): number | null {
+  const raw = String(row.Tarih ?? "").trim();
+  const dmy = raw.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})/);
+
+  if (dmy) return Number(dmy[3]) * 10000 + Number(dmy[2]) * 100 + Number(dmy[1]);
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (iso) return Number(iso[1]) * 10000 + Number(iso[2]) * 100 + Number(iso[3]);
+
+  return null;
+}
+
+function dayKeyOf(wingsmDate: string): number {
+  const { day, month, year } = parseWingsmDate(wingsmDate);
+  return year * 10000 + month * 100 + day;
+}
+
+// Bir deponun istenen WingSM listelerini okur (5'er günlük dilimler, uzun bekleme).
+// WingSM'in bitiş tarihini DAHİL mi HARİÇ mi saydığı bilinmediği için her dilim bitişten
+// 1 gün fazla istenir ve satırların kendi "Tarih" alanıyla dilim sınırına süzülür:
+// iki durumda da hiçbir gün kaybolmaz, hiçbir satır iki kez sayılmaz.
+export async function fetchDepotLists(
+  depotCode: string,
+  tarih: string,
+  tarih2: string,
+  wanted: ListName[]
+): Promise<RawLists> {
+  const lists: RawLists = { liste: [], aktivasyon: [], temlik: [] };
+
+  for (const chunk of splitRange(tarih, tarih2)) {
+    const startKey = dayKeyOf(chunk.tarih);
+    const endKey = dayKeyOf(chunk.tarih2);
+    const requestEnd = formatWingsm(new Date(toUtcDate(chunk.tarih2).getTime() + 86_400_000));
+
+    for (const name of wanted) {
+      const query: Record<string, string> = { tarih: chunk.tarih, tarih2: requestEnd };
+
+      if (name === "aktivasyon") query.aktivasyon = "1";
+      if (name === "temlik") query.temlik = "1";
+
+      const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
+        method: "GET",
+        query,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
+
+      for (const row of extractRows(result)) {
+        const key = rowDayKey(row);
+
+        if (key === null || (key >= startKey && key <= endKey)) {
+          lists[name].push(row);
+        }
+      }
+    }
+  }
+
+  return lists;
+}
+
+// Birleşim: iki listede BİREBİR aynı olan satır bir kez sayılır; aynı listede kendi içinde
+// tekrar eden aynı satırlar korunur (çoklu küme birleşimi: satır başına en büyük adet).
+export function combineLists(lists: RawLists, kaynak: SalesSource): { rows: Array<Record<string, unknown>>; stats: SourceStats } {
+  const picked = sourceLists(kaynak).map((name) => lists[name]);
+  const keyed = picked.map((rows) => rows.map((row) => JSON.stringify(row)));
+
+  const maxCount = new Map<string, number>();
+
+  for (const keys of keyed) {
+    const local = new Map<string, number>();
+
+    for (const key of keys) {
+      local.set(key, (local.get(key) ?? 0) + 1);
+    }
+
+    for (const [key, count] of local) {
+      maxCount.set(key, Math.max(maxCount.get(key) ?? 0, count));
+    }
+  }
+
+  const emitted = new Map<string, number>();
+  const rows: Array<Record<string, unknown>> = [];
+
+  picked.forEach((list, listIndex) => {
+    list.forEach((row, rowIndex) => {
+      const key = keyed[listIndex][rowIndex];
+      const done = emitted.get(key) ?? 0;
+
+      if (done < (maxCount.get(key) ?? 0)) {
+        rows.push(row);
+        emitted.set(key, done + 1);
+      }
+    });
+  });
+
+  return {
+    rows,
+    stats: {
+      liste: lists.liste.length,
+      aktivasyon: lists.aktivasyon.length,
+      temlik: lists.temlik.length,
+      birlesik: rows.length,
+    },
+  };
+}
+
 export async function fetchDepotSales(
   depotCode: string,
   tarih: string,
   tarih2: string,
   kaynak: SalesSource
 ): Promise<{ rows: Array<Record<string, unknown>>; stats: SourceStats }> {
-  const chunks = splitRange(tarih, tarih2);
-  const plain: Array<Record<string, unknown>> = [];
-  const akt: Array<Record<string, unknown>> = [];
+  const lists = await fetchDepotLists(depotCode, tarih, tarih2, sourceLists(kaynak));
 
-  for (const chunk of chunks) {
-    if (kaynak !== "aktivasyon") {
-      const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
-        method: "GET",
-        query: chunk,
-        timeoutMs: REQUEST_TIMEOUT_MS,
-      });
-      plain.push(...extractRows(result));
-    }
-
-    if (kaynak !== "liste") {
-      const result = await wingSMRequest<unknown>(`/api/b2b/satis/list/${encodeURIComponent(depotCode)}`, {
-        method: "GET",
-        query: { ...chunk, aktivasyon: "1" },
-        timeoutMs: REQUEST_TIMEOUT_MS,
-      });
-      akt.push(...extractRows(result));
-    }
-  }
-
-  const countKeys = (rows: Array<Record<string, unknown>>) => {
-    const counts = new Map<string, number>();
-    for (const row of rows) {
-      const key = JSON.stringify(row);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return counts;
-  };
-
-  const plainCounts = countKeys(plain);
-  const aktCounts = countKeys(akt);
-
-  let ortak = 0;
-  for (const [key, count] of plainCounts) {
-    ortak += Math.min(count, aktCounts.get(key) ?? 0);
-  }
-
-  let rows: Array<Record<string, unknown>>;
-
-  if (kaynak === "liste") {
-    rows = plain;
-  } else if (kaynak === "aktivasyon") {
-    rows = akt;
-  } else {
-    // Birleşim: normal listenin hepsi + aktivasyon listesinde olup normalde bulunmayan fazlalık.
-    rows = [...plain];
-    const remaining = new Map(plainCounts);
-
-    for (const row of akt) {
-      const key = JSON.stringify(row);
-      const left = remaining.get(key) ?? 0;
-
-      if (left > 0) {
-        remaining.set(key, left - 1);
-      } else {
-        rows.push(row);
-      }
-    }
-  }
-
-  return { rows, stats: { liste: plain.length, aktivasyon: akt.length, ortak, birlesik: rows.length } };
+  return combineLists(lists, kaynak);
 }
 
 export function istanbulTodayIso(): string {

@@ -42,7 +42,7 @@ export type VodafoneReportView = {
   sinif?: string;
   adetAlani?: string | null;
   kaynak?: SalesSource;
-  kaynakOzeti?: Array<{ magaza: string; liste: number; aktivasyon: number; ortak: number; birlesik: number }>;
+  kaynakOzeti?: Array<{ magaza: string; liste: number; aktivasyon: number; temlik: number; birlesik: number }>;
   rowsWithPuan?: number;
   rowsWithoutPuan?: number;
   withoutPuanExamples?: string[];
@@ -53,7 +53,7 @@ export type VodafoneReportView = {
   bulunamadi?: boolean;
 };
 
-export type SalesSource = "liste" | "aktivasyon" | "ikisi";
+export type SalesSource = "liste" | "aktivasyon" | "temlik" | "ikisi" | "hepsi";
 
 export type VodafoneSettings = {
   sinif: string;

@@ -21,7 +21,14 @@ import { NextRequest } from "next/server";
 
 import { json, requireAdminSession } from "../score-rules/_shared";
 import { DegerPuanInputError, toWingsmDate } from "../_deger-puan-compute";
-import { fetchDepotSales, SALES_SOURCES, type SalesSource } from "../vodafone/_vodafone";
+import {
+  combineLists,
+  fetchDepotLists,
+  rowDayKey,
+  SALES_SOURCES,
+  sourceLists,
+  type SalesSource,
+} from "../vodafone/_vodafone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -154,7 +161,9 @@ export async function GET(request: NextRequest) {
       ? (kaynakParam as SalesSource)
       : params.get("aktivasyon") === "1"
         ? "aktivasyon"
-        : "liste";
+        : kanal === "vodafone"
+          ? "hepsi"
+          : "liste";
 
     if (depots.length === 0) {
       return json({ success: false, error: "Geçersiz depo kodu." }, 400);
@@ -171,14 +180,15 @@ export async function GET(request: NextRequest) {
       depots.map(async ({ depotCode, branchLabel }) => {
         const startedAt = Date.now();
         let rows: Array<Record<string, unknown>> = [];
-        let stats = { liste: 0, aktivasyon: 0, ortak: 0, birlesik: 0 };
+        let stats = { liste: 0, aktivasyon: 0, temlik: 0, birlesik: 0 };
         let error: string | null = null;
 
         try {
-          const fetched = await fetchDepotSales(depotCode, tarih, tarih2, kaynak);
+          const lists = await fetchDepotLists(depotCode, tarih, tarih2, sourceLists(kaynak));
+          const combined = combineLists(lists, kaynak);
 
-          stats = fetched.stats;
-          rows = fetched.rows.map((row) => ({ ...row, __depo: depotCode, __magaza: branchLabel }));
+          stats = combined.stats;
+          rows = combined.rows.map((row) => ({ ...row, __depo: depotCode, __magaza: branchLabel }));
         } catch (err) {
           error = err instanceof Error ? err.message : "Bilinmeyen hata";
         }
@@ -357,6 +367,29 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Gün gün satır sayısı ve puan (seçili kaynak + sınıf süzgeci): eksik gün olup olmadığını gösterir.
+    const dayQtyField = detectQtyField(scopeRows);
+    const dayMap = new Map<number, { gun: string; satir: number; puan: number }>();
+
+    for (const row of scopeRows) {
+      const dayKey = rowDayKey(row);
+      const mapKey = dayKey ?? 0;
+      const entry = dayMap.get(mapKey) ?? {
+        gun: dayKey === null ? "(tarihsiz)" : `${String(dayKey % 100).padStart(2, "0")}/${String(Math.floor(dayKey / 100) % 100).padStart(2, "0")}/${Math.floor(dayKey / 10000)}`,
+        satir: 0,
+        puan: 0,
+      };
+      const qtyRaw = dayQtyField ? Number(row[dayQtyField]) : NaN;
+
+      entry.satir += 1;
+      entry.puan += (parsePuan(row.MalAd) ?? 0) * (Number.isFinite(qtyRaw) ? qtyRaw : 1);
+      dayMap.set(mapKey, entry);
+    }
+
+    const gunler = Array.from(dayMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, entry]) => entry);
+
     const matched = terms.length === 0 ? scopeRows : scopeRows.filter((row) => terms.every((term) => rowText(row).includes(term)));
 
     return json({
@@ -368,6 +401,7 @@ export async function GET(request: NextRequest) {
       sinif: sinifFilter || null,
       kaynak,
       depotStatus,
+      gunler,
       totalRows: allRows.length,
       scopeRows: scopeRows.length,
       siniflar,
