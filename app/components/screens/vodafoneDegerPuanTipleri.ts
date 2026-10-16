@@ -60,4 +60,5 @@ export type VodafoneSettings = {
   storeBonus: number[];
   personnelBonus: number[];
   kaynak: SalesSource;
+  adetCarp: boolean;
 };

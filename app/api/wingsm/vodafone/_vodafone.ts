@@ -66,14 +66,16 @@ export type VodafoneSettings = {
   sinif: string; // sayılacak mal sınıfı
   storeBonus: number[]; // mağaza sıralama puanları (1., 2., ...)
   personnelBonus: number[]; // personel sıralama puanları
-  kaynak: SalesSource; // WingSM satış kaynağı
+  kaynak: SalesSource; // WingSM satış kaynağı (her zaman "liste": tek normal satış listesi)
+  adetCarp: boolean; // puan satırın adediyle çarpılsın mı (varsayılan: hayır, satır başına son 3 hane)
 };
 
 export const DEFAULT_SETTINGS: VodafoneSettings = {
   sinif: "5AK",
   storeBonus: [10, 3],
   personnelBonus: [10, 5, 1],
-  kaynak: "hepsi",
+  kaynak: "liste",
+  adetCarp: false,
 };
 
 function cleanBonusList(value: unknown, fallback: number[]): number[] {
@@ -95,9 +97,9 @@ export function sanitizeSettings(input: unknown): VodafoneSettings {
     sinif: sinif || DEFAULT_SETTINGS.sinif,
     storeBonus: cleanBonusList(data.storeBonus, DEFAULT_SETTINGS.storeBonus),
     personnelBonus: cleanBonusList(data.personnelBonus, DEFAULT_SETTINGS.personnelBonus),
-    // WingSM satış kaynağı kullanıcıya SORULMAZ: normal + aktivasyon + temlik listeleri her zaman
-    // birlikte okunur (tekrarsız). Eski kayıtlı değerler yok sayılır.
-    kaynak: "hepsi",
+    // WingSM satış kaynağı kullanıcıya SORULMAZ: tek normal satış listesi (kayıtlı eski değerler yok sayılır).
+    kaynak: "liste",
+    adetCarp: Boolean(data.adetCarp),
   };
 }
 
@@ -611,7 +613,7 @@ export async function computeAndSaveVodafoneReport(input: {
 
   for (const { row, depotCode, branchLabel } of inScope) {
     const qtyRaw = qtyField ? Number(row[qtyField]) : NaN;
-    const qty = Number.isFinite(qtyRaw) ? qtyRaw : 1;
+    const qty = settings.adetCarp && Number.isFinite(qtyRaw) ? qtyRaw : 1;
     const perUnit = parsePuan(row.MalAd);
 
     if (perUnit === null) {

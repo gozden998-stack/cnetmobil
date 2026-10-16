@@ -472,6 +472,19 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
                 />
               </label>
 
+              <label className="flex items-start gap-2 text-xs font-bold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={settings.adetCarp}
+                  onChange={(e) => setSettings({ ...settings, adetCarp: e.target.checked })}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  Puanı satırın adediyle çarp (WingSM&apos;de adedi 2 ve üstü olan satırlarda puan adet kadar sayılır).
+                  Kapalıyken her satır, adedi kaç olursa olsun ürün adının son 3 hanesi kadar puan verir.
+                </span>
+              </label>
+
               <button
                 type="button"
                 onClick={() => void saveSettings()}
