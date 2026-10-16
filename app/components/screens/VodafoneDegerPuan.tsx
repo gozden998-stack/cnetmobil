@@ -4,29 +4,19 @@
 //
 // CNETMOBIL - WingSM Değer Puan - VODAFONE KANALI yönetici ekranı.
 // CMR ekranı (WingsmDegerPuan) ile aynı sayfada, üstteki "CMR Kanalı | Vodafone
-// Kanalı" düğmesiyle seçilir. Şimdilik SADECE yönetici görür (API'ler de
-// yönetici oturumu ister). Sekmeler:
+// Kanalı" düğmesiyle seçilir. Bu ekran (ayarlar/hedefler/hesaplama) SADECE yöneticiye
+// aittir; Vodafone mağaza girişi sadece "Rapor Sonucu" görünümünü açar. Sekmeler:
 //   Ayarlar - sayılacak mal sınıfı (5AK), sıralama puanları
 //   Hedefler - mağaza ve personel hedefleri (aylık, Excel'deki gibi)
 //   Rapor - tarih aralığı seçip HESAPLA
-//   Rapor Sonucu - kayıtlı son rapor + geçmiş günler (günlük 10:00 hesabı buraya yazar)
+//   Rapor Sonucu - kayıtlı son rapor + geçmiş günler (günlük 11:00 yayını buraya yazar)
 //   Satış Verisi - WingSM satırlarını inceleme aracı (Vodafone seçili açılır)
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import SatisIncele from "./SatisIncele";
 import VodafoneSonuc from "./VodafoneSonuc";
-import { AY_SONU_MESAJI, formatRangeLong } from "./degerPuanOrtak";
-import {
-  DayPicker,
-  dayPickLabel,
-  dayPickToGun,
-  formatIsoDate,
-  istanbulToday,
-  shiftDay,
-  slashToIso,
-  type DayPick,
-} from "./degerPuanGunSecici";
+import VodafoneRaporSonucu from "./VodafoneRaporSonucu";
 import type { VodafoneReportView, VodafoneSettings } from "./vodafoneDegerPuanTipleri";
 
 export type Kanal = "cmr" | "vodafone";
@@ -371,58 +361,6 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
     }
   };
 
-  // ---------------- RAPOR SONUCU ----------------
-  const [result, setResult] = useState<VodafoneReportView | null>(null);
-  const [resultError, setResultError] = useState("");
-  const [resultLoading, setResultLoading] = useState(false);
-  // CMR'daki gibi: Bugün (en güncel rapor) / Dün / Önceki Gün / takvimden tarih.
-  const [pick, setPick] = useState<DayPick>({ kind: "bugun" });
-  const [resultPeriod, setResultPeriod] = useState<string | null>(null);
-
-  const loadResult = useCallback(async (gun: string | null, periodPick: string | null) => {
-    setResultLoading(true);
-    setResultError("");
-
-    try {
-      const query = gun ? `?gun=${gun}` : periodPick ? `?period=${encodeURIComponent(periodPick)}` : "";
-      const payload = await api<VodafoneReportView>(`/api/wingsm/vodafone/result${query}`);
-      setResult(payload);
-    } catch (err) {
-      setResult(null);
-      setResultError(err instanceof Error ? err.message : "Sonuç alınamadı.");
-    } finally {
-      setResultLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (tab === "sonuc") void loadResult(dayPickToGun(pick), resultPeriod);
-  }, [tab, pick, resultPeriod, loadResult]);
-
-  // Takvimde seçilebilecek en erken gün: kayıtlı en eski raporun yayın günü (bitiş + 1).
-  const minPickDate = useMemo(() => {
-    const earliest = (result?.history ?? [])
-      .map((item) => slashToIso(item.tarih2))
-      .filter((value): value is string => Boolean(value))
-      .sort()[0];
-
-    return earliest ? shiftDay(earliest, 1) : undefined;
-  }, [result]);
-
-  // Dönem listesi: kayıtlı raporların ayları (en yeni üstte).
-  const resultPeriods = useMemo(() => {
-    const months = new Set<string>();
-
-    for (const item of result?.history ?? []) {
-      const parts = item.tarih2.split("/");
-      if (parts.length === 3) months.add(`${parts[2]}-${parts[1]}`);
-    }
-
-    if (result?.hedefPeriodu) months.add(result.hedefPeriodu);
-
-    return Array.from(months).sort().reverse();
-  }, [result]);
-
   const tabButton = (id: TabId, label: string) => (
     <button
       key={id}
@@ -755,107 +693,7 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
         </div>
       )}
 
-      {tab === "sonuc" && (
-        <div>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            {result?.durum === "guncel" && (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-700">
-                ✓ Rapor güncel
-              </span>
-            )}
-            {result?.durum === "bekleniyor" && (
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
-                {result.aySonuPaylasim ? "Ay sonu: otomatik hesap durdu" : "⏳ Rapor bekleniyor"}
-              </span>
-            )}
-            {result?.hasSnapshot && result.durum === null && (
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800">
-                Eski rapor görüntüleniyor
-              </span>
-            )}
-
-            <div className="ml-auto">
-              <DayPicker
-                label={dayPickLabel(pick)}
-                disabled={resultLoading}
-                minDate={minPickDate}
-                maxDate={istanbulToday()}
-                onSelect={(next) => {
-                  setResultPeriod(null);
-                  setPick(next);
-                }}
-              />
-            </div>
-          </div>
-
-          {result?.hasSnapshot && result.period && result.durum !== "bekleniyor" && (
-            <div
-              className={`mb-4 rounded-xl border px-4 py-2.5 text-sm font-bold ${
-                result.durum === null
-                  ? "border-amber-300 bg-amber-50 text-amber-900"
-                  : "border-blue-200 bg-blue-50 text-blue-900"
-              }`}
-            >
-              {result.istenenGun ? `${formatIsoDate(result.istenenGun)} tarihli rapor: ` : "Güncel rapor: "}
-              {formatRangeLong(result.period.tarih, result.period.tarih2)} arası
-              {result.istenenGun && result.tamEsleme === false && (
-                <span className="ml-1 font-semibold">
-                  (o gün için ayrı rapor hazırlanmamıştı, en yakın önceki rapor gösteriliyor)
-                </span>
-              )}
-            </div>
-          )}
-
-          {resultLoading && <div className="text-sm font-bold text-slate-400">Yükleniyor...</div>}
-
-          {resultError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">
-              {resultError}
-            </div>
-          )}
-
-          {!resultLoading && result && !result.hasSnapshot && result.bulunamadi && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center text-sm font-bold text-slate-500">
-              {result.istenenGun ? `${formatIsoDate(result.istenenGun)} tarihi için` : "Bu tarih için"} kayıtlı rapor bulunamadı.
-            </div>
-          )}
-
-          {!resultLoading && result && !result.hasSnapshot && !result.bulunamadi && (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm font-bold text-slate-400">
-              Henüz Vodafone raporu hesaplanmadı. Önce Hedefler sekmesinden hedefleri girip Rapor sekmesinden HESAPLA&apos;ya
-              basın; ya da günlük 10:00 hesabını bekleyin.
-            </div>
-          )}
-
-          {/* Yeni güne geçildi ve o günün raporu hazır değil: eski günün rakamları GÖSTERİLMEZ (CMR ile aynı). */}
-          {!resultLoading && result && result.hasSnapshot && result.durum === "bekleniyor" && (
-            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-12 text-center shadow-sm">
-              <div className="text-5xl">{result.aySonuPaylasim ? "📢" : "⏳"}</div>
-              <div className="mt-4 text-2xl font-black text-[#1b2559]">
-                {result.aySonuPaylasim ? "Ay sonu raporu" : "Rapor bekleniyor"}
-              </div>
-              <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">
-                {result.aySonuPaylasim ? AY_SONU_MESAJI : "Yeni günün raporu hazırlandığında burada otomatik görünecek."}
-              </p>
-              <p className="mt-3 text-xs font-semibold text-slate-400">
-                Önceki günün raporunu görmek için sağ üstteki seçiciden &quot;Dün&quot;ü seçebilirsiniz.
-              </p>
-            </div>
-          )}
-
-          {!resultLoading && result && result.hasSnapshot && result.durum !== "bekleniyor" && (
-            <VodafoneSonuc
-              report={result}
-              periods={resultPeriods}
-              period={result.hedefPeriodu}
-              onPeriodChange={(next) => {
-                setPick({ kind: "bugun" });
-                setResultPeriod(next === resultPeriods[0] ? null : next);
-              }}
-            />
-          )}
-        </div>
-      )}
+      {tab === "sonuc" && <VodafoneRaporSonucu yonetici />}
     </div>
   );
 }

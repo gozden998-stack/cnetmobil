@@ -7,11 +7,14 @@
 //   - durum: "guncel" = rapor aralığının bitişi DÜN ya da daha yeni; yoksa "bekleniyor".
 //   - aySonuPaylasim: ayın 28'inden 1'ine otomatik hesap durur (CMR ile aynı kural).
 //
-// Mağazalara açma bilinçli olarak yapılmadı: şimdilik sadece yönetici oturumu.
+// Erişim: yönetici oturumu VE Vodafone kanalı (VODAFONE KANALI) girişi okuyabilir;
+// CMR girişleri okuyamaz. Mağaza girişine admin-only tanı alanları (puansız satır
+// örnekleri, adet alanı, kaynak sayıları) verilmez.
+// DELETE: sadece yönetici - test için hesaplanan tüm raporları siler (hedef/ayar kalır).
 
 import { NextRequest } from "next/server";
 
-import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
+import { getPool, json, requireAdminSession, requireValidSession } from "../../score-rules/_shared";
 import { isAutoRunDay } from "../../_deger-puan-auto";
 import { ensureVodafoneTables, istanbulTodayIso, previousDayIso } from "../_vodafone";
 
@@ -24,11 +27,55 @@ function wingsmDateToIsoLocal(value: unknown): string | null {
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
 }
 
-export async function GET(request: NextRequest) {
+function isVodafoneBranch(branch: string) {
+  return String(branch ?? "").trim().toLocaleUpperCase("tr-TR") === "VODAFONE KANALI";
+}
+
+export async function DELETE(request: NextRequest) {
   const auth = requireAdminSession(request);
 
   if (!auth.ok) {
     return auth.response;
+  }
+
+  try {
+    const pool = getPool();
+    await ensureVodafoneTables(pool);
+
+    const deleted = await pool.query(`DELETE FROM public.vdf_deger_puan_history`);
+    await pool.query(`DELETE FROM public.vdf_deger_puan_auto_runs`);
+
+    // Bugün yeniden otomatik rapor yayınlanmasın: bugünü "tamamlandı" işaretle. Otomatik
+    // yayın yarın 11:00'da sıfırdan başlar.
+    await pool.query(
+      `INSERT INTO public.vdf_deger_puan_auto_runs (run_date, started_at, finished_at)
+       VALUES ($1::date, now(), now())
+       ON CONFLICT (run_date) DO NOTHING`,
+      [istanbulTodayIso()]
+    );
+
+    return json({ success: true, deletedReports: deleted.rowCount ?? 0 });
+  } catch (error) {
+    console.error("VODAFONE_DEGER_PUAN_RESET_ERROR:", error);
+
+    return json(
+      { success: false, error: error instanceof Error ? error.message : "Raporlar silinemedi." },
+      500
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const auth = requireValidSession(request);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const isAdmin = auth.session.role === "admin";
+
+  if (!isAdmin && !isVodafoneBranch(auth.session.branch)) {
+    return json({ success: false, error: "Bu ekran sadece Vodafone kanalına açıktır." }, 403);
   }
 
   try {
@@ -135,7 +182,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>);
+    const rawPayload = typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>);
+
+    // Mağaza girişine sadece ekranın gösterdiği alanlar gider (tanı alanları çıkarılır).
+    const payload: Record<string, unknown> = { ...rawPayload };
+
+    if (!isAdmin) {
+      for (const key of ["withoutPuanExamples", "rowsWithPuan", "rowsWithoutPuan", "adetAlani", "kaynak", "kaynakOzeti", "sinif"]) {
+        delete payload[key];
+      }
+    }
     const period = payload.period as { tarih: string; tarih2: string } | undefined;
     const rangeEnd = wingsmDateToIsoLocal(period?.tarih2);
     const isLatest = !selectedHistoryId;

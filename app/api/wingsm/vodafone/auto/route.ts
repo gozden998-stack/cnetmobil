@@ -4,7 +4,7 @@
 //
 // CMR'ın deger-puan-auto ucuyla AYNI kurallar (aynı zamanlayıcı script'i çağırır):
 //   - Ayın 28, 29, 30, 31'i ve 1'i hiçbir şey yapmaz.
-//   - Türkiye saatiyle 10:00'dan önce hiçbir şey yapmaz.
+//   - Türkiye saatiyle 11:00'dan önce hiçbir şey yapmaz (Vodafone yayın saati 11:00; CMR 10:00).
 //   - Bugün zaten hesaplandıysa hiçbir şey yapmaz (günde bir kez, kendi kayıt tablosu).
 //   - Aksi halde "ayın 1'i - dün" aralığını hesaplar ve kaydeder.
 //
@@ -15,12 +15,15 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 
 import { getPool, json } from "../../score-rules/_shared";
-import { autoReportRange, AUTO_RUN_HOUR, isAutoRunDay, isAutoRunTime, istanbulDateAndHour } from "../../_deger-puan-auto";
+import { autoReportRange, isAutoRunDay, istanbulDateAndHour } from "../../_deger-puan-auto";
 import { computeAndSaveVodafoneReport, ensureVodafoneTables } from "../_vodafone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// Vodafone raporu her gün bu saatten (Türkiye saati) itibaren hesaplanıp yayınlanır.
+const VODAFONE_AUTO_RUN_HOUR = 11;
 
 function isCronAuthorized(request: NextRequest) {
   const secret = String(process.env.WINGSM_SYNC_SECRET || "").trim();
@@ -46,11 +49,11 @@ export async function POST(request: NextRequest) {
     return json({ success: true, status: "AY_SONU_DURDU", today });
   }
 
-  if (!isAutoRunTime(hour)) {
+  if (hour < VODAFONE_AUTO_RUN_HOUR) {
     return json({
       success: true,
       status: "HENUZ_SAAT_DEGIL",
-      message: `Otomatik hesaplama Türkiye saatiyle ${AUTO_RUN_HOUR}:00'dan sonra çalışır.`,
+      message: `Otomatik hesaplama Türkiye saatiyle ${VODAFONE_AUTO_RUN_HOUR}:00'dan sonra çalışır.`,
       today,
       hour,
     });

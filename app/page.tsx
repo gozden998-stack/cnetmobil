@@ -22,6 +22,7 @@ import Paratika from './components/screens/Paratika/Paratika';
 import Depo from './components/screens/Depo';
 import WingsmDegerPuan from './components/screens/WingsmDegerPuan';
 import WingsmDegerPuanim from './components/screens/WingsmDegerPuanim';
+import VodafoneRaporSonucu from './components/screens/VodafoneRaporSonucu';
 
 const TABLO_ISMI = 'Google Sheets ile Kurumsal Alım Sistemi'; 
 
@@ -4893,6 +4894,8 @@ export default function CnetmobilCmrFinalUltimate() {
           appMode === 'wingsm_deger_puan' && step < 99 ? (
             isAdmin ? (
               <WingsmDegerPuan />
+            ) : selectedBranch === 'VODAFONE KANALI' ? (
+              <VodafoneRaporSonucu yonetici={false} />
             ) : (
               <WingsmDegerPuanim />
             )

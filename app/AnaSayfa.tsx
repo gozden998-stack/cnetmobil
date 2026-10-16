@@ -765,6 +765,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     }, [selectedBranch]);
 
     const isCmr = selectedBranch.includes('CMR');
+    const isVodafone = selectedBranch === 'VODAFONE KANALI';
     const branchLower = selectedBranch.toLowerCase();
     const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
     
@@ -1648,6 +1649,27 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 )}
 
                 {/* ŞİRKET DEĞER PUAN + SIRALAMALAR - SADECE CMR (üstteki Toplam Satış / Tahmini Ay Sonu / Toplam Puan / Kalan Hedef kartları kaldırıldı) */}
+                {/* VODAFONE KANALI: Şirket Değer Puan (her gün 11:00'da otomatik yayınlanan rapor) */}
+                {isVodafone && (
+                <section className="mb-4">
+                    <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
+                        <div className="border-b border-slate-100 px-5 py-4">
+                            <h2 className="text-lg font-black tracking-tight text-[#102A56]">Şirket Değer Puan</h2>
+                            <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                                Vodafone Değer Puan: mağaza ve personel sıralaması
+                            </p>
+                        </div>
+
+                        <VodafoneDegerPuanOzeti
+                            onTumunuGor={() => {
+                                try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'vodafone'); } catch { /* depolama kapalı */ }
+                                setAppMode('wingsm_deger_puan');
+                            }}
+                        />
+                    </div>
+                </section>
+                )}
+
                 {isCmr && (
                 <section className="mb-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.7fr)_minmax(300px,0.7fr)]">
 
@@ -1687,6 +1709,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                         {isAdmin && degerPuanKanal === 'vodafone' ? (
                             <VodafoneDegerPuanOzeti
+                                yonetici
                                 onTumunuGor={() => {
                                     try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'vodafone'); } catch { /* depolama kapalı */ }
                                     setAppMode('wingsm_deger_puan');

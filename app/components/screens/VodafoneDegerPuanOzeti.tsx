@@ -17,7 +17,13 @@ function storeLabel(label: string) {
   return titleCaseTr(label).replace(/Vdf/, "VDF");
 }
 
-export default function VodafoneDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: () => void }) {
+export default function VodafoneDegerPuanOzeti({
+  onTumunuGor,
+  yonetici = false,
+}: {
+  onTumunuGor: () => void;
+  yonetici?: boolean;
+}) {
   const [report, setReport] = useState<VodafoneReportView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,6 +57,29 @@ export default function VodafoneDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: (
     };
   }, []);
 
+  // "Rapor bekleniyor" iken kart açık kalırsa, 11:00'da rapor yayınlanınca sayfayı
+  // yenilemeye gerek kalmasın: 2 dakikada bir sessizce tekrar sorulur.
+  const beklemedeMi = report !== null && (!report.hasSnapshot || report.durum === "bekleniyor");
+
+  useEffect(() => {
+    if (!beklemedeMi) return;
+
+    const id = window.setInterval(() => {
+      fetch("/api/wingsm/vodafone/result", { method: "GET", credentials: "same-origin", cache: "no-store" })
+        .then((res) => res.json().catch(() => null))
+        .then((payload) => {
+          if (payload?.success && payload.hasSnapshot && payload.durum === "guncel") {
+            setReport(payload as VodafoneReportView);
+          }
+        })
+        .catch(() => {
+          // Arka plan kontrolü kartı bozmaz.
+        });
+    }, 120_000);
+
+    return () => window.clearInterval(id);
+  }, [beklemedeMi]);
+
   if (loading) {
     return (
       <div className="flex min-h-[200px] items-center justify-center text-sm font-bold text-slate-400">
@@ -69,8 +98,15 @@ export default function VodafoneDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: (
 
   if (!report.hasSnapshot) {
     return (
-      <div className="m-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500 sm:m-5">
-        Vodafone için henüz rapor hesaplanmadı. Değer Puan &gt; Vodafone Kanalı &gt; Rapor sekmesinden hesaplayın.
+      <div className="p-4 sm:p-5">
+        <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl bg-slate-50 px-6 py-10 text-center">
+          <div className="text-4xl">⏳</div>
+          <div className="mt-3 text-xl font-black text-[#102A56]">Rapor bekleniyor</div>
+          <p className="mt-1.5 max-w-sm text-xs font-semibold text-slate-500">
+            Vodafone Değer Puan raporu her gün saat 11:00&apos;da otomatik yayınlanır.
+            {yonetici ? " Yönetici: Değer Puan > Vodafone Kanalı > Rapor sekmesinden hemen hesaplayabilirsiniz." : ""}
+          </p>
+        </div>
       </div>
     );
   }
@@ -90,7 +126,7 @@ export default function VodafoneDegerPuanOzeti({ onTumunuGor }: { onTumunuGor: (
           <div className="text-4xl">{aySonuDuyurusu ? "📢" : "⏳"}</div>
           <div className="mt-3 text-xl font-black text-[#102A56]">{aySonuDuyurusu ? "Ay sonu raporu" : "Rapor bekleniyor"}</div>
           <p className="mt-1.5 max-w-sm text-xs font-semibold text-slate-500">
-            {aySonuDuyurusu ? AY_SONU_MESAJI : "Yeni günün raporu hazırlandığında burada otomatik görünecek."}
+            {aySonuDuyurusu ? AY_SONU_MESAJI : "Yeni günün raporu 11:00'da yayınlanınca burada otomatik görünecek."}
           </p>
         </div>
       </div>
