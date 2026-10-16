@@ -10,11 +10,10 @@
 // Erişim: yönetici oturumu VE Vodafone kanalı (VODAFONE KANALI) girişi okuyabilir;
 // CMR girişleri okuyamaz. Mağaza girişine admin-only tanı alanları (puansız satır
 // örnekleri, adet alanı, kaynak sayıları) verilmez.
-// DELETE: sadece yönetici - test için hesaplanan tüm raporları siler (hedef/ayar kalır).
 
 import { NextRequest } from "next/server";
 
-import { getPool, json, requireAdminSession, requireValidSession } from "../../score-rules/_shared";
+import { getPool, json, requireValidSession } from "../../score-rules/_shared";
 import { isAutoRunDay } from "../../_deger-puan-auto";
 import { ensureVodafoneTables, istanbulTodayIso, previousDayIso } from "../_vodafone";
 
@@ -29,40 +28,6 @@ function wingsmDateToIsoLocal(value: unknown): string | null {
 
 function isVodafoneBranch(branch: string) {
   return String(branch ?? "").trim().toLocaleUpperCase("tr-TR") === "VODAFONE KANALI";
-}
-
-export async function DELETE(request: NextRequest) {
-  const auth = requireAdminSession(request);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  try {
-    const pool = getPool();
-    await ensureVodafoneTables(pool);
-
-    const deleted = await pool.query(`DELETE FROM public.vdf_deger_puan_history`);
-    await pool.query(`DELETE FROM public.vdf_deger_puan_auto_runs`);
-
-    // Bugün yeniden otomatik rapor yayınlanmasın: bugünü "tamamlandı" işaretle. Otomatik
-    // yayın yarın 11:00'da sıfırdan başlar.
-    await pool.query(
-      `INSERT INTO public.vdf_deger_puan_auto_runs (run_date, started_at, finished_at)
-       VALUES ($1::date, now(), now())
-       ON CONFLICT (run_date) DO NOTHING`,
-      [istanbulTodayIso()]
-    );
-
-    return json({ success: true, deletedReports: deleted.rowCount ?? 0 });
-  } catch (error) {
-    console.error("VODAFONE_DEGER_PUAN_RESET_ERROR:", error);
-
-    return json(
-      { success: false, error: error instanceof Error ? error.message : "Raporlar silinemedi." },
-      500
-    );
-  }
 }
 
 export async function GET(request: NextRequest) {

@@ -6,8 +6,7 @@
 // "Değer Puan Performansı" ekranının karşılığı). Hem yönetici (Vodafone > Rapor
 // Sonucu sekmesi) hem Vodafone mağaza girişi (ana sayfa kartı > Tümünü Gör) bunu
 // kullanır; fark `yonetici` ile belirlenir:
-//   - yönetici: "Yönetici Önizlemesi" rozeti, rapor yoksa hesaplama yönlendirmesi,
-//     "Tüm raporları sil" düğmesi.
+//   - yönetici: "Yönetici Önizlemesi" rozeti, rapor yoksa hesaplama yönlendirmesi.
 //   - mağaza: sadece görüntüleme; rapor yoksa "Rapor bekleniyor" uyarısı.
 //
 // Rapor her gün 11:00'da otomatik yayınlanır (bkz. api/wingsm/vodafone/auto).
@@ -37,8 +36,6 @@ export default function VodafoneRaporSonucu({ yonetici }: { yonetici: boolean })
   const [result, setResult] = useState<VodafoneReportView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [resetBusy, setResetBusy] = useState(false);
-  const [message, setMessage] = useState("");
 
   const load = useCallback(async (gun: string | null, periodPick: string | null, silent = false) => {
     if (!silent) setLoading(true);
@@ -107,36 +104,6 @@ export default function VodafoneRaporSonucu({ yonetici }: { yonetici: boolean })
     return Array.from(months).sort().reverse();
   }, [result]);
 
-  const resetReports = async () => {
-    const ok = window.confirm(
-      "Kayıtlı TÜM Vodafone Değer Puan raporları silinecek (hedefler ve ayarlar silinmez).\n\n" +
-        "Bugün yeni rapor yayınlanmaz; otomatik yayın yarın 11:00'da sıfırdan başlar.\n\nDevam edilsin mi?"
-    );
-
-    if (!ok) return;
-
-    setResetBusy(true);
-    setMessage("");
-
-    try {
-      const res = await fetch("/api/wingsm/vodafone/result", { method: "DELETE", credentials: "same-origin" });
-      const payload = await res.json().catch(() => null);
-
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
-
-      setMessage(`${payload.deletedReports} rapor silindi. Otomatik yayın yarın 11:00'da başlar.`);
-      setPick({ kind: "bugun" });
-      setPeriod(null);
-      await load(null, null);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Silinemedi.");
-    } finally {
-      setResetBusy(false);
-    }
-  };
-
   const beklemede = result?.hasSnapshot === true && result.durum === "bekleniyor";
   const raporYok = result !== null && !result.hasSnapshot && !result.bulunamadi;
 
@@ -160,18 +127,6 @@ export default function VodafoneRaporSonucu({ yonetici }: { yonetici: boolean })
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {yonetici && (
-            <button
-              type="button"
-              onClick={() => void resetReports()}
-              disabled={resetBusy}
-              className="h-11 rounded-lg border border-red-200 bg-white px-3 text-[11px] font-black uppercase text-red-600 hover:bg-red-50 disabled:opacity-50"
-              title="Test için hesaplanan tüm Vodafone raporlarını siler"
-            >
-              {resetBusy ? "Siliniyor..." : "Tüm raporları sil"}
-            </button>
-          )}
-
           <DayPicker
             label={dayPickLabel(pick)}
             disabled={loading}
@@ -184,12 +139,6 @@ export default function VodafoneRaporSonucu({ yonetici }: { yonetici: boolean })
           />
         </div>
       </div>
-
-      {message && (
-        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-700">
-          {message}
-        </div>
-      )}
 
       {result?.hasSnapshot && result.period && !beklemede && (
         <div
