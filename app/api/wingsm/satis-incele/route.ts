@@ -27,6 +27,8 @@ import {
   rowDayKey,
   SALES_SOURCES,
   sourceLists,
+  type ListName,
+  type RawLists,
   type SalesSource,
 } from "../vodafone/_vodafone";
 
@@ -181,10 +183,15 @@ export async function GET(request: NextRequest) {
         const startedAt = Date.now();
         let rows: Array<Record<string, unknown>> = [];
         let stats = { liste: 0, aktivasyon: 0, temlik: 0, birlesik: 0 };
+        let lists: RawLists = { liste: [], aktivasyon: [], temlik: [] };
         let error: string | null = null;
 
         try {
-          const lists = await fetchDepotLists(depotCode, tarih, tarih2, sourceLists(kaynak));
+          // Vodafone + sınıf seçiliyse üç liste de okunur: kaynak toplamları yan yana gösterilir.
+          const wanted: ListName[] = kanal === "vodafone" && sinifFilter ? ["liste", "aktivasyon", "temlik"] : sourceLists(kaynak);
+
+          lists = await fetchDepotLists(depotCode, tarih, tarih2, wanted);
+
           const combined = combineLists(lists, kaynak);
 
           stats = combined.stats;
@@ -203,6 +210,8 @@ export async function GET(request: NextRequest) {
             kaynakOzeti: stats,
           },
           rows,
+          lists,
+          branchLabel,
         };
       })
     );
@@ -390,6 +399,47 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => a[0] - b[0])
       .map(([, entry]) => entry);
 
+    // Kaynaklara göre toplam puan (sınıf süzgeci + son 3 hane x adet): hangi WingSM listesinin
+    // (ya da birleşiminin) beklenen rakamı verdiği tek tabloda görünür.
+    let kaynakToplamlari: {
+      kaynaklar: SalesSource[];
+      ozet: Record<string, { satir: number; puan: number }>;
+      magazalar: Array<{ magaza: string; puan: Record<string, number> }>;
+    } | null = null;
+
+    if (kanal === "vodafone" && sinifFilter) {
+      const sourceNames: SalesSource[] = ["liste", "aktivasyon", "temlik", "ikisi", "hepsi"];
+      const ozet: Record<string, { satir: number; puan: number }> = {};
+      const storeTotals = new Map<string, Record<string, number>>(perDepot.map((depot) => [depot.branchLabel, {}]));
+      const totalQtyField = detectQtyField(perDepot.flatMap((depot) => [...depot.lists.liste, ...depot.lists.aktivasyon, ...depot.lists.temlik]));
+
+      for (const source of sourceNames) {
+        ozet[source] = { satir: 0, puan: 0 };
+
+        for (const depot of perDepot) {
+          const storeEntry = storeTotals.get(depot.branchLabel) as Record<string, number>;
+          storeEntry[source] = 0;
+
+          for (const row of combineLists(depot.lists, source).rows) {
+            if (normalizeClass(row.MalSinif) !== sinifFilter) continue;
+
+            const qtyRaw = totalQtyField ? Number(row[totalQtyField]) : NaN;
+            const puan = (parsePuan(row.MalAd) ?? 0) * (Number.isFinite(qtyRaw) ? qtyRaw : 1);
+
+            ozet[source].satir += 1;
+            ozet[source].puan += puan;
+            storeEntry[source] += puan;
+          }
+        }
+      }
+
+      kaynakToplamlari = {
+        kaynaklar: sourceNames,
+        ozet,
+        magazalar: Array.from(storeTotals.entries()).map(([magaza, puan]) => ({ magaza, puan })),
+      };
+    }
+
     const matched = terms.length === 0 ? scopeRows : scopeRows.filter((row) => terms.every((term) => rowText(row).includes(term)));
 
     return json({
@@ -402,6 +452,7 @@ export async function GET(request: NextRequest) {
       kaynak,
       depotStatus,
       gunler,
+      kaynakToplamlari,
       totalRows: allRows.length,
       scopeRows: scopeRows.length,
       siniflar,

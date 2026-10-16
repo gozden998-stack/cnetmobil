@@ -57,6 +57,11 @@ type InceleResult = {
   }>;
   siniflar: ClassStat[];
   gunler: Array<{ gun: string; satir: number; puan: number }>;
+  kaynakToplamlari: {
+    kaynaklar: string[];
+    ozet: Record<string, { satir: number; puan: number }>;
+    magazalar: Array<{ magaza: string; puan: Record<string, number> }>;
+  } | null;
   puanOzeti: PuanOzeti | null;
   totalRows: number;
   matchedRows: number;
@@ -310,6 +315,60 @@ export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKan
               </span>
             ))}
           </div>
+
+          {result.kaynakToplamlari && (
+            <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <div className="text-lg font-black">WingSM listelerine göre toplam puan (sınıf: {result.sinif})</div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  Hangi liste ya da birleşimin beklediğiniz rakamı verdiğini buradan görürsünüz. Panelin hesabı en alttaki
+                  &quot;Hepsi&quot; satırıdır.
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-2">Liste</th>
+                      <th className="px-4 py-2 text-right">Satır</th>
+                      <th className="px-4 py-2 text-right">Toplam puan</th>
+                      {result.kaynakToplamlari.magazalar.map((store) => (
+                        <th key={store.magaza} className="px-4 py-2 text-right">
+                          {store.magaza}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {result.kaynakToplamlari.kaynaklar.map((source) => (
+                      <tr key={source} className={source === "hepsi" ? "bg-emerald-50" : ""}>
+                        <td className="px-4 py-2 text-[12px] font-bold">
+                          {{
+                            liste: "Normal liste",
+                            aktivasyon: "Aktivasyon listesi",
+                            temlik: "Temlik listesi",
+                            ikisi: "Normal + aktivasyon",
+                            hepsi: "Hepsi (tekrarsız)",
+                          }[source] ?? source}
+                        </td>
+                        <td className="px-4 py-2 text-right text-[12px] font-semibold">
+                          {formatNumber(result.kaynakToplamlari?.ozet[source]?.satir ?? 0)}
+                        </td>
+                        <td className="px-4 py-2 text-right text-[12px] font-black">
+                          {formatNumber(result.kaynakToplamlari?.ozet[source]?.puan ?? 0)}
+                        </td>
+                        {result.kaynakToplamlari?.magazalar.map((store) => (
+                          <td key={store.magaza} className="px-4 py-2 text-right text-[12px] font-semibold">
+                            {formatNumber(store.puan[source] ?? 0)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {result.gunler.length > 0 && (
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
