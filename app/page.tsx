@@ -4563,7 +4563,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     </section>
                  </div>
               ) : (
-                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} />
+                 <AnaSayfa selectedBranch={selectedBranch} setAppMode={setAppMode} config={config} gidisatData={magazaGidisatData} personelData={personelData} hedeflerData={hedeflerData} isAdmin={Boolean(isAdmin)} />
               )
           ) : appMode === 'merkez' && step < 99 && isSuperAdminUser ? (
             <Merkez />

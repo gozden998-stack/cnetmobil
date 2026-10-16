@@ -108,14 +108,14 @@ function cellText(value: unknown) {
   return String(value);
 }
 
-export default function SatisIncele() {
+export default function SatisIncele({ varsayilanKanal = "cmr" }: { varsayilanKanal?: "cmr" | "vodafone" }) {
   const initial = defaultRange();
 
   const [bastar, setBastar] = useState(initial.bastar);
   const [bittar, setBittar] = useState(initial.bittar);
-  const [kanal, setKanal] = useState<Channel>("cmr");
+  const [kanal, setKanal] = useState<Channel>(varsayilanKanal);
   const [depo, setDepo] = useState("");
-  const [sinif, setSinif] = useState("");
+  const [sinif, setSinif] = useState(varsayilanKanal === "vodafone" ? "5AK" : "");
   const [aktivasyon, setAktivasyon] = useState(false);
   const [ara, setAra] = useState("");
   const [loading, setLoading] = useState(false);

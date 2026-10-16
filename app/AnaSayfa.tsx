@@ -1,5 +1,6 @@
 import { parseNotificationPrice } from './lib/notificationPrice';
 import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
+import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -325,7 +326,7 @@ async function fetchPriceNotificationRows(): Promise<NotificationSheetRow[]> {
         : [];
 }
 
-export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [] }: any) {
+export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatData = [], personelData = [], hedeflerData = [], izinlerData = [], isAdmin = false }: any) {
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
@@ -337,6 +338,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const [priceNotifications, setPriceNotifications] = useState<PriceNotificationItem[]>([]);
     const [selectedPriceNotification, setSelectedPriceNotification] = useState<PriceNotificationItem | null>(null);
     const [notificationNow, setNotificationNow] = useState(Date.now());
+    // Şimdilik sadece yönetici: Şirket Değer Puan kartında CMR / Vodafone kanalı.
+    const [degerPuanKanal, setDegerPuanKanal] = useState<'cmr' | 'vodafone'>('cmr');
 
     const previousNotificationPricesRef = useRef<Map<string, number> | null>(null);
     const notificationEngineReadyRef = useRef(false);
@@ -1657,9 +1660,46 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                     WingSM Değer Puan: mağaza ve personel sıralaması
                                 </p>
                             </div>
+
+                            {/* Şimdilik sadece yönetici girişi: CMR / Vodafone kanalı geçişi */}
+                            {isAdmin && (
+                                <div className="flex gap-1.5">
+                                    {[
+                                        { id: 'cmr', label: 'CMR Kanalı' },
+                                        { id: 'vodafone', label: 'Vodafone Kanalı' },
+                                    ].map((item) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setDegerPuanKanal(item.id as 'cmr' | 'vodafone')}
+                                            className={`rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wide transition ${
+                                                degerPuanKanal === item.id
+                                                    ? 'border-blue-600 bg-blue-600 text-white'
+                                                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
-                        <SirketDegerPuanOzeti onTumunuGor={() => setAppMode('wingsm_deger_puan')} />
+                        {isAdmin && degerPuanKanal === 'vodafone' ? (
+                            <VodafoneDegerPuanOzeti
+                                onTumunuGor={() => {
+                                    try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'vodafone'); } catch { /* depolama kapalı */ }
+                                    setAppMode('wingsm_deger_puan');
+                                }}
+                            />
+                        ) : (
+                            <SirketDegerPuanOzeti
+                                onTumunuGor={() => {
+                                    try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'cmr'); } catch { /* depolama kapalı */ }
+                                    setAppMode('wingsm_deger_puan');
+                                }}
+                            />
+                        )}
                     </div>
 
                     {/* MAĞAZA SIRALAMASI */}

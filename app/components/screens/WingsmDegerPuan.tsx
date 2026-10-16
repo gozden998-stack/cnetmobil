@@ -24,6 +24,7 @@ import * as XLSX from "xlsx";
 
 import WingsmDegerPuanim from "./WingsmDegerPuanim";
 import SatisIncele from "./SatisIncele";
+import VodafoneDegerPuan, { KANAL_STORAGE_KEY, KanalSecici, type Kanal } from "./VodafoneDegerPuan";
 import {
   magazaSatirRengi,
   magazalariSirala,
@@ -200,6 +201,27 @@ function formatNumber(value: string) {
 }
 
 export default function WingsmDegerPuan() {
+  // CMR Kanalı | Vodafone Kanalı. Ana sayfadaki kartta seçilen kanal burada da açılır.
+  const [kanal, setKanalState] = useState<Kanal>("cmr");
+
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem(KANAL_STORAGE_KEY) === "vodafone") setKanalState("vodafone");
+    } catch {
+      // Depolama kapalıysa CMR ile açılır.
+    }
+  }, []);
+
+  const setKanal = (next: Kanal) => {
+    setKanalState(next);
+
+    try {
+      window.sessionStorage.setItem(KANAL_STORAGE_KEY, next);
+    } catch {
+      // Hatırlanamasa da seçim bu açılışta geçerli.
+    }
+  };
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [rules, setRules] = useState<ScoreRule[]>([]);
@@ -1090,8 +1112,14 @@ export default function WingsmDegerPuan() {
     }
   };
 
+  if (kanal === "vodafone") {
+    return <VodafoneDegerPuan kanalSecici={<KanalSecici kanal={kanal} onChange={setKanal} />} />;
+  }
+
   return (
     <div className="animate-in fade-in duration-500">
+      <KanalSecici kanal={kanal} onChange={setKanal} />
+
       <div className="mb-6 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
         <button
           type="button"
