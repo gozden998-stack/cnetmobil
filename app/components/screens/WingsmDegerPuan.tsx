@@ -23,6 +23,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import WingsmDegerPuanim from "./WingsmDegerPuanim";
+import SatisIncele from "./SatisIncele";
 import {
   magazaSatirRengi,
   magazalariSirala,
@@ -220,7 +221,7 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc">("kurallar");
+  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc" | "satis">("kurallar");
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -1136,12 +1137,26 @@ export default function WingsmDegerPuan() {
         >
           Rapor Sonucu
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("satis")}
+          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "satis"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Satış Verisi
+        </button>
       </div>
 
       {/* RAPOR SONUCU: personelin gördüğü ekranın AYNISI (kayıtlı son rapor +
           Bugün / Dün / Önceki Gün / takvim ile geçmiş günler). Yönetici de aynı
           sonucu görür; HESAPLA ile otomatik günlük hesap buraya kaydolur. */}
       {activeTab === "sonuc" && <WingsmDegerPuanim />}
+
+      {/* SATIŞ VERİSİ: WingSM satış satırlarını inceleme aracı (kategori gerçekleşenini otomatikleştirmek için) */}
+      {activeTab === "satis" && <SatisIncele />}
 
       {activeTab === "kurallar" && (
       <>
