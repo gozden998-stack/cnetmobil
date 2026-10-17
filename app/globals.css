@@ -19,6 +19,22 @@
   }
 }
 
+/* Tıklanabilir her şeyde el işareti (Tailwind 4 düğmeleri varsayılan ok bırakıyor).
+   @layer base: elle yazılan cursor-* sınıfları (ör. cursor-not-allowed) yine geçerli kalır. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  select:not(:disabled),
+  label[for],
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="range"]:not(:disabled),
+  input[type="file"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
