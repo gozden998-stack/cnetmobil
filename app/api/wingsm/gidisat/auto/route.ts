@@ -4,11 +4,12 @@
 //
 // CMR Değer Puan'ın deger-puan-auto ucuyla AYNI kurallar (aynı zamanlayıcı script'i çağırır):
 //   - Ayın 28, 29, 30, 31'i ve 1'i hiçbir şey yapmaz.
-//   - Türkiye saatiyle 10:00'dan önce hiçbir şey yapmaz.
+//   - Türkiye saatiyle 12:00'dan önce hiçbir şey yapmaz (Gidişat yayın saati 12:00; CMR Değer Puan
+//     10:00, Vodafone 11:00).
 //   - Bugün zaten hesaplandıysa hiçbir şey yapmaz (günde bir kez, kendi kayıt tablosu).
 //   - Aksi halde "ayın 1'i - dün" aralığını hesaplar ve kaydeder.
-// Zamanlayıcı CMR Değer Puan'ı ÖNCE, bunu sonra çağırır: Değer Puan kategorisi o günkü
-// CMR raporundan beslenir.
+// Zamanlayıcı CMR Değer Puan'ı (10:00) ÖNCE, bunu (12:00) sonra yayınlar: Değer Puan kategorisi
+// o günkü CMR raporundan beslenir.
 //
 // GÜVENLİK: sadece sunucu-sunucu, Authorization: Bearer WINGSM_SYNC_SECRET.
 // WingSM'e HİÇBİR veri yazılmaz.
@@ -17,12 +18,15 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 
 import { getPool, json } from "../../score-rules/_shared";
-import { autoReportRange, AUTO_RUN_HOUR, isAutoRunDay, isAutoRunTime, istanbulDateAndHour } from "../../_deger-puan-auto";
+import { autoReportRange, isAutoRunDay, istanbulDateAndHour } from "../../_deger-puan-auto";
 import { computeAndSaveGidisat, ensureGidisatTables } from "../_gidisat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// Gidişat raporu her gün bu saatten (Türkiye saati) itibaren hesaplanıp yayınlanır.
+const GIDISAT_AUTO_RUN_HOUR = 12;
 
 function isCronAuthorized(request: NextRequest) {
   const secret = String(process.env.WINGSM_SYNC_SECRET || "").trim();
@@ -48,11 +52,11 @@ export async function POST(request: NextRequest) {
     return json({ success: true, status: "AY_SONU_DURDU", today });
   }
 
-  if (!isAutoRunTime(hour)) {
+  if (hour < GIDISAT_AUTO_RUN_HOUR) {
     return json({
       success: true,
       status: "HENUZ_SAAT_DEGIL",
-      message: `Otomatik hesaplama Türkiye saatiyle ${AUTO_RUN_HOUR}:00'dan sonra çalışır.`,
+      message: `Otomatik hesaplama Türkiye saatiyle ${GIDISAT_AUTO_RUN_HOUR}:00'dan sonra çalışır.`,
       today,
       hour,
     });

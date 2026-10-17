@@ -1,6 +1,7 @@
 import { parseNotificationPrice } from './lib/notificationPrice';
 import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti';
+import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -1722,6 +1723,14 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                         )}
                     </div>
                 </section>
+                )}
+
+                {/* PERSONEL GİDİŞATI (WingSM, her gün 12:00'da yayınlanan rapor) - CMR mağazaları kendi
+                    personelini, yönetici hepsini görür (mağaza filtresi sunucuda uygulanır). */}
+                {isCmr && (
+                    <section className="mb-4">
+                        <PersonelGidisatEkrani yonetici={Boolean(isAdmin)} />
+                    </section>
                 )}
 
                 {/* OPERASYON ÖZETİ */}

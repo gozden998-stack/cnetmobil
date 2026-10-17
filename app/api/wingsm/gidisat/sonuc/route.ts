@@ -1,11 +1,19 @@
 // app/api/wingsm/gidisat/sonuc/route.ts
 //
-// CNETMOBIL - Personel Gidişat - KAYITLI SONUCU OKU (şimdilik sadece yönetici).
+// CNETMOBIL - Personel Gidişat - KAYITLI SONUCU OKU.
+//   Yönetici: tüm kişiler + tanı alanları.
+//   CMR mağaza girişi (CMR MERKEZ/CADDE/SARAY/KAPAKLI): SADECE kendi mağazasının personeli döner
+//   (diğer mağazaların kişi/rakamları sunucudan hiç çıkmaz); tanı alanları (hedefsiz satıcılar,
+//   alan adları, uyarılar, satır sayısı) verilmez. Diğer girişler (Vodafone vb.) 403.
 //   GET                      -> en güncel rapor
 //   GET ?gun=YYYY-MM-DD      -> o gün YAYINLANAN rapor (Dün / Önceki Gün / takvim). Bir günde
 //                               yayınlanan rapor o günden bir önceki güne kadardır (CMR/Vodafone
 //                               ile aynı kural). O gün için rapor yoksa en yakın önceki gösterilir.
 //   GET ?period=YYYY-MM      -> o ayın en güncel raporu
+//
+// DELETE: sadece yönetici - kayıtlı TÜM Gidişat raporlarını ve günlük yayın kayıtlarını siler
+// (hedefler ve kategori ayarları silinmez). Bugün "hesaplandı" sayılır: otomatik yayın bugün
+// yeniden rapor üretmez, ilk yeni rapor ertesi gün 12:00'da yayınlanır.
 //
 // Cevapta ayrıca: durum ("guncel" = rapor aralığının bitişi DÜN ya da daha yeni, yoksa
 // "bekleniyor"), aySonuPaylasim (ayın 28'i-1'i otomatik yayın durur), history (seçilebilir
@@ -13,10 +21,14 @@
 
 import { NextRequest } from "next/server";
 
-import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
+import { getPool, json, requireAdminSession, requireValidSession } from "../../score-rules/_shared";
 import { isAutoRunDay } from "../../_deger-puan-auto";
 import { istanbulTodayIso, previousDayIso } from "../../vodafone/_vodafone";
-import { ensureGidisatTables } from "../_gidisat";
+import { CMR_BRANCH_LABELS, ensureGidisatTables } from "../_gidisat";
+
+function sameBranch(a: unknown, b: unknown) {
+  return String(a ?? "").trim().toLocaleUpperCase("tr-TR") === String(b ?? "").trim().toLocaleUpperCase("tr-TR");
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,11 +39,44 @@ function wingsmDateToIso(value: unknown): string | null {
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
 }
 
-export async function GET(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   const auth = requireAdminSession(request);
 
   if (!auth.ok) {
     return auth.response;
+  }
+
+  try {
+    const pool = getPool();
+    await ensureGidisatTables(pool);
+
+    const deleted = await pool.query(`DELETE FROM public.gidisat_history`);
+    await pool.query(`DELETE FROM public.gidisat_auto_runs`);
+    await pool.query(
+      `INSERT INTO public.gidisat_auto_runs (run_date, started_at, finished_at) VALUES ($1::date, now(), now()) ON CONFLICT (run_date) DO NOTHING`,
+      [istanbulTodayIso()]
+    );
+
+    return json({ success: true, deletedReports: deleted.rowCount ?? 0 });
+  } catch (error) {
+    console.error("GIDISAT_RAPOR_SIL_ERROR:", error);
+
+    return json({ success: false, error: error instanceof Error ? error.message : "Raporlar silinemedi." }, 500);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const auth = requireValidSession(request);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const isAdmin = auth.session.role === "admin";
+  const myBranch = String(auth.session.branch ?? "").trim();
+
+  if (!isAdmin && !CMR_BRANCH_LABELS.some((label) => sameBranch(label, myBranch))) {
+    return json({ success: false, error: "Bu ekran sadece CMR mağazalarına açıktır." }, 403);
   }
 
   try {
@@ -109,7 +154,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>);
+    const fullPayload = typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>);
+
+    // Mağaza girişi: kişiler sunucuda kendi mağazasına indirgenir, tanı alanları atılır.
+    const payload: Record<string, unknown> = isAdmin
+      ? fullPayload
+      : {
+          success: true,
+          period: fullPayload.period,
+          range: fullPayload.range,
+          gunBilgisi: fullPayload.gunBilgisi,
+          kategoriler: fullPayload.kategoriler,
+          kisiler: (Array.isArray(fullPayload.kisiler) ? fullPayload.kisiler : []).filter(
+            (person: { branchLabel?: unknown }) => sameBranch(person?.branchLabel, myBranch)
+          ),
+        };
     const range = payload.range as { tarih: string; tarih2: string } | undefined;
     const rangeEnd = wingsmDateToIso(range?.tarih2);
     const isLatest = !eskiRapor && !/^\d{4}-\d{2}$/.test(periodParam);

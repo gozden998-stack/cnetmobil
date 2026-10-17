@@ -34,6 +34,7 @@ if (!secret) {
 }
 
 // Sıra önemli: Gidişat'ın "Değer Puan" kategorisi CMR Değer Puan raporundan beslenir.
+// Yayın saatleri (Türkiye): CMR 10:00, Vodafone 11:00, Gidişat 12:00 (kararı uçlar verir).
 const TARGETS = [
   { label: "CMR", path: "/api/wingsm/deger-puan-auto" },
   { label: "GIDISAT", path: "/api/wingsm/gidisat/auto" },

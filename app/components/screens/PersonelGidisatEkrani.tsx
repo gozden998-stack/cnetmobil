@@ -7,7 +7,7 @@
 // Üstte toplam puan, altında 9 kategori kartı: gerçekleşen / hedef, ilerleme çubuğu
 // (barem işaretli), yüzde ve kazanılan puan.
 //
-// Veri: /api/wingsm/gidisat/sonuc (her gün 10:00'da otomatik yayınlanan rapor).
+// Veri: /api/wingsm/gidisat/sonuc (her gün 12:00'da otomatik yayınlanan rapor).
 // Şimdilik sadece yönetici ("Yönetici Önizlemesi"); mağazalara açılınca her mağaza
 // sadece kendi personelini görecek (sunucuda süzülecek).
 
@@ -191,9 +191,11 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
   const [storeFilter, setStoreFilter] = useState("");
   const [selectedName, setSelectedName] = useState("");
 
-  const load = useCallback(async (gun: string | null) => {
-    setLoading(true);
-    setError("");
+  const load = useCallback(async (gun: string | null, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const res = await fetch(`/api/wingsm/gidisat/sonuc${gun ? `?gun=${gun}` : ""}`, {
@@ -209,16 +211,32 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
 
       setReport(payload as Report);
     } catch (err) {
-      setReport(null);
-      setError(err instanceof Error ? err.message : "Gidişat alınamadı.");
+      if (!silent) {
+        setReport(null);
+        setError(err instanceof Error ? err.message : "Gidişat alınamadı.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load(dayPickToGun(pick));
   }, [pick, load]);
+
+  // "Rapor bekleniyor" iken ekran açık kalırsa, 12:00'da rapor yayınlanınca sayfayı yenilemeye
+  // gerek kalmasın: 2 dakikada bir sessizce tekrar sorulur.
+  const waiting = report !== null && (report.durum === "bekleniyor" || (!report.hasReport && !report.bulunamadi));
+
+  useEffect(() => {
+    if (!waiting || pick.kind !== "bugun") return;
+
+    const id = window.setInterval(() => {
+      void load(null, true);
+    }, 120_000);
+
+    return () => window.clearInterval(id);
+  }, [waiting, pick.kind, load]);
 
   const minPickDate = useMemo(() => {
     const earliest = (report?.history ?? [])
@@ -258,6 +276,7 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
+          {yonetici && (
           <label>
             <div className="mb-1 text-[10px] font-bold text-slate-500">Mağaza</div>
             <select
@@ -273,6 +292,7 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
               ))}
             </select>
           </label>
+          )}
 
           <div>
             <div className="mb-1 text-[10px] font-bold text-slate-500">Personel</div>
@@ -323,7 +343,7 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
         </div>
       )}
 
-      {/* Rapor yok / yeni gün 10:00 öncesi: eski rakamlar gösterilmez. */}
+      {/* Rapor yok / yeni gün 12:00 öncesi: eski rakamlar gösterilmez. */}
       {(raporYok || beklemede) && (
         <div className="mt-5 flex min-h-[260px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-12 text-center shadow-sm">
           <div className="text-5xl">{report?.aySonuPaylasim ? "📢" : "⏳"}</div>
@@ -333,7 +353,7 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
           <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">
             {report?.aySonuPaylasim
               ? AY_SONU_MESAJI
-              : "Personel Gidişat raporu her gün saat 10:00'da otomatik yayınlanır; yayınlanınca burada görünecek."}
+              : "Personel Gidişat raporu her gün saat 12:00'da otomatik yayınlanır; yayınlanınca burada görünecek."}
           </p>
           {beklemede && (
             <p className="mt-3 text-xs font-semibold text-slate-400">
@@ -345,7 +365,9 @@ export default function PersonelGidisatEkrani({ yonetici }: { yonetici: boolean 
 
       {report?.hasReport && !beklemede && !person && (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-white py-10 text-center text-sm font-bold text-slate-400">
-          Bu raporda personel yok. Önce Hedefler sekmesinden kişileri ve hedefleri girin.
+          {yonetici
+            ? "Bu raporda personel yok. Önce Hedefler sekmesinden kişileri ve hedefleri girin."
+            : "Bu mağaza için raporda personel bulunmuyor."}
         </div>
       )}
 
