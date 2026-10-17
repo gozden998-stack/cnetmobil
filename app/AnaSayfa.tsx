@@ -1098,8 +1098,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const maxListePuani = Math.max(100, ...(aktifPersoneller.map(p => Number(p.puanTahmin) || 0)));
 
-    const toplamPersonelSayisi = tumSirketPersonelleri.length;
-    const aktifPersonelSayisi = aktifPersoneller.length;
     const ortalamaSubePerformans = aktifPersoneller.length > 0 
         ? (aktifPersoneller.reduce((acc, p) => acc + (Number(p.puanTahmin) || 0), 0) / aktifPersoneller.length).toFixed(1)
         : "0.0";
@@ -1735,28 +1733,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
                 {/* OPERASYON ÖZETİ */}
                 {isCmr && (
-                    <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        <button
-                            type="button"
-                            onClick={() => setActiveDrawer('personel')}
-                            className="group flex min-h-[128px] items-center gap-4 rounded-[20px] border border-slate-200/80 bg-white p-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-                        >
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5-2.83M17 20H7m10 0v-2a5 5 0 00-10 0v2m10 0H7m0 0H2v-2a3 3 0 015-2.83M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-[13px] font-black text-slate-800">Personel Durumu</div>
-                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Aktif mağaza personelleri</div>
-                                <div className="mt-2 flex items-end gap-2">
-                                    <span className="text-2xl font-black text-[#102A56]">{aktifPersonelSayisi}</span>
-                                    <span className="pb-1 text-[11px] font-black text-blue-600">/ {toplamPersonelSayisi} toplam</span>
-                                </div>
-                            </div>
-                            <span className="text-blue-500 transition group-hover:translate-x-1">→</span>
-                        </button>
-
+                    <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                         <button
                             type="button"
                             onClick={() => setActiveModal('hedefler')}
