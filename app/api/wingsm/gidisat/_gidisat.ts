@@ -39,7 +39,8 @@ export type Metric = "adet" | "karlilik" | "tutar" | "deger_puan";
 export type CategoryRule = {
   siniflar: string[]; // sınıf kodu ya da adı (2el, 1el, 6, cik...) - boşsa sınıf süzgeci yok
   adBaslar: string[]; // ürün adı bunlardan biriyle BAŞLAMALI
-  adIcerir: string[]; // ürün adında bunlardan biri GEÇMELİ
+  adGerekli: string[]; // ürün adında bunların HEPSİ geçmeli (VE)
+  adIcerir: string[]; // ürün adında bunlardan biri GEÇMELİ (VEYA)
   adIcermez: string[]; // ürün adında bunlardan biri GEÇMEMELİ
   minFiyat: number | null; // birim satış fiyatı en az (TL)
 };
@@ -63,7 +64,24 @@ export type GidisatSettings = {
 
 export type GidisatConfig = { categories: Category[]; settings: GidisatSettings };
 
-const emptyRule = (): CategoryRule => ({ siniflar: [], adBaslar: [], adIcerir: [], adIcermez: [], minFiyat: null });
+const emptyRule = (): CategoryRule => ({
+  siniflar: [],
+  adBaslar: [],
+  adGerekli: [],
+  adIcerir: [],
+  adIcermez: [],
+  minFiyat: null,
+});
+
+// Samsung Premium: Galaxy S serisi (S23, S24, S25... FE/Ultra/Plus dahil) ve Z serisi (Z Fold, Z Flip).
+// "#" = bir rakam, "*" = herhangi karakterler. "S#" ürün adındaki bir kelimenin S ve rakamla
+// başlaması demektir (S24, S24+, SM-S928B...).
+const SAMSUNG_PREMIUM_RULE: CategoryRule = {
+  ...emptyRule(),
+  siniflar: ["1el"],
+  adGerekli: ["SAMSUNG"],
+  adIcerir: ["S#", "Z FOLD", "Z FLIP"],
+};
 
 export const DEFAULT_CONFIG: GidisatConfig = {
   settings: { iadeNet: true, tutarAlani: "", fiyatAlani: "" },
@@ -116,8 +134,7 @@ export const DEFAULT_CONFIG: GidisatConfig = {
       maxPuan: 15,
       baremPct: null,
       aktif: true,
-      // KURAL KULLANICIYLA NETLEŞECEK: premium model listesi ya da en düşük fiyat eklenecek.
-      rule: { ...emptyRule(), siniflar: ["1el", "2el"], adIcerir: ["SAMSUNG"] },
+      rule: SAMSUNG_PREMIUM_RULE,
     },
     {
       key: "zebleze",
@@ -258,6 +275,7 @@ export function sanitizeConfig(input: unknown): GidisatConfig {
       rule: {
         siniflar: cleanList(ruleIn.siniflar),
         adBaslar: cleanList(ruleIn.adBaslar),
+        adGerekli: cleanList(ruleIn.adGerekli),
         adIcerir: cleanList(ruleIn.adIcerir),
         adIcermez: cleanList(ruleIn.adIcermez),
         minFiyat:
@@ -286,7 +304,32 @@ export async function loadConfig(pool: Pool): Promise<GidisatConfig> {
 
   if (!payload) return DEFAULT_CONFIG;
 
-  return sanitizeConfig(typeof payload === "string" ? JSON.parse(payload) : payload);
+  const config = sanitizeConfig(typeof payload === "string" ? JSON.parse(payload) : payload);
+
+  // Eski varsayılan Samsung kuralı ("SAMSUNG" geçen her cihaz) hiç değiştirilmeden kaydedilmişse
+  // Premium (S ve Z serisi, sadece 1.EL) kuralıyla değiştirilir; kullanıcı kendi kuralını yazdıysa dokunulmaz.
+  const samsung = config.categories.find((category) => category.key === "samsung");
+
+  if (
+    samsung &&
+    samsung.rule.adGerekli.length === 0 &&
+    samsung.rule.adIcerir.length === 1 &&
+    fold(samsung.rule.adIcerir[0]) === "samsung" &&
+    samsung.rule.adBaslar.length === 0 &&
+    samsung.rule.adIcermez.length === 0 &&
+    samsung.rule.minFiyat === null
+  ) {
+    // Sınıf: Premium sadece 1.EL. Eski varsayılan "1el, 2el" ise 1el'e indirilir; elle değiştirilmişse korunur.
+    const savedClasses = samsung.rule.siniflar.map(fold);
+    const oldDefaultClasses = savedClasses.length === 2 && savedClasses.includes("1el") && savedClasses.includes("2el");
+
+    samsung.rule = {
+      ...SAMSUNG_PREMIUM_RULE,
+      siniflar: savedClasses.length === 0 || oldDefaultClasses ? SAMSUNG_PREMIUM_RULE.siniflar : samsung.rule.siniflar,
+    };
+  }
+
+  return config;
 }
 
 export async function saveConfig(pool: Pool, config: GidisatConfig) {
@@ -358,6 +401,27 @@ function tokens(name: string): string[] {
 // Boşluksuz terim: ürün adındaki bir KELİMENİN başında olmalı ("NCAM" -> "NCAM ULT", "SUNCAM" değil).
 // Boşluklu terim ("GALAXY S24"): adın içinde geçmesi yeter.
 function termMatches(nameFolded: string, nameTokens: string[], term: string): boolean {
+  // Joker: "#" bir rakam, "*" herhangi karakterler ("S#" -> S24, S9; "Z FOLD*" -> ZFOLD5).
+  if (/[#*]/.test(term)) {
+    const source = term
+      .trim()
+      .toLocaleLowerCase("tr-TR")
+      .replace(/ı/g, "i")
+      .replace(/ö/g, "o")
+      .replace(/ü/g, "u")
+      .replace(/ş/g, "s")
+      .replace(/ç/g, "c")
+      .replace(/ğ/g, "g")
+      .replace(/[^a-z0-9#*]/g, "")
+      .replace(/#/g, "[0-9]")
+      .replace(/\*/g, "[a-z0-9]*");
+
+    if (!source) return false;
+
+    const re = new RegExp("^" + source);
+    return nameTokens.some((token) => re.test(token));
+  }
+
   const folded = fold(term);
   if (!folded) return false;
 
@@ -405,6 +469,7 @@ function rowMatches(
   const nameTokens = tokens(name);
 
   if (rule.adBaslar.length > 0 && !rule.adBaslar.some((term) => nameFolded.startsWith(fold(term)))) return false;
+  if (rule.adGerekli.length > 0 && !rule.adGerekli.every((term) => termMatches(nameFolded, nameTokens, term))) return false;
   if (rule.adIcerir.length > 0 && !rule.adIcerir.some((term) => termMatches(nameFolded, nameTokens, term))) return false;
   if (rule.adIcermez.length > 0 && rule.adIcermez.some((term) => termMatches(nameFolded, nameTokens, term))) return false;
 

@@ -17,6 +17,7 @@ type Metric = "adet" | "karlilik" | "tutar" | "deger_puan";
 type CategoryRule = {
   siniflar: string[];
   adBaslar: string[];
+  adGerekli: string[];
   adIcerir: string[];
   adIcermez: string[];
   minFiyat: number | null;
@@ -768,7 +769,9 @@ export default function PersonelGidisat() {
               <h1 className="text-2xl font-black">Kategori Ayarları</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Her kategorinin puanı, max puanı, bareminin ve WingSM&apos;den nasıl sayılacağının kuralı. Sınıf ve ürün adı
-                eşleşmesi büyük/küçük harf, nokta ve boşluk farkını görmez (&quot;2.EL&quot; = &quot;2el&quot;).
+                eşleşmesi büyük/küçük harf, nokta ve boşluk farkını görmez (&quot;2.EL&quot; = &quot;2el&quot;). Ürün adı
+                kutularında &quot;#&quot; bir rakam, &quot;*&quot; herhangi karakterler demektir (&quot;S#&quot; = S24, S25...;
+                &quot;Z FOLD&quot; = Z Fold 5, ZFOLD6).
               </p>
             </div>
             <button
@@ -856,7 +859,7 @@ export default function PersonelGidisat() {
                     kategori için ayrı kural yoktur.
                   </p>
                 ) : (
-                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     <label>
                       <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Sınıflar (virgülle)</div>
                       <input
@@ -872,6 +875,15 @@ export default function PersonelGidisat() {
                         value={listText(category.rule.adBaslar)}
                         onChange={(e) => updateRule(category.key, { adBaslar: parseList(e.target.value) })}
                         placeholder="2.EL"
+                        className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm"
+                      />
+                    </label>
+                    <label>
+                      <div className="mb-1 text-[10px] font-black uppercase text-slate-500">Ürün adında HEPSİ geçsin (ve)</div>
+                      <input
+                        value={listText(category.rule.adGerekli)}
+                        onChange={(e) => updateRule(category.key, { adGerekli: parseList(e.target.value) })}
+                        placeholder="SAMSUNG"
                         className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm"
                       />
                     </label>
