@@ -1424,12 +1424,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                         onClick={() => setSelectedPriceNotification(item)}
                                                         className={`group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl px-3 py-2.5 text-left transition-all lg:flex-nowrap ${
                                                             isFresh
-                                                                ? 'bg-rose-50 ring-1 ring-rose-100 hover:bg-rose-100/70'
+                                                                ? 'bg-rose-50/60 hover:bg-rose-50'
                                                                 : 'hover:bg-slate-50'
                                                         }`}
                                                     >
                                                         <span className={`flex h-8 w-8 shrink-0 items-center justify-center ${
-                                                            isNew ? 'text-blue-600' : isDown ? 'text-emerald-600' : 'text-rose-500'
+                                                            isNew ? 'text-blue-500' : isDown ? 'text-emerald-500' : 'text-rose-400'
                                                         }`}>
                                                             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L11 19a2 2 0 01-2.828 0l-5.586-5.586A2 2 0 013 12.172V11z" />
@@ -1437,23 +1437,23 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                         </span>
 
                                                         <span className="flex shrink-0 items-center gap-2 lg:w-[200px]">
-                                                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                                                                 isNew
                                                                     ? 'bg-blue-50 text-blue-600'
                                                                     : isDown
                                                                         ? 'bg-emerald-50 text-emerald-700'
-                                                                        : 'bg-rose-100 text-rose-600'
+                                                                        : 'bg-rose-100/70 text-rose-500'
                                                             }`}>
                                                                 {isNew ? 'Yeni ürün' : 'Fiyat değişikliği'}
                                                             </span>
                                                             {isFresh && (
-                                                                <span className="whitespace-nowrap rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-black text-rose-600">
+                                                                <span className="whitespace-nowrap rounded-full bg-rose-100/70 px-2.5 py-1 text-[10px] font-semibold text-rose-500">
                                                                     Yeni
                                                                 </span>
                                                             )}
                                                         </span>
 
-                                                        <span className="min-w-0 flex-1 basis-[55%] truncate text-[12px] font-black text-[#102A56] lg:basis-auto">
+                                                        <span className="min-w-0 flex-1 basis-[55%] truncate text-[12px] font-bold text-[#102A56] lg:basis-auto">
                                                             {item.name}
                                                         </span>
 
@@ -1471,8 +1471,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                                     <span className="text-[13px] font-black text-[#102A56]">
                                                                         {formatPriceTl(item.newPrice)}
                                                                     </span>
-                                                                    <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black ${
-                                                                        isDown ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-600'
+                                                                    <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                                                        isDown ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100/70 text-rose-500'
                                                                     }`}>
                                                                         {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
                                                                     </span>
@@ -1484,7 +1484,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                                             <span className="whitespace-nowrap text-[10px] font-semibold text-slate-400">
                                                                 {getPriceDateTimeLabel(item.changedAt)}
                                                             </span>
-                                                            <span className={`h-2 w-2 shrink-0 rounded-full ${isFresh ? 'bg-rose-500' : 'bg-transparent'}`} />
+                                                            <span className={`h-2 w-2 shrink-0 rounded-full ${isFresh ? 'bg-rose-400' : 'bg-transparent'}`} />
                                                         </span>
                                                     </button>
                                                 );
