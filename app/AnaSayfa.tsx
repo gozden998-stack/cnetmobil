@@ -331,6 +331,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
+    const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat'>('degerpuan');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1666,11 +1667,38 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 </section>
                 )}
 
+                {/* ANA ALAN (CMR): solda sekmeli kart (Değer Puanı | Personel Gidişatı), sağda Hızlı İşlemler + Mağaza Bilgileri */}
                 {isCmr && (
-                <section className="mb-4">
+                <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
+                        <div className="flex gap-1 border-b border-slate-100 px-3 pt-2">
+                            {[
+                                { id: 'degerpuan', label: 'Değer Puanı' },
+                                { id: 'gidisat', label: 'Personel Gidişatı' },
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setAnaTab(item.id as 'degerpuan' | 'gidisat')}
+                                    className={`-mb-px border-b-[3px] px-4 py-3 text-[12px] font-black uppercase tracking-wide transition ${
+                                        anaTab === item.id
+                                            ? 'border-blue-600 text-blue-700'
+                                            : 'border-transparent text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
 
-                    {/* ŞİRKET DEĞER PUAN (WingSM) - eski aylık satış grafiği kaldırıldı */}
-                    <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
+                        {anaTab === 'gidisat' ? (
+                            <div className="p-3 sm:p-4">
+                                {/* Personel Gidişatı (WingSM, her gün 12:00'da yayınlanan rapor): CMR mağazaları kendi
+                                    personelini, yönetici hepsini görür (mağaza filtresi sunucuda uygulanır). */}
+                                <PersonelGidisatEkrani yonetici={Boolean(isAdmin)} />
+                            </div>
+                        ) : (
+<div className="">
                         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h2 className="text-lg font-black tracking-tight text-[#102A56]">Şirket Değer Puan</h2>
@@ -1720,110 +1748,61 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             />
                         )}
                     </div>
-                </section>
-                )}
-
-                {/* PERSONEL GİDİŞATI (WingSM, her gün 12:00'da yayınlanan rapor) - CMR mağazaları kendi
-                    personelini, yönetici hepsini görür (mağaza filtresi sunucuda uygulanır). */}
-                {isCmr && (
-                    <section className="mb-4">
-                        <PersonelGidisatEkrani yonetici={Boolean(isAdmin)} />
-                    </section>
-                )}
-
-                {/* OPERASYON ÖZETİ */}
-                {isCmr && (
-                    <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <button
-                            type="button"
-                            onClick={() => setActiveModal('hedefler')}
-                            className="group flex min-h-[128px] items-center gap-4 rounded-[20px] border border-slate-200/80 bg-white p-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-                        >
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l3 6 7 .9-5 4.8 1.2 6.8L12 17.3 5.8 20.5 7 13.7 2 8.9 9 8l3-6z" />
-                                </svg>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-[13px] font-black text-slate-800">Mağaza Hedefleri</div>
-                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Aylık gerçekleşme</div>
-                                <div className="mt-2 text-2xl font-black text-[#102A56]">%{tamamlananYuzde}</div>
-                            </div>
-                            <span className="text-emerald-500 transition group-hover:translate-x-1">→</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setActiveModal('izinler')}
-                            className="group flex min-h-[128px] items-center gap-4 rounded-[20px] border border-slate-200/80 bg-white p-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"
-                        >
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-[13px] font-black text-slate-800">İzinler</div>
-                                <div className="mt-0.5 text-[11px] font-bold text-slate-400">Personel izin takvimi</div>
-                                <div className="mt-2 text-[10px] font-black text-violet-600">Takvimi Gör</div>
-                            </div>
-                            <span className="text-violet-500 transition group-hover:translate-x-1">→</span>
-                        </button>
-                    </section>
-                )}
-
-                {/* HIZLI ERİŞİM - SADECE CMR */}
-                {isCmr && (
-                <section className="mb-6 rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,0.04)]">
-                    <div className="mb-3">
-                        <h3 className="text-[14px] font-black text-[#102A56]">Hızlı Erişim</h3>
-                        <p className="text-[11px] font-bold text-slate-400">Sık kullandığınız işlemlere hızlıca ulaşın</p>
+                        )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
-                        {[
-                            { label: 'Cihaz Alım', mode: 'alim', tone: 'emerald', icon: '▣' },
-                            { label: 'Teknik Servis', mode: 'servis', tone: 'blue', icon: '⌁' },
-                            { label: 'Cihaz Talep', mode: 'cihaz_talep', tone: 'violet', icon: '◇' },
-                            { label: '2. El Liste', mode: 'ikinci_el_apple', tone: 'orange', icon: '▯' },
-                            { label: 'YNA Liste', mode: 'yna_list', tone: 'pink', icon: '▤' },
-                            { label: 'Dış Kanal', mode: 'dis_kanal', tone: 'cyan', icon: '↗' },
-                        ].map((item: any) => {
-                            const toneClasses: Record<string, string> = {
-                                emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700 hover:border-emerald-300',
-                                blue: 'border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-300',
-                                violet: 'border-violet-100 bg-violet-50 text-violet-700 hover:border-violet-300',
-                                orange: 'border-orange-100 bg-orange-50 text-orange-700 hover:border-orange-300',
-                                pink: 'border-pink-100 bg-pink-50 text-pink-700 hover:border-pink-300',
-                                cyan: 'border-cyan-100 bg-cyan-50 text-cyan-700 hover:border-cyan-300',
-                            };
+                    <div className="space-y-4">
+                        <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,0.04)]">
+                            <h3 className="mb-3 text-[15px] font-black text-[#102A56]">Hızlı İşlemler</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { label: 'Cihaz Alım', box: 'bg-emerald-50 text-emerald-700', icon: '▣', onClick: () => setAppMode('alim') },
+                                    { label: 'Teknik Servis', box: 'bg-blue-50 text-blue-700', icon: '⌁', onClick: () => setAppMode('servis') },
+                                    { label: 'Cihaz Talep', box: 'bg-violet-50 text-violet-700', icon: '◇', onClick: () => setAppMode('cihaz_talep') },
+                                    { label: '2. El Liste', box: 'bg-orange-50 text-orange-700', icon: '▯', onClick: () => setAppMode('ikinci_el_apple') },
+                                    { label: 'YNA Liste', box: 'bg-pink-50 text-pink-700', icon: '▤', onClick: () => setAppMode('yna_list') },
+                                    { label: 'Dış Kanal', box: 'bg-cyan-50 text-cyan-700', icon: '↗', onClick: () => setAppMode('dis_kanal') },
+                                    { label: 'İzinler', box: 'bg-purple-50 text-purple-700', icon: '▦', onClick: () => setActiveModal('izinler') },
+                                    { label: 'Raporlar', box: 'bg-slate-100 text-slate-600', icon: '▥', onClick: () => setActiveModal('departman') },
+                                ].map((item) => (
+                                    <button
+                                        type="button"
+                                        key={item.label}
+                                        onClick={item.onClick}
+                                        className="group flex min-h-[56px] items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white px-3 text-left text-[12px] font-black text-slate-800 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-sm"
+                                    >
+                                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base ${item.box}`}>{item.icon}</span>
+                                        <span className="min-w-0 flex-1 leading-tight">{item.label}</span>
+                                        <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-500">›</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                            return (
+                        <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,0.04)]">
+                            <h3 className="mb-2 text-[15px] font-black text-[#102A56]">Mağaza Bilgileri</h3>
+                            <div className="divide-y divide-slate-100">
                                 <button
                                     type="button"
-                                    key={item.label}
-                                    onClick={() => setAppMode(item.mode)}
-                                    className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border px-3 text-[11px] font-black transition hover:-translate-y-0.5 ${toneClasses[item.tone]}`}
+                                    onClick={() => setActiveModal('hedefler')}
+                                    className="flex w-full items-center justify-between gap-3 py-3 text-left"
                                 >
-                                    <span className="text-base">{item.icon}</span>
-                                    {item.label}
+                                    <span className="text-[12px] font-black text-slate-700">Mağaza Hedefi</span>
+                                    <span className="flex items-center gap-2 text-[13px] font-black text-[#102A56]">
+                                        %{tamamlananYuzde}
+                                        <span className="text-slate-300">›</span>
+                                    </span>
                                 </button>
-                            );
-                        })}
-
-                        <button type="button" onClick={() => setActiveModal('hedefler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 text-[11px] font-black text-rose-700 transition hover:-translate-y-0.5 hover:border-rose-300">
-                            <span className="text-base">◎</span> Hedefler
-                        </button>
-
-                        {isCmr && (
-                            <button type="button" onClick={() => setActiveModal('izinler')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 text-[11px] font-black text-purple-700 transition hover:-translate-y-0.5 hover:border-purple-300">
-                                <span className="text-base">▦</span> İzinler
-                            </button>
-                        )}
-
-                        <button type="button" onClick={() => setActiveModal('departman')} className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-[11px] font-black text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400">
-                            <span className="text-base">▥</span> Raporlar
-                        </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveModal('izinler')}
+                                    className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                                >
+                                    <span className="text-[12px] font-black text-slate-700">İzin Takvimi</span>
+                                    <span className="text-[12px] font-black text-blue-600">Takvimi aç →</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </section>
                 )}
