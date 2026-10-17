@@ -1438,7 +1438,18 @@ const submitTalep = async () => {
     showTalepMessage('TALEP OLUŞTURULDU', `${modelName} için ${talepAdedi} adet talebiniz merkeze iletildi.`, 'success');
   } catch (e) {
     console.error('Talep gönderme hatası:', e);
-    showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
+
+    // Sunucu "stok kapasitesi dolu", "cihaz talebe açık değil", "zaten aktif talep var"
+    // gibi NEDENİ olan bir hata döndüyse onu göster; "Bağlantı hatası" sadece gerçekten
+    // ağ/yanıt sorunu (fetch TypeError'ı, JSON olmayan cevap) olduğunda yazılır.
+    const gercekBaglantiSorunu = e instanceof TypeError || e instanceof SyntaxError;
+
+    if (!gercekBaglantiSorunu && e instanceof Error && e.message) {
+      const kapasiteDolu = /kapasite/i.test(e.message);
+      showTalepMessage(kapasiteDolu ? 'KAPASİTE DOLU' : 'TALEP OLUŞTURULAMADI', e.message, 'error');
+    } else {
+      showTalepMessage('BAĞLANTI HATASI', 'Talep gönderilirken hata oluştu.', 'error');
+    }
   } finally {
     setTalepSaving(false);
   }
