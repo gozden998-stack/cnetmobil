@@ -558,8 +558,8 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const getPriceDateTimeLabel = (changedAt: number) =>
         new Date(changedAt).toLocaleString('tr-TR', {
-            day: '2-digit',
-            month: '2-digit',
+            day: 'numeric',
+            month: 'long',
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
@@ -1414,97 +1414,78 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                             {visiblePriceNotifications.slice(0, 12).map((item) => {
                                                 const isFresh = Number(item.expiresAt || 0) > notificationNow;
                                                 const isDown = item.direction === 'down';
+                                                const isNew = item.direction === 'new';
 
                                                 return (
                                                     <button
                                                         type="button"
                                                         key={item.id}
+                                                        title={item.category}
                                                         onClick={() => setSelectedPriceNotification(item)}
-                                                        className={`group w-full rounded-xl py-2.5 text-left transition-all ${
+                                                        className={`group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl px-3 py-2.5 text-left transition-all lg:flex-nowrap ${
                                                             isFresh
-                                                                ? 'bg-rose-50/55 px-3 ring-1 ring-rose-100'
-                                                                : 'px-1 hover:bg-slate-50'
+                                                                ? 'bg-rose-50 ring-1 ring-rose-100 hover:bg-rose-100/70'
+                                                                : 'hover:bg-slate-50'
                                                         }`}
                                                     >
-                                                        <div className="flex items-start gap-3">
-                                                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-                                                                item.direction === 'new'
-                                                                    ? 'border-blue-100 bg-blue-50 text-blue-600'
+                                                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center ${
+                                                            isNew ? 'text-blue-600' : isDown ? 'text-emerald-600' : 'text-rose-500'
+                                                        }`}>
+                                                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L11 19a2 2 0 01-2.828 0l-5.586-5.586A2 2 0 013 12.172V11z" />
+                                                            </svg>
+                                                        </span>
+
+                                                        <span className="flex shrink-0 items-center gap-2 lg:w-[200px]">
+                                                            <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                                                isNew
+                                                                    ? 'bg-blue-50 text-blue-600'
                                                                     : isDown
-                                                                        ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
-                                                                        : 'border-rose-100 bg-rose-50 text-rose-600'
+                                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                                        : 'bg-rose-100 text-rose-600'
                                                             }`}>
-                                                                <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M7 7h.01M3 11l8.586-8.586A2 2 0 0113 2h5a2 2 0 012 2v5a2 2 0 01-.586 1.414L10.828 19a2 2 0 01-2.828 0l-5-5a2 2 0 010-2.828z" />
-                                                                </svg>
-                                                            </div>
+                                                                {isNew ? 'Yeni ürün' : 'Fiyat değişikliği'}
+                                                            </span>
+                                                            {isFresh && (
+                                                                <span className="whitespace-nowrap rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-black text-rose-600">
+                                                                    Yeni
+                                                                </span>
+                                                            )}
+                                                        </span>
 
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0">
-                                                                        <div className="flex flex-wrap items-center gap-2">
-                                                                            <span className={`text-[11px] font-semibold uppercase tracking-wide ${
-                                                                                item.direction === 'new'
-                                                                                    ? 'text-blue-600'
-                                                                                    : 'text-rose-600'
-                                                                            }`}>
-                                                                                {item.direction === 'new' ? 'Yeni Ürün Eklendi' : 'Fiyat Değişti'}
-                                                                            </span>
-                                                                            {isFresh && (
-                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                                                                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                                                                                    Yeni
-                                                                                </span>
-                                                                            )}
-                                                                            <span className="text-[10px] font-medium text-slate-400">
-                                                                                {item.category}
-                                                                            </span>
-                                                                        </div>
+                                                        <span className="min-w-0 flex-1 basis-[55%] truncate text-[12px] font-black text-[#102A56] lg:basis-auto">
+                                                            {item.name}
+                                                        </span>
 
-                                                                        <h3 className="mt-1 truncate text-[12px] font-semibold text-slate-900 sm:text-[13px]">
-                                                                            {item.name}
-                                                                        </h3>
+                                                        <span className="flex shrink-0 items-center gap-2.5 lg:w-[300px] lg:justify-end">
+                                                            {isNew ? (
+                                                                <span className="text-[13px] font-black text-[#102A56]">
+                                                                    {formatPriceTl(item.newPrice)}
+                                                                </span>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="text-[11px] font-semibold text-slate-400 line-through">
+                                                                        {formatPriceTl(item.oldPrice)}
+                                                                    </span>
+                                                                    <span className="text-slate-400">→</span>
+                                                                    <span className="text-[13px] font-black text-[#102A56]">
+                                                                        {formatPriceTl(item.newPrice)}
+                                                                    </span>
+                                                                    <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black ${
+                                                                        isDown ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-600'
+                                                                    }`}>
+                                                                        {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </span>
 
-                                                                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                                                                            {item.direction === 'new' ? (
-                                                                                <>
-                                                                                    <span className="text-[10px] font-normal text-slate-400">
-                                                                                        Fiyat
-                                                                                    </span>
-                                                                                    <span className="text-[11px] font-medium text-slate-900">
-                                                                                        {formatPriceTl(item.newPrice)}
-                                                                                    </span>
-                                                                                </>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <span className="text-[10px] font-normal text-slate-400 line-through">
-                                                                                        {formatPriceTl(item.oldPrice)}
-                                                                                    </span>
-                                                                                    <span className="text-slate-300">→</span>
-                                                                                    <span className="text-[11px] font-medium text-slate-900">
-                                                                                        {formatPriceTl(item.newPrice)}
-                                                                                    </span>
-                                                                                    <span className={`text-[11px] font-medium ${
-                                                                                        isDown ? 'text-emerald-600' : 'text-rose-600'
-                                                                                    }`}>
-                                                                                        {item.diff > 0 ? '+' : ''}{formatPriceTl(item.diff)}
-                                                                                    </span>
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="flex shrink-0 items-center gap-2">
-                                                                        <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
-                                                                            {getPriceDateTimeLabel(item.changedAt)}
-                                                                        </span>
-                                                                        <svg className="h-4 w-4 text-slate-300 transition-colors group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                                                                        </svg>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                        <span className="flex shrink-0 items-center gap-2.5 lg:w-[150px] lg:justify-end">
+                                                            <span className="whitespace-nowrap text-[10px] font-semibold text-slate-400">
+                                                                {getPriceDateTimeLabel(item.changedAt)}
+                                                            </span>
+                                                            <span className={`h-2 w-2 shrink-0 rounded-full ${isFresh ? 'bg-rose-500' : 'bg-transparent'}`} />
+                                                        </span>
                                                     </button>
                                                 );
                                             })}
