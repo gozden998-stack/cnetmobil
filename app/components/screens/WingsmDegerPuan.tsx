@@ -245,11 +245,12 @@ export default function WingsmDegerPuan() {
   // ==================================================
 
   type CmrTab = "kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat";
-  const [activeTab, setActiveTab] = useState<CmrTab>("kurallar");
+  // Ekran açılınca hiçbir şey seçili gelmez; önce üst menüden bölüm, sonra alt menüden sekme seçilir.
+  const [activeTab, setActiveTab] = useState<CmrTab | "">("");
   // Üst menü: "Değer Puanı" (altında Kurallar/Hedefler/Rapor/Rapor Sonucu/Satış Verisi) | "Personel Gidişat".
-  const [sonDegerTab, setSonDegerTab] = useState<Exclude<CmrTab, "gidisat">>("kurallar");
-  const [degerAltAcik, setDegerAltAcik] = useState(true);
-  const [gidisatAltAcik, setGidisatAltAcik] = useState(true);
+  const [sonDegerTab, setSonDegerTab] = useState<Exclude<CmrTab, "gidisat"> | "">("");
+  const [degerAltAcik, setDegerAltAcik] = useState(false);
+  const [gidisatAltAcik, setGidisatAltAcik] = useState(false);
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -1138,7 +1139,9 @@ export default function WingsmDegerPuan() {
             }
           }}
           className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab !== "gidisat" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
+            activeTab !== "gidisat" && (degerAltAcik || activeTab !== "")
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
           }`}
         >
           Değer Puanı {activeTab !== "gidisat" && degerAltAcik ? "▴" : "▾"}

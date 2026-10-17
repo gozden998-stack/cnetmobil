@@ -125,8 +125,9 @@ function parsePasted(text: string): Array<{ saticiAdi: string; hedef: string }> 
 }
 
 export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.ReactNode }) {
-  const [tab, setTab] = useState<TabId>("sonuc");
-  const [altAcik, setAltAcik] = useState(true);
+  // Ekran açılınca hiçbir sekme seçili gelmez; "Değer Puanı" menüsü açılınca sekme seçilir.
+  const [tab, setTab] = useState<TabId | "">("");
+  const [altAcik, setAltAcik] = useState(false);
 
   // ---------------- AYARLAR ----------------
   const [settings, setSettings] = useState<VodafoneSettings | null>(null);
@@ -381,7 +382,9 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
         <button
           type="button"
           onClick={() => setAltAcik((open) => !open)}
-          className="h-10 flex-none whitespace-nowrap rounded-t-lg border-b-2 border-blue-600 px-4 text-xs font-black uppercase tracking-wide text-blue-700 transition"
+          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            altAcik || tab !== "" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
+          }`}
         >
           Değer Puanı {altAcik ? "▴" : "▾"}
         </button>

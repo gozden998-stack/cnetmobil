@@ -148,7 +148,7 @@ const MessageBox = ({ message }: { message: { type: "ok" | "err"; text: string }
   ) : null;
 
 export default function PersonelGidisat({ altAcik = true }: { altAcik?: boolean }) {
-  const [tab, setTab] = useState<SubTab>("sonuc");
+  const [tab, setTab] = useState<SubTab | "">("");
 
   // ---------------- AYARLAR (kategoriler) ----------------
   const [categories, setCategories] = useState<Category[]>([]);
