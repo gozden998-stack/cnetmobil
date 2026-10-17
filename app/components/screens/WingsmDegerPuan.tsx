@@ -24,6 +24,7 @@ import * as XLSX from "xlsx";
 
 import WingsmDegerPuanim from "./WingsmDegerPuanim";
 import SatisIncele from "./SatisIncele";
+import PersonelGidisat from "./PersonelGidisat";
 import VodafoneDegerPuan, { KANAL_STORAGE_KEY, KanalSecici, type Kanal } from "./VodafoneDegerPuan";
 import {
   magazaSatirRengi,
@@ -243,7 +244,7 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc" | "satis">("kurallar");
+  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat">("kurallar");
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -1176,6 +1177,17 @@ export default function WingsmDegerPuan() {
         >
           Satış Verisi
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("gidisat")}
+          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "gidisat"
+              ? "border-b-2 border-blue-600 text-blue-700"
+              : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Gidişat
+        </button>
       </div>
 
       {/* RAPOR SONUCU: personelin gördüğü ekranın AYNISI (kayıtlı son rapor +
@@ -1185,6 +1197,9 @@ export default function WingsmDegerPuan() {
 
       {/* SATIŞ VERİSİ: WingSM satış satırlarını inceleme aracı (kategori gerçekleşenini otomatikleştirmek için) */}
       {activeTab === "satis" && <SatisIncele />}
+
+      {/* PERSONEL GİDİŞAT: 9 kategori hedef/gerçekleşen/puan (şimdilik sadece yönetici) */}
+      {activeTab === "gidisat" && <PersonelGidisat />}
 
       {activeTab === "kurallar" && (
       <>
