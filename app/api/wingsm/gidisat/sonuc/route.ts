@@ -11,17 +11,13 @@
 //                               ile aynı kural). O gün için rapor yoksa en yakın önceki gösterilir.
 //   GET ?period=YYYY-MM      -> o ayın en güncel raporu
 //
-// DELETE: sadece yönetici - kayıtlı TÜM Gidişat raporlarını ve günlük yayın kayıtlarını siler
-// (hedefler ve kategori ayarları silinmez). Bugün "hesaplandı" sayılır: otomatik yayın bugün
-// yeniden rapor üretmez, ilk yeni rapor ertesi gün 12:00'da yayınlanır.
-//
 // Cevapta ayrıca: durum ("guncel" = rapor aralığının bitişi DÜN ya da daha yeni, yoksa
 // "bekleniyor"), aySonuPaylasim (ayın 28'i-1'i otomatik yayın durur), history (seçilebilir
 // geçmiş günler).
 
 import { NextRequest } from "next/server";
 
-import { getPool, json, requireAdminSession, requireValidSession } from "../../score-rules/_shared";
+import { getPool, json, requireValidSession } from "../../score-rules/_shared";
 import { isAutoRunDay } from "../../_deger-puan-auto";
 import { istanbulTodayIso, previousDayIso } from "../../vodafone/_vodafone";
 import { CMR_BRANCH_LABELS, ensureGidisatTables } from "../_gidisat";
@@ -37,32 +33,6 @@ export const revalidate = 0;
 function wingsmDateToIso(value: unknown): string | null {
   const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
-}
-
-export async function DELETE(request: NextRequest) {
-  const auth = requireAdminSession(request);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  try {
-    const pool = getPool();
-    await ensureGidisatTables(pool);
-
-    const deleted = await pool.query(`DELETE FROM public.gidisat_history`);
-    await pool.query(`DELETE FROM public.gidisat_auto_runs`);
-    await pool.query(
-      `INSERT INTO public.gidisat_auto_runs (run_date, started_at, finished_at) VALUES ($1::date, now(), now()) ON CONFLICT (run_date) DO NOTHING`,
-      [istanbulTodayIso()]
-    );
-
-    return json({ success: true, deletedReports: deleted.rowCount ?? 0 });
-  } catch (error) {
-    console.error("GIDISAT_RAPOR_SIL_ERROR:", error);
-
-    return json({ success: false, error: error instanceof Error ? error.message : "Raporlar silinemedi." }, 500);
-  }
 }
 
 export async function GET(request: NextRequest) {

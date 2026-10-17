@@ -368,7 +368,6 @@ export default function PersonelGidisat() {
   const [reportMsg, setReportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
-  const [resetBusy, setResetBusy] = useState(false);
 
   const loadLatest = useCallback(async () => {
     try {
@@ -400,31 +399,6 @@ export default function PersonelGidisat() {
       setReportMsg({ type: "err", text: err instanceof Error ? err.message : "Hesaplanamadı." });
     } finally {
       setReportBusy(false);
-    }
-  };
-
-  const resetReports = async () => {
-    const ok = window.confirm(
-      "Kayıtlı TÜM Personel Gidişat raporları silinecek (hedefler ve kategori ayarları silinmez).\n\n" +
-        "Bugün için otomatik yayın da yapılmaz; ilk yeni rapor yarın saat 12:00'da yayınlanır.\n\nDevam edilsin mi?"
-    );
-
-    if (!ok) return;
-
-    setResetBusy(true);
-    setReportMsg(null);
-
-    try {
-      const data = await api<{ deletedReports: number }>("/api/wingsm/gidisat/sonuc", {
-        method: "DELETE",
-      });
-
-      setReport(null);
-      setReportMsg({ type: "ok", text: `${data.deletedReports} rapor silindi.` });
-    } catch (err) {
-      setReportMsg({ type: "err", text: err instanceof Error ? err.message : "Silinemedi." });
-    } finally {
-      setResetBusy(false);
     }
   };
 
@@ -490,15 +464,6 @@ export default function PersonelGidisat() {
                 className="h-10 rounded-lg bg-blue-700 px-5 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-50"
               >
                 {reportBusy ? "HESAPLANIYOR..." : "HESAPLA"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void resetReports()}
-                disabled={resetBusy}
-                className="h-10 rounded-lg border border-red-200 bg-white px-4 text-xs font-black uppercase text-red-600 hover:bg-red-50 disabled:opacity-50"
-                title="Test için hesaplanan tüm Gidişat raporlarını siler (hedefler silinmez)"
-              >
-                {resetBusy ? "Siliniyor..." : "Tüm raporları sil"}
               </button>
               <label className="flex h-10 items-center gap-2 text-[11px] font-black uppercase text-slate-600">
                 <input type="checkbox" checked={showForecast} onChange={(e) => setShowForecast(e.target.checked)} className="h-4 w-4" />
