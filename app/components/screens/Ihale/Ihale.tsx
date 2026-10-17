@@ -150,6 +150,9 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
   const [bidderName, setBidderName] = useState("");
   const [listSession, setListSession] = useState<AuctionSessionInfo | null>(null);
 
+  // Süper admin: elle yazılan dakika ile kısalt/uzat
+  const [adjustMinutes, setAdjustMinutes] = useState("");
+
   const [createOpen, setCreateOpen] = useState(false);
   const [durationPreset, setDurationPreset] = useState("720");
   const [customHours, setCustomHours] = useState("");
@@ -357,7 +360,9 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
     if (action === "REDUCE") {
       const minutes = Number(extra?.minutes || 0);
 
+      // 1-5 dakikalık ince ayarlarda her seferinde onay sorulmaz.
       if (
+        minutes > 5 &&
         !window.confirm(
           `İhale süresinden ${minutes} dakika düşürülecek. Onaylıyor musunuz?`
         )
@@ -901,45 +906,60 @@ export default function Ihale({ isAdmin: _legacyAdmin, selectedBranch }: Props) 
                           selectedAuction.status
                         ) && (
                           <>
-                            <AdminButton
-                              onClick={() => adminAction("REDUCE", { minutes: 30 })}
-                              disabled={busy}
-                              danger
-                            >
-                              -30 DK
-                            </AdminButton>
-                            <AdminButton
-                              onClick={() => adminAction("REDUCE", { minutes: 60 })}
-                              disabled={busy}
-                              danger
-                            >
-                              -1 SAAT
-                            </AdminButton>
-                            <AdminButton
-                              onClick={() => adminAction("REDUCE", { minutes: 720 })}
-                              disabled={busy}
-                              danger
-                            >
-                              -12 SAAT
-                            </AdminButton>
-                            <AdminButton
-                              onClick={() => adminAction("EXTEND", { minutes: 30 })}
-                              disabled={busy}
-                            >
-                              +30 DK
-                            </AdminButton>
-                            <AdminButton
-                              onClick={() => adminAction("EXTEND", { minutes: 60 })}
-                              disabled={busy}
-                            >
-                              +1 SAAT
-                            </AdminButton>
-                            <AdminButton
-                              onClick={() => adminAction("EXTEND", { minutes: 720 })}
-                              disabled={busy}
-                            >
-                              +12 SAAT
-                            </AdminButton>
+                            {[1, 2, 3, 4, 30, 60, 720].map((m) => (
+                              <AdminButton
+                                key={`r${m}`}
+                                onClick={() => adminAction("REDUCE", { minutes: m })}
+                                disabled={busy}
+                                danger
+                              >
+                                -{m < 60 ? `${m} DK` : `${m / 60} SAAT`}
+                              </AdminButton>
+                            ))}
+                            {[1, 2, 3, 4, 30, 60, 720].map((m) => (
+                              <AdminButton
+                                key={`e${m}`}
+                                onClick={() => adminAction("EXTEND", { minutes: m })}
+                                disabled={busy}
+                              >
+                                +{m < 60 ? `${m} DK` : `${m / 60} SAAT`}
+                              </AdminButton>
+                            ))}
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={1}
+                                max={4320}
+                                inputMode="numeric"
+                                value={adjustMinutes}
+                                onChange={(e) => setAdjustMinutes(e.target.value)}
+                                placeholder="Dakika"
+                                className="h-10 w-24 rounded-xl border border-violet-200 bg-white px-3 text-[12px] font-black text-slate-700 outline-none focus:border-violet-500"
+                              />
+                              <AdminButton
+                                onClick={() => {
+                                  const m = Math.floor(Number(adjustMinutes));
+                                  if (!m || m < 1) return;
+                                  void adminAction("REDUCE", { minutes: m });
+                                  setAdjustMinutes("");
+                                }}
+                                disabled={busy || !Number(adjustMinutes)}
+                                danger
+                              >
+                                - DÜŞÜR
+                              </AdminButton>
+                              <AdminButton
+                                onClick={() => {
+                                  const m = Math.floor(Number(adjustMinutes));
+                                  if (!m || m < 1) return;
+                                  void adminAction("EXTEND", { minutes: m });
+                                  setAdjustMinutes("");
+                                }}
+                                disabled={busy || !Number(adjustMinutes)}
+                              >
+                                + UZAT
+                              </AdminButton>
+                            </div>
                             <AdminButton
                               onClick={() => adminAction("END")}
                               disabled={busy}
