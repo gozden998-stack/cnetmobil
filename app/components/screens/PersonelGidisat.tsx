@@ -147,7 +147,7 @@ const MessageBox = ({ message }: { message: { type: "ok" | "err"; text: string }
     </div>
   ) : null;
 
-export default function PersonelGidisat() {
+export default function PersonelGidisat({ altAcik = true }: { altAcik?: boolean }) {
   const [tab, setTab] = useState<SubTab>("sonuc");
 
   // ---------------- AYARLAR (kategoriler) ----------------
@@ -407,8 +407,8 @@ export default function PersonelGidisat() {
       key={id}
       type="button"
       onClick={() => setTab(id)}
-      className={`h-9 rounded-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-        tab === id ? "bg-blue-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+      className={`h-8 whitespace-nowrap rounded-lg px-3.5 text-[11px] font-black uppercase tracking-wide transition ${
+        tab === id ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
       }`}
     >
       {label}
@@ -420,15 +420,17 @@ export default function PersonelGidisat() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
+      {altAcik && (
+      <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100 p-1.5">
         {tabButton("sonuc", "Sonuç")}
         {tabButton("ekran", "Personel Ekranı")}
         {tabButton("hedefler", "Hedefler")}
         {tabButton("kategoriler", "Kategoriler")}
         <span className="ml-auto pr-2 text-[10px] font-bold text-violet-700">
-          Şimdilik sadece yönetici görür · puan toplamı {totalMax}/{totalCap}
+          puan toplamı {totalMax}/{totalCap}
         </span>
       </div>
+      )}
 
       {/* ================= SONUÇ ================= */}
       {tab === "sonuc" && (

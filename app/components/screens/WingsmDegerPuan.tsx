@@ -244,7 +244,12 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  const [activeTab, setActiveTab] = useState<"kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat">("kurallar");
+  type CmrTab = "kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat";
+  const [activeTab, setActiveTab] = useState<CmrTab>("kurallar");
+  // Üst menü: "Değer Puanı" (altında Kurallar/Hedefler/Rapor/Rapor Sonucu/Satış Verisi) | "Personel Gidişat".
+  const [sonDegerTab, setSonDegerTab] = useState<Exclude<CmrTab, "gidisat">>("kurallar");
+  const [degerAltAcik, setDegerAltAcik] = useState(true);
+  const [gidisatAltAcik, setGidisatAltAcik] = useState(true);
 
   const [reportBastar, setReportBastar] = useState(defaultBastar);
   const [reportBittar, setReportBittar] = useState(defaultBittar);
@@ -1121,74 +1126,70 @@ export default function WingsmDegerPuan() {
     <div className="animate-in fade-in duration-500">
       <KanalSecici kanal={kanal} onChange={setKanal} />
 
-      <div className="mb-6 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
+      <div className="mb-3 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
         <button
           type="button"
-          onClick={() => setActiveTab("kurallar")}
-          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "kurallar"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Kurallar
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("hedefler")}
-          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "hedefler"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Hedefler
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("rapor")}
-          className={`h-10 rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "rapor"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Rapor
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("sonuc")}
+          onClick={() => {
+            if (activeTab === "gidisat") {
+              setActiveTab(sonDegerTab);
+              setDegerAltAcik(true);
+            } else {
+              setDegerAltAcik((open) => !open);
+            }
+          }}
           className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "sonuc"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
+            activeTab !== "gidisat" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
           }`}
         >
-          Rapor Sonucu
+          Değer Puanı {activeTab !== "gidisat" && degerAltAcik ? "▴" : "▾"}
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("satis")}
+          onClick={() => {
+            if (activeTab !== "gidisat") {
+              setActiveTab("gidisat");
+              setGidisatAltAcik(true);
+            } else {
+              setGidisatAltAcik((open) => !open);
+            }
+          }}
           className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "satis"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
+            activeTab === "gidisat" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
           }`}
         >
-          Satış Verisi
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("gidisat")}
-          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab === "gidisat"
-              ? "border-b-2 border-blue-600 text-blue-700"
-              : "text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          Gidişat
+          Personel Gidişat {activeTab === "gidisat" && gidisatAltAcik ? "▴" : "▾"}
         </button>
       </div>
+
+      {activeTab !== "gidisat" && degerAltAcik && (
+        <div className="mb-6 flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100 p-1.5">
+          {(
+            [
+              ["kurallar", "Kurallar"],
+              ["hedefler", "Hedefler"],
+              ["rapor", "Rapor"],
+              ["sonuc", "Rapor Sonucu"],
+              ["satis", "Satış Verisi"],
+            ] as Array<[Exclude<CmrTab, "gidisat">, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setActiveTab(id);
+                setSonDegerTab(id);
+              }}
+              className={`h-8 whitespace-nowrap rounded-lg px-3.5 text-[11px] font-black uppercase tracking-wide transition ${
+                activeTab === id ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "gidisat" && <div className="mb-3" />}
 
       {/* RAPOR SONUCU: personelin gördüğü ekranın AYNISI (kayıtlı son rapor +
           Bugün / Dün / Önceki Gün / takvim ile geçmiş günler). Yönetici de aynı
@@ -1199,7 +1200,7 @@ export default function WingsmDegerPuan() {
       {activeTab === "satis" && <SatisIncele />}
 
       {/* PERSONEL GİDİŞAT: 9 kategori hedef/gerçekleşen/puan (şimdilik sadece yönetici) */}
-      {activeTab === "gidisat" && <PersonelGidisat />}
+      {activeTab === "gidisat" && <PersonelGidisat altAcik={gidisatAltAcik} />}
 
       {activeTab === "kurallar" && (
       <>

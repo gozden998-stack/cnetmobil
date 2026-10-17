@@ -126,6 +126,7 @@ function parsePasted(text: string): Array<{ saticiAdi: string; hedef: string }> 
 
 export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.ReactNode }) {
   const [tab, setTab] = useState<TabId>("sonuc");
+  const [altAcik, setAltAcik] = useState(true);
 
   // ---------------- AYARLAR ----------------
   const [settings, setSettings] = useState<VodafoneSettings | null>(null);
@@ -361,19 +362,6 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
     }
   };
 
-  const tabButton = (id: TabId, label: string) => (
-    <button
-      key={id}
-      type="button"
-      onClick={() => setTab(id)}
-      className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-        tab === id ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   const messageBox = (message: { type: "ok" | "err"; text: string } | null) =>
     message && (
       <div
@@ -389,13 +377,40 @@ export default function VodafoneDegerPuan({ kanalSecici }: { kanalSecici: React.
     <div className="animate-in fade-in duration-500">
       {kanalSecici}
 
-      <div className="mb-6 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
-        {tabButton("ayarlar", "Ayarlar")}
-        {tabButton("hedefler", "Hedefler")}
-        {tabButton("rapor", "Rapor")}
-        {tabButton("sonuc", "Rapor Sonucu")}
-        {tabButton("satis", "Satış Verisi")}
+      <div className="mb-3 flex items-center gap-2 overflow-x-auto border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setAltAcik((open) => !open)}
+          className="h-10 flex-none whitespace-nowrap rounded-t-lg border-b-2 border-blue-600 px-4 text-xs font-black uppercase tracking-wide text-blue-700 transition"
+        >
+          Değer Puanı {altAcik ? "▴" : "▾"}
+        </button>
       </div>
+
+      {altAcik && (
+        <div className="mb-6 flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100 p-1.5">
+          {(
+            [
+              ["ayarlar", "Ayarlar"],
+              ["hedefler", "Hedefler"],
+              ["rapor", "Rapor"],
+              ["sonuc", "Rapor Sonucu"],
+              ["satis", "Satış Verisi"],
+            ] as Array<[TabId, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`h-8 whitespace-nowrap rounded-lg px-3.5 text-[11px] font-black uppercase tracking-wide transition ${
+                tab === id ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-[11px] font-bold text-violet-800">
         Vodafone Değer Puan şimdilik sadece yönetici girişinde görünür; mağazalara açık değildir.
