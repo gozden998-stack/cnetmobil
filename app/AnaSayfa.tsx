@@ -1021,7 +1021,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         tumMagazalarSiralama.sort((a, b) => parseFloat(b.puan) - parseFloat(a.puan));
     }
 
-    const birinciMagaza = tumMagazalarSiralama[0] || { name: selectedBranch.toUpperCase(), puan: magazaTahminPuan.toFixed(1), tamamlama: anaHedef > 0 ? Math.min(100, Math.round((anaSatis/anaHedef)*100)) : 0 };
 
     const anaProjeksiyon = Math.round((anaSatis / currentDay) * daysInMonth);
     const tamamlananYuzde = anaHedef > 0 ? Math.min(100, Math.round((anaSatis / anaHedef) * 100)) : 0;
@@ -1207,11 +1206,9 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
         return { day, dailyValue };
     });
 
-    const topMagazalar = tumMagazalarSiralama.slice(0, 5);
     // En iyi personeller seçili mağazaya göre gösterilir.
     // Böylece CMR MERKEZ, CMR KAPAKLI, CMR CADDE, CMR SARAY hangi mağaza seçilirse
     // sadece o mağazanın personelleri sıralanır.
-    const topPersoneller = aktifPersoneller.slice(0, 5);
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-[#F5F8FC] font-sans text-slate-800 animate-in fade-in duration-500">
@@ -1671,7 +1668,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 )}
 
                 {isCmr && (
-                <section className="mb-4 grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.7fr)_minmax(300px,0.7fr)]">
+                <section className="mb-4">
 
                     {/* ŞİRKET DEĞER PUAN (WingSM) - eski aylık satış grafiği kaldırıldı */}
                     <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
@@ -1724,100 +1721,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             />
                         )}
                     </div>
-
-                    {/* MAĞAZA SIRALAMASI */}
-                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
-                        <div className="mb-3 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-[15px] font-black text-[#102A56]">Mağaza Sıralaması</h3>
-                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Adet Tamamlama</p>
-                            </div>
-                            <button type="button" onClick={() => setActiveDrawer('magaza')} className="text-[11px] font-black text-blue-600 hover:text-blue-700">
-                                Tümünü Gör →
-                            </button>
-                        </div>
-
-                        <div className="divide-y divide-slate-100">
-                            {topMagazalar.length > 0 ? topMagazalar.map((magaza: any, index: number) => (
-                                <div key={`${magaza.name}-${index}`} className="py-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
-                                            index === 0 ? 'bg-amber-400 text-amber-950' :
-                                            index === 1 ? 'bg-slate-200 text-slate-700' :
-                                            index === 2 ? 'bg-orange-200 text-orange-800' :
-                                            'bg-slate-100 text-slate-500'
-                                        }`}>
-                                            {index + 1}
-                                        </div>
-
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="truncate text-[10px] font-black uppercase text-slate-800">{magaza.name}</span>
-                                                <span className="text-[11px] font-black text-slate-500">%{magaza.tamamlama}</span>
-                                            </div>
-                                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                                                <div
-                                                    className={`h-full rounded-full ${index === 0 ? 'bg-amber-400' : 'bg-blue-500'}`}
-                                                    style={{ width: `${Math.min(100, Number(magaza.tamamlama) || 0)}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="py-10 text-center text-[10px] font-bold text-slate-400">Sıralama verisi bulunamadı.</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* PERSONEL SIRALAMASI */}
-                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
-                        <div className="mb-3 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-[15px] font-black text-[#102A56]">En İyi Personeller</h3>
-                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tahmini Puan</p>
-                            </div>
-                            <button type="button" onClick={() => setActiveDrawer('personel')} className="text-[11px] font-black text-blue-600 hover:text-blue-700">
-                                Tümünü Gör →
-                            </button>
-                        </div>
-
-                        <div className="divide-y divide-slate-100">
-                            {topPersoneller.length > 0 ? topPersoneller.map((personel: any, index: number) => (
-                                <button
-                                    type="button"
-                                    key={`${personel.isim}-${index}`}
-                                    onClick={() => {
-                                        setSelectedPersonel(personel);
-                                        setActiveModal('personel_detay');
-                                    }}
-                                    className="flex w-full items-center gap-2 py-3 text-left transition hover:bg-slate-50"
-                                >
-                                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
-                                        index === 0 ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500'
-                                    }`}>
-                                        {index + 1}
-                                    </div>
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-violet-100 text-[10px] font-black text-blue-700">
-                                        {String(personel.isim || '?').trim().charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="truncate text-[10px] font-black text-slate-800">{personel.isim}</div>
-                                        <div className="truncate text-[10px] font-bold uppercase text-slate-400">{personel.magaza}</div>
-                                    </div>
-                                    <div className="text-[10px] font-black text-[#102A56]">{personel.puanTahmin} Puan</div>
-                                </button>
-                            )) : (
-                                <div className="py-10 text-center text-[10px] font-bold text-slate-400">Personel verisi bulunamadı.</div>
-                            )}
-                        </div>
-                    </div>
                 </section>
                 )}
 
                 {/* OPERASYON ÖZETİ */}
                 {isCmr && (
-                    <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <button
                             type="button"
                             onClick={() => setActiveDrawer('personel')}
@@ -1874,20 +1783,6 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             </div>
                             <span className="text-violet-500 transition group-hover:translate-x-1">→</span>
                         </button>
-
-                        <div className="relative min-h-[128px] overflow-hidden rounded-[20px] border border-violet-500/30 bg-gradient-to-br from-[#23104F] via-[#3B168A] to-[#5928D7] p-5 text-white shadow-[0_14px_32px_rgba(76,29,149,0.22)]">
-                            <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/10" />
-                            <div className="relative z-10 flex h-full items-center gap-4">
-                                <div className="text-4xl">🏆</div>
-                                <div className="min-w-0">
-                                    <div className="text-[10px] font-black uppercase tracking-wider text-violet-200">Bu Ayın En İyi Mağazası</div>
-                                    <div className="mt-1 truncate text-xl font-black">{birinciMagaza.name}</div>
-                                    <div className="mt-1 text-[10px] font-bold text-violet-200">
-                                        {birinciMagaza.puan} Puan · %{birinciMagaza.tamamlama}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </section>
                 )}
 
