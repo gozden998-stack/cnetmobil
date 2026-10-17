@@ -220,6 +220,16 @@ export async function ensureGidisatTables(pool: Pool) {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.gidisat_auto_runs (
+      run_date DATE PRIMARY KEY,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      finished_at TIMESTAMPTZ,
+      tarih TEXT,
+      tarih2 TEXT
+    )
+  `);
+
   tablesReady = true;
 }
 

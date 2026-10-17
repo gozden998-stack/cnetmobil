@@ -8,7 +8,8 @@
 //
 // Önerilen sıklık: her 10 dakikada bir  (*/10 * * * *)
 //
-// Script sırayla iki ucu çağırır: CMR (/api/wingsm/deger-puan-auto) ve Vodafone
+// Script sırayla üç ucu çağırır: CMR (/api/wingsm/deger-puan-auto), Gidişat
+// (/api/wingsm/gidisat/auto) ve Vodafone
 // (/api/wingsm/vodafone/auto). KARARI UÇLAR VERİR: Türkiye saatiyle 10:00'dan
 // önce ya da bugün zaten hesaplanmışsa hiçbir şey yapmazlar, bu yüzden sık
 // çağrılması zararsızdır. İkisi birbirinden BAĞIMSIZDIR: biri hata verse diğeri
@@ -32,8 +33,10 @@ if (!secret) {
   process.exit(1);
 }
 
+// Sıra önemli: Gidişat'ın "Değer Puan" kategorisi CMR Değer Puan raporundan beslenir.
 const TARGETS = [
   { label: "CMR", path: "/api/wingsm/deger-puan-auto" },
+  { label: "GIDISAT", path: "/api/wingsm/gidisat/auto" },
   { label: "VODAFONE", path: "/api/wingsm/vodafone/auto" },
 ];
 

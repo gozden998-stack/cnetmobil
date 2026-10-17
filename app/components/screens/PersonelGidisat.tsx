@@ -10,6 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import PersonelGidisatEkrani from "./PersonelGidisatEkrani";
 import { formatNumber, formatRangeLong, titleCaseTr } from "./degerPuanOrtak";
 
 type Metric = "adet" | "karlilik" | "tutar" | "deger_puan";
@@ -81,7 +82,7 @@ const METRIC_LABEL: Record<Metric, string> = {
   deger_puan: "Değer Puan",
 };
 
-type SubTab = "sonuc" | "hedefler" | "kategoriler";
+type SubTab = "sonuc" | "ekran" | "hedefler" | "kategoriler";
 
 async function api<T = Record<string, unknown>>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init });
@@ -421,6 +422,7 @@ export default function PersonelGidisat() {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
         {tabButton("sonuc", "Sonuç")}
+        {tabButton("ekran", "Personel Ekranı")}
         {tabButton("hedefler", "Hedefler")}
         {tabButton("kategoriler", "Kategoriler")}
         <span className="ml-auto pr-2 text-[10px] font-bold text-violet-700">
@@ -598,6 +600,9 @@ export default function PersonelGidisat() {
           )}
         </div>
       )}
+
+      {/* ================= PERSONEL EKRANI (kişi kartları, gün seçicili) ================= */}
+      {tab === "ekran" && <PersonelGidisatEkrani yonetici />}
 
       {/* ================= HEDEFLER ================= */}
       {tab === "hedefler" && (

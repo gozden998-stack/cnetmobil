@@ -1,16 +1,31 @@
 // app/api/wingsm/gidisat/sonuc/route.ts
 //
-// CNETMOBIL - Personel Gidişat - KAYITLI SON SONUCU OKU (sadece yönetici).
-//   GET [?period=YYYY-MM] -> o ayın (verilmezse en son) en güncel hesaplanmış raporu
+// CNETMOBIL - Personel Gidişat - KAYITLI SONUCU OKU (şimdilik sadece yönetici).
+//   GET                      -> en güncel rapor
+//   GET ?gun=YYYY-MM-DD      -> o gün YAYINLANAN rapor (Dün / Önceki Gün / takvim). Bir günde
+//                               yayınlanan rapor o günden bir önceki güne kadardır (CMR/Vodafone
+//                               ile aynı kural). O gün için rapor yoksa en yakın önceki gösterilir.
+//   GET ?period=YYYY-MM      -> o ayın en güncel raporu
+//
+// Cevapta ayrıca: durum ("guncel" = rapor aralığının bitişi DÜN ya da daha yeni, yoksa
+// "bekleniyor"), aySonuPaylasim (ayın 28'i-1'i otomatik yayın durur), history (seçilebilir
+// geçmiş günler).
 
 import { NextRequest } from "next/server";
 
 import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
+import { isAutoRunDay } from "../../_deger-puan-auto";
+import { istanbulTodayIso, previousDayIso } from "../../vodafone/_vodafone";
 import { ensureGidisatTables } from "../_gidisat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+function wingsmDateToIso(value: unknown): string | null {
+  const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+}
 
 export async function GET(request: NextRequest) {
   const auth = requireAdminSession(request);
@@ -23,25 +38,93 @@ export async function GET(request: NextRequest) {
     const pool = getPool();
     await ensureGidisatTables(pool);
 
-    const periodParam = String(new URL(request.url).searchParams.get("period") || "").trim();
-    const hasPeriod = /^\d{4}-\d{2}$/.test(periodParam);
+    const url = new URL(request.url);
+    const today = istanbulTodayIso();
+    const aySonuPaylasim = !isAutoRunDay(today);
 
-    const result = await pool.query(
-      `SELECT payload, computed_at FROM public.gidisat_history
-       ${hasPeriod ? "WHERE period = $1" : ""}
-       ORDER BY range_end DESC NULLS LAST, computed_at DESC LIMIT 1`,
-      hasPeriod ? [periodParam] : []
-    );
+    const periodParam = String(url.searchParams.get("period") || "").trim();
+    const gunParam = url.searchParams.get("gun");
+    const istenenGun = gunParam && /^\d{4}-\d{2}-\d{2}$/.test(gunParam) ? gunParam : null;
+    const gecmisGunIstendi = Boolean(istenenGun && istenenGun < today);
 
-    const row = result.rows[0];
+    type Row = { payload: unknown; computed_at: string; range_end_iso: string | null };
+    let row: Row | null = null;
+    let eskiRapor = false;
+    let tamEsleme = true;
 
-    if (!row) {
-      return json({ success: true, hasReport: false });
+    if (gecmisGunIstendi && istenenGun) {
+      // O gün yayınlanan rapor: bitişi (gün - 1) olan, yoksa ondan önceki en yakın.
+      const result = await pool.query(
+        `SELECT payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
+         FROM public.gidisat_history
+         WHERE range_end <= ($1::date - 1)
+         ORDER BY range_end DESC NULLS LAST, computed_at DESC
+         LIMIT 1`,
+        [istenenGun]
+      );
+
+      if (result.rows[0]) {
+        row = result.rows[0];
+        eskiRapor = true;
+        tamEsleme = result.rows[0].range_end_iso === previousDayIso(istenenGun);
+      }
+    } else if (/^\d{4}-\d{2}$/.test(periodParam)) {
+      const result = await pool.query(
+        `SELECT payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
+         FROM public.gidisat_history WHERE period = $1
+         ORDER BY range_end DESC NULLS LAST, computed_at DESC LIMIT 1`,
+        [periodParam]
+      );
+
+      row = result.rows[0] ?? null;
+    } else {
+      const result = await pool.query(
+        `SELECT payload, computed_at, to_char(range_end, 'YYYY-MM-DD') AS range_end_iso
+         FROM public.gidisat_history
+         ORDER BY range_end DESC NULLS LAST, computed_at DESC LIMIT 1`
+      );
+
+      row = result.rows[0] ?? null;
     }
 
-    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+    const historyResult = await pool.query(
+      `SELECT tarih, tarih2, computed_at FROM public.gidisat_history
+       ORDER BY range_end DESC NULLS LAST, computed_at DESC LIMIT 62`
+    );
 
-    return json({ ...payload, success: true, hasReport: true, computedAt: new Date(row.computed_at).toISOString() });
+    const history = historyResult.rows.map((item) => ({
+      tarih: String(item.tarih),
+      tarih2: String(item.tarih2),
+      computedAt: new Date(item.computed_at).toISOString(),
+    }));
+
+    if (!row) {
+      return json({
+        success: true,
+        hasReport: false,
+        bulunamadi: gecmisGunIstendi,
+        istenenGun,
+        history,
+        aySonuPaylasim,
+      });
+    }
+
+    const payload = typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>);
+    const range = payload.range as { tarih: string; tarih2: string } | undefined;
+    const rangeEnd = wingsmDateToIso(range?.tarih2);
+    const isLatest = !eskiRapor && !/^\d{4}-\d{2}$/.test(periodParam);
+
+    return json({
+      ...payload,
+      success: true,
+      hasReport: true,
+      computedAt: new Date(row.computed_at).toISOString(),
+      history,
+      istenenGun: gecmisGunIstendi ? istenenGun : null,
+      tamEsleme,
+      aySonuPaylasim,
+      durum: isLatest ? (rangeEnd && rangeEnd >= previousDayIso(today) ? "guncel" : "bekleniyor") : null,
+    });
   } catch (error) {
     console.error("GIDISAT_SONUC_ERROR:", error);
 
