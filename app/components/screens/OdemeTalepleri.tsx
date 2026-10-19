@@ -18,6 +18,7 @@ type ExternalPurchaseRequest = {
   sourceUserEmail?: string;
   deviceName: string;
   imei: string;
+  serialNo?: string;
   amount: number;
   customer: {
     firstName: string;
@@ -470,6 +471,11 @@ export default function OdemeTalepleri({
                                 IMEI: {item.imei}
                               </div>
                             )}
+                            {item.serialNo && (
+                              <div className="mt-0.5 truncate font-mono text-[10px] font-semibold text-slate-400">
+                                SN: {item.serialNo}
+                              </div>
+                            )}
                           </div>
 
                           <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black ${info.badge}`}>
@@ -578,6 +584,9 @@ function RequestDetail({
           <div className="text-[12px] font-black text-slate-950">{item.deviceName}</div>
           {item.imei && (
             <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">IMEI: {item.imei}</div>
+          )}
+          {item.serialNo && (
+            <div className="mt-0.5 font-mono text-[10px] font-bold text-slate-500">SN: {item.serialNo}</div>
           )}
           <div className="mt-1 text-[20px] font-black text-slate-950">{formatTry(item.amount)}</div>
         </div>

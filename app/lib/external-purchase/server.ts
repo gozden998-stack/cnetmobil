@@ -355,7 +355,23 @@ export async function ensureExternalPurchaseImeiColumn(
     ADD COLUMN IF NOT EXISTS device_imei TEXT
   `);
 
+  // Seri numarası (SN): IMEI'nin yanında, isteğe bağlı.
+  await db.query(`
+    ALTER TABLE public.external_purchase_requests
+    ADD COLUMN IF NOT EXISTS device_serial_no TEXT
+  `);
+
   imeiColumnEnsured = true;
+}
+
+// Seri numarası: harf/rakam, büyük harf, boşluksuz, en fazla 30 karakter.
+export function normalizeSerialNo(
+  value: unknown
+) {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 30);
 }
 
 export function normalizeImei(

@@ -19,6 +19,7 @@ type DisKanalRow = {
 
 type PurchaseForm = {
   imei: string;
+  serialNo: string;
   firstName: string;
   lastName: string;
   tc: string;
@@ -29,6 +30,7 @@ type PurchaseForm = {
 
 const EMPTY_FORM: PurchaseForm = {
   imei: "",
+  serialNo: "",
   firstName: "",
   lastName: "",
   tc: "",
@@ -84,6 +86,10 @@ function normalizeTcInput(value: string) {
 
 function normalizeImeiInput(value: string) {
   return value.replace(/\D/g, "").slice(0, 15);
+}
+
+function normalizeSerialInput(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30);
 }
 
 function normalizePhoneInput(value: string) {
@@ -312,6 +318,7 @@ export default function DisKanal({
         selectedRow &&
         selectedAmount > 0 &&
         /^\d{15}$/.test(purchaseForm.imei) &&
+        (purchaseForm.serialNo === "" || purchaseForm.serialNo.length >= 5) &&
         purchaseForm.firstName.trim() &&
         purchaseForm.lastName.trim() &&
         /^\d{11}$/.test(purchaseForm.tc) &&
@@ -429,6 +436,7 @@ export default function DisKanal({
         body: JSON.stringify({
           deviceName: selectedRow.name,
           imei: purchaseForm.imei,
+          serialNo: purchaseForm.serialNo,
           amount: selectedAmount,
           firstName: purchaseForm.firstName.trim(),
           lastName: purchaseForm.lastName.trim(),
@@ -937,6 +945,11 @@ export default function DisKanal({
                       <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
                         IMEI: {purchaseForm.imei}
                       </div>
+                      {purchaseForm.serialNo && (
+                        <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
+                          SN: {purchaseForm.serialNo}
+                        </div>
+                      )}
                       <div className="mt-1 text-[17px] font-black text-emerald-700">
                         {formatTry(selectedAmount)}
                       </div>
@@ -991,7 +1004,7 @@ export default function DisKanal({
                     <div className="mb-3 flex items-center gap-2">
                       <div className={`h-2 w-2 rounded-full ${isZumay ? "bg-red-500" : "bg-teal-500"}`} />
                       <h4 className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
-                        Cihaz IMEI Numarası
+                        Cihaz IMEI ve Seri Numarası
                       </h4>
                     </div>
 
@@ -1005,6 +1018,25 @@ export default function DisKanal({
                         placeholder="15 haneli IMEI numarası"
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                       />
+                    </label>
+
+                    <label className="mt-3 block">
+                      <span className="mb-1.5 block text-[11px] font-black text-slate-500">
+                        Seri numarası (SN) <span className="font-semibold text-slate-400">· isteğe bağlı</span>
+                      </span>
+                      <input
+                        value={purchaseForm.serialNo}
+                        onChange={(e) => updatePurchaseForm("serialNo", normalizeSerialInput(e.target.value))}
+                        maxLength={30}
+                        autoCapitalize="characters"
+                        placeholder="Cihazın seri numarası (SN)"
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                      />
+                      {purchaseForm.serialNo !== "" && purchaseForm.serialNo.length < 5 && (
+                        <span className="mt-1 block text-[10px] font-bold text-red-500">
+                          Seri numarası en az 5 karakter olmalı (boş bırakabilirsiniz).
+                        </span>
+                      )}
                     </label>
                   </div>
 

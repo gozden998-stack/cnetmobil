@@ -11,6 +11,7 @@ import {
   maskPhone,
   normalizeIban,
   normalizeImei,
+  normalizeSerialNo,
   normalizePhone,
   normalizeTc,
   parseMoney,
@@ -81,6 +82,12 @@ export async function POST(
     const imei =
       normalizeImei(
         body?.imei
+      );
+
+    // Seri numarası isteğe bağlı; yazılmışsa 5-30 harf/rakam olmalı.
+    const serialNo =
+      normalizeSerialNo(
+        body?.serialNo
       );
 
     // --------------------------------------------------
@@ -166,6 +173,20 @@ export async function POST(
           success: false,
           message:
             "Geçerli bir IMEI numarası giriniz (15 hane).",
+        },
+        400
+      );
+    }
+
+    if (
+      serialNo &&
+      serialNo.length < 5
+    ) {
+      return noStore(
+        {
+          success: false,
+          message:
+            "Seri numarası en az 5 karakter olmalıdır (boş bırakabilirsiniz).",
         },
         400
       );
@@ -362,6 +383,7 @@ export async function POST(
 
             device_name,
             device_imei,
+            device_serial_no,
             amount,
 
             customer_first_name,
@@ -385,6 +407,7 @@ export async function POST(
 
             $4,
             $5,
+            $13,
             $6,
 
             $7,
@@ -430,6 +453,8 @@ export async function POST(
           encryptSensitive(
             ibanHolder
           ),
+
+          serialNo || null,
         ]
       );
 
@@ -549,6 +574,7 @@ export async function POST(
           "",
           `📱 Cihaz: ${deviceName}`,
           `🔢 IMEI: ${imei}`,
+          ...(serialNo ? [`🔖 SN: ${serialNo}`] : []),
           `💰 Tutar: ${formatTry(
             amount
           )}`,
@@ -766,6 +792,7 @@ export async function GET(
 
             r.device_name,
             r.device_imei,
+            r.device_serial_no,
             r.amount,
 
             r.customer_first_name,
@@ -852,6 +879,13 @@ export async function GET(
             row.device_imei
               ? String(
                   row.device_imei
+                )
+              : "",
+
+          serialNo:
+            row.device_serial_no
+              ? String(
+                  row.device_serial_no
                 )
               : "",
 
