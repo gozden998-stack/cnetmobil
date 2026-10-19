@@ -88,8 +88,9 @@ function normalizeImeiInput(value: string) {
   return value.replace(/\D/g, "").slice(0, 15);
 }
 
+// Seri numarasında biçim/uzunluk kuralı yok; sadece baştaki boşluk atılır.
 function normalizeSerialInput(value: string) {
-  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30);
+  return value.replace(/^\s+/, "").slice(0, 200);
 }
 
 function normalizePhoneInput(value: string) {
@@ -317,8 +318,8 @@ export default function DisKanal({
       canUsePurchaseFlow &&
         selectedRow &&
         selectedAmount > 0 &&
-        /^\d{15}$/.test(purchaseForm.imei) &&
-        (purchaseForm.serialNo === "" || purchaseForm.serialNo.length >= 5) &&
+        (purchaseForm.imei === "" || /^\d{15}$/.test(purchaseForm.imei)) &&
+        (purchaseForm.imei !== "" || purchaseForm.serialNo.trim() !== "") &&
         purchaseForm.firstName.trim() &&
         purchaseForm.lastName.trim() &&
         /^\d{11}$/.test(purchaseForm.tc) &&
@@ -943,7 +944,7 @@ export default function DisKanal({
                     <div className="mt-4 border-t border-emerald-200 pt-4 text-left">
                       <div className="text-[10px] font-black text-slate-950">{selectedRow.name}</div>
                       <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
-                        IMEI: {purchaseForm.imei}
+                        {purchaseForm.imei ? `IMEI: ${purchaseForm.imei}` : ""}
                       </div>
                       {purchaseForm.serialNo && (
                         <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">
@@ -1009,7 +1010,9 @@ export default function DisKanal({
                     </div>
 
                     <label className="block">
-                      <span className="mb-1.5 block text-[11px] font-black text-slate-500">IMEI</span>
+                      <span className="mb-1.5 block text-[11px] font-black text-slate-500">
+                        IMEI <span className="font-semibold text-slate-400">· IMEI veya SN&apos;den en az biri zorunlu</span>
+                      </span>
                       <input
                         inputMode="numeric"
                         value={purchaseForm.imei}
@@ -1018,25 +1021,24 @@ export default function DisKanal({
                         placeholder="15 haneli IMEI numarası"
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                       />
+                      {purchaseForm.imei !== "" && purchaseForm.imei.length !== 15 && (
+                        <span className="mt-1 block text-[10px] font-bold text-red-500">
+                          IMEI 15 haneli olmalı (IMEI yoksa boş bırakıp seri numarasını girin).
+                        </span>
+                      )}
                     </label>
 
                     <label className="mt-3 block">
                       <span className="mb-1.5 block text-[11px] font-black text-slate-500">
-                        Seri numarası (SN) <span className="font-semibold text-slate-400">· isteğe bağlı</span>
+                        Seri numarası (SN) <span className="font-semibold text-slate-400">· IMEI veya SN&apos;den en az biri zorunlu</span>
                       </span>
                       <input
                         value={purchaseForm.serialNo}
                         onChange={(e) => updatePurchaseForm("serialNo", normalizeSerialInput(e.target.value))}
-                        maxLength={30}
-                        autoCapitalize="characters"
+                        maxLength={200}
                         placeholder="Cihazın seri numarası (SN)"
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 font-mono text-[13px] font-bold tracking-wide text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                       />
-                      {purchaseForm.serialNo !== "" && purchaseForm.serialNo.length < 5 && (
-                        <span className="mt-1 block text-[10px] font-bold text-red-500">
-                          Seri numarası en az 5 karakter olmalı (boş bırakabilirsiniz).
-                        </span>
-                      )}
                     </label>
                   </div>
 

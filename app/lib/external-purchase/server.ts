@@ -364,14 +364,14 @@ export async function ensureExternalPurchaseImeiColumn(
   imeiColumnEnsured = true;
 }
 
-// Seri numarası: harf/rakam, büyük harf, boşluksuz, en fazla 30 karakter.
+// Seri numarası: biçim/uzunluk kuralı YOK (üreticiye göre çok değişir); sadece baştaki/sondaki
+// boşluk atılır. 200 karakter yalnızca teknik üst sınırdır (yanlışlıkla yapıştırılan metne karşı).
 export function normalizeSerialNo(
   value: unknown
 ) {
   return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 30);
+    .trim()
+    .slice(0, 200);
 }
 
 export function normalizeImei(

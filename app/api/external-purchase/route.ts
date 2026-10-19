@@ -84,7 +84,7 @@ export async function POST(
         body?.imei
       );
 
-    // Seri numarası isteğe bağlı; yazılmışsa 5-30 harf/rakam olmalı.
+    // Seri numarası: biçim/uzunluk kuralı yok (IMEI ile birlikte en az biri zorunlu, aşağıda).
     const serialNo =
       normalizeSerialNo(
         body?.serialNo
@@ -163,7 +163,10 @@ export async function POST(
       );
     }
 
+    // IMEI ve seri numarası (SN) ikisi de tek başına isteğe bağlı ama
+    // EN AZ BİRİ zorunlu (bazı ürünlerde IMEI yok, sadece SN var).
     if (
+      imei &&
       !/^\d{15}$/.test(
         imei
       )
@@ -172,21 +175,21 @@ export async function POST(
         {
           success: false,
           message:
-            "Geçerli bir IMEI numarası giriniz (15 hane).",
+            "IMEI 15 haneli olmalıdır (IMEI yoksa boş bırakıp seri numarasını girin).",
         },
         400
       );
     }
 
     if (
-      serialNo &&
-      serialNo.length < 5
+      !imei &&
+      !serialNo
     ) {
       return noStore(
         {
           success: false,
           message:
-            "Seri numarası en az 5 karakter olmalıdır (boş bırakabilirsiniz).",
+            "IMEI veya seri numarasından (SN) en az birini giriniz.",
         },
         400
       );
@@ -434,7 +437,7 @@ export async function POST(
           actor.branch,
 
           deviceName,
-          imei,
+          imei || null,
           amount,
 
           firstName,
@@ -573,7 +576,7 @@ export async function POST(
           `🧾 Talep No: ${requestNo}`,
           "",
           `📱 Cihaz: ${deviceName}`,
-          `🔢 IMEI: ${imei}`,
+          ...(imei ? [`🔢 IMEI: ${imei}`] : []),
           ...(serialNo ? [`🔖 SN: ${serialNo}`] : []),
           `💰 Tutar: ${formatTry(
             amount
