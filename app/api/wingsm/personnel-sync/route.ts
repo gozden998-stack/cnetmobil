@@ -11,7 +11,8 @@
 // - Kod STRING tutulur. Örn: "0004" baştaki sıfırları korur.
 // - PostgreSQL public.wingsm_personnel cache tablosu güncellenir.
 // - WingSM'in verdiği liste olduğu gibi alınır (sabit kod listesi yok); çıkış tarihi dolu
-//   olanlar ve pozisyonu "C" olanlar listeye girmez (bkz. isListedSeller).
+//   olanlar (giriş tarihi çıkıştan SONRA değilse; yani geri dönenler girer) ve pozisyonu "C"
+//   olanlar listeye girmez (bkz. isListedSeller).
 // - WingSM'de artık bulunmayan kayıtlar pasif yapılır.
 // - Listeye alınmayanlar cevapta unverifiedCandidates (= dışarıda kalanlar) olarak raporlanır.
 // - Hassas alanlar (TC, telefon, e-posta, adres vb.) raw_data'ya YAZILMAZ.
@@ -88,15 +89,28 @@ type NormalizedPersonnel = {
     CalistigiSubeAdI: string | null;
     Pozisyon: string | null;
     TarihCikis: string | null;
+    TarihGiris: string | null;
   };
 };
 
 // KİM LİSTEYE GİRER (sabit kod listesi YOK; WingSM'in verdiği liste olduğu gibi alınır):
-//   - çıkış tarihi (TarihCikis) DOLU olanlar girmez,
+//   - çıkış tarihi (TarihCikis) DOLU olanlar girmez; AMA giriş tarihi (TarihGiris) çıkıştan sonraysa
+//     kişi işe geri dönmüştür ve girer,
 //   - pozisyonu sadece "C" olanlar girmez (Cennet Yönetim ofis kayıtları; satıcı değil).
 // Geri kalan herkes aktif olur; WingSM'de artık bulunmayanlar pasif yapılır (syncPersonnel).
+
+// "GG/AA/YYYY" -> sıralanabilir sayı (YYYYAAGG); okunamazsa null.
+function wingDateKey(value: string | null | undefined) {
+  const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  return match ? Number(`${match[3]}${match[2]}${match[1]}`) : null;
+}
+
 function isListedSeller(person: NormalizedPersonnel) {
-  if (person.rawData.TarihCikis) {
+  const cikis = wingDateKey(person.rawData.TarihCikis);
+  const giris = wingDateKey(person.rawData.TarihGiris);
+
+  if (person.rawData.TarihCikis && !(cikis !== null && giris !== null && giris > cikis)) {
     return false;
   }
 
@@ -569,6 +583,10 @@ function normalizePersonnel(
             nullableString(
               row?.TarihCikis
             ),
+          TarihGiris:
+            nullableString(
+              row?.TarihGiris
+            ),
         },
       }
     );
@@ -830,6 +848,12 @@ export async function GET(
               person.code,
             name:
               person.name,
+            pozisyon:
+              person.rawData.Pozisyon,
+            tarihGiris:
+              person.rawData.TarihGiris,
+            tarihCikis:
+              person.rawData.TarihCikis,
           })
         )
         .sort(
