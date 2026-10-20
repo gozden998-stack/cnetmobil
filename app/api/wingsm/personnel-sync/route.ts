@@ -10,10 +10,10 @@
 // - WingSM tarafında hiçbir kayıt oluşturulmaz/değiştirilmez/silinmez.
 // - Kod STRING tutulur. Örn: "0004" baştaki sıfırları korur.
 // - PostgreSQL public.wingsm_personnel cache tablosu güncellenir.
-// - SADECE doğrulanmış HizliSatis/ListSatici Kod'ları active=true yapılır.
-// - CariKart P içindeki doğrulanmamış ek kayıtlar active yapılmaz.
-// - Böylece B2B'nin daha geniş personel/cari kümesi Paratika dropdown'a sızmaz.
-// - Bilinmeyen yeni Kod'lar cevapta unverifiedCandidates olarak raporlanır.
+// - WingSM'in verdiği liste olduğu gibi alınır (sabit kod listesi yok); çıkış tarihi dolu
+//   olanlar ve pozisyonu "C" olanlar listeye girmez (bkz. isListedSeller).
+// - WingSM'de artık bulunmayan kayıtlar pasif yapılır.
+// - Listeye alınmayanlar cevapta unverifiedCandidates (= dışarıda kalanlar) olarak raporlanır.
 // - Hassas alanlar (TC, telefon, e-posta, adres vb.) raw_data'ya YAZILMAZ.
 // - Route iki şekilde çalışır:
 //   1) Panelde admin oturumu ile manuel tetikleme
@@ -87,94 +87,25 @@ type NormalizedPersonnel = {
     CalistigiSube: string | null;
     CalistigiSubeAdI: string | null;
     Pozisyon: string | null;
+    TarihCikis: string | null;
   };
 };
 
-// WingSM HizliSatis -> settings.ListSatici kaynağından
-// 17.09.2026 tarihinde doğrulanmış gerçek satıcı/personel Kod listesi.
-//
-// NEDEN:
-// /api/b2b/carikart/list/P endpointi 80 kayıt döndürüyor,
-// ancak gerçek HizliSatis ListSatici listesi 71 kayıt.
-// B2B cevabındaki Izinler / TarihCikis / Pozisyon alanları
-// bu iki kümeyi güvenilir biçimde ayırmıyor.
-//
-// Bu nedenle bilinmeyen yeni B2B Kod'lar otomatik olarak
-// Paratika personel listesine AKTİF edilmez.
-const VERIFIED_SELLER_CODES =
-  new Set<string>([
-  "0004",
-  "0217",
-  "0211",
-  "0258",
-  "0294",
-  "0315",
-  "0234",
-  "0253",
-  "0273",
-  "0245",
-  "0332",
-  "0262",
-  "0156",
-  "0001",
-  "0242",
-  "0295",
-  "0333",
-  "0265",
-  "0240",
-  "0308",
-  "0327",
-  "0103",
-  "0269",
-  "0162",
-  "0302",
-  "0305",
-  "0126",
-  "0312",
-  "0154",
-  "0270",
-  "0326",
-  "0223",
-  "0316",
-  "0114",
-  "0132",
-  "0206",
-  "0199",
-  "0163",
-  "0045",
-  "0271",
-  "0146",
-  "0261",
-  "0319",
-  "0007",
-  "0296",
-  "0267",
-  "0283",
-  "0167",
-  "0303",
-  "0306",
-  "0300",
-  "0204",
-  "0328",
-  "0279",
-  "0221",
-  "0282",
-  "0311",
-  "0183",
-  "0324",
-  "0277",
-  "0275",
-  "0299",
-  "0250",
-  "0287",
-  "0329",
-  "0313",
-  "0309",
-  "0320",
-  "0330",
-  "0274",
-  "0307"
-]);
+// KİM LİSTEYE GİRER (sabit kod listesi YOK; WingSM'in verdiği liste olduğu gibi alınır):
+//   - çıkış tarihi (TarihCikis) DOLU olanlar girmez,
+//   - pozisyonu sadece "C" olanlar girmez (Cennet Yönetim ofis kayıtları; satıcı değil).
+// Geri kalan herkes aktif olur; WingSM'de artık bulunmayanlar pasif yapılır (syncPersonnel).
+function isListedSeller(person: NormalizedPersonnel) {
+  if (person.rawData.TarihCikis) {
+    return false;
+  }
+
+  if (String(person.rawData.Pozisyon ?? "").trim().toUpperCase() === "C") {
+    return false;
+  }
+
+  return true;
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -634,6 +565,10 @@ function normalizePersonnel(
             nullableString(
               row?.Pozisyon
             ),
+          TarihCikis:
+            nullableString(
+              row?.TarihCikis
+            ),
         },
       }
     );
@@ -878,18 +813,15 @@ export async function GET(
 
     const personnel =
       allPersonnel.filter(
-        (person) =>
-          VERIFIED_SELLER_CODES.has(
-            person.code
-          )
+        isListedSeller
       );
 
     const unverifiedCandidates =
       allPersonnel
         .filter(
           (person) =>
-            !VERIFIED_SELLER_CODES.has(
-              person.code
+            !isListedSeller(
+              person
             )
         )
         .map(
@@ -921,7 +853,7 @@ export async function GET(
           stage:
             "SAFETY_GUARD",
           message:
-            "WingSM doğrulanmış satıcı listesi beklenenden çok az kayıt döndürdü. PostgreSQL değiştirilmedi.",
+            "WingSM personel listesi beklenenden çok az kayıt döndürdü (en az 60 bekleniyor). PostgreSQL değiştirilmedi.",
           wingCount:
             payload.data.length,
           normalizedCount:
@@ -1011,7 +943,7 @@ export async function GET(
       },
 
       note:
-        "WingSM'e yalnızca GET yapıldı. Sadece doğrulanmış HizliSatis/ListSatici Kod'ları aktif edildi; doğrulanmamış B2B kayıtları Paratika listesine alınmadı.",
+        "WingSM'e yalnızca GET yapıldı. WingSM personel listesi olduğu gibi alındı; çıkış tarihi dolu ve pozisyonu C olan kayıtlar listeye alınmadı.",
 
       responseTimeMs:
         Date.now() -
