@@ -2932,11 +2932,39 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 >
                                   {grade || '-'}
                                 </span>
-                                {canManageCihazStock && stockSourceBranch === 'CNET' && row?.[18] ? (
-                                  <div className="mt-1 text-[10px] font-black text-red-500">
-                                    VDF {Number(row[18]).toLocaleString('tr-TR')} TL
-                                  </div>
-                                ) : null}
+                                {canManageCihazStock && stockSourceBranch === 'CNET' ? (() => {
+                                  // Vodafone vitrininde görünmesi için gereken şartlar (sunucudaki kuralın aynısı).
+                                  const eksikler: string[] = [];
+                                  const renkDeger = String(renk || '').trim().toLocaleUpperCase('tr-TR');
+
+                                  if (!renkDeger || ['-', '—', 'DİĞER', 'DIGER', 'OTHER', 'UNKNOWN', 'BİLİNMİYOR', 'BILINMIYOR'].includes(renkDeger)) eksikler.push('renk');
+                                  if (!String(pil || '').trim()) eksikler.push('pil');
+                                  if (!String(garanti || '').trim()) eksikler.push('garanti');
+                                  if (!String(degisenParca || '').trim()) eksikler.push('değişen parça');
+                                  if (!String(kutuFatura || '').trim()) eksikler.push('kutu/fatura');
+
+                                  const nedenler: string[] = [];
+
+                                  if (grade !== 'MÜKEMMEL') nedenler.push('grade MÜKEMMEL değil');
+                                  if (eksikler.length > 0) nedenler.push(`eksik: ${eksikler.join(', ')}`);
+                                  if (!row?.[18]) nedenler.push('Vodafone fiyatı yok');
+                                  if (String(row?.[9] || '').trim() !== '') nedenler.push('talepte / transferde');
+
+                                  if (nedenler.length === 0) {
+                                    return (
+                                      <div className="mt-1 text-[10px] font-black text-emerald-600">
+                                        VDF {Number(row[18]).toLocaleString('tr-TR')} TL · Vodafone'da görünür
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="mt-1 max-w-[170px] text-[10px] font-black leading-tight text-red-500">
+                                      {row?.[18] ? `VDF ${Number(row[18]).toLocaleString('tr-TR')} TL · ` : ''}
+                                      Vodafone'da görünmez: {nedenler.join('; ')}
+                                    </div>
+                                  );
+                                })() : null}
                               </td>
 
                               <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
