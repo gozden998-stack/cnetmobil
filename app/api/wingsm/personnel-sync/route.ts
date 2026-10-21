@@ -106,7 +106,16 @@ function wingDateKey(value: string | null | undefined) {
   return match ? Number(`${match[3]}${match[2]}${match[1]}`) : null;
 }
 
+// WingSM kaydı güncellenmemiş ama çalışmaya devam eden kişiler (çıkış tarihi eski kalmış).
+// WingSM'de çıkış tarihi silinip/giriş tarihi güncellenince buradan KALDIRILABİLİR.
+//   0240 - EMİRHAN ÇETİN (giriş 13/01/2025, çıkış 28/02/2025 kaydı duruyor; kullanıcı: çalışıyor)
+const ALWAYS_LISTED_CODES = new Set<string>(["0240"]);
+
 function isListedSeller(person: NormalizedPersonnel) {
+  if (ALWAYS_LISTED_CODES.has(person.code)) {
+    return String(person.rawData.Pozisyon ?? "").trim().toUpperCase() !== "C";
+  }
+
   const cikis = wingDateKey(person.rawData.TarihCikis);
   const giris = wingDateKey(person.rawData.TarihGiris);
 
