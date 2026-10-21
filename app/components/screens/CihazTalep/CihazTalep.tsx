@@ -333,6 +333,7 @@ useEffect(() => {
 const [cihazTalepMarkaFilter, setCihazTalepMarkaFilter] = useState('TÜMÜ');
 const [cihazTalepHafizaFilter, setCihazTalepHafizaFilter] = useState('TÜMÜ');
 const [cihazTalepRenkFilter, setCihazTalepRenkFilter] = useState('TÜMÜ');
+const [cihazTalepGradeFilter, setCihazTalepGradeFilter] = useState('TÜMÜ');
 const [cihazTalepDurumFilter, setCihazTalepDurumFilter] = useState('TÜMÜ');
 
 const [cihazTalepPerPage, setCihazTalepPerPage] = useState(10);
@@ -2042,6 +2043,25 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               )
             ).sort((a, b) => a.localeCompare(b, 'tr'));
 
+            // Grade'ler en iyiden başlayarak: MÜKEMMEL, ÇOK İYİ, İYİ, OUTLET, sonra diğerleri.
+            const GRADE_SIRASI = ['MÜKEMMEL', 'ÇOK İYİ', 'İYİ', 'OUTLET'];
+            const gradeler: string[] = Array.from(
+              new Set<string>(
+                cihazTalepRows
+                  .map(({ row }) => String(row?.[4] || '').trim().toLocaleUpperCase('tr-TR'))
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => {
+              const ia = GRADE_SIRASI.indexOf(a);
+              const ib = GRADE_SIRASI.indexOf(b);
+
+              if (ia !== -1 || ib !== -1) {
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+              }
+
+              return a.localeCompare(b, 'tr');
+            });
+
             const normalizedSearch =
               cihazTalepSearch
                 .trim()
@@ -2094,6 +2114,10 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   cihazTalepRenkFilter === 'TÜMÜ' ||
                   renk === cihazTalepRenkFilter;
 
+                const gradeOk =
+                  cihazTalepGradeFilter === 'TÜMÜ' ||
+                  grade.trim().toLocaleUpperCase('tr-TR') === cihazTalepGradeFilter;
+
                 const durumOk =
                   cihazTalepDurumFilter === 'TÜMÜ' ||
                   status === cihazTalepDurumFilter;
@@ -2103,6 +2127,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   brandOk &&
                   hafizaOk &&
                   renkOk &&
+                  gradeOk &&
                   durumOk
                 );
               });
@@ -2168,6 +2193,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               setCihazTalepMarkaFilter('TÜMÜ');
               setCihazTalepHafizaFilter('TÜMÜ');
               setCihazTalepRenkFilter('TÜMÜ');
+              setCihazTalepGradeFilter('TÜMÜ');
               setCihazTalepDurumFilter('TÜMÜ');
               setCihazTalepPage(1);
             };
@@ -2474,7 +2500,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:shrink-0">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:flex xl:shrink-0">
                       <select
                         value={cihazTalepMarkaFilter}
                         onChange={(e: any) => {
@@ -2513,6 +2539,20 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                       >
                         <option value="TÜMÜ">Tüm Renkler</option>
                         {renkler.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={cihazTalepGradeFilter}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                          setCihazTalepGradeFilter(e.target.value);
+                          setCihazTalepPage(1);
+                        }}
+                        className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 outline-none focus:border-blue-400"
+                      >
+                        <option value="TÜMÜ">Tüm Gradeler</option>
+                        {gradeler.map((value) => (
                           <option key={value} value={value}>{value}</option>
                         ))}
                       </select>
