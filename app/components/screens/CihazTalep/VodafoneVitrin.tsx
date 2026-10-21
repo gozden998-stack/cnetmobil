@@ -7,8 +7,8 @@
 // Vodafone girişi CNET deposundaki, talebe hazır, grade'i MÜKEMMEL olan ve CNET yöneticisinin
 // "Vodafone fiyatı" girdiği cihazları fiyatlarıyla görür. Süzme SUNUCUDA yapılır
 // (/api/stock/devices Vodafone girişi için sadece bu cihazları ve sadece bu alanları döner);
-// bu bileşen gelen listeyi sadece gösterir. Talep açma YOKTUR: Vodafone almak istediği cihaz için
-// bizi arar, gönderim eskiden olduğu gibi elle yapılır.
+// bu bileşen gelen listeyi sadece gösterir. Talep açma YOKTUR: Vodafone, müşterisi geldiğinde ofis ekibine haber verir;
+// gönderim eskiden olduğu gibi elle yapılır.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -112,7 +112,7 @@ export default function VodafoneVitrin() {
           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-red-500">CNET Depo · Vodafone kanalı</div>
           <h1 className="mt-1 text-2xl font-black tracking-tight text-[#102A56] sm:text-3xl">Cihaz Talep</h1>
           <p className="mt-1 max-w-xl text-xs font-semibold text-slate-500">
-            CNET deposundaki <span className="font-black text-emerald-600">MÜKEMMEL</span> grade cihazlar ve Vodafone fiyatları. Almak istediğiniz cihaz için bizi arayabilirsiniz.
+            CNET deposundaki <span className="font-black text-emerald-600">MÜKEMMEL</span> grade cihazlar ve Vodafone fiyatları. Beğendiğiniz cihaz için, müşteriniz geldiğinde ofis ekibimize haber verin, cihazı gönderelim.
           </p>
         </div>
 
