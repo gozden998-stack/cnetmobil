@@ -12,6 +12,7 @@ import IkinciElAndroid from './components/screens/IkinciElAndroid';
 import TeknikServis from './components/screens/TeknikServis';
 import CihazAlim from './components/screens/CihazAlim';
 import CihazTalep from './components/screens/CihazTalep/CihazTalep';
+import VodafoneVitrin from './components/screens/CihazTalep/VodafoneVitrin';
 import Online from './components/screens/Online/Online';
 import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
@@ -2312,8 +2313,10 @@ export default function CnetmobilCmrFinalUltimate() {
         {
           id: 'cihaz_talep',
           label: 'Cihaz Talep',
-          visible: selectedBranch !== 'VODAFONE KANALI' && !isZumay,
-          branchItems: [
+          visible: !isZumay,
+          branchItems: selectedBranch === 'VODAFONE KANALI'
+            ? [{ code: 'CNET', label: 'CNET', detail: 'Mükemmel cihazlar · Vodafone fiyatı' }]
+            : [
             ...(isAdmin || isMasterAccess
               ? [{ code: 'MERKEZ', label: 'MERKEZ', detail: 'WingSM 001' }]
               : []),
@@ -4843,6 +4846,10 @@ export default function CnetmobilCmrFinalUltimate() {
                 }
               }}
             />
+          ) :
+
+          appMode === 'cihaz_talep' && step < 99 && selectedBranch === 'VODAFONE KANALI' && !isAdmin && !isMasterAccess ? (
+            <VodafoneVitrin />
           ) :
 
           appMode === 'cihaz_talep' && step < 99 ? (

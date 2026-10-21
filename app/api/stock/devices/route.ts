@@ -231,6 +231,59 @@ function isManagerUser(user: ActiveUser) {
 // Diğer mağazalar (CMR/CADDE/KAPAKLI/SARAY) bu yetkinin dışında kalır.
 const MANAGER_BRANCHES = ['CNET', 'MERKEZ'];
 
+// ============================================================
+// VODAFONE KANALI VİTRİNİ
+// Vodafone girişi (Super Admin / yönetici DEĞİL) stoğu sadece şu kısıtlarla görür:
+//   - sadece CNET deposu,
+//   - sadece AVAILABLE + talebe hazır + grade MÜKEMMEL + Vodafone fiyatı girilmiş cihazlar,
+//   - sadece vitrin alanları (IMEI, WingSM alanları, ekleyen kişi vb. GİTMEZ).
+// "Vodafone fiyatı" (stock_devices.vodafone_price) sadece Vodafone girişine ve CNET/Merkez
+// yönetimine (canManage) görünür; CMR ve diğer mağaza girişlerine ASLA gönderilmez.
+// ============================================================
+const VODAFONE_LOGIN_BRANCH = 'VODAFONE KANALI';
+
+function isVodafoneUser(user: ActiveUser) {
+  return (
+    !user.isSuperAdmin &&
+    !isManagerUser(user) &&
+    normalizeBranch(user.branch) === VODAFONE_LOGIN_BRANCH
+  );
+}
+
+function isPerfectGrade(value: unknown) {
+  return String(value ?? '').trim().toLocaleUpperCase('tr-TR') === 'MÜKEMMEL';
+}
+
+let vodafonePriceColumnEnsured = false;
+
+async function ensureVodafonePriceColumn() {
+  if (vodafonePriceColumnEnsured) return;
+
+  await getPool().query(`
+    ALTER TABLE public.stock_devices
+    ADD COLUMN IF NOT EXISTS vodafone_price NUMERIC(12,2)
+  `);
+
+  vodafonePriceColumnEnsured = true;
+}
+
+// Boş -> null (fiyatı kaldır); aksi halde 0'dan büyük, makul bir tutar.
+function parseVodafonePrice(value: unknown): number | null {
+  const raw = String(value ?? '').trim();
+
+  if (raw === '') {
+    return null;
+  }
+
+  const amount = Number(raw.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, ''));
+
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 10_000_000) {
+    throw new Error('Vodafone fiyatı geçerli bir tutar olmalıdır.');
+  }
+
+  return Math.round(amount * 100) / 100;
+}
+
 function normalizeImei(value: unknown) {
   return String(value ?? '').replace(/\s+/g, '').trim();
 }
@@ -319,11 +372,18 @@ export async function GET(request: NextRequest) {
       return json({ success: false, error: 'Oturum gerekli.' }, 401);
     }
 
-    const requestedBranch = normalizeBranch(
-      request.nextUrl.searchParams.get('branch') ||
-        user.stockBranchCode ||
-        'CMR'
-    );
+    const vodafoneView = isVodafoneUser(user);
+
+    // Vodafone girişi başka depo isteyemez: her zaman CNET.
+    const requestedBranch = vodafoneView
+      ? 'CNET'
+      : normalizeBranch(
+          request.nextUrl.searchParams.get('branch') ||
+            user.stockBranchCode ||
+            'CMR'
+        );
+
+    await ensureVodafonePriceColumn();
 
     const branch = await branchExists(requestedBranch);
 
@@ -334,10 +394,11 @@ export async function GET(request: NextRequest) {
     const managerAccess = isManagerUser(user);
 
     const canManage =
-      user.isSuperAdmin ||
-      (managerAccess
-        ? MANAGER_BRANCHES.includes(requestedBranch)
-        : user.stockBranchCode === requestedBranch);
+      !vodafoneView &&
+      (user.isSuperAdmin ||
+        (managerAccess
+          ? MANAGER_BRANCHES.includes(requestedBranch)
+          : user.stockBranchCode === requestedBranch));
 
     const pool = getPool();
 
@@ -367,7 +428,8 @@ export async function GET(request: NextRequest) {
             details_completed_by,
             created_by,
             created_at,
-            updated_at
+            updated_at,
+            vodafone_price
           FROM public.stock_devices
           WHERE current_branch_code = $1
             AND status NOT IN ('SOLD', 'PASSIVE')
@@ -410,7 +472,7 @@ export async function GET(request: NextRequest) {
     // - Sadece bütün detayları tamamlanmış AVAILABLE cihazları görür.
     // - Daha önce talep edilmiş REQUESTED / TRANSFER_WAITING cihazlar,
     //   talep takibinin kaybolmaması için görünmeye devam eder.
-    const visibleDevices =
+    const storeFilteredDevices =
       (requestedBranch === 'CNET' || requestedBranch === 'MERKEZ') && !canManage
         ? rawDevices.filter((device: Record<string, any>) => {
             const status = String(device.status ?? '')
@@ -428,6 +490,46 @@ export async function GET(request: NextRequest) {
           })
         : rawDevices;
 
+    let visibleDevices: Array<Record<string, unknown>>;
+
+    if (vodafoneView) {
+      // Sadece vitrin: AVAILABLE + MÜKEMMEL + Vodafone fiyatı girilmiş; sadece vitrin alanları.
+      visibleDevices = storeFilteredDevices
+        .filter(
+          (device: Record<string, unknown>) =>
+            String(device.status ?? '').trim().toLocaleUpperCase('tr-TR') === 'AVAILABLE' &&
+            isPerfectGrade(device.grade) &&
+            Number(device.vodafone_price) > 0
+        )
+        .map((device: Record<string, unknown>) => ({
+          id: device.id,
+          brand: device.brand,
+          model: device.model,
+          memory: device.memory,
+          color: device.color,
+          battery_percent: device.battery_percent,
+          grade: device.grade,
+          warranty: device.warranty,
+          changed_parts: device.changed_parts,
+          box_invoice: device.box_invoice,
+          current_branch_code: device.current_branch_code,
+          status: device.status,
+          vodafone_price: Number(device.vodafone_price),
+        }));
+    } else {
+      // Vodafone fiyatı sadece CNET/Merkez yönetimine (canManage) gider; diğer girişlere asla.
+      visibleDevices = storeFilteredDevices.map((device: Record<string, unknown>) => {
+        if (canManage) {
+          return device;
+        }
+
+        const { vodafone_price: _hidden, ...rest } = device;
+        void _hidden;
+
+        return rest;
+      });
+    }
+
     return json({
       success: true,
       branch: {
@@ -435,14 +537,15 @@ export async function GET(request: NextRequest) {
         name: String(branch.name),
       },
       canManage,
+      vodafoneView,
       currentUser: {
         id: user.id,
         username: user.username,
-        stockBranchCode: user.stockBranchCode,
+        stockBranchCode: vodafoneView ? null : user.stockBranchCode,
         isSuperAdmin: user.isSuperAdmin,
         isManager: managerAccess,
       },
-      capacity: capacityResult.rows[0] ?? null,
+      capacity: vodafoneView ? null : capacityResult.rows[0] ?? null,
       devices: visibleDevices,
       count: visibleDevices.length,
     });
@@ -818,6 +921,10 @@ export async function PATCH(request: NextRequest) {
     let boxInvoice: string;
     let batteryPercent: number | null;
 
+    // Vodafone fiyatı sadece istekte "vodafonePrice" anahtarı varsa güncellenir (boş = fiyatı kaldır).
+    const hasVodafonePrice = Object.prototype.hasOwnProperty.call(data, 'vodafonePrice');
+    let vodafonePrice: number | null = null;
+
     try {
       color = cleanText(data.color, 100);
       grade = cleanText(data.grade, 50);
@@ -825,6 +932,7 @@ export async function PATCH(request: NextRequest) {
       changedParts = cleanText(data.changedParts, 300);
       boxInvoice = cleanText(data.boxInvoice, 100);
       batteryPercent = parseBattery(data.batteryPercent);
+      vodafonePrice = hasVodafonePrice ? parseVodafonePrice(data.vodafonePrice) : null;
     } catch (error) {
       return json(
         {
@@ -833,6 +941,10 @@ export async function PATCH(request: NextRequest) {
         },
         400
       );
+    }
+
+    if (hasVodafonePrice) {
+      await ensureVodafonePriceColumn();
     }
 
     client = await getPool().connect();
@@ -940,7 +1052,16 @@ export async function PATCH(request: NextRequest) {
       ]
     );
 
-    const device = updateResult.rows[0];
+    let device = updateResult.rows[0];
+
+    if (hasVodafonePrice) {
+      const priceResult = await client.query(
+        `UPDATE public.stock_devices SET vodafone_price = $2 WHERE id = $1 RETURNING *`,
+        [deviceId, vodafonePrice]
+      );
+
+      device = priceResult.rows[0] ?? device;
+    }
 
     await client.query(
       `
@@ -982,6 +1103,7 @@ export async function PATCH(request: NextRequest) {
             boxInvoice: boxInvoice || null,
           },
           detailsComplete,
+          ...(hasVodafonePrice ? { vodafonePrice } : {}),
         }),
       ]
     );

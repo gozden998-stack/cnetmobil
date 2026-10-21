@@ -220,6 +220,7 @@ const loadPostgresStock = async () => {
       'IMEI',
       'DEVICE_ID',
       'REQUEST_ID',
+      'VODAFONE FİYAT',
     ];
 
     const devices = Array.isArray(stockJson?.devices)
@@ -293,6 +294,10 @@ const loadPostgresStock = async () => {
         String(device.imei || ''),
         Number(device.id),
         requestId ? Number(requestId) : null,
+        // Vodafone fiyatı sadece CNET/Merkez yönetimine gelir (sunucu diğerlerine göndermez).
+        device.vodafone_price === null || device.vodafone_price === undefined
+          ? null
+          : Number(device.vodafone_price),
       ];
     });
 
@@ -350,7 +355,7 @@ const [cihazEkleSaving, setCihazEkleSaving] = useState(false);
 const [cihazDuzenleSaving, setCihazDuzenleSaving] = useState(false);
 const [cihazSilSaving, setCihazSilSaving] = useState(false);
 const [cihazDuzenleForm, setCihazDuzenleForm] = useState({
-  renk: '', pil: '', grade: '', garanti: '', degisenParca: '', kutuFatura: ''
+  renk: '', pil: '', grade: '', garanti: '', degisenParca: '', kutuFatura: '', vodafoneFiyat: ''
 });
 const [bulkCihazFileName, setBulkCihazFileName] = useState('');
 const [bulkCihazRows, setBulkCihazRows] = useState<CihazTalepBulkRow[]>([]);
@@ -824,6 +829,10 @@ const openCihazDuzenleModal = (rowIndex: number) => {
     garanti: String(row?.[5] || ''),
     degisenParca: String(row?.[6] || ''),
     kutuFatura: String(row?.[7] || ''),
+    vodafoneFiyat:
+      row?.[18] === null || row?.[18] === undefined || row?.[18] === ''
+        ? ''
+        : String(Math.round(Number(row[18]))),
   });
 
   setCihazTalepDialog({
@@ -863,6 +872,9 @@ const submitCihazDuzenle = async () => {
         warranty: cihazDuzenleForm.garanti.trim(),
         changedParts: cihazDuzenleForm.degisenParca.trim(),
         boxInvoice: cihazDuzenleForm.kutuFatura.trim(),
+        ...(stockSourceBranch === 'CNET'
+          ? { vodafonePrice: cihazDuzenleForm.vodafoneFiyat.trim() }
+          : {}),
       }),
     });
 
@@ -2880,6 +2892,11 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 >
                                   {grade || '-'}
                                 </span>
+                                {canManageCihazStock && stockSourceBranch === 'CNET' && row?.[18] ? (
+                                  <div className="mt-1 text-[10px] font-black text-red-500">
+                                    VDF {Number(row[18]).toLocaleString('tr-TR')} TL
+                                  </div>
+                                ) : null}
                               </td>
 
                               <td className="px-4 py-3.5 text-center text-[11px] font-bold text-slate-600">
@@ -3537,6 +3554,22 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                 <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">DEĞİŞEN PARÇA</label>
                 <input value={cihazDuzenleForm.degisenParca} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,degisenParca:e.target.value}))} placeholder="Orijinal / Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
               </div>
+              {stockSourceBranch === 'CNET' && (
+                <div className="sm:col-span-2 rounded-2xl border border-red-100 bg-red-50/60 p-3">
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-red-500">
+                    VODAFONE FİYATI (TL) <span className="font-semibold normal-case tracking-normal text-slate-400">· sadece Vodafone kanalı görür, boş bırakırsanız Vodafone vitrininde görünmez</span>
+                  </label>
+                  <input
+                    inputMode="numeric"
+                    value={cihazDuzenleForm.vodafoneFiyat}
+                    onChange={(e: any) =>
+                      setCihazDuzenleForm((p) => ({ ...p, vodafoneFiyat: String(e.target.value || '').replace(/[^0-9]/g, '').slice(0, 9) }))
+                    }
+                    placeholder="Örn. 24500"
+                    className="w-full rounded-xl border border-red-100 bg-white px-4 py-3 text-sm font-black outline-none focus:border-red-400"
+                  />
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[11px] font-black uppercase tracking-widest text-slate-400">KUTU / FATURA</label>
                 <input value={cihazDuzenleForm.kutuFatura} onChange={(e:any)=>setCihazDuzenleForm(p=>({...p,kutuFatura:e.target.value}))} placeholder="Kutu Var / Fatura Yok" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:bg-white" />
