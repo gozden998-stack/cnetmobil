@@ -114,8 +114,7 @@ export async function POST(
 
     const smsResult = await sendExternalPurchaseOtpSms(
       phone,
-      code,
-      actor.branch
+      code
     );
 
     if (!smsResult.ok) {

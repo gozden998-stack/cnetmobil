@@ -773,51 +773,9 @@ function toEkoMesajPhone(phone: string) {
   return digits;
 }
 
-// Onay numaraları şubeye göre ayrılabilir:
-// PAYMENT_APPROVAL_PHONES_BY_BRANCH = {"ZUMAY KANALI":"05XX...,05YY...","BAŞKA KANALI":"05ZZ..."}
-// Şube bu listede yoksa ortak PAYMENT_APPROVAL_PHONES kullanılır.
-function resolveApprovalPhonesRaw(branch: string) {
-  const byBranchRaw = (process.env.PAYMENT_APPROVAL_PHONES_BY_BRANCH || "").trim();
-
-  if (byBranchRaw) {
-    try {
-      const parsed = JSON.parse(byBranchRaw) as Record<string, unknown>;
-      const wanted = branch.trim().toLocaleUpperCase("tr-TR");
-
-      for (const [key, value] of Object.entries(parsed)) {
-        if (key.trim().toLocaleUpperCase("tr-TR") === wanted) {
-          return String(value ?? "").trim();
-        }
-      }
-    } catch {
-      // Bozuk ayarda kod müşteriye düşmesin: geçersiz değer döner, gönderim kesilir.
-      console.error("PAYMENT_APPROVAL_PHONES_BY_BRANCH geçerli JSON değil.");
-      return "INVALID";
-    }
-  }
-
-  return (process.env.PAYMENT_APPROVAL_PHONES || "").trim();
-}
-
-// SMS içeriği ASCII (encoding 0) olduğu için şube adı sadeleştirilir.
-function approvalSmsBranchLabel(branch: string) {
-  return branch
-    .toLocaleUpperCase("tr-TR")
-    .replace(/\s*KANALI\s*$/, "")
-    .replace(/Ç/g, "C")
-    .replace(/Ğ/g, "G")
-    .replace(/İ/g, "I")
-    .replace(/Ö/g, "O")
-    .replace(/Ş/g, "S")
-    .replace(/Ü/g, "U")
-    .replace(/[^A-Z0-9 ]/g, "")
-    .trim();
-}
-
 export async function sendExternalPurchaseOtpSms(
   phone: string,
-  code: string,
-  branch: string
+  code: string
 ) {
   const baseUrl =
     process.env.EKOMESAJ_BASE_URL;
@@ -857,7 +815,7 @@ export async function sendExternalPurchaseOtpSms(
 
   // Numaralar yalnızca virgül / noktalı virgül / satır sonuyla ayrılır;
   // numara içindeki boşluk ve işaretler (0535 893 04 51, +90 ...) önemsizdir.
-  const approverRaw = resolveApprovalPhonesRaw(branch);
+  const approverRaw = (process.env.PAYMENT_APPROVAL_PHONES || "").trim();
 
   const approverPhones = approverRaw
     .split(/[,;\r\n]+/)
@@ -868,7 +826,7 @@ export async function sendExternalPurchaseOtpSms(
   // gönderme: yetkili onayı atlanmış olur.
   if (approverRaw && approverPhones.length === 0) {
     console.error(
-      `Onay numarası tanımlı ama geçerli cep numarası içermiyor (şube: ${branch}; beklenen: 05XXXXXXXXX, 5XXXXXXXXX veya 905XXXXXXXXX).`
+      "PAYMENT_APPROVAL_PHONES tanımlı ama geçerli cep numarası içermiyor (beklenen: 05XXXXXXXXX, 5XXXXXXXXX veya 905XXXXXXXXX)."
     );
 
     return {
@@ -882,11 +840,9 @@ export async function sendExternalPurchaseOtpSms(
       ? approverPhones
       : [toEkoMesajPhone(phone)];
 
-  const branchLabel = approvalSmsBranchLabel(branch);
-
   const content =
     approverPhones.length > 0
-      ? `CNETMOBIL${branchLabel ? ` ${branchLabel}` : ""} odeme talebi onay kodu: ${code}. Kodu kimseyle paylasmayin.`
+      ? `CNETMOBIL odeme talebi onay kodu: ${code}. Kodu kimseyle paylasmayin.`
       : `CNETMOBIL dogrulama kodunuz: ${code}. Kodu kimseyle paylasmayin.`;
 
   try {

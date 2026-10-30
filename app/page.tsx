@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import AnaSayfa from './AnaSayfa';
-import { isPartnerChannelBranch } from './lib/partner-channels';
 import YoneticiPaneli from './components/YoneticiPaneli';
 import CepTablet from './components/screens/CepTablet';
 import YNAList from './components/screens/YNAList';
@@ -641,14 +640,6 @@ const VODAFONE_IPLER: string[] = [
 const PARTNER_BRANCH_KEY = "ZUMAY KANALI";
 const PARTNER_DISPLAY_NAME = "CNETMOBIL PARTNER";
 
-// Yönetici şube listesinde birden fazla bayi ayırt edilebilsin diye bayi adı eklenir
-// (bayinin kendi ekranında görünen ad değişmez).
-function partnerOptionLabel(name: string) {
-  if (!isPartnerChannelBranch(name)) return name;
-  if (name === PARTNER_BRANCH_KEY) return PARTNER_DISPLAY_NAME;
-  return `${PARTNER_DISPLAY_NAME} · ${name.replace(/\s*KANALI\s*$/, "")}`;
-}
-
 // Belirli model/hafıza kombinasyonları için nakit/takas teklif tavanı.
 // Cihaz durumu (mükemmel dahil) ne olursa olsun bu tutar geçilmez.
 const PURCHASE_PRICE_CAPS: Array<{ model: string; capacity: string; maxPrice: number }> = [
@@ -666,7 +657,7 @@ function getPurchasePriceCap(modelName: string, capacityLabel: string | undefine
 function personelIpYetkili(branch: string, currentIp: string) {
   if (MASTER_IPLER.includes(currentIp)) return true;
 
-  if (isPartnerChannelBranch(branch)) return true;
+  if (branch === PARTNER_BRANCH_KEY) return true;
 
   if (branch === 'VODAFONE KANALI') {
     return VODAFONE_IPLER.length === 0 || VODAFONE_IPLER.includes(currentIp);
@@ -1237,8 +1228,7 @@ export default function CnetmobilCmrFinalUltimate() {
     { name: "CMR KAPAKLI", phone: "905327005959" },
     { name: "CMR SARAY", phone: "905416801905" },
     { name: "VODAFONE KANALI", phone: "905425420000" },
-    { name: PARTNER_BRANCH_KEY, phone: "905000000000" },
-    { name: "GÜNAY KANALI", phone: "905000000000" }
+    { name: PARTNER_BRANCH_KEY, phone: "905000000000" }
   ];
 
   const brandAssets: any = {
@@ -1254,7 +1244,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
   // isZumay adı child component uyumluluğu için korunuyor.
   // İşlevsel olarak artık CNETMOBIL PARTNER kanalını temsil ediyor.
-  const isZumay = isPartnerChannelBranch(selectedBranch);
+  const isZumay = selectedBranch === PARTNER_BRANCH_KEY;
   const visibleBranchName = isZumay ? PARTNER_DISPLAY_NAME : selectedBranch;
 
   useEffect(() => {
@@ -1336,7 +1326,7 @@ export default function CnetmobilCmrFinalUltimate() {
         if (session.role === 'personel') {
           const branch = String(session.branch || '');
 
-          if (isPartnerChannelBranch(branch)) {
+          if (branch === PARTNER_BRANCH_KEY) {
             setSelectedBranch(branch);
             setIsMasterAccess(false);
             setIsAdmin(false);
@@ -1458,7 +1448,7 @@ export default function CnetmobilCmrFinalUltimate() {
         return;
       }
 
-      if (isPartnerChannelBranch(matchedBranch)) {
+      if (matchedBranch === PARTNER_BRANCH_KEY) {
         setSelectedBranch(matchedBranch);
         setIsMasterAccess(false);
         setIsAdmin(false);
@@ -1965,7 +1955,7 @@ export default function CnetmobilCmrFinalUltimate() {
 
       let finalCash = Math.max(Math.round(price * colorBonus), selectedCapacity.minPrice || 0);
 
-      if (selectedBranch === 'VODAFONE KANALI' || isPartnerChannelBranch(selectedBranch)) {
+      if (selectedBranch === 'VODAFONE KANALI' || selectedBranch === PARTNER_BRANCH_KEY) {
           finalCash = Math.round(finalCash * 0.92);
       }
 
@@ -2530,7 +2520,7 @@ export default function CnetmobilCmrFinalUltimate() {
       if (adminSelectedBranch !== 'TÜM ŞUBELER') {
           let foundBranch = null;
           for (let i = 0; i < item.data.length; i++) {
-              if (typeof item.data[i] === 'string' && (item.data[i].includes("CMR ") || item.data[i].includes("VODAFONE ") || item.data[i].includes("ZUMAY ") || item.data[i].includes("GÜNAY "))) {
+              if (typeof item.data[i] === 'string' && (item.data[i].includes("CMR ") || item.data[i].includes("VODAFONE ") || item.data[i].includes("ZUMAY "))) {
                   foundBranch = item.data[i];
                   break;
               }
@@ -3223,7 +3213,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     >
                       {branches.map((b) => (
                         <option key={b.name} value={b.name} className="text-slate-900">
-                          {partnerOptionLabel(b.name)}
+                          {b.name === PARTNER_BRANCH_KEY ? PARTNER_DISPLAY_NAME : b.name}
                         </option>
                       ))}
                     </select>
@@ -4072,7 +4062,7 @@ export default function CnetmobilCmrFinalUltimate() {
                   >
                     {branches.map((b) => (
                       <option key={b.name} value={b.name} className="text-slate-900">
-                        {partnerOptionLabel(b.name)}
+                        {b.name === PARTNER_BRANCH_KEY ? PARTNER_DISPLAY_NAME : b.name}
                       </option>
                     ))}
                   </select>
