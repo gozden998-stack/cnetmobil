@@ -1,4 +1,5 @@
 import { parseNotificationPrice } from './lib/notificationPrice';
+import { isPartnerChannelBranch } from './lib/partner-channels';
 import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti';
 import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
@@ -348,6 +349,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
 
     const notificationBranchLower = String(selectedBranch || '').toLocaleLowerCase('tr-TR');
     const bildirimlerAktifMi =
+        !isPartnerChannelBranch(selectedBranch) &&
         !notificationBranchLower.includes('zumay') &&
         !notificationBranchLower.includes('partner');
 
@@ -769,7 +771,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const isCmr = selectedBranch.includes('CMR');
     const isVodafone = selectedBranch === 'VODAFONE KANALI';
     const branchLower = selectedBranch.toLowerCase();
-    const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay');
+    const isBlocked = branchLower.includes('vodofone') || branchLower.includes('vodafone') || branchLower.includes('zumay') || isPartnerChannelBranch(selectedBranch);
     
     const hedeflerAktifMi = !isBlocked;
     const izinlerAktifMi = !isBlocked;

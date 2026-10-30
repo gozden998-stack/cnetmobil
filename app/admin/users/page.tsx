@@ -38,6 +38,7 @@ const BRANCHES = [
   "CMR SARAY",
   "VODAFONE KANALI",
   "ZUMAY KANALI",
+  "GÜNAY KANALI",
 ];
 
 const MODULE_LABELS: Record<string, string> = {
