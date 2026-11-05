@@ -124,10 +124,18 @@ export async function POST(request: NextRequest) {
         INSERT INTO public.wingsm_personnel_targets
           (branch_label, satici_adi, period, target_value, is_manager, active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, true, now(), now())
+        ON CONFLICT (branch_label, satici_adi, period)
+        DO UPDATE SET target_value = EXCLUDED.target_value, is_manager = EXCLUDED.is_manager, active = true, updated_at = now()
+        WHERE public.wingsm_personnel_targets.active = false
         RETURNING id, branch_label, satici_adi, period, target_value, is_manager, active, updated_at
       `,
       [branchLabel, saticiAdi, period, targetValue, isManager]
     );
+
+    // Satır pasife alınmışsa yukarıdaki DO UPDATE onu yeniden açar; aktif bir satır varsa hiçbir şey dönmez.
+    if (result.rows.length === 0) {
+      return json({ success: false, error: "Bu personel için bu dönemde zaten bir hedef var." }, 409);
+    }
 
     return json({ success: true, target: result.rows[0] }, 201);
   } catch (error: any) {

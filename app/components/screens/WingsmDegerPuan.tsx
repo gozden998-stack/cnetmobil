@@ -830,6 +830,32 @@ export default function WingsmDegerPuan() {
     }
   };
 
+  const restorePersonnelTarget = async (target: PersonnelTarget) => {
+    setPersonnelTargetState((current) => ({ ...current, [target.id]: { loading: true, error: "", success: "" } }));
+
+    try {
+      const res = await fetch(`/api/wingsm/personnel-targets/${target.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: true }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+    } catch (err) {
+      setPersonnelTargetState((current) => ({
+        ...current,
+        [target.id]: { loading: false, error: err instanceof Error ? err.message : "Geri alınamadı.", success: "" },
+      }));
+    }
+  };
+
   const addPersonnelTarget = async () => {
     if (!newPersonnelDraft.saticiAdi.trim()) {
       setNewPersonnelState({ loading: false, error: "Satıcı adı zorunludur.", success: "" });
@@ -1793,14 +1819,17 @@ export default function WingsmDegerPuan() {
                                 type="button"
                                 onClick={() => togglePersonnelManager(t)}
                                 disabled={ps.loading}
-                                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black transition disabled:opacity-50 ${
+                                title={t.is_manager ? "Tıklayın: PERSONEL yap" : "Tıklayın: MÜDÜR yap"}
+                                className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black transition disabled:opacity-50 ${
                                   t.is_manager
                                     ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
                                     : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                 }`}
                               >
                                 {t.is_manager ? "MÜDÜR" : "PERSONEL"}
+                                <span aria-hidden="true">⇄</span>
                               </button>
+                              <div className="mt-1 text-[10px] font-semibold text-slate-400">tıklayınca değişir</div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
@@ -1812,14 +1841,25 @@ export default function WingsmDegerPuan() {
                                 >
                                   {ps.loading ? "..." : "KAYDET"}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => deletePersonnelTarget(t)}
-                                  disabled={ps.loading || !t.active}
-                                  className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[10px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  SİL
-                                </button>
+                                {t.active ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => deletePersonnelTarget(t)}
+                                    disabled={ps.loading}
+                                    className="h-8 whitespace-nowrap rounded-lg bg-rose-50 px-3 text-[10px] font-black uppercase text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    SİL
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => restorePersonnelTarget(t)}
+                                    disabled={ps.loading}
+                                    className="h-8 whitespace-nowrap rounded-lg bg-emerald-50 px-3 text-[10px] font-black uppercase text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    GERİ AL
+                                  </button>
+                                )}
                               </div>
                               {ps.error && <div className="mt-1 text-[10px] font-bold text-rose-600">{ps.error}</div>}
                               {ps.success && <div className="mt-1 text-[10px] font-bold text-emerald-600">{ps.success}</div>}
