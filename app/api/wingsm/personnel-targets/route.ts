@@ -143,3 +143,181 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// ======================================================
+// TOPLU İŞLEM (PUT)
+//   { period, rows: [{ branchLabel, saticiAdi, targetValue, isManager? }] }
+//     Excel'den yapıştırılan satırları TEK işlemde yazar: dönemde olan kişinin hedefi
+//     güncellenir (silinmişse yeniden aktif olur), olmayan eklenir. Bir satır geçersizse
+//     hiçbiri yazılmaz. isManager verilmezse (null/yok) mevcut müdür işareti korunur.
+//   { period, copyFrom }
+//     copyFrom dönemindeki aktif kişileri (müdür işaretiyle, hedef 0) bu döneme kopyalar;
+//     bu dönemde zaten olanlara dokunmaz.
+// ======================================================
+
+const MAX_BULK_ROWS = 300;
+
+const nameKey = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR");
+
+export async function PUT(request: NextRequest) {
+  const auth = requireAdminSession(request);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json({ success: false, error: "Geçersiz istek gövdesi." }, 400);
+  }
+
+  const period = String(body.period ?? "").trim();
+
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    return json({ success: false, error: 'period "YYYY-AA" biçiminde olmalıdır.' }, 400);
+  }
+
+  try {
+    const pool = await ensureTable();
+
+    if (body.copyFrom !== undefined) {
+      const copyFrom = String(body.copyFrom ?? "").trim();
+
+      if (!/^\d{4}-\d{2}$/.test(copyFrom) || copyFrom === period) {
+        return json({ success: false, error: "Kopyalanacak dönem geçersiz." }, 400);
+      }
+
+      const copied = await pool.query(
+        `
+          INSERT INTO public.wingsm_personnel_targets
+            (branch_label, satici_adi, period, target_value, is_manager, active, created_at, updated_at)
+          SELECT s.branch_label, s.satici_adi, $1, 0, s.is_manager, true, now(), now()
+          FROM public.wingsm_personnel_targets s
+          WHERE s.period = $2
+            AND s.active
+            AND NOT EXISTS (
+              SELECT 1 FROM public.wingsm_personnel_targets t
+              WHERE t.period = $1
+                AND t.branch_label = s.branch_label
+                AND upper(t.satici_adi) = upper(s.satici_adi)
+            )
+          ON CONFLICT (branch_label, satici_adi, period) DO NOTHING
+        `,
+        [period, copyFrom]
+      );
+
+      return json({ success: true, period, copied: copied.rowCount || 0 });
+    }
+
+    const rawRows = Array.isArray(body.rows) ? (body.rows as Array<Record<string, unknown>>) : [];
+
+    if (rawRows.length === 0) {
+      return json({ success: false, error: "Eklenecek satır yok." }, 400);
+    }
+
+    if (rawRows.length > MAX_BULK_ROWS) {
+      return json({ success: false, error: `Tek seferde en fazla ${MAX_BULK_ROWS} satır eklenebilir.` }, 400);
+    }
+
+    const rows: Array<{ branchLabel: string; saticiAdi: string; targetValue: number; isManager: boolean | null }> = [];
+    const seen = new Set<string>();
+
+    for (const item of rawRows) {
+      const branchLabel = String(item?.branchLabel ?? "").trim();
+      const saticiAdi = String(item?.saticiAdi ?? "").trim().replace(/\s+/g, " ");
+      const targetValue = Number(item?.targetValue ?? 0);
+
+      if (!BRANCH_LABELS.includes(branchLabel)) {
+        return json({ success: false, error: `Geçersiz mağaza: "${branchLabel}".` }, 400);
+      }
+
+      if (!saticiAdi || saticiAdi.length > 80) {
+        return json({ success: false, error: `Personel adı geçersiz: "${saticiAdi}".` }, 400);
+      }
+
+      if (!Number.isFinite(targetValue) || targetValue < 0 || targetValue > 1_000_000_000) {
+        return json({ success: false, error: `${saticiAdi} için hedef geçersiz.` }, 400);
+      }
+
+      const key = `${branchLabel}|${nameKey(saticiAdi)}`;
+
+      if (seen.has(key)) {
+        return json({ success: false, error: `${saticiAdi} (${branchLabel}) listede iki kez yazılmış.` }, 400);
+      }
+
+      seen.add(key);
+
+      rows.push({
+        branchLabel,
+        saticiAdi,
+        targetValue,
+        isManager: typeof item?.isManager === "boolean" ? item.isManager : null,
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const existing = await client.query(
+        `SELECT id, branch_label, satici_adi FROM public.wingsm_personnel_targets WHERE period = $1`,
+        [period]
+      );
+      const idByKey = new Map<string, number>();
+
+      for (const row of existing.rows) {
+        idByKey.set(`${row.branch_label}|${nameKey(String(row.satici_adi))}`, Number(row.id));
+      }
+
+      let added = 0;
+      let updated = 0;
+
+      for (const row of rows) {
+        const id = idByKey.get(`${row.branchLabel}|${nameKey(row.saticiAdi)}`);
+
+        if (id) {
+          await client.query(
+            `
+              UPDATE public.wingsm_personnel_targets
+              SET target_value = $2,
+                  is_manager = COALESCE($3::boolean, is_manager),
+                  active = true,
+                  updated_at = now()
+              WHERE id = $1
+            `,
+            [id, row.targetValue, row.isManager]
+          );
+          updated += 1;
+        } else {
+          await client.query(
+            `
+              INSERT INTO public.wingsm_personnel_targets
+                (branch_label, satici_adi, period, target_value, is_manager, active, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, COALESCE($5::boolean, false), true, now(), now())
+            `,
+            [row.branchLabel, row.saticiAdi, period, row.targetValue, row.isManager]
+          );
+          added += 1;
+        }
+      }
+
+      await client.query("COMMIT");
+
+      return json({ success: true, period, added, updated });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("WINGSM_PERSONNEL_TARGETS_PUT_ERROR:", error);
+
+    return json(
+      { success: false, error: error instanceof Error ? error.message : "Toplu işlem yapılamadı." },
+      500
+    );
+  }
+}

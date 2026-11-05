@@ -201,6 +201,108 @@ function formatNumber(value: string) {
   return n.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
 }
 
+// Personel hedeflerini Excel'den yapıştırma (toplu ekleme) ayrıştırıcısı.
+const HEDEF_MAGAZALAR = ["CMR MERKEZ", "CMR CADDE", "CMR SARAY", "CMR KAPAKLI"];
+const MUDUR_ISARETLERI = ["X", "MÜDÜR", "MUDUR", "MÜDÜRÜ", "EVET"];
+const PERSONEL_ISARETLERI = ["PERSONEL", "HAYIR"];
+
+type BulkTargetLine = {
+  line: number;
+  branchLabel: string;
+  saticiAdi: string;
+  targetValue: number;
+  isManager: boolean | null;
+  error: string;
+};
+
+const trUpper = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleUpperCase("tr-TR");
+
+const bulkBranchOf = (cell: string) => {
+  const upper = trUpper(cell);
+
+  return HEDEF_MAGAZALAR.find((label) => upper === label || `CMR ${upper}` === label);
+};
+
+function parseTargetNumber(value: string): number | null {
+  const text = value.replace(/\s|₺|TL/gi, "");
+
+  if (!text || !/^[\d.,]+$/.test(text)) return null;
+
+  const normalized =
+    text.includes(",") || /^\d{1,3}(\.\d{3})+$/.test(text) ? text.replace(/\./g, "").replace(",", ".") : text;
+  const number = Number(normalized);
+
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+// Sütunlar Tab (Excel) ya da ; ile ayrılır, sıra serbest: mağaza adı olan hücre mağaza, X/MÜDÜR/EVET müdür
+// işareti (PERSONEL/HAYIR = müdür değil), sondaki sayı hedef, kalan ilk hücre personel adı.
+function parseBulkTargets(text: string, defaultBranch: string): BulkTargetLine[] {
+  const result: BulkTargetLine[] = [];
+  const seen = new Set<string>();
+
+  text.split(/\r?\n/).forEach((raw, index) => {
+    if (!raw.trim()) return;
+
+    const filled = raw
+      .split(/\t|;/)
+      .map((cell) => cell.trim())
+      .filter(Boolean);
+
+    const isHeader =
+      !filled.some((cell) => parseTargetNumber(cell) !== null) &&
+      filled.some((cell) => /^(HEDEF|SATICI|AD SOYAD|PERSONEL ADI)/.test(trUpper(cell)));
+
+    if (isHeader) return;
+
+    let branchLabel = defaultBranch;
+    let isManager: boolean | null = null;
+    let targetValue: number | null = null;
+
+    for (const cell of filled) {
+      const upper = trUpper(cell);
+      const branch = bulkBranchOf(cell);
+
+      if (branch) branchLabel = branch;
+      else if (MUDUR_ISARETLERI.includes(upper)) isManager = true;
+      else if (PERSONEL_ISARETLERI.includes(upper)) isManager = false;
+    }
+
+    const rest = filled.filter(
+      (cell) =>
+        !bulkBranchOf(cell) &&
+        !MUDUR_ISARETLERI.includes(trUpper(cell)) &&
+        !PERSONEL_ISARETLERI.includes(trUpper(cell))
+    );
+
+    for (let i = rest.length - 1; i >= 0; i -= 1) {
+      const number = parseTargetNumber(rest[i]);
+
+      if (number !== null) {
+        targetValue = number;
+        rest.splice(i, 1);
+        break;
+      }
+    }
+
+    const name = (rest[0] ?? "").replace(/\s+/g, " ").trim();
+    let error = "";
+
+    if (!name) error = "Personel adı bulunamadı.";
+    else if (name.length > 80) error = "Personel adı 80 karakteri geçemez.";
+    else if (targetValue === null) error = "Hedef sayısı bulunamadı.";
+
+    const key = `${branchLabel}|${trUpper(name)}`;
+
+    if (!error && seen.has(key)) error = "Bu kişi listede iki kez yazılmış.";
+    if (!error) seen.add(key);
+
+    result.push({ line: index + 1, branchLabel, saticiAdi: name, targetValue: targetValue ?? 0, isManager, error });
+  });
+
+  return result;
+}
+
 export default function WingsmDegerPuan() {
   // CMR Kanalı | Vodafone Kanalı. Ana sayfadaki kartta seçilen kanal burada da açılır.
   const [kanal, setKanalState] = useState<Kanal>("cmr");
@@ -763,6 +865,97 @@ export default function WingsmDegerPuan() {
       window.setTimeout(() => setNewPersonnelState((current) => ({ ...current, success: "" })), 2500);
     } catch (err) {
       setNewPersonnelState({ loading: false, error: err instanceof Error ? err.message : "Eklenemedi.", success: "" });
+    }
+  };
+
+  // TOPLU EKLEME (Excel'den yapıştır) + önceki aydan kopyala
+  const [bulkText, setBulkText] = useState("");
+  const [bulkBranch, setBulkBranch] = useState("CMR MERKEZ");
+  const [bulkLines, setBulkLines] = useState<BulkTargetLine[] | null>(null);
+  const [bulkState, setBulkState] = useState<RowState>({ loading: false, error: "", success: "" });
+  const [copyState, setCopyState] = useState<RowState>({ loading: false, error: "", success: "" });
+
+  const previewBulk = () => {
+    const lines = parseBulkTargets(bulkText, bulkBranch);
+
+    setBulkState({ loading: false, error: lines.length === 0 ? "Yapıştırılacak satır bulunamadı." : "", success: "" });
+    setBulkLines(lines.length === 0 ? null : lines);
+  };
+
+  const bulkHasError = (bulkLines ?? []).some((line) => line.error);
+
+  const saveBulk = async () => {
+    if (!bulkLines || bulkLines.length === 0 || bulkHasError) return;
+
+    setBulkState({ loading: true, error: "", success: "" });
+
+    try {
+      const res = await fetch("/api/wingsm/personnel-targets", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          period: targetPeriod,
+          rows: bulkLines.map((line) => ({
+            branchLabel: line.branchLabel,
+            saticiAdi: line.saticiAdi,
+            targetValue: line.targetValue,
+            isManager: line.isManager,
+          })),
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+      setBulkText("");
+      setBulkLines(null);
+      setBulkState({
+        loading: false,
+        error: "",
+        success: `${payload.added} kişi eklendi, ${payload.updated} kişinin hedefi güncellendi.`,
+      });
+    } catch (err) {
+      setBulkState({ loading: false, error: err instanceof Error ? err.message : "Kaydedilemedi.", success: "" });
+    }
+  };
+
+  const copyFromPreviousPeriod = async () => {
+    const [year, month] = targetPeriod.split("-").map(Number);
+    const previous = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+
+    if (
+      !window.confirm(
+        `${previous} dönemindeki personel listesi ${targetPeriod} dönemine kopyalansın mı? Hedefler 0 olarak gelir; bu dönemde zaten olan kişilere dokunulmaz.`
+      )
+    ) {
+      return;
+    }
+
+    setCopyState({ loading: true, error: "", success: "" });
+
+    try {
+      const res = await fetch("/api/wingsm/personnel-targets", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period: targetPeriod, copyFrom: previous }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || `HTTP ${res.status}`);
+      }
+
+      await loadTargets(targetPeriod);
+      setCopyState({ loading: false, error: "", success: `${payload.copied} kişi kopyalandı (${previous}).` });
+    } catch (err) {
+      setCopyState({ loading: false, error: err instanceof Error ? err.message : "Kopyalanamadı.", success: "" });
     }
   };
 
@@ -1703,6 +1896,132 @@ export default function WingsmDegerPuan() {
                   )}
                   {newPersonnelState.success && (
                     <div className="mt-2 text-[11px] font-bold text-emerald-600">{newPersonnelState.success}</div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-100 px-5 py-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                      Toplu Ekle (Excel&apos;den yapıştır)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyFromPreviousPeriod}
+                      disabled={copyState.loading}
+                      className="h-8 whitespace-nowrap rounded-lg bg-slate-100 px-3 text-[10px] font-black uppercase text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {copyState.loading ? "KOPYALANIYOR..." : "ÖNCEKİ AYDAN KOPYALA"}
+                    </button>
+                  </div>
+                  {copyState.error && <div className="mb-2 text-[11px] font-bold text-rose-600">{copyState.error}</div>}
+                  {copyState.success && <div className="mb-2 text-[11px] font-bold text-emerald-600">{copyState.success}</div>}
+                  <p className="mb-2 text-[11px] font-semibold text-slate-500">
+                    Her satır: Ad Soyad ve Hedef (isteğe bağlı: Mağaza, müdürse X). Sütun sırası serbest; Excel&apos;den
+                    kopyalayıp yapıştırın. Mağaza sütunu yoksa soldaki mağaza kullanılır. Dönemde olan kişinin
+                    hedefi güncellenir, müdür işareti yazılmadıysa mevcut işaret değişmez.
+                  </p>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <select
+                      value={bulkBranch}
+                      onChange={(e) => setBulkBranch(e.target.value)}
+                      className="h-9 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold"
+                    >
+                      {HEDEF_MAGAZALAR.map((label) => (
+                        <option key={label} value={label}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      value={bulkText}
+                      onChange={(e) => {
+                        setBulkText(e.target.value);
+                        setBulkLines(null);
+                      }}
+                      rows={4}
+                      placeholder={"AHMET MERT GÖKÇE\t120\nAYŞE YILMAZ\t90\tX"}
+                      className="min-w-[260px] flex-1 rounded-lg border border-slate-200 p-2.5 font-mono text-[11px] outline-none focus:border-blue-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={previewBulk}
+                      disabled={!bulkText.trim()}
+                      className="h-9 whitespace-nowrap rounded-lg bg-slate-800 px-4 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ÖNİZLE
+                    </button>
+                  </div>
+                  {bulkState.error && <div className="mt-2 text-[11px] font-bold text-rose-600">{bulkState.error}</div>}
+                  {bulkState.success && <div className="mt-2 text-[11px] font-bold text-emerald-600">{bulkState.success}</div>}
+
+                  {bulkLines && (
+                    <div className="mt-3">
+                      <div className="overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="w-full min-w-[560px] text-left">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                              <th className="px-3 py-2">Satır</th>
+                              <th className="px-3 py-2">Mağaza</th>
+                              <th className="px-3 py-2">Satıcı</th>
+                              <th className="px-3 py-2">Hedef</th>
+                              <th className="px-3 py-2">Rol</th>
+                              <th className="px-3 py-2">Durum</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {bulkLines.map((line) => {
+                              const exists = personnelTargets.some(
+                                (t) =>
+                                  t.branch_label === line.branchLabel &&
+                                  trUpper(t.satici_adi) === trUpper(line.saticiAdi)
+                              );
+
+                              return (
+                                <tr key={line.line} className={line.error ? "bg-rose-50" : ""}>
+                                  <td className="px-3 py-2 text-[11px] font-semibold text-slate-400">{line.line}</td>
+                                  <td className="px-3 py-2 text-[11px] font-bold">{line.branchLabel}</td>
+                                  <td className="px-3 py-2 text-[11px] font-semibold">{line.saticiAdi || "—"}</td>
+                                  <td className="px-3 py-2 text-[11px] font-semibold">
+                                    {line.error ? "—" : line.targetValue}
+                                  </td>
+                                  <td className="px-3 py-2 text-[10px] font-black text-slate-500">
+                                    {line.isManager === true
+                                      ? "MÜDÜR"
+                                      : line.isManager === false
+                                        ? "PERSONEL"
+                                        : "değişmez"}
+                                  </td>
+                                  <td className="px-3 py-2 text-[10px] font-black">
+                                    {line.error ? (
+                                      <span className="text-rose-600">{line.error}</span>
+                                    ) : exists ? (
+                                      <span className="text-amber-600">GÜNCELLENECEK</span>
+                                    ) : (
+                                      <span className="text-emerald-600">YENİ</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={saveBulk}
+                          disabled={bulkState.loading || bulkHasError}
+                          className="h-9 whitespace-nowrap rounded-lg bg-blue-600 px-4 text-[11px] font-black uppercase text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {bulkState.loading ? "KAYDEDİLİYOR..." : `${bulkLines.length} SATIRI KAYDET`}
+                        </button>
+                        {bulkHasError && (
+                          <span className="text-[11px] font-bold text-rose-600">
+                            Hatalı satırları düzeltip tekrar önizleyin; hatalı liste kaydedilmez.
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </section>
