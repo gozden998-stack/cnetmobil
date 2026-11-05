@@ -1828,9 +1828,7 @@ export default function WingsmDegerPuan() {
                               >
                                 {t.is_manager ? "MÜDÜR" : "PERSONEL"}
                                 <span aria-hidden="true">⇄</span>
-                              </button>
-                              <div className="mt-1 text-[10px] font-semibold text-slate-400">tıklayınca değişir</div>
-                            </td>
+                              </button>                            </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 <button
