@@ -22,6 +22,7 @@ type CategoryRule = {
   adIcerir: string[];
   adIcermez: string[];
   minFiyat: number | null;
+  imeiler?: string[];
 };
 
 type Category = {
@@ -132,6 +133,60 @@ function parseList(text: string) {
     .split(/[,;\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+// IMEI listesi: boşluk/satır/virgülle ayrılmış, 14-16 haneli rakamlar (sunucuda da aynı süzgeç uygulanır).
+function parseImeis(text: string) {
+  const tokens = text.split(/[\s,;]+/).filter(Boolean);
+  const seen = new Set<string>();
+  const valid: string[] = [];
+  let invalid = 0;
+
+  for (const token of tokens) {
+    const digits = token.replace(/\D/g, "");
+
+    if (digits.length < 14 || digits.length > 16) {
+      invalid += 1;
+    } else if (!seen.has(digits.slice(0, 14))) {
+      seen.add(digits.slice(0, 14));
+      valid.push(digits);
+    }
+  }
+
+  return { valid, invalid, duplicate: tokens.length - invalid - valid.length };
+}
+
+function ImeiBox({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  const [text, setText] = useState(value.join("\n"));
+  const parsed = parseImeis(text);
+
+  // Dışarıdan (yükleme/kaydetme sonrası) değişirse kutuyu eşitle; yazarken kullanıcının metnine dokunma.
+  useEffect(() => {
+    setText((current) => (parseImeis(current).valid.join("\n") === value.join("\n") ? current : value.join("\n")));
+  }, [value]);
+
+  return (
+    <label className="md:col-span-2 xl:col-span-3 2xl:col-span-6">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase text-slate-500">
+        <span>IMEI listesi (stok cihaz) - her satıra bir IMEI, Excel&apos;den yapıştırılabilir</span>
+        <span className="normal-case text-slate-400">
+          {parsed.valid.length} IMEI
+          {parsed.invalid > 0 ? ` · ${parsed.invalid} geçersiz (atlanır)` : ""}
+          {parsed.duplicate > 0 ? ` · ${parsed.duplicate} tekrar (atlanır)` : ""}
+        </span>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(parseImeis(e.target.value).valid);
+        }}
+        rows={4}
+        placeholder="Doluysa bu kategori SADECE bu IMEI'lerin satışını sayar (diğer süzgeçlerle birlikte)."
+        className="w-full rounded-lg border border-slate-200 p-2 font-mono text-xs"
+      />
+    </label>
+  );
 }
 
 let rowKeySeed = 1;
@@ -921,6 +976,10 @@ export default function PersonelGidisat({ altAcik = true }: { altAcik?: boolean 
                         className="h-9 w-full rounded-lg border border-slate-200 px-2 text-right text-sm"
                       />
                     </label>
+                    <ImeiBox
+                      value={category.rule.imeiler ?? []}
+                      onChange={(imeiler) => updateRule(category.key, { imeiler })}
+                    />
                   </div>
                 )}
               </section>

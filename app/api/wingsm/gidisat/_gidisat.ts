@@ -43,6 +43,7 @@ export type CategoryRule = {
   adIcerir: string[]; // ürün adında bunlardan biri GEÇMELİ (VEYA)
   adIcermez: string[]; // ürün adında bunlardan biri GEÇMEMELİ
   minFiyat: number | null; // birim satış fiyatı en az (TL)
+  imeiler: string[]; // doluysa satış satırında bu IMEI'lerden biri geçmeli (stok cihaz listesi)
 };
 
 export type Category = {
@@ -71,6 +72,7 @@ const emptyRule = (): CategoryRule => ({
   adIcerir: [],
   adIcermez: [],
   minFiyat: null,
+  imeiler: [],
 });
 
 // Samsung Premium: Galaxy S serisi (S23, S24, S25... FE/Ultra/Plus dahil) ve Z serisi (Z Fold, Z Flip).
@@ -246,6 +248,29 @@ function cleanList(value: unknown, max = 30): string[] {
     .slice(0, max);
 }
 
+export const MAX_IMEI_LIST = 5000;
+
+// IMEI listesi: yalnız rakamlar, 14-16 haneli olanlar, tekrarsız. Eşleşme ilk 14 hane (TAC + seri) üzerinden yapılır,
+// böylece 15. hane (kontrol) ya da 16 haneli IMEISV yazımı farkı eşleşmeyi bozmaz.
+function cleanImeiList(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\s,;]+/) : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of list) {
+    const digits = String(item ?? "").replace(/\D/g, "");
+
+    if (digits.length < 14 || digits.length > 16 || seen.has(digits.slice(0, 14))) continue;
+
+    seen.add(digits.slice(0, 14));
+    result.push(digits);
+
+    if (result.length >= MAX_IMEI_LIST) break;
+  }
+
+  return result;
+}
+
 function cleanNumber(value: unknown, fallback: number, min = 0, max = 1_000_000): number {
   const n = Number(value);
   return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
@@ -292,6 +317,7 @@ export function sanitizeConfig(input: unknown): GidisatConfig {
           ruleIn.minFiyat === null || ruleIn.minFiyat === undefined || String(ruleIn.minFiyat).trim() === ""
             ? null
             : cleanNumber(ruleIn.minFiyat, 0, 0, 10_000_000),
+        imeiler: cleanImeiList(ruleIn.imeiler),
       },
     };
   });
@@ -462,11 +488,44 @@ function numberOf(row: Record<string, unknown>, field: string | null): number | 
   return Number.isFinite(n) ? n : null;
 }
 
+// Satış satırındaki IMEI'ler: alan adı bilinmediği için satırın tüm değerlerinde 14-16 haneli rakam dizileri aranır.
+// Satır başına bir kez çıkarılır (kategori sayısı kadar tekrar taranmasın).
+const rowImeiCache = new WeakMap<object, Set<string>>();
+const ruleImeiCache = new WeakMap<string[], Set<string>>();
+
+function rowImeiKeys(row: Record<string, unknown>): Set<string> {
+  let keys = rowImeiCache.get(row);
+
+  if (!keys) {
+    keys = new Set((JSON.stringify(row).match(/\d{14,16}/g) ?? []).map((run) => run.slice(0, 14)));
+    rowImeiCache.set(row, keys);
+  }
+
+  return keys;
+}
+
+function ruleImeiKeys(imeiler: string[]): Set<string> {
+  let keys = ruleImeiCache.get(imeiler);
+
+  if (!keys) {
+    keys = new Set(imeiler.map((imei) => imei.slice(0, 14)));
+    ruleImeiCache.set(imeiler, keys);
+  }
+
+  return keys;
+}
+
 function rowMatches(
   row: Record<string, unknown>,
   rule: CategoryRule,
   fields: { qty: string | null; amount: string | null; price: string | null }
 ): boolean {
+  if (rule.imeiler.length > 0) {
+    const wanted = ruleImeiKeys(rule.imeiler);
+
+    if (![...rowImeiKeys(row)].some((key) => wanted.has(key))) return false;
+  }
+
   if (rule.siniflar.length > 0) {
     const classKeys = [fold(row.MalSinif), fold(row.MalSinifAdI)].filter(Boolean);
     const wanted = rule.siniflar.map(fold);
