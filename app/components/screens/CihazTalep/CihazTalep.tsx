@@ -505,6 +505,101 @@ const downloadMagazaStokExcel = () => {
   XLSX.writeFile(workbook, `${stockSourceBranch}_STOK_${today}.xlsx`);
 };
 
+// Tek Excel: MERKEZ (WingSM 001) HARİÇ bütün mağaza/depo stokları, MAGAZA sütunuyla.
+// Her mağazanın stoğu ayrı ayrı çekilir; biri alınamazsa Excel eksik hazırlanmaz, hata gösterilir.
+const GENEL_EXCEL_BRANCHES = ['CNET', 'CMR', 'CADDE', 'KAPAKLI', 'SARAY'];
+const [genelExcelBusy, setGenelExcelBusy] = useState(false);
+
+const downloadGenelStokExcel = async () => {
+  if (!canDownloadStoreStockExcel || genelExcelBusy) return;
+
+  setGenelExcelBusy(true);
+
+  try {
+    const responses = await Promise.all(
+      GENEL_EXCEL_BRANCHES.map(async (branch) => {
+        const res = await fetch(`/api/stock/devices?branch=${encodeURIComponent(branch)}`, {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        const payload = await res.json().catch(() => ({}));
+
+        if (!res.ok || !payload?.success) {
+          throw new Error(`${branch}: ${payload?.error || 'stok alınamadı'}`);
+        }
+
+        return { branch, devices: Array.isArray(payload?.devices) ? payload.devices : [] };
+      })
+    );
+
+    const rows = responses.flatMap(({ branch, devices }) =>
+      devices.map((device: any) => ({
+        MAGAZA: branch,
+        IMEI: String(device?.imei ?? '').trim(),
+        MARKA_MODEL: combineBrandModelSafely(
+          String(device?.brand ?? '').trim(),
+          String(device?.model ?? '').trim()
+        ),
+        HAFIZA: String(device?.memory ?? '').trim(),
+        RENK: String(device?.color ?? '').trim(),
+        PIL:
+          device?.battery_percent === null || device?.battery_percent === undefined
+            ? ''
+            : `%${device.battery_percent}`,
+        GRADE: String(device?.grade ?? '').trim(),
+        GARANTI: String(device?.warranty ?? '').trim(),
+        DEGISEN_PARCA: String(device?.changed_parts ?? '').trim(),
+        KUTU_FATURA: String(device?.box_invoice ?? '').trim(),
+        STOK: ['AVAILABLE', 'REQUESTED', 'TRANSFER_WAITING'].includes(String(device?.status ?? '')) ? 1 : 0,
+      }))
+    );
+
+    if (!rows.length) {
+      showTalepMessage('EXCEL OLUŞTURULAMADI', 'Excel’e aktarılacak stok bulunamadı.', 'error');
+      return;
+    }
+
+    const header = [
+      'MAGAZA',
+      'IMEI',
+      'MARKA_MODEL',
+      'HAFIZA',
+      'RENK',
+      'PIL',
+      'GRADE',
+      'GARANTI',
+      'DEGISEN_PARCA',
+      'KUTU_FATURA',
+      'STOK',
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(rows, { header });
+
+    worksheet['!cols'] = [16, 19, 34, 12, 18, 9, 15, 18, 28, 22, 10].map((wch) => ({ wch }));
+    worksheet['!autofilter'] = { ref: `A1:K${rows.length + 1}` };
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Genel Stok');
+
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
+    XLSX.writeFile(workbook, `GENEL_STOK_MERKEZ_HARIC_${today}.xlsx`);
+  } catch (error: any) {
+    showTalepMessage(
+      'EXCEL OLUŞTURULAMADI',
+      error?.message || 'Genel stok Excel’i hazırlanamadı.',
+      'error'
+    );
+  } finally {
+    setGenelExcelBusy(false);
+  }
+};
+
 const downloadCnetDetailExcel = () => {
   if (!canUseCnetDetailExcel || cnetDetailExcelBusy) return;
 
@@ -2649,6 +2744,21 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
                         </svg>
                         Excel İndir
+                      </button>
+                    )}
+
+                    {canDownloadStoreStockExcel && (
+                      <button
+                        type="button"
+                        onClick={() => void downloadGenelStokExcel()}
+                        disabled={genelExcelBusy}
+                        title="MERKEZ hariç bütün mağaza stoklarını tek Excel olarak indir"
+                        className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                        </svg>
+                        {genelExcelBusy ? 'Hazırlanıyor...' : 'Genel Excel'}
                       </button>
                     )}
 
