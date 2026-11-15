@@ -6,7 +6,7 @@
 // siparişler. Ürünler Hepsiburada panelinden açılır; stok yazma ve sipariş bazlı kanal senkronu sonraki adım.
 // Müşteri bilgisi gösterilmez.
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Row = Record<string, any>;
 type Tab = "urunler" | "siparisler" | "adaylar";
@@ -304,25 +304,49 @@ function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
 }
 
 export default function Hepsiburada() {
-  const [tab, setTab] = useState<Tab>("urunler");
+  const [tab, setTab] = useState<Tab>("siparisler");
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
   const [checkedAt, setCheckedAt] = useState("");
   const [sinifFilter, setSinifFilter] = useState("");
-  const [onlyBarcode, setOnlyBarcode] = useState(false);
-  const [barcodedCount, setBarcodedCount] = useState(0);
+  const [urunFilter, setUrunFilter] = useState("all");
+  const [durum, setDurum] = useState("any");
+  const [barkod, setBarkod] = useState("any");
+  const [sort, setSort] = useState("stock");
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  // Arama kutusu: yazmayı bıraktıktan 400 ms sonra TÜM ürünlerde sunucuda aranır (sayfa sayfa gezmeye gerek yok).
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(search.trim()), 400);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Siparişler sekmesi küçük bir liste: arama tarayıcıda yapılır, sunucuya gitmez.
+  const serverQuery = tab === "siparisler" ? "" : q;
+  const paramsKey = tab === "urunler" ? `${serverQuery}|${urunFilter}` : tab === "adaylar" ? `${serverQuery}|${sinifFilter}|${durum}|${barkod}|${sort}` : "";
+  const paramsRef = useRef({ serverQuery, urunFilter, sinifFilter, durum, barkod, sort });
+
+  paramsRef.current = { serverQuery, urunFilter, sinifFilter, durum, barkod, sort };
 
   const load = useCallback(async (which: Tab, nextOffset: number) => {
     setLoading(true);
     setError("");
 
     try {
+      const p = paramsRef.current;
       const endpoint = which === "urunler" ? "listings" : which === "siparisler" ? "orders" : "open-candidates";
-      const extra = which === "adaylar" ? `&sinif=${encodeURIComponent(sinifFilter)}&onlyBarcode=${onlyBarcode ? 1 : 0}` : "";
+      const extra =
+        which === "adaylar"
+          ? `&q=${encodeURIComponent(p.serverQuery)}&sinif=${encodeURIComponent(p.sinifFilter)}&durum=${p.durum}&barkod=${p.barkod}&sort=${p.sort}`
+          : which === "urunler"
+            ? `&q=${encodeURIComponent(p.serverQuery)}&filter=${p.urunFilter}`
+            : "";
       const response = await fetch(`/api/online/hepsiburada/${endpoint}?offset=${nextOffset}&limit=${PAGE}${extra}`, {
         cache: "no-store",
         credentials: "same-origin",
@@ -333,7 +357,7 @@ export default function Hepsiburada() {
 
       setRows(Array.isArray(payload.rows) ? payload.rows : []);
       setTotal(Number(payload.totalCount) || 0);
-      setBarcodedCount(Number(payload.barcodedCount) || 0);
+      setCounts(payload.counts && typeof payload.counts === "object" ? payload.counts : {});
       setOffset(nextOffset);
       setCheckedAt(new Date().toLocaleTimeString("tr-TR"));
     } catch (e: any) {
@@ -343,22 +367,23 @@ export default function Hepsiburada() {
     } finally {
       setLoading(false);
     }
-  }, [sinifFilter, onlyBarcode]);
+  }, []);
 
+  // Sekme ya da arama/filtre değişince ilk sayfadan yeniden yükle.
   useEffect(() => {
     void load(tab, 0);
-  }, [tab, load]);
+  }, [tab, paramsKey, load]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("tr-TR");
+    if (tab !== "siparisler") return rows;
 
-    if (!q) return rows;
+    const needle = search.trim().toLocaleLowerCase("tr-TR");
 
-    return rows.filter((row) => JSON.stringify(row).toLocaleLowerCase("tr-TR").includes(q));
-  }, [rows, search]);
+    if (!needle) return rows;
 
-  const salable = rows.filter((row) => row.isSalable === true).length;
-  const stockSum = rows.reduce((sum, row) => sum + (Number(row.availableStock) || 0), 0);
+    return rows.filter((row) => JSON.stringify(row).toLocaleLowerCase("tr-TR").includes(needle));
+  }, [rows, search, tab]);
+
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const page = Math.floor(offset / PAGE) + 1;
 
@@ -393,15 +418,16 @@ export default function Hepsiburada() {
 
       <div className="flex flex-wrap gap-2">
         {([
-          ["urunler", "Ürünler"],
           ["siparisler", "Açık Siparişler"],
-          ["adaylar", "WingSM'den Aç (önizleme)"],
+          ["urunler", "Ürünler"],
+          ["adaylar", "WingSM'den Aç"],
         ] as Array<[Tab, string]>).map(([key, label]) => (
           <button
             key={key}
             type="button"
             onClick={() => {
               setSearch("");
+              setQ("");
               setTab(key);
             }}
             className={`h-9 rounded-full px-4 text-[11px] font-black uppercase transition ${
@@ -416,19 +442,19 @@ export default function Hepsiburada() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-[10px] font-black uppercase text-slate-400">
-            {tab === "urunler" ? "Toplam ürün" : tab === "siparisler" ? "Açık sipariş" : "WingSM sıfır ürün"}
+            {tab === "urunler" ? "Listelenen ürün" : tab === "siparisler" ? "Açık sipariş" : "Listelenen WingSM ürünü"}
           </div>
           <div className="mt-1 text-2xl font-black text-slate-900">{total}</div>
         </div>
         {tab === "urunler" && (
           <>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-[10px] font-black uppercase text-slate-400">Satışta (bu sayfa)</div>
-              <div className="mt-1 text-2xl font-black text-emerald-600">{salable}</div>
+              <div className="text-[10px] font-black uppercase text-slate-400">Satışta (tümü)</div>
+              <div className="mt-1 text-2xl font-black text-emerald-600">{counts.salable ?? "-"}</div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-[10px] font-black uppercase text-slate-400">Stok adedi (bu sayfa)</div>
-              <div className="mt-1 text-2xl font-black text-slate-900">{stockSum}</div>
+              <div className="text-[10px] font-black uppercase text-slate-400">Tükendi (tümü)</div>
+              <div className="mt-1 text-2xl font-black text-rose-600">{counts.soldout ?? "-"}</div>
             </div>
           </>
         )}
@@ -440,6 +466,27 @@ export default function Hepsiburada() {
 
       {tab === "urunler" && (
         <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["all", "Tümü"],
+              ["salable", "Satışta"],
+              ["soldout", "Tükendi (stok 0)"],
+              ["matched", "Eşleşmiş"],
+              ["unmatched", "Eşleşmemiş"],
+              ["suggested", "Önerili"],
+            ] as Array<[string, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setUrunFilter(key)}
+                className={`h-8 rounded-full px-3 text-[11px] font-black transition ${
+                  urunFilter === key ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {label} ({counts[key] ?? "-"})
+              </button>
+            ))}
+          </div>
           {rows.some((row) => row.suggestion && row.suggestion.score >= 0.85) && (
             <button
               type="button"
@@ -469,19 +516,55 @@ export default function Hepsiburada() {
       )}
 
       {tab === "adaylar" && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-bold text-slate-600">
-          <span>
-            Hepsiburada'ya açılabilecek WingSM sıfır ürünler. <b>Önizleme:</b> hiçbir şey gönderilmez. Barkodlu ürün: {barcodedCount} / {total}.
-          </span>
-          <select value={sinifFilter} onChange={(e) => setSinifFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold">
-            <option value="">Tüm sınıflar</option>
-            <option value="1el">1el (sıfır telefon)</option>
-            <option value="6el">6el (aksesuar)</option>
-            <option value="aks">aks</option>
-          </select>
-          <label className="flex items-center gap-1">
-            <input type="checkbox" checked={onlyBarcode} onChange={(e) => setOnlyBarcode(e.target.checked)} /> sadece barkodlu
-          </label>
+        <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-bold text-slate-600">
+          <div>Hepsiburada'ya açılabilecek WingSM sıfır ürünler. Listeleme hiçbir şey göndermez; gönderim yalnız ürün satırındaki onaylı düğmeyle yapılır.</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-400">Durum:</span>
+            {([
+              ["any", `Tümü (${counts.all ?? "-"})`],
+              ["openable", `Açılabilir (${counts.openable ?? "-"})`],
+              ["opened", `Zaten açık (${counts.opened ?? "-"})`],
+            ] as Array<[string, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDurum(key)}
+                className={`h-8 rounded-full px-3 font-black transition ${durum === key ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-400">Barkod:</span>
+            {([
+              ["any", "Hepsi"],
+              ["barcode", `Geçerli barkodlu (${counts.barcode ?? "-"})`],
+              ["sku", `HB SKU'lu (${counts.sku ?? "-"})`],
+              ["none", `Barkodsuz / SKU'suz (${counts.none ?? "-"})`],
+            ] as Array<[string, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setBarkod(key)}
+                className={`h-8 rounded-full px-3 font-black transition ${barkod === key ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-100"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={sinifFilter} onChange={(e) => setSinifFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold">
+              <option value="">Tüm sınıflar</option>
+              <option value="1el">1el (sıfır telefon)</option>
+              <option value="6el">6el (aksesuar)</option>
+              <option value="aks">aks</option>
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold">
+              <option value="stock">Sıra: en çok stok önce</option>
+              <option value="name">Sıra: ada göre</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -489,7 +572,7 @@ export default function Hepsiburada() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Bu sayfada ara (ürün, stok kodu...)"
+          placeholder={tab === "siparisler" ? "Siparişlerde ara..." : "Tüm ürünlerde ara (ürün adı, marka, SKU, stok kodu...)"}
           className="h-9 w-full max-w-sm rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-400"
         />
         <div className="ml-auto flex items-center gap-2 text-[11px] font-bold text-slate-500">
