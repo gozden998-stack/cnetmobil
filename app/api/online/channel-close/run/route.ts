@@ -4,7 +4,9 @@
 //
 // Zamanlayıcı (scripts/wingsm-sync-cron.mjs) her turda çağırır:
 //   1) İdefix siparişlerini okur, satılan IMEI'li kalemler için N11 kapatma kaydı atar.
-//   2) Kuyruktaki bekleyen kapatmaları (İdefix / N11) işler; hata olanı sınırlı sayıda yeniden dener.
+//   2) N11 siparişlerini okur (sipariş ekranı açık olmasa da), satılan IMEI'li kalemler için İdefix
+//      kapatma kaydı atar.
+//   3) Kuyruktaki bekleyen kapatmaları (İdefix / N11) işler; hata olanı sınırlı sayıda yeniden dener.
 // Bkz. app/lib/channel-close/queue.ts. WingSM'e hiçbir veri yazılmaz.
 //
 // GÜVENLİK: sadece sunucu-sunucu, Authorization: Bearer WINGSM_SYNC_SECRET.
@@ -14,6 +16,7 @@ import crypto from "crypto";
 
 import { getIdefixDbPool } from "@/app/lib/idefix/server";
 import { pollIdefixOrdersForClose } from "@/app/lib/idefix/order-close";
+import { pollN11OrdersForClose } from "@/app/lib/n11/order-close";
 import { processChannelCloseQueue } from "@/app/lib/channel-close/queue";
 
 export const runtime = "nodejs";
@@ -43,6 +46,7 @@ export async function POST(request: NextRequest) {
   const pool = getIdefixDbPool();
   const errors: string[] = [];
   let orders: Awaited<ReturnType<typeof pollIdefixOrdersForClose>> | null = null;
+  let n11Orders: Awaited<ReturnType<typeof pollN11OrdersForClose>> | null = null;
 
   // İdefix sipariş okuma hata verse (anahtar yok, servis yavaş) kuyruk yine işlenir.
   try {
@@ -52,11 +56,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    n11Orders = await pollN11OrdersForClose(pool);
+  } catch (error) {
+    errors.push(`N11 siparişleri okunamadı: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
     const queue = await processChannelCloseQueue(pool, 10);
 
     errors.push(...queue.errors);
 
-    return respond({ success: errors.length === 0, orders, queue, errors });
+    return respond({ success: errors.length === 0, orders, n11Orders, queue, errors });
   } catch (error) {
     console.error("CHANNEL_CLOSE_RUN_ERROR:", error);
 

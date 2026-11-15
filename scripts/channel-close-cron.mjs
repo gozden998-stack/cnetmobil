@@ -8,8 +8,8 @@
 //
 // Önerilen sıklık: her dakika (* * * * *)
 //
-// /api/online/channel-close/run ucunu çağırır: İdefix siparişlerini okuyup satılan IMEI'ler için N11
-// kapatma kaydı atar, sonra kuyruktaki İdefix/N11 kapatmalarını işler (hata olanı tekrar dener).
+// /api/online/channel-close/run ucunu çağırır: İdefix siparişlerini okuyup satılan IMEI'ler için N11,
+// N11 siparişlerini okuyup satılan IMEI'ler için İdefix kapatma kaydı atar, sonra kuyruktaki İdefix/N11 kapatmalarını işler (hata olanı tekrar dener).
 // Bkz. app/lib/channel-close/queue.ts. WingSM'e veri YAZILMAZ.
 //
 // Gerekli ortam değişkenleri (wingsm-sync-cron.mjs ile aynı): APP_URL, WINGSM_SYNC_SECRET.
@@ -51,10 +51,12 @@ try {
 
   const queue = data?.queue || {};
   const orders = data?.orders || {};
+  const n11Orders = data?.n11Orders || {};
 
   console.log(
     `[CHANNEL CLOSE CRON] siparis okunan=${orders.ordersRead ?? "-"} yeni kalem=${orders.newItems ?? "-"} ` +
-      `imeili=${orders.imeiItems ?? "-"} kuyruk: alinan=${queue.picked ?? 0} tamam=${queue.done ?? 0} ` +
+      `imeili=${orders.imeiItems ?? "-"} | N11 siparis=${n11Orders.ordersRead ?? "-"} yeni kalem=${n11Orders.newItems ?? "-"} ` +
+      `imeili=${n11Orders.imeiItems ?? "-"} kuyruk: alinan=${queue.picked ?? 0} tamam=${queue.done ?? 0} ` +
       `atlanan=${queue.skipped ?? 0} hata=${queue.failed ?? 0}`
   );
 
