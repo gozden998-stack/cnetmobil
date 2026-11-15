@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import crypto from 'crypto';
 
+import { enqueueChannelClose } from '@/app/lib/channel-close/queue';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -1105,6 +1107,11 @@ async function applyOrderStockLocks(
   const touchedStockCodes =
     new Set<string>();
 
+  // Bu siparişlerle satılan IMEI'ler (tekli ilan: stockCode = IMEI, havuz ilanı: tüketilen IMEI'ler).
+  // COMMIT'ten sonra İdefix kapatma kuyruğuna atılır.
+  const n11SoldImeis =
+    new Set<string>();
+
   const n11StockTargets =
     new Map<
       string,
@@ -1337,6 +1344,16 @@ async function applyOrderStockLocks(
           item.stockCode
         );
 
+        if (/^\d{15}$/.test(item.stockCode)) {
+          n11SoldImeis.add(
+            item.stockCode
+          );
+        }
+
+        for (const imei of consumedImeis) {
+          n11SoldImeis.add(imei);
+        }
+
         n11StockTargets.set(
           item.stockCode,
           newQuantity
@@ -1345,6 +1362,14 @@ async function applyOrderStockLocks(
     }
 
     await client.query('COMMIT');
+
+    // Aynı IMEI'nin İdefix TEKLİ ilanı da kapansın (sadece kuyruğa kayıt, hata atmaz).
+    await enqueueChannelClose(
+      getPool(),
+      Array.from(n11SoldImeis),
+      ['IDEFIX'],
+      'N11_ORDER'
+    );
 
     const n11SyncResults =
       n11StockTargets.size > 0

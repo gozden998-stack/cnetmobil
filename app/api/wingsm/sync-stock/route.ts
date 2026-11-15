@@ -53,6 +53,7 @@ import {
 } from "@/app/lib/wingsm/server";
 
 import { autoZeroN11StockForSoldImei } from "@/app/lib/n11/stock";
+import { enqueueChannelClose } from "@/app/lib/channel-close/queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -4128,6 +4129,15 @@ async function syncSnapshotToDatabase(
           n11AutoZeroErrors
         );
       }
+
+      // Aynı IMEI'nin İdefix TEKLİ ilanı da kapansın: yalnızca kuyruğa kayıt atılır
+      // (hızlı, hata atmaz); asıl İdefix çağrısı channel-close cron'unda yapılır.
+      await enqueueChannelClose(
+        pool,
+        soldImeisForN11,
+        ["IDEFIX"],
+        "WINGSM_SALE"
+      );
     }
 
     return {
