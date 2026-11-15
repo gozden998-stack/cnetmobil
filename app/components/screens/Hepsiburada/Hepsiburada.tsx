@@ -26,6 +26,117 @@ const orderDate = (row: Row) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("tr-TR") : "-";
 };
 
+// WingSM sıfır ürününü Hepsiburada'ya AÇAR (hızlı ürün ekleme). Bir seferde TEK ürün, gönderimden önce onay istenir.
+// Gönderince Hepsiburada bir takip kodu (trackingId) verir; sonuç "Durumu sorgula" ile görülür.
+function OpenButton({ row }: { row: Row }) {
+  const [open, setOpen] = useState(false);
+  const [price, setPrice] = useState(row.satisFiyat ? String(row.satisFiyat) : "");
+  const [stock, setStock] = useState(String(row.adet ?? 0));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [trackingId, setTrackingId] = useState("");
+  const [statusText, setStatusText] = useState("");
+
+  const send = async () => {
+    const summary = `${row.malAd}
+Kod: ${row.malKod}
+Barkod: ${row.barkod}
+Fiyat: ${price} TL
+Stok: ${stock}
+
+Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
+
+    if (!window.confirm(summary)) return;
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/online/hepsiburada/open", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ malKod: row.malKod, price: Number(price), stock: Number(stock), confirm: true }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}: ${JSON.stringify(payload?.response ?? "").slice(0, 300)}`);
+
+      setTrackingId(payload.trackingId || "");
+      setMessage(payload.trackingId ? "Hepsiburada'ya gönderildi. Takip kodu alındı, sonucu sorgulayın." : `Gönderildi (HTTP ${payload.status}), takip kodu çıkmadı: ${JSON.stringify(payload.response).slice(0, 200)}`);
+    } catch (e: any) {
+      setMessage(e?.message || "Gönderilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const check = async () => {
+    setBusy(true);
+
+    try {
+      const response = await fetch(`/api/online/hepsiburada/open?trackingId=${encodeURIComponent(trackingId)}`, { cache: "no-store", credentials: "same-origin" });
+      const payload = await response.json().catch(() => null);
+
+      if (!payload?.success) throw new Error(payload?.error || "Sorgulanamadı.");
+
+      const item = payload.items?.[0];
+
+      setStatusText(
+        item
+          ? `Durum: ${item.productStatus || "-"} · import: ${item.importStatus || "-"}${item.hbSku ? ` · HB SKU: ${item.hbSku}` : ""}${
+              item.importMessages?.length || item.rejectReasons?.length ? ` · ${JSON.stringify([...(item.importMessages || []), ...(item.rejectReasons || [])]).slice(0, 220)}` : ""
+            }`
+          : `Henüz sonuç yok (HTTP ${payload.status}).`
+      );
+    } catch (e: any) {
+      setStatusText(e?.message || "Sorgulanamadı.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="ml-2 h-7 rounded-lg bg-blue-600 px-3 text-[10px] font-black uppercase text-white transition hover:bg-blue-700">
+        Hepsiburada'ya aç
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 w-[280px] space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
+        <label className="flex-1">
+          Fiyat (TL)
+          <input value={price} onChange={(e) => setPrice(e.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-200 px-2 text-[12px]" />
+        </label>
+        <label className="w-20">
+          Stok
+          <input value={stock} onChange={(e) => setStock(e.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-200 px-2 text-[12px]" />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {!trackingId && (
+          <button type="button" disabled={busy} onClick={() => void send()} className="h-8 rounded-lg bg-emerald-600 px-3 text-[10px] font-black uppercase text-white disabled:opacity-50">
+            {busy ? "Gönderiliyor..." : "Gönder"}
+          </button>
+        )}
+        {trackingId && (
+          <button type="button" disabled={busy} onClick={() => void check()} className="h-8 rounded-lg bg-slate-800 px-3 text-[10px] font-black uppercase text-white disabled:opacity-50">
+            Durumu sorgula
+          </button>
+        )}
+        <button type="button" onClick={() => setOpen(false)} className="text-[10px] font-black uppercase text-slate-500 underline">
+          kapat
+        </button>
+      </div>
+      {message && <div className="text-[10px] font-bold text-slate-600">{message}</div>}
+      {statusText && <div className="text-[10px] font-bold text-blue-700">{statusText}</div>}
+    </div>
+  );
+}
+
 // Hepsiburada ürününü WingSM sıfır ürünüyle eşleştiren küçük arama kutusu.
 // Eşleşme varsa kod + kaldır düğmesi; yoksa ad/kod yazıp WingSM ürünlerinden seçilir. Yalnız bizim tabloya yazar.
 function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
@@ -355,6 +466,7 @@ export default function Hepsiburada() {
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${row.opened ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                       {row.opened ? "AÇIK" : row.barkod ? "AÇILABİLİR" : "BARKOD YOK"}
                     </span>
+                    {!row.opened && row.barkod && <OpenButton row={row} />}
                   </td>
                 </tr>
               ))}
