@@ -8,6 +8,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import StockSyncPanel from "./StockSyncPanel";
+
 type Row = Record<string, any>;
 type Tab = "urunler" | "siparisler" | "adaylar";
 
@@ -428,6 +430,7 @@ export default function Hepsiburada() {
 
       {tab === "urunler" && (
         <div className="space-y-3">
+          <StockSyncPanel />
           <div className="flex flex-wrap gap-2">
             {([
               ["all", "Tümü"],

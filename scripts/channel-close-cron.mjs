@@ -85,6 +85,28 @@ try {
     console.error("[SIFIR SYNC] Istek basarisiz:", error instanceof Error ? error.message : error);
   }
 
+  // Hepsiburada stok senkronu: ayardan "otomatik gonderim" aciksa ve son calismadan 4 dk gectiyse WingSM stogunu gonderir.
+  // Basarisiz olsa da kapatma sonucunu etkilemez.
+  try {
+    const hb = await fetch(`${appUrl}/api/online/hepsiburada/stock-sync`, {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${secret}` },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const hbData = await hb.json().catch(() => null);
+
+    if (hbData && !hbData.skipped) {
+      console.log(
+        `[HEPSIBURADA STOK] gonderilen=${hbData.sent ?? 0} degisecek=${hbData.changes ?? 0}` +
+          (hbData.blocked ? ` | DURDURULDU: ${hbData.blocked}` : "") +
+          (hbData.error ? ` | HATA: ${hbData.error}` : "")
+      );
+    }
+  } catch (error) {
+    console.error("[HEPSIBURADA STOK] Istek basarisiz:", error instanceof Error ? error.message : error);
+  }
+
   if (!response.ok || data?.success !== true) {
     console.error(`[CHANNEL CLOSE CRON] Basarisiz. HTTP ${response.status}: ${data?.error || "hata listesine bakin"}`);
     process.exit(1);
