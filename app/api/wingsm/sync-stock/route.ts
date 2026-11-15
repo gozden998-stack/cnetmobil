@@ -53,7 +53,7 @@ import {
 } from "@/app/lib/wingsm/server";
 
 import { autoZeroN11StockForSoldImei } from "@/app/lib/n11/stock";
-import { enqueueChannelClose } from "@/app/lib/channel-close/queue";
+import { enqueueChannelClose, kickChannelCloseQueue } from "@/app/lib/channel-close/queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -4138,6 +4138,9 @@ async function syncSnapshotToDatabase(
         ["IDEFIX"],
         "WINGSM_SALE"
       );
+
+      // İşçiyi hemen tetikle (beklenmez): dakikalık cron'u beklemeden İdefix birkaç saniyede kapanır.
+      kickChannelCloseQueue(pool);
     }
 
     return {

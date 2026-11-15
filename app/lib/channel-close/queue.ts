@@ -195,3 +195,27 @@ export async function processChannelCloseQueue(pool: Pool, limit = 10): Promise<
 
   return summary;
 }
+
+declare global {
+  // eslint-disable-next-line no-var
+  var cnetChannelCloseKickRunning: boolean | undefined;
+}
+
+// Kuyruğa kayıt atan olay tarafı (WingSM senkronu, N11 sipariş motoru) işçiyi hemen tetikler; böylece
+// kapatma dakikalık cron'u beklemeden birkaç saniyede yapılır. BEKLENMEZ (olay tarafı yavaşlamaz) ve
+// hata atmaz; hata/yarım kalan iş kuyrukta kalır, cron tekrar dener. Aynı süreçte aynı anda tek tetikleme
+// çalışır (kuyruk zaten FOR UPDATE SKIP LOCKED ile çift işlemeye karşı korunur).
+export function kickChannelCloseQueue(pool: Pool, limit = 10): void {
+  if (globalThis.cnetChannelCloseKickRunning) return;
+
+  globalThis.cnetChannelCloseKickRunning = true;
+
+  void processChannelCloseQueue(pool, limit)
+    .then((summary) => {
+      if (summary.errors.length) console.error("CHANNEL_CLOSE_KICK_ERRORS:", summary.errors);
+    })
+    .catch((error) => console.error("CHANNEL_CLOSE_KICK_ERROR:", error instanceof Error ? error.message : error))
+    .finally(() => {
+      globalThis.cnetChannelCloseKickRunning = false;
+    });
+}

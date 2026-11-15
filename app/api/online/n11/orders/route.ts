@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import crypto from 'crypto';
 
-import { enqueueChannelClose } from '@/app/lib/channel-close/queue';
+import { enqueueChannelClose, kickChannelCloseQueue } from '@/app/lib/channel-close/queue';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -1370,6 +1370,10 @@ async function applyOrderStockLocks(
       ['IDEFIX'],
       'N11_ORDER'
     );
+
+    if (n11SoldImeis.size > 0) {
+      kickChannelCloseQueue(getPool());
+    }
 
     const n11SyncResults =
       n11StockTargets.size > 0
