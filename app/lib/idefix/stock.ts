@@ -3,8 +3,9 @@
 // CNETMOBIL - İdefix stok KAPATMA (oturumsuz, cron/arka plan çağrısı için)
 //
 // Bir cihaz başka kanalda (WingSM mağaza satışı ya da N11) satıldığında, aynı IMEI'nin
-// İdefix'teki TEKLİ ilanını stok=0'a çeker. Tekli ilan = create-device ile açılan, stok kodu
-// "CNET-IDF-<IMEI>" olan ilan (raw_data.sourceImei = IMEI). Aynı barkodda birden çok IMEI
+// İdefix'teki TEKLİ ilanını stok=0'a çeker. Tekli ilan = stok kodu düz IMEI ya da "CNET-IDF-<IMEI>"
+// olan ilan (create-device'ta raw_data.sourceImei = IMEI). Önce yerel online_listings kaydına,
+// bulunamazsa İdefix'in canlı ürün listesindeki stok koduna bakılır. Aynı barkodda birden çok IMEI
 // tutan grup ilanlarına DOKUNULMAZ (İdefix stoğu ürün bazlıdır, hangi IMEI'nin satıldığı
 // bilinemez).
 //
@@ -36,6 +37,20 @@ async function inventoryRow(barcode: string) {
     payload?.items ?? payload?.products ?? payload?.data?.items ?? payload?.data?.products ?? [];
 
   return (Array.isArray(rows) ? rows : []).find((row: any) => text(row?.barcode) === barcode) ?? null;
+}
+
+// Canlı ürün listesinde stok kodu verilen kodlardan biri olan satırların barkodları.
+// (İdefix satırında stok kodu "stockCode" ya da "vendorStockCode" alanında gelir.)
+async function barcodesByStockCode(codes: string[]) {
+  const vendorId = getIdefixVendorId();
+  const payload = await idefixFetch(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list`);
+  const rows =
+    payload?.items ?? payload?.products ?? payload?.data?.items ?? payload?.data?.products ?? [];
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row: any) => codes.includes(text(row?.stockCode)) || codes.includes(text(row?.vendorStockCode)))
+    .map((row: any) => text(row?.barcode))
+    .filter(Boolean);
 }
 
 async function waitBatch(batchId: string, barcode: string) {
@@ -137,27 +152,34 @@ export type IdefixCloseResult = {
 // IMEI'nin İdefix TEKLİ ilanını kapatır. Tekli ilan yoksa NO_LISTING döner (hata değil).
 export async function closeIdefixForImei(pool: Pool, imei: string): Promise<IdefixCloseResult> {
   const clean = text(imei);
+  // Tekli ilanın stok kodu düz IMEI ya da "CNET-IDF-<IMEI>" olabilir.
+  const codes = [clean, idefixStockCodeForImei(clean)];
 
   const listings = await pool.query(
     `
       SELECT id, external_variant_id
       FROM public.online_listings
       WHERE channel = 'IDEFIX'
-        AND (external_stock_code = $1 OR raw_data ->> 'sourceImei' = $2)
+        AND (external_stock_code = ANY($1::text[]) OR raw_data ->> 'sourceImei' = $2)
     `,
-    [idefixStockCodeForImei(clean), clean]
+    [codes, clean]
   );
-
-  if (listings.rows.length === 0) return { status: "NO_LISTING", listingIds: [] };
 
   let status: IdefixCloseResult["status"] = "ALREADY_ABSENT";
   const listingIds: number[] = [];
+  const barcodes = new Set<string>();
 
-  for (const listing of listings.rows) {
-    const result = await zeroIdefixInventory(text(listing.external_variant_id));
-
+  const note = (result: IdefixZeroResult) => {
     if (result.status === "ZEROED") status = "ZEROED";
     else if (status !== "ZEROED") status = result.status;
+  };
+
+  for (const listing of listings.rows) {
+    const barcode = text(listing.external_variant_id);
+
+    if (barcode) barcodes.add(barcode);
+
+    note(await zeroIdefixInventory(barcode));
 
     await pool.query(
       `
@@ -167,11 +189,22 @@ export async function closeIdefixForImei(pool: Pool, imei: string): Promise<Idef
             updated_at = now()
         WHERE id = $1
       `,
-      [Number(listing.id), JSON.stringify({ autoClosedAt: new Date().toISOString(), autoClosedResult: result.status })]
+      [Number(listing.id), JSON.stringify({ autoClosedAt: new Date().toISOString(), autoClosedResult: status })]
     );
 
     listingIds.push(Number(listing.id));
   }
+
+  // Yerel kayıt yoksa (ya da barkodu eksikse) İdefix'in CANLI listesinde bu stok koduyla ilan ara.
+  // Yalnızca stok kodu birebir IMEI olan satırlar kapatılır; çok IMEI'li grup ilanların stok kodu IMEI değildir.
+  for (const barcode of await barcodesByStockCode(codes)) {
+    if (barcodes.has(barcode)) continue;
+
+    barcodes.add(barcode);
+    note(await zeroIdefixInventory(barcode));
+  }
+
+  if (barcodes.size === 0) return { status: "NO_LISTING", listingIds: [] };
 
   await markIdefixMembershipPassive(pool, clean, "AUTO_CLOSE");
 
