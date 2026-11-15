@@ -12,6 +12,7 @@ import { NextRequest } from "next/server";
 import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import { HEPSIBURADA_LISTING_BASE, getHepsiburadaConfig, hepsiburadaFetch } from "@/app/lib/hepsiburada/server";
 import { ensureHepsiburadaMapTable } from "@/app/lib/hepsiburada/map";
+import { isValidGtin } from "@/app/lib/hepsiburada/open";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,6 +107,8 @@ export async function GET(request: NextRequest) {
         adet: row.adet,
         depoSayisi: row.depo_sayisi,
         barkod: row.barkod || null,
+        // Barkod gerçek bir EAN/GTIN mi (sağlama basamağı tutuyor mu)? Tutmayanlar Hepsiburada'ya açılmaz.
+        barkodGecerli: Boolean(row.barkod) && isValidGtin(String(row.barkod)),
         satisFiyat: row.satis_fiyat === null ? null : Number(row.satis_fiyat),
         kdv: row.kdv === null ? null : Number(row.kdv),
         opened: opened.has(String(row.mal_kod)) || hb.skus.has(String(row.mal_kod)),

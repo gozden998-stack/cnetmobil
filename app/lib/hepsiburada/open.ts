@@ -11,6 +11,7 @@
 
 import type { Pool } from "pg";
 
+import { isValidGtin } from "../gtin";
 import { HEPSIBURADA_CATALOG_BASE, getHepsiburadaConfig, hepsiburadaFetch } from "./server";
 
 let logReady = false;
@@ -35,20 +36,7 @@ export async function ensureOpenLog(pool: Pool) {
   logReady = true;
 }
 
-// GTIN-8/12/13/14 sağlama basamağı (son hane): ağırlıklar sağdan 3,1,3,1...
-export function isValidGtin(value: string): boolean {
-  if (!/^\d+$/.test(value) || ![8, 12, 13, 14].includes(value.length)) return false;
-
-  const digits = value.split("").map(Number);
-  const check = digits.pop() as number;
-  let sum = 0;
-
-  digits.reverse().forEach((digit, index) => {
-    sum += digit * (index % 2 === 0 ? 3 : 1);
-  });
-
-  return (10 - (sum % 10)) % 10 === check;
-}
+export { isValidGtin };
 
 // Cevapta (iç içe olabilir) trackingId ara.
 export function findTrackingId(body: any, depth = 0): string | null {

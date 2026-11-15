@@ -459,14 +459,17 @@ export default function Hepsiburada() {
                     <div className="text-[10px] font-semibold text-slate-400">sınıf: {row.sinif} · {row.depoSayisi} depo</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.malKod}</td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.barkod || <span className="text-rose-500">barkod yok</span>}</td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
+                    {row.barkod ? <span className={row.barkodGecerli ? "" : "text-rose-500"}>{row.barkod}</span> : <span className="text-rose-500">barkod yok</span>}
+                    {row.barkod && !row.barkodGecerli && <div className="text-[9px] font-bold text-rose-500">gerçek EAN değil</div>}
+                  </td>
                   <td className="px-4 py-3 text-right text-[12px] font-bold">{row.satisFiyat ? formatMoney(row.satisFiyat) : "-"}</td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.adet}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${row.opened ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                      {row.opened ? "AÇIK" : row.barkod ? "AÇILABİLİR" : "BARKOD YOK"}
+                      {row.opened ? "AÇIK" : !row.barkod ? "BARKOD YOK" : row.barkodGecerli ? "AÇILABİLİR" : "BARKOD GEÇERSİZ"}
                     </span>
-                    {!row.opened && row.barkod && <OpenButton row={row} />}
+                    {!row.opened && row.barkod && row.barkodGecerli && <OpenButton row={row} />}
                   </td>
                 </tr>
               ))}

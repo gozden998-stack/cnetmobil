@@ -14,6 +14,7 @@
 
 import type { Pool } from "pg";
 
+import { isValidGtin } from "../gtin";
 import { wingSMRequest } from "./server";
 
 export const DEFAULT_SIFIR_DEPOTS = ["001", "002", "003", "005", "007", "008", "009", "010", "011"];
@@ -115,9 +116,12 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
 
         const current = picked.get(malKod);
 
-        // Barkod: MalBarkod1/2/3 içinden ilk geçerli (8-14 haneli rakam) olan.
+        // Barkod: MalBarkod1/2/3 içinden ÖNCE sağlama basamağı geçerli (gerçek EAN/GTIN) olan; hiçbiri geçerli değilse
+        // ilk 8-14 haneli kod (ekranda "gerçek EAN değil" diye işaretlenir). İç kodlar gerçek barkodu gölgelemesin.
+        const candidates = [row?.MalBarkod1, row?.MalBarkod2, row?.MalBarkod3].map((value) => String(value ?? "").trim());
         const barkod =
-          [row?.MalBarkod1, row?.MalBarkod2, row?.MalBarkod3].map((value) => String(value ?? "").trim()).find((value) => /^\d{8,14}$/.test(value)) ||
+          candidates.find((value) => isValidGtin(value)) ||
+          candidates.find((value) => /^\d{8,14}$/.test(value)) ||
           current?.barkod ||
           "";
         const fiyat = Number(row?.MalSatisFiyat);
