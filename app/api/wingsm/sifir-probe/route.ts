@@ -22,7 +22,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ALL_DEPOTS = ["001", "051", "003", "009", "010", "011"];
+// Depo kodları 001-030 ve 051 (WingSM depo listesi); olmayan depo hata verir, o depo atlanır.
+const ALL_DEPOTS = [...Array.from({ length: 30 }, (_, i) => String(i + 1).padStart(3, "0")), "051"];
 
 const list = (value: string | null, fallback: string[]) => {
   const items = String(value ?? "")
@@ -30,7 +31,7 @@ const list = (value: string | null, fallback: string[]) => {
     .map((item) => item.trim())
     .filter(Boolean);
 
-  return items.length ? items.slice(0, 12) : fallback;
+  return items.length ? items.slice(0, 60) : fallback;
 };
 
 export async function GET(request: NextRequest) {
