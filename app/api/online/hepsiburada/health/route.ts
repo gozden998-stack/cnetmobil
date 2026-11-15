@@ -54,6 +54,9 @@ export async function GET(request: NextRequest) {
 
       return {
         totalCount: body?.totalCount ?? body?.total ?? null,
+        // Alan adlarını görmek için ilk satırın tüm anahtarları ve (kısaltılmış) ham hali.
+        rowKeys: rows[0] ? Object.keys(rows[0]) : [],
+        firstRowRaw: rows[0] ? JSON.stringify(rows[0]).slice(0, 700) : null,
         rows: rows.slice(0, 5).map((row) => ({
           hepsiburadaSku: row?.hepsiburadaSku ?? row?.HepsiburadaSku ?? null,
           merchantSku: row?.merchantSku ?? row?.MerchantSku ?? null,
@@ -75,6 +78,13 @@ export async function GET(request: NextRequest) {
 
       return {
         totalCount: body?.totalCount ?? body?.total ?? null,
+        rowKeys: rows[0] ? Object.keys(rows[0]) : [],
+        // Kişisel veri (ad, adres, telefon) sızmasın diye ham satırdan yalnızca ürün ile ilgili alanlar alınır.
+        firstRowProduct: rows[0]
+          ? Object.fromEntries(
+              Object.entries(rows[0]).filter(([key]) => /sku|barcode|product|name|quantity|status|price|listing|id$/i.test(key) && !/customer|address|phone|mail|tax|invoice/i.test(key))
+            )
+          : null,
         rows: rows.slice(0, 5).map((row) => ({
           orderNumber: row?.orderNumber ?? null,
           status: row?.status ?? null,

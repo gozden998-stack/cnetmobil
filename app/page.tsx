@@ -16,6 +16,7 @@ import VodafoneVitrin from './components/screens/CihazTalep/VodafoneVitrin';
 import Online from './components/screens/Online/Online';
 import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
+import Hepsiburada from './components/screens/Hepsiburada/Hepsiburada';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
 import Tedarik from './components/screens/Tedarik/Tedarik';
@@ -690,7 +691,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'odeme_talepleri'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'hepsiburada' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'odeme_talepleri'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -2262,6 +2263,13 @@ export default function CnetmobilCmrFinalUltimate() {
               detail: 'Ürün, stok ve sipariş yönetimi',
               badge: 'AKTİF',
               enabled: true
+            },
+            {
+              id: 'hepsiburada',
+              label: 'Hepsiburada',
+              detail: 'Ürün, stok ve açık siparişler (salt okunur)',
+              badge: 'AKTİF',
+              enabled: true
             }
           ]
         },
@@ -3714,6 +3722,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                           | 'online'
                                           | 'ikas'
                                           | 'idefix'
+                                          | 'hepsiburada'
                                       );
                                       setStep(1);
                                       resetSelection();
@@ -3791,6 +3800,7 @@ export default function CnetmobilCmrFinalUltimate() {
                                         | 'online'
                                         | 'ikas'
                                           | 'idefix'
+                                          | 'hepsiburada'
                                     );
                                     setStep(1);
                                     resetSelection();
@@ -4458,6 +4468,7 @@ export default function CnetmobilCmrFinalUltimate() {
               appMode === 'merkez' ||
               appMode === 'ikas' ||
               appMode === 'idefix' ||
+              appMode === 'hepsiburada' ||
               appMode === 'paratika' ||
               appMode === 'ihale' ||
               appMode === 'tedarik') &&
@@ -4577,6 +4588,8 @@ export default function CnetmobilCmrFinalUltimate() {
             <Ikas />
           ) : appMode === 'idefix' && step < 99 && isSuperAdminUser ? (
             <Idefix />
+          ) : appMode === 'hepsiburada' && step < 99 && isSuperAdminUser ? (
+            <Hepsiburada />
           ) : appMode === 'paratika' && step < 99 && !isZumay ? (
             <Paratika />
           ) : appMode === 'imei_list' && step < 99 ? (
