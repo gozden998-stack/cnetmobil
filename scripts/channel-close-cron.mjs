@@ -64,6 +64,27 @@ try {
     for (const message of data.errors) console.error(`[CHANNEL CLOSE CRON] ${message}`);
   }
 
+  // Sifir (1. el telefon + aksesuar) stok senkronu: 5 dakikada bir gercekten calisir, arada "skipped" doner.
+  // Basarisiz olsa da kapatma sonucunu etkilemez.
+  try {
+    const sifir = await fetch(`${appUrl}/api/wingsm/sifir-sync`, {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${secret}` },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const sifirData = await sifir.json().catch(() => null);
+
+    if (sifirData && !sifirData.skipped) {
+      console.log(
+        `[SIFIR SYNC] depo ok=${sifirData.depotsOk ?? "-"} hata=${sifirData.depotsFailed ?? "-"} satir=${sifirData.rowsWritten ?? "-"}` +
+          (Array.isArray(sifirData.errors) && sifirData.errors.length ? ` | ${sifirData.errors.join(" | ")}` : "")
+      );
+    }
+  } catch (error) {
+    console.error("[SIFIR SYNC] Istek basarisiz:", error instanceof Error ? error.message : error);
+  }
+
   if (!response.ok || data?.success !== true) {
     console.error(`[CHANNEL CLOSE CRON] Basarisiz. HTTP ${response.status}: ${data?.error || "hata listesine bakin"}`);
     process.exit(1);
