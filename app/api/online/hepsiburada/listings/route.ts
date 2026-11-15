@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 
 import { json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
-import { HEPSIBURADA_LISTING_BASE, getHepsiburadaConfig, hepsiburadaFetch } from "@/app/lib/hepsiburada/server";
+import { HEPSIBURADA_LISTING_BASE, getHepsiburadaCatalogMap, getHepsiburadaConfig, hepsiburadaFetch, type HepsiburadaCatalogItem } from "@/app/lib/hepsiburada/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +33,39 @@ export async function GET(request: NextRequest) {
 
     const rows: any[] = Array.isArray(result.body?.listings) ? result.body.listings : [];
 
-    return json({ success: true, totalCount: Number(result.body?.totalCount ?? rows.length), offset, limit, rows });
+    // Ürün adı katalog servisinden gelir; katalog alınamazsa ad boş kalır, listing yine döner.
+    let catalog: Map<string, HepsiburadaCatalogItem> | null = null;
+    let catalogError: string | null = null;
+
+    try {
+      catalog = await getHepsiburadaCatalogMap();
+    } catch (error) {
+      catalogError = error instanceof Error ? error.message : String(error);
+    }
+
+    return json({
+      success: true,
+      totalCount: Number(result.body?.totalCount ?? rows.length),
+      offset,
+      limit,
+      catalogError,
+      rows: rows.map((row) => {
+        const item = catalog?.get(String(row?.hepsiburadaSku ?? "")) ?? catalog?.get(String(row?.merchantSku ?? "")) ?? null;
+
+        return {
+          hepsiburadaSku: row?.hepsiburadaSku ?? null,
+          merchantSku: row?.merchantSku ?? null,
+          price: row?.price ?? null,
+          availableStock: row?.availableStock ?? null,
+          isSalable: row?.isSalable ?? null,
+          isSuspended: row?.isSuspended ?? null,
+          isLocked: row?.isLocked ?? null,
+          productName: item?.productName || null,
+          brand: item?.brand || null,
+          categoryName: item?.categoryName || null,
+        };
+      }),
+    });
   } catch (error) {
     return json({ success: false, error: error instanceof Error ? error.message : "Hepsiburada ürünleri alınamadı." }, 200);
   }

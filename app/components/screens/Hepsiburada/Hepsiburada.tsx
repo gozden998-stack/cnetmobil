@@ -200,7 +200,12 @@ export default function Hepsiburada() {
             <tbody className="divide-y divide-slate-100">
               {filtered.map((row, index) => (
                 <tr key={`${row.hepsiburadaSku ?? index}`}>
-                  <td className="px-4 py-3 text-[12px] font-semibold text-slate-800">{row.productName || row.name || "-"}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-[12px] font-semibold text-slate-800">{row.productName || row.name || "-"}</div>
+                    {(row.brand || row.categoryName) && (
+                      <div className="text-[10px] font-semibold text-slate-400">{[row.brand, row.categoryName].filter(Boolean).join(" · ")}</div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.hepsiburadaSku}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSku}</td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.availableStock ?? "-"}</td>
@@ -243,7 +248,7 @@ export default function Hepsiburada() {
                 <tr key={`${row.id ?? row.orderNumber ?? index}-${index}`}>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-700">{row.orderNumber}</td>
                   <td className="px-4 py-3 text-[12px] font-semibold text-slate-800">{row.productName || row.name || "-"}</td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSku || row.sku || row.hepsiburadaSku || "-"}</td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSKU || row.merchantSku || row.sku || "-"}</td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.quantity ?? "-"}</td>
                   <td className="px-4 py-3 text-[11px] font-bold text-slate-600">{row.status}</td>
                   <td className="px-4 py-3 text-[11px] text-slate-500">{orderDate(row)}</td>

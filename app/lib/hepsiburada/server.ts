@@ -91,3 +91,55 @@ export async function hepsiburadaFetch(
     clearTimeout(timeout);
   }
 }
+
+// ------------------------------------------------------------------
+// Katalog (ürün adı) haritası
+// ------------------------------------------------------------------
+// Listing cevabında ürün adı yok; ürün (katalog) servisinden hbSku / merchantSku -> ürün adı, marka, kategori alınır.
+// Servis sayfalıdır (page, size). Sonuç bellekte 10 dakika saklanır; katalog alınamazsa listing yine çalışır.
+
+export type HepsiburadaCatalogItem = { productName: string; brand: string; categoryName: string; status: string };
+
+declare global {
+  // eslint-disable-next-line no-var
+  var cnetHepsiburadaCatalog: { at: number; map: Map<string, HepsiburadaCatalogItem> } | undefined;
+}
+
+const CATALOG_TTL_MS = 10 * 60 * 1000;
+
+export async function getHepsiburadaCatalogMap(): Promise<Map<string, HepsiburadaCatalogItem>> {
+  const cached = globalThis.cnetHepsiburadaCatalog;
+
+  if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.map;
+
+  const map = new Map<string, HepsiburadaCatalogItem>();
+
+  for (let page = 0; page < 30; page += 1) {
+    const result = await hepsiburadaFetch(HEPSIBURADA_CATALOG_BASE, "/api/products/all-products-of-merchant/{merchantId}", { query: { page, size: 100 } });
+
+    if (!result.ok) throw new Error(`Hepsiburada katalog HTTP ${result.status}`);
+
+    const rows: any[] = Array.isArray(result.body?.data) ? result.body.data : [];
+
+    for (const row of rows) {
+      const item: HepsiburadaCatalogItem = {
+        productName: text(row?.productName),
+        brand: text(row?.brand),
+        categoryName: text(row?.categoryName),
+        status: text(row?.status),
+      };
+
+      for (const key of [text(row?.hbSku), text(row?.merchantSku)]) {
+        if (key) map.set(key, item);
+      }
+    }
+
+    const totalPages = Number(result.body?.totalPages ?? 1);
+
+    if (page + 1 >= totalPages || rows.length === 0) break;
+  }
+
+  globalThis.cnetHepsiburadaCatalog = { at: Date.now(), map };
+
+  return map;
+}
