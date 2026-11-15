@@ -396,6 +396,42 @@ export async function idefixFetch(
   }
 }
 
+// İdefix inventory/list varsayılan olarak yalnız ilk 10 kaydı (limit=10) döndürür. page/limit ile tüm
+// sayfalar gezilir ve tam liste tek payload'da (items birleştirilmiş) verilir; çağıranların
+// payload?.items okuması aynen çalışır. fetchPage, "?page=N&limit=M" sorgusunu yollu sonuna ekleyip
+// payload döndüren fonksiyondur.
+export const IDEFIX_INVENTORY_PAGE_LIMIT = 500;
+const IDEFIX_INVENTORY_MAX_PAGES = 40;
+
+function inventoryRowsOf(payload: any): any[] {
+  const rows =
+    payload?.items ??
+    payload?.products ??
+    payload?.content ??
+    payload?.data?.items ??
+    payload?.data?.products ??
+    payload?.data?.content ??
+    [];
+
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function fetchIdefixInventoryPages(
+  fetchPage: (query: string) => Promise<any>
+): Promise<any> {
+  const first = await fetchPage(`?page=1&limit=${IDEFIX_INVENTORY_PAGE_LIMIT}`);
+  const all = [...inventoryRowsOf(first)];
+  const pageCount = Math.min(Number(first?.pageCount) || 1, IDEFIX_INVENTORY_MAX_PAGES);
+
+  for (let page = 2; page <= pageCount; page += 1) {
+    const next = await fetchPage(`?page=${page}&limit=${IDEFIX_INVENTORY_PAGE_LIMIT}`);
+
+    all.push(...inventoryRowsOf(next));
+  }
+
+  return { ...(first && typeof first === "object" ? first : {}), items: all };
+}
+
 export async function getIdefixProducts(
   page = 1,
   limit = 1

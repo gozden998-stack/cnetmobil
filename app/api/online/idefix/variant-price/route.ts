@@ -18,6 +18,7 @@ import {
   getIdefixVendorId,
   getIdefixVendorToken,
   noStoreJson,
+  fetchIdefixInventoryPages,
   requireIdefixSuperAdmin,
 } from "@/app/lib/idefix/server";
 
@@ -136,8 +137,8 @@ async function idefixRequest(
 async function inventoryItems() {
   const vendorId = getIdefixVendorId();
 
-  const payload = await idefixRequest(
-    `/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list`
+  const payload = await fetchIdefixInventoryPages((query) =>
+    idefixRequest(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list${query}`)
   );
 
   const rows =

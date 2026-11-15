@@ -16,6 +16,7 @@ import {
   getIdefixVendorId,
   getIdefixVendorToken,
   noStoreJson,
+  fetchIdefixInventoryPages,
   requireIdefixSuperAdmin,
 } from "@/app/lib/idefix/server";
 
@@ -101,7 +102,7 @@ async function fetchAllPoolProducts() {
   return all;
 }
 
-async function fetchInventoryList(vendorId: string) {
+async function fetchInventoryPage(vendorId: string, query: string) {
   const token = getIdefixVendorToken();
 
   const controller = new AbortController();
@@ -111,7 +112,7 @@ async function fetchInventoryList(vendorId: string) {
     const response = await fetch(
       `${IDEFIX_BASE_URL}/pim/catalog/${encodeURIComponent(
         vendorId
-      )}/inventory/list`,
+      )}/inventory/list${query}`,
       {
         method: "GET",
         cache: "no-store",
@@ -147,15 +148,19 @@ async function fetchInventoryList(vendorId: string) {
       );
     }
 
-    return asArray(
-      payload?.items ??
-        payload?.products ??
-        payload?.data?.items ??
-        payload?.data?.products
-    );
+    return payload;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// inventory/list sayfalıdır (varsayılan 10 kayıt); tüm sayfalar birleştirilir.
+async function fetchInventoryList(vendorId: string) {
+  const payload = await fetchIdefixInventoryPages((query) =>
+    fetchInventoryPage(vendorId, query)
+  );
+
+  return asArray(payload?.items);
 }
 
 export async function GET(request: NextRequest) {

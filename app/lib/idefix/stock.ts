@@ -15,7 +15,7 @@
 
 import type { Pool } from "pg";
 
-import { getIdefixVendorId, idefixFetch } from "./server";
+import { fetchIdefixInventoryPages, getIdefixProducts, getIdefixVendorId, idefixFetch } from "./server";
 
 const text = (value: unknown) => String(value ?? "").trim();
 
@@ -32,7 +32,9 @@ export function imeiFromIdefixSku(sku: unknown): string | null {
 
 async function inventoryRow(barcode: string) {
   const vendorId = getIdefixVendorId();
-  const payload = await idefixFetch(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list`);
+  const payload = await fetchIdefixInventoryPages((query) =>
+    idefixFetch(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list${query}`)
+  );
   const rows =
     payload?.items ?? payload?.products ?? payload?.data?.items ?? payload?.data?.products ?? [];
 
@@ -43,7 +45,9 @@ async function inventoryRow(barcode: string) {
 // (İdefix satırında stok kodu "stockCode" ya da "vendorStockCode" alanında gelir.)
 async function barcodesByStockCode(codes: string[]) {
   const vendorId = getIdefixVendorId();
-  const payload = await idefixFetch(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list`);
+  const payload = await fetchIdefixInventoryPages((query) =>
+    idefixFetch(`/pim/catalog/${encodeURIComponent(vendorId)}/inventory/list${query}`)
+  );
   const rows =
     payload?.items ?? payload?.products ?? payload?.data?.items ?? payload?.data?.products ?? [];
 
@@ -51,6 +55,34 @@ async function barcodesByStockCode(codes: string[]) {
     .filter((row: any) => codes.includes(text(row?.stockCode)) || codes.includes(text(row?.vendorStockCode)))
     .map((row: any) => text(row?.barcode))
     .filter(Boolean);
+}
+
+// Katalog (pool) listesinde stok kodu (vendorStockCode) verilen kodlardan biri olan ürünlerin barkodları.
+// Pool listesi sayfalıdır (page/limit) ve stok kodu alanı burada doğrulanmıştır (vendorStockCode).
+async function barcodesFromPool(codes: string[]) {
+  const limit = 50;
+  const found: string[] = [];
+
+  for (let page = 1; page <= 100; page += 1) {
+    const payload: any = await getIdefixProducts(page, limit);
+    const products: any[] = Array.isArray(payload?.products)
+      ? payload.products
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : [];
+
+    for (const product of products) {
+      if (codes.includes(text(product?.vendorStockCode)) || codes.includes(text(product?.stockCode))) {
+        const barcode = text(product?.barcode);
+
+        if (barcode) found.push(barcode);
+      }
+    }
+
+    if (products.length < limit) break;
+  }
+
+  return found;
 }
 
 async function waitBatch(batchId: string, barcode: string) {
@@ -197,7 +229,12 @@ export async function closeIdefixForImei(pool: Pool, imei: string): Promise<Idef
 
   // Yerel kayıt yoksa (ya da barkodu eksikse) İdefix'in CANLI listesinde bu stok koduyla ilan ara.
   // Yalnızca stok kodu birebir IMEI olan satırlar kapatılır; çok IMEI'li grup ilanların stok kodu IMEI değildir.
-  for (const barcode of await barcodesByStockCode(codes)) {
+  const liveBarcodes = await barcodesByStockCode(codes);
+
+  // Envanter satırında stok kodu alanı yoksa katalog (pool) listesinden stok koduyla barkod bulunur.
+  if (liveBarcodes.length === 0 && barcodes.size === 0) liveBarcodes.push(...(await barcodesFromPool(codes)));
+
+  for (const barcode of liveBarcodes) {
     if (barcodes.has(barcode)) continue;
 
     barcodes.add(barcode);

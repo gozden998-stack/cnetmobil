@@ -33,6 +33,7 @@ import {
   getIdefixVendorId,
   getIdefixVendorToken,
   noStoreJson,
+  fetchIdefixInventoryPages,
   requireIdefixSuperAdmin,
 } from "@/app/lib/idefix/server";
 
@@ -86,7 +87,7 @@ function uniqueStrings(values: unknown[]) {
   );
 }
 
-async function fetchLiveInventory(): Promise<LiveInventoryItem[]> {
+async function fetchInventoryPage(query: string): Promise<any> {
   const vendorId = getIdefixVendorId();
   const token = getIdefixVendorToken();
 
@@ -97,7 +98,7 @@ async function fetchLiveInventory(): Promise<LiveInventoryItem[]> {
     const response = await fetch(
       `${IDEFIX_BASE_URL}/pim/catalog/${encodeURIComponent(
         vendorId
-      )}/inventory/list`,
+      )}/inventory/list${query}`,
       {
         method: "GET",
         cache: "no-store",
@@ -133,17 +134,18 @@ async function fetchLiveInventory(): Promise<LiveInventoryItem[]> {
       );
     }
 
-    return asArray(
-      payload?.items ??
-        payload?.products ??
-        payload?.content ??
-        payload?.data?.items ??
-        payload?.data?.products ??
-        payload?.data?.content
-    );
+    return payload;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// inventory/list sayfalıdır (varsayılan 10 kayıt); tüm sayfalar birleştirilir. Aksi halde ilk 10 dışındaki
+// ürünler "canlı stok 0" sanılır ve yerel üyelikler yanlışlıkla kaldırılırdı.
+async function fetchLiveInventory(): Promise<LiveInventoryItem[]> {
+  const payload = await fetchIdefixInventoryPages(fetchInventoryPage);
+
+  return asArray(payload?.items) as LiveInventoryItem[];
 }
 
 async function loadLocalMemberships(
