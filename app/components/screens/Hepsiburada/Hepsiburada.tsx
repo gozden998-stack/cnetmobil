@@ -26,6 +26,123 @@ const orderDate = (row: Row) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("tr-TR") : "-";
 };
 
+// Hepsiburada ürününü WingSM sıfır ürünüyle eşleştiren küçük arama kutusu.
+// Eşleşme varsa kod + kaldır düğmesi; yoksa ad/kod yazıp WingSM ürünlerinden seçilir. Yalnız bizim tabloya yazar.
+function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Row[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!open || query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/online/hepsiburada/wing-search?q=${encodeURIComponent(query.trim())}`, { cache: "no-store", credentials: "same-origin" });
+        const payload = await response.json().catch(() => null);
+
+        setResults(payload?.success && Array.isArray(payload.rows) ? payload.rows : []);
+      } catch {
+        setResults([]);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [query, open]);
+
+  const send = async (method: "POST" | "DELETE", malKod?: string) => {
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/online/hepsiburada/map", {
+        method,
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(method === "POST" ? { hbSku: row.hepsiburadaSku, malKod } : { hbSku: row.hepsiburadaSku }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
+
+      setOpen(false);
+      setQuery("");
+      onChanged();
+    } catch (e: any) {
+      setMessage(e?.message || "Kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (row.malKod && !open) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="rounded bg-blue-50 px-2 py-1 font-mono text-[11px] font-black text-blue-700">{row.malKod}</span>
+        <span className="text-[10px] font-bold text-slate-400">{row.mapSource === "AUTO" ? "otomatik" : "elle"}</span>
+        <button type="button" disabled={busy} onClick={() => setOpen(true)} className="text-[10px] font-black uppercase text-slate-500 underline">
+          değiştir
+        </button>
+        {row.mapSource === "MANUAL" && (
+          <button type="button" disabled={busy} onClick={() => void send("DELETE")} className="text-[10px] font-black uppercase text-rose-600 underline">
+            kaldır
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="h-8 rounded-lg bg-slate-100 px-3 text-[10px] font-black uppercase text-slate-600 transition hover:bg-slate-200">
+        Eşleştir
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative min-w-[240px]">
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="WingSM ürün adı ya da kodu..."
+        className="h-8 w-full rounded-lg border border-blue-300 px-2.5 text-[11px] outline-none"
+      />
+      <button type="button" onClick={() => { setOpen(false); setQuery(""); }} className="absolute right-2 top-1.5 text-[10px] font-black text-slate-400">
+        ✕
+      </button>
+      {results.length > 0 && (
+        <div className="absolute left-0 z-20 mt-1 max-h-64 w-[360px] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+          {results.map((item) => (
+            <button
+              key={item.mal_kod}
+              type="button"
+              disabled={busy}
+              onClick={() => void send("POST", String(item.mal_kod))}
+              className="flex w-full items-start justify-between gap-2 border-b border-slate-100 px-3 py-2 text-left hover:bg-blue-50"
+            >
+              <span className="text-[11px] font-semibold text-slate-800">
+                {item.mal_ad}
+                <span className="block font-mono text-[10px] text-slate-400">
+                  {item.mal_kod} · {item.sinif}
+                </span>
+              </span>
+              <span className="shrink-0 text-[11px] font-black text-slate-600">{item.adet} adet</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {message && <div className="mt-1 text-[10px] font-bold text-rose-600">{message}</div>}
+    </div>
+  );
+}
+
 export default function Hepsiburada() {
   const [tab, setTab] = useState<Tab>("urunler");
   const [rows, setRows] = useState<Row[]>([]);
@@ -86,7 +203,7 @@ export default function Hepsiburada() {
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Entegrasyon</div>
           <h1 className="text-2xl font-black text-slate-900">Hepsiburada</h1>
           <p className="mt-1 text-xs font-semibold text-slate-500">
-            Salt okunur görünüm. Ürünler Hepsiburada panelinden açılır; müşteri bilgisi gösterilmez.
+            Ürünler Hepsiburada panelinden açılır. WingSM eşleşmesi yalnızca bizim tabloya kaydedilir; Hepsiburada ve WingSM'e bir şey yazılmaz. Müşteri bilgisi gösterilmez.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -186,13 +303,15 @@ export default function Hepsiburada() {
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         {tab === "urunler" ? (
-          <table className="w-full min-w-[760px] text-left">
+          <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3">Ürün</th>
+                <th className="px-4 py-3">Ürün (WingSM)</th>
                 <th className="px-4 py-3">Hepsiburada SKU</th>
                 <th className="px-4 py-3">Stok kodu</th>
-                <th className="px-4 py-3 text-right">Stok</th>
+                <th className="px-4 py-3">WingSM eşleşmesi</th>
+                <th className="px-4 py-3 text-right">HB stok</th>
+                <th className="px-4 py-3 text-right">WingSM stok</th>
                 <th className="px-4 py-3 text-right">Fiyat</th>
                 <th className="px-4 py-3">Durum</th>
               </tr>
@@ -201,14 +320,26 @@ export default function Hepsiburada() {
               {filtered.map((row, index) => (
                 <tr key={`${row.hepsiburadaSku ?? index}`}>
                   <td className="px-4 py-3">
-                    <div className="text-[12px] font-semibold text-slate-800">{row.productName || row.name || "-"}</div>
-                    {(row.brand || row.categoryName) && (
-                      <div className="text-[10px] font-semibold text-slate-400">{[row.brand, row.categoryName].filter(Boolean).join(" · ")}</div>
-                    )}
+                    <div className="text-[12px] font-semibold text-slate-800">{row.productName || "-"}</div>
+                    {row.wingClass && <div className="text-[10px] font-semibold text-slate-400">sınıf: {row.wingClass}</div>}
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.hepsiburadaSku}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSku}</td>
+                  <td className="px-4 py-3">
+                    <WingPicker row={row} onChanged={() => void load(tab, offset)} />
+                  </td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.availableStock ?? "-"}</td>
+                  <td
+                    className={`px-4 py-3 text-right text-[12px] font-black ${
+                      row.wingStock === null || row.wingStock === undefined
+                        ? "text-slate-300"
+                        : Number(row.wingStock) === Number(row.availableStock)
+                          ? "text-emerald-600"
+                          : "text-amber-600"
+                    }`}
+                  >
+                    {row.wingStock ?? "-"}
+                  </td>
                   <td className="px-4 py-3 text-right text-[12px] font-bold">{formatMoney(row.price)}</td>
                   <td className="px-4 py-3">
                     <span
@@ -224,7 +355,7 @@ export default function Hepsiburada() {
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm font-bold text-slate-400">
                     Kayıt yok.
                   </td>
                 </tr>
