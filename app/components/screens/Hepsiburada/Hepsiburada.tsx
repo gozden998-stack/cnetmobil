@@ -7,7 +7,6 @@
 // Müşteri bilgisi gösterilmez.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 
 type Row = Record<string, any>;
 type Tab = "urunler" | "siparisler" | "adaylar";
@@ -145,71 +144,6 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
       </div>
       {message && <div className="text-[10px] font-bold text-slate-600">{message}</div>}
       {statusText && <div className="text-[10px] font-bold text-blue-700">{statusText}</div>}
-    </div>
-  );
-}
-
-// Hepsiburada panelinden alınan "Ürün Bilgisi" Excel dışa aktarımını yükler: SKU + ürün adı + marka.
-// Excel tarayıcıda okunur; yalnızca SKU, ad ve marka sunucuya gönderilir (açıklama/görsel gönderilmez).
-function NameUpload({ onDone }: { onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const upload = async (file: File | null) => {
-    if (!file) return;
-
-    setBusy(true);
-    setMessage("");
-
-    try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const table = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
-      const header = (table[0] || []).map((cell) => String(cell ?? "").toLocaleLowerCase("tr-TR"));
-      const skuIndex = header.findIndex((cell) => cell.includes("sku"));
-      const nameIndex = header.findIndex((cell) => /ürün ad|urun ad|ürün adı/.test(cell));
-      const brandIndex = header.findIndex((cell) => cell.includes("marka") && !cell.includes("belge"));
-
-      if (skuIndex < 0 || nameIndex < 0) throw new Error('Dosyada "HB Ürün Kodu (SKU)" ve "Ürün Adı" sütunları bulunamadı.');
-
-      const rows = table
-        .slice(1)
-        .map((row) => ({ sku: String(row[skuIndex] ?? "").trim(), name: String(row[nameIndex] ?? "").trim(), brand: brandIndex >= 0 ? String(row[brandIndex] ?? "").trim() : "" }))
-        .filter((row) => row.sku && row.name);
-
-      let saved = 0;
-
-      for (let i = 0; i < rows.length; i += 300) {
-        const response = await fetch("/api/online/hepsiburada/names", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: rows.slice(i, i + 300) }),
-        });
-        const payload = await response.json().catch(() => null);
-
-        if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
-
-        saved += Number(payload.saved) || 0;
-      }
-
-      setMessage(`${saved} ürünün adı yüklendi.`);
-      onDone();
-    } catch (e: any) {
-      setMessage(e?.message || "Yüklenemedi.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-[11px] font-bold text-slate-600">
-      <span>Ürün adları eksikse: Hepsiburada panelinden indirdiğiniz <b>&quot;Ürün Bilgisi&quot; Excel</b> dosyasını yükleyin (bir kez).</span>
-      <label className={`cursor-pointer rounded-lg bg-slate-800 px-3 py-2 text-[10px] font-black uppercase text-white ${busy ? "opacity-50" : "hover:bg-slate-900"}`}>
-        {busy ? "Yükleniyor..." : "Excel seç"}
-        <input type="file" accept=".xlsx,.xls" className="hidden" disabled={busy} onChange={(e) => void upload(e.target.files?.[0] ?? null)} />
-      </label>
-      {message && <span className="text-blue-700">{message}</span>}
     </div>
   );
 }
@@ -506,7 +440,6 @@ export default function Hepsiburada() {
 
       {tab === "urunler" && (
         <div className="space-y-3">
-          <NameUpload onDone={() => void load(tab, offset)} />
           {rows.some((row) => row.suggestion && row.suggestion.score >= 0.85) && (
             <button
               type="button"
