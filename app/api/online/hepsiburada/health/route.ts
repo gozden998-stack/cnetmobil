@@ -102,13 +102,20 @@ export async function GET(request: NextRequest) {
   // ?catalog=1: ürün (katalog) servisinden ürün adının gelip gelmediğini dener (ilk 3 ürün, salt okunur).
   if (request.nextUrl.searchParams.get("catalog") === "1") {
     try {
-      const catalog = await hepsiburadaFetch(HEPSIBURADA_CATALOG_BASE, "/api/products/all-products-of-merchant/{merchantId}", { query: { page: 0, size: 3 } });
+      // ?hbsku=HB... verilirse katalogda yalnız o ürün sorgulanır (listing'de olup toplu katalog listesinde görünmeyenler için).
+      const hbSku = String(request.nextUrl.searchParams.get("hbsku") ?? "").trim();
+      const catalog = await hepsiburadaFetch(HEPSIBURADA_CATALOG_BASE, "/api/products/all-products-of-merchant/{merchantId}", {
+        query: hbSku ? { page: 0, size: 3, hbSku } : { page: 0, size: 3 },
+      });
       const rows: any[] = Array.isArray(catalog.body?.data) ? catalog.body.data : Array.isArray(catalog.body?.content) ? catalog.body.content : Array.isArray(catalog.body) ? catalog.body : [];
 
       result.catalog = {
         host: HEPSIBURADA_CATALOG_BASE,
         status: catalog.status,
         ok: catalog.ok,
+        totalElements: catalog.body?.totalElements ?? null,
+        queriedHbSku: hbSku || null,
+        firstProductName: rows[0]?.productName ?? null,
         topLevelKeys: catalog.body && typeof catalog.body === "object" && !Array.isArray(catalog.body) ? Object.keys(catalog.body).slice(0, 15) : null,
         rowKeys: rows[0] ? Object.keys(rows[0]).slice(0, 40) : [],
         firstRowRaw: rows[0] ? JSON.stringify(rows[0]).slice(0, 900) : catalog.raw.slice(0, 400),
