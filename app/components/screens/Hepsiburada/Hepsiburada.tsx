@@ -9,7 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, any>;
-type Tab = "urunler" | "siparisler";
+type Tab = "urunler" | "siparisler" | "adaylar";
 
 const PAGE = 50;
 
@@ -152,13 +152,18 @@ export default function Hepsiburada() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [checkedAt, setCheckedAt] = useState("");
+  const [sinifFilter, setSinifFilter] = useState("");
+  const [onlyBarcode, setOnlyBarcode] = useState(false);
+  const [barcodedCount, setBarcodedCount] = useState(0);
 
   const load = useCallback(async (which: Tab, nextOffset: number) => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`/api/online/hepsiburada/${which === "urunler" ? "listings" : "orders"}?offset=${nextOffset}&limit=${PAGE}`, {
+      const endpoint = which === "urunler" ? "listings" : which === "siparisler" ? "orders" : "open-candidates";
+      const extra = which === "adaylar" ? `&sinif=${encodeURIComponent(sinifFilter)}&onlyBarcode=${onlyBarcode ? 1 : 0}` : "";
+      const response = await fetch(`/api/online/hepsiburada/${endpoint}?offset=${nextOffset}&limit=${PAGE}${extra}`, {
         cache: "no-store",
         credentials: "same-origin",
       });
@@ -168,6 +173,7 @@ export default function Hepsiburada() {
 
       setRows(Array.isArray(payload.rows) ? payload.rows : []);
       setTotal(Number(payload.totalCount) || 0);
+      setBarcodedCount(Number(payload.barcodedCount) || 0);
       setOffset(nextOffset);
       setCheckedAt(new Date().toLocaleTimeString("tr-TR"));
     } catch (e: any) {
@@ -177,7 +183,7 @@ export default function Hepsiburada() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sinifFilter, onlyBarcode]);
 
   useEffect(() => {
     void load(tab, 0);
@@ -229,6 +235,7 @@ export default function Hepsiburada() {
         {([
           ["urunler", "Ürünler"],
           ["siparisler", "Açık Siparişler"],
+          ["adaylar", "WingSM'den Aç (önizleme)"],
         ] as Array<[Tab, string]>).map(([key, label]) => (
           <button
             key={key}
@@ -248,7 +255,9 @@ export default function Hepsiburada() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[10px] font-black uppercase text-slate-400">{tab === "urunler" ? "Toplam ürün" : "Açık sipariş"}</div>
+          <div className="text-[10px] font-black uppercase text-slate-400">
+            {tab === "urunler" ? "Toplam ürün" : tab === "siparisler" ? "Açık sipariş" : "WingSM sıfır ürün"}
+          </div>
           <div className="mt-1 text-2xl font-black text-slate-900">{total}</div>
         </div>
         {tab === "urunler" && (
@@ -268,6 +277,23 @@ export default function Hepsiburada() {
           <div className="mt-1 text-lg font-black text-slate-900">{checkedAt || "-"}</div>
         </div>
       </div>
+
+      {tab === "adaylar" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-bold text-slate-600">
+          <span>
+            Hepsiburada'ya açılabilecek WingSM sıfır ürünler. <b>Önizleme:</b> hiçbir şey gönderilmez. Barkodlu ürün: {barcodedCount} / {total}.
+          </span>
+          <select value={sinifFilter} onChange={(e) => setSinifFilter(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold">
+            <option value="">Tüm sınıflar</option>
+            <option value="1el">1el (sıfır telefon)</option>
+            <option value="6el">6el (aksesuar)</option>
+            <option value="aks">aks</option>
+          </select>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={onlyBarcode} onChange={(e) => setOnlyBarcode(e.target.checked)} /> sadece barkodlu
+          </label>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <input
@@ -302,7 +328,46 @@ export default function Hepsiburada() {
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {tab === "urunler" ? (
+        {tab === "adaylar" ? (
+          <table className="w-full min-w-[900px] text-left">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3">WingSM ürünü</th>
+                <th className="px-4 py-3">Kod</th>
+                <th className="px-4 py-3">Barkod</th>
+                <th className="px-4 py-3 text-right">Satış fiyatı</th>
+                <th className="px-4 py-3 text-right">WingSM stok</th>
+                <th className="px-4 py-3">Hepsiburada</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((row, index) => (
+                <tr key={`${row.malKod ?? index}`}>
+                  <td className="px-4 py-3">
+                    <div className="text-[12px] font-semibold text-slate-800">{row.malAd}</div>
+                    <div className="text-[10px] font-semibold text-slate-400">sınıf: {row.sinif} · {row.depoSayisi} depo</div>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.malKod}</td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.barkod || <span className="text-rose-500">barkod yok</span>}</td>
+                  <td className="px-4 py-3 text-right text-[12px] font-bold">{row.satisFiyat ? formatMoney(row.satisFiyat) : "-"}</td>
+                  <td className="px-4 py-3 text-right text-[12px] font-black">{row.adet}</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${row.opened ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                      {row.opened ? "AÇIK" : row.barkod ? "AÇILABİLİR" : "BARKOD YOK"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm font-bold text-slate-400">
+                    Kayıt yok.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        ) : tab === "urunler" ? (
           <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
