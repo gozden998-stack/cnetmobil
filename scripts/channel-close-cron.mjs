@@ -85,7 +85,7 @@ try {
     console.error("[SIFIR SYNC] Istek basarisiz:", error instanceof Error ? error.message : error);
   }
 
-  // Hepsiburada stok senkronu: ayardan "otomatik gonderim" aciksa ve son calismadan 4 dk gectiyse WingSM stogunu gonderir.
+  // Hepsiburada stok dusurme: ayardan aciksa, WingSM'de olan satis kadar Hepsiburada stogunu dusurur (her dakika).
   // Basarisiz olsa da kapatma sonucunu etkilemez.
   try {
     const hb = await fetch(`${appUrl}/api/online/hepsiburada/stock-sync`, {
@@ -99,6 +99,7 @@ try {
     if (hbData && !hbData.skipped) {
       console.log(
         `[HEPSIBURADA STOK] gonderilen=${hbData.sent ?? 0} degisecek=${hbData.changes ?? 0}` +
+          (hbData.baseline ? " | baslangic kaydi alindi" : "") +
           (hbData.blocked ? ` | DURDURULDU: ${hbData.blocked}` : "") +
           (hbData.error ? ` | HATA: ${hbData.error}` : "")
       );

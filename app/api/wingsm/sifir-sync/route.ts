@@ -3,7 +3,7 @@
 // CNETMOBIL - WingSM sıfır stok senkronu (salt okunur)
 //
 // POST (cron, Authorization: Bearer WINGSM_SYNC_SECRET): sıfır ürün stoğunu WingSM'den okuyup public.sifir_stock'a
-//   yazar. En az 5 dakikada bir gerçekten çalışır (arada çağrılırsa "skipped"). ?force=1 sınırı atlar.
+//   yazar. En az 45 saniyede bir gerçekten çalışır (dakikalık cron: her dakika; arada çağrılırsa "skipped"). Hepsiburada stok düşürme bu veriyi kullanır. ?force=1 sınırı atlar.
 // GET (yönetici oturumu): tablonun özeti (sınıf/depo toplamları, son çalışma, ilk ürünler). Hiçbir şey yazmaz.
 // WingSM'e HİÇBİR veri yazılmaz.
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const force = request.nextUrl.searchParams.get("force") === "1";
-    const summary = await syncSifirStock(getPool(), { minIntervalMs: force ? 0 : 5 * 60 * 1000 });
+    const summary = await syncSifirStock(getPool(), { minIntervalMs: force ? 0 : 45 * 1000 });
 
     return json({ success: summary.depotsFailed === 0, ...summary });
   } catch (error) {

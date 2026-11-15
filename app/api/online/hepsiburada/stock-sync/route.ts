@@ -1,18 +1,17 @@
 // app/api/online/hepsiburada/stock-sync/route.ts
 //
-// CNETMOBIL - Hepsiburada stok senkronu
+// CNETMOBIL - Hepsiburada stok düşürme (WingSM satışı -> Hepsiburada stok -1)
 //
-// GET  (yönetici)  -> ÖNİZLEME: eşleşmiş listing'ler için hedef stoğu hesaplar, ne değişeceğini gösterir. Hiçbir şey göndermez.
-// POST (yönetici)  { apply: true, confirm: true } -> planı şimdi Hepsiburada'ya gönderir (yalnız değişenler).
-// POST (cron, Authorization: Bearer WINGSM_SYNC_SECRET) -> ayardan "otomatik gönderim" açıksa planı uygular (4 dk'da bir).
-// Kurallar ve korumalar: bkz. app/lib/hepsiburada/stock-sync.ts. Fiyata dokunulmaz.
+// GET  (yönetici)  -> durum: otomatik açık mı + son çalışmalar (hiçbir şey göndermez).
+// POST (cron, Authorization: Bearer WINGSM_SYNC_SECRET) -> ayardan açıksa her dakika çalışır.
+// Kurallar ve korumalar: bkz. app/lib/hepsiburada/stock-sync.ts. Fiyata dokunulmaz, stok ARTIRILMAZ.
 
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 
 import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import { getHepsiburadaConfig } from "@/app/lib/hepsiburada/server";
-import { applyStockPlan, computeStockPlan, runAutoStockSync } from "@/app/lib/hepsiburada/stock-sync";
+import { getSettings, recentLog, runAutoStockSync } from "@/app/lib/hepsiburada/stock-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,53 +33,34 @@ export async function GET(request: NextRequest) {
 
   if (!auth.ok) return auth.response;
 
-  if (!getHepsiburadaConfig()) return json({ success: false, error: "Hepsiburada ortam değişkenleri eksik." }, 200);
-
   try {
-    const plan = await computeStockPlan(getPool());
+    const pool = getPool();
 
-    return json({ success: true, ...plan });
+    return json({ success: true, ...(await getSettings(pool)), log: await recentLog(pool, 8) });
   } catch (error) {
-    return json({ success: false, error: error instanceof Error ? error.message : "Plan hesaplanamadı." }, 200);
+    return json({ success: false, error: error instanceof Error ? error.message : "Durum okunamadı." }, 200);
   }
 }
 
 export async function POST(request: NextRequest) {
-  const pool = getPool();
+  if (!isCronAuthorized(request)) return json({ success: false, error: "Yetkisiz." }, 401);
 
-  // Cron: otomatik gönderim
-  if (isCronAuthorized(request)) {
-    try {
-      const run = await runAutoStockSync(pool);
-
-      return json({
-        success: true,
-        skipped: run.skipped ?? null,
-        sent: run.result?.sent ?? 0,
-        blocked: run.result?.blocked ?? null,
-        changes: run.result ? run.result.plan.items.filter((item) => item.action === "CHANGE").length : 0,
-      });
-    } catch (error) {
-      console.error("HEPSIBURADA_AUTO_STOCK_ERROR:", error);
-
-      return json({ success: false, error: error instanceof Error ? error.message : "Otomatik stok gönderimi başarısız." }, 500);
-    }
-  }
-
-  // Yönetici: elle uygula
-  const auth = requireAdminSession(request);
-
-  if (!auth.ok) return auth.response;
-
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-
-  if (body?.apply !== true || body?.confirm !== true) return json({ success: false, error: "apply ve confirm gerekli." }, 400);
+  if (!getHepsiburadaConfig()) return json({ success: true, skipped: "Hepsiburada ortam değişkenleri eksik." });
 
   try {
-    const result = await applyStockPlan(pool, "MANUAL");
+    const run = await runAutoStockSync(getPool());
 
-    return json({ success: !result.blocked, sent: result.sent, uploadIds: result.uploadIds, blocked: result.blocked });
+    return json({
+      success: true,
+      skipped: run.skipped ?? null,
+      sent: run.result?.sent ?? 0,
+      changes: run.result ? run.result.plan.items.length : 0,
+      baseline: run.result?.baseline ?? false,
+      blocked: run.result?.blocked ?? null,
+    });
   } catch (error) {
-    return json({ success: false, error: error instanceof Error ? error.message : "Stok gönderilemedi." }, 200);
+    console.error("HEPSIBURADA_AUTO_STOCK_ERROR:", error);
+
+    return json({ success: false, error: error instanceof Error ? error.message : "Stok düşürme başarısız." }, 500);
   }
 }

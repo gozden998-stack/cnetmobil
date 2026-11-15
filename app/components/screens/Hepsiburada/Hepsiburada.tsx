@@ -150,6 +150,73 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
   );
 }
 
+// Elle stok / fiyat güncelleme (stok artırma dahil; WingSM'e eşleşmiş üründe WingSM toplamını aşamaz).
+function RowEditor({ row, onChanged }: { row: Row; onChanged: () => void }) {
+  const [stock, setStock] = useState(String(row.availableStock ?? ""));
+  const [price, setPrice] = useState(row.price === null || row.price === undefined ? "" : String(row.price));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [ok, setOk] = useState(false);
+
+  const stockChanged = stock.trim() !== "" && stock.trim() !== String(row.availableStock ?? "");
+  const priceChanged = price.trim() !== "" && price.trim() !== String(row.price ?? "");
+
+  const save = async () => {
+    if (!stockChanged && !priceChanged) return;
+
+    const parts = [stockChanged ? `stok ${row.availableStock ?? "-"} → ${stock}` : "", priceChanged ? `fiyat ${row.price ?? "-"} → ${price}` : ""].filter(Boolean).join(", ");
+
+    if (!window.confirm(`Hepsiburada'da bu ürün GERÇEKTEN güncellenecek: ${parts}. Onaylıyor musunuz?`)) return;
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/online/hepsiburada/listing-update", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hbSku: row.hepsiburadaSku,
+          merchantSku: row.merchantSku,
+          stock: stockChanged ? stock.trim() : undefined,
+          price: priceChanged ? price.trim() : undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
+
+      setOk(true);
+      setMessage(`Gönderildi (${[payload.stockUploadId && `stok #${String(payload.stockUploadId).slice(0, 8)}`, payload.priceUploadId && `fiyat #${String(payload.priceUploadId).slice(0, 8)}`].filter(Boolean).join(", ") || "tamam"}). Hepsiburada birkaç dakikada işler; Yenile ile kontrol edin.`);
+      onChanged();
+    } catch (e: any) {
+      setOk(false);
+      setMessage(e?.message || "Güncellenemedi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-w-[170px]">
+      <div className="flex items-center gap-1">
+        <input value={stock} onChange={(e) => setStock(e.target.value)} title="Hepsiburada stoğu" className="h-7 w-14 rounded border border-slate-200 px-1.5 text-[11px] font-bold" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} title="Fiyat (TL)" className="h-7 w-20 rounded border border-slate-200 px-1.5 text-[11px] font-bold" />
+        <button
+          type="button"
+          disabled={busy || (!stockChanged && !priceChanged)}
+          onClick={() => void save()}
+          className="h-7 rounded bg-blue-600 px-2 text-[9px] font-black uppercase text-white disabled:opacity-30"
+        >
+          {busy ? "..." : "Kaydet"}
+        </button>
+      </div>
+      {message && <div className={`mt-1 max-w-[260px] text-[10px] font-bold ${ok ? "text-emerald-600" : "text-rose-600"}`}>{message}</div>}
+    </div>
+  );
+}
+
 // Hepsiburada ürününü WingSM sıfır ürünüyle eşleştiren küçük arama kutusu.
 // Eşleşme varsa kod + kaldır düğmesi; yoksa ad/kod yazıp WingSM ürünlerinden seçilir. Yalnız bizim tabloya yazar.
 function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
@@ -583,7 +650,7 @@ export default function Hepsiburada() {
             </tbody>
           </table>
         ) : tab === "urunler" ? (
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[1180px] text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-3">Ürün (WingSM)</th>
@@ -594,6 +661,7 @@ export default function Hepsiburada() {
                 <th className="px-4 py-3 text-right">WingSM stok</th>
                 <th className="px-4 py-3 text-right">Fiyat</th>
                 <th className="px-4 py-3">Durum</th>
+                <th className="px-4 py-3">Stok / fiyat düzenle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -631,11 +699,14 @@ export default function Hepsiburada() {
                     </span>
                     {row.isSuspended === true && <span className="ml-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-700">ASKIDA</span>}
                   </td>
+                  <td className="px-4 py-3">
+                    <RowEditor key={`${row.availableStock}-${row.price}`} row={row} onChanged={() => void load(tab, offset)} />
+                  </td>
                 </tr>
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm font-bold text-slate-400">
                     Kayıt yok.
                   </td>
                 </tr>

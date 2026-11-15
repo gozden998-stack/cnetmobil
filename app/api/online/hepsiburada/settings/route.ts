@@ -1,9 +1,8 @@
 // app/api/online/hepsiburada/settings/route.ts
 //
-// Hepsiburada stok senkronu ayarları.
-// GET                      -> { buffer, syncEnabled }
-// POST { buffer?, syncEnabled? } -> kaydeder. buffer: her üründen satışa kapalı tutulacak adet (0-100).
-//   syncEnabled: otomatik stok gönderimi (dakikalık görev). Kapalıyken yalnızca önizleme/elle gönderme çalışır.
+// Hepsiburada stok düşürme ayarı.
+// GET             -> { syncEnabled }
+// POST { syncEnabled } -> otomatik stok düşürmeyi açar/kapatır (açılınca başlangıç fotoğrafı yeniden alınır).
 // SADECE YÖNETİCİ.
 
 import { NextRequest } from "next/server";
@@ -39,10 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     const pool = getPool();
 
-    await saveSettings(pool, {
-      buffer: body.buffer,
-      syncEnabled: body.syncEnabled === undefined ? undefined : body.syncEnabled === true,
-    });
+    await saveSettings(pool, { syncEnabled: body.syncEnabled === undefined ? undefined : body.syncEnabled === true });
 
     return json({ success: true, ...(await getSettings(pool)) });
   } catch (error) {
