@@ -25,6 +25,19 @@ export async function ensureHepsiburadaMapTable(pool: Pool) {
     )
   `);
 
+  // Hepsiburada ürün adları (panelden alınan "Ürün Bilgisi" dışa aktarımı): hb_sku -> ad, marka.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.hepsiburada_names (
+      hb_sku TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      brand TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+
+  // Eşleşmenin kaynağı: MANUAL (elle) ya da AUTO (SKU/stok kodundan otomatik, kalıcı kaydedilmiş).
+  await pool.query(`ALTER TABLE public.hepsiburada_sku_map ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'MANUAL'`);
+
   ready = true;
 }
 

@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     if (!exists.rowCount) return json({ success: false, error: "Bu ürün kodu WingSM sıfır stokta bulunamadı." }, 400);
 
     await pool.query(
-      `INSERT INTO public.hepsiburada_sku_map (hb_sku, mal_kod) VALUES ($1, $2)
-       ON CONFLICT (hb_sku) DO UPDATE SET mal_kod = EXCLUDED.mal_kod, updated_at = now()`,
+      `INSERT INTO public.hepsiburada_sku_map (hb_sku, mal_kod, source) VALUES ($1, $2, 'MANUAL')
+       ON CONFLICT (hb_sku) DO UPDATE SET mal_kod = EXCLUDED.mal_kod, source = 'MANUAL', updated_at = now()`,
       [hbSku, malKod]
     );
 

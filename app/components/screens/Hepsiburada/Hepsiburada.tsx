@@ -7,6 +7,7 @@
 // Müşteri bilgisi gösterilmez.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 
 type Row = Record<string, any>;
 type Tab = "urunler" | "siparisler" | "adaylar";
@@ -144,6 +145,109 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
       </div>
       {message && <div className="text-[10px] font-bold text-slate-600">{message}</div>}
       {statusText && <div className="text-[10px] font-bold text-blue-700">{statusText}</div>}
+    </div>
+  );
+}
+
+// Hepsiburada panelinden alınan "Ürün Bilgisi" Excel dışa aktarımını yükler: SKU + ürün adı + marka.
+// Excel tarayıcıda okunur; yalnızca SKU, ad ve marka sunucuya gönderilir (açıklama/görsel gönderilmez).
+function NameUpload({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const upload = async (file: File | null) => {
+    if (!file) return;
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const table = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
+      const header = (table[0] || []).map((cell) => String(cell ?? "").toLocaleLowerCase("tr-TR"));
+      const skuIndex = header.findIndex((cell) => cell.includes("sku"));
+      const nameIndex = header.findIndex((cell) => /ürün ad|urun ad|ürün adı/.test(cell));
+      const brandIndex = header.findIndex((cell) => cell.includes("marka") && !cell.includes("belge"));
+
+      if (skuIndex < 0 || nameIndex < 0) throw new Error('Dosyada "HB Ürün Kodu (SKU)" ve "Ürün Adı" sütunları bulunamadı.');
+
+      const rows = table
+        .slice(1)
+        .map((row) => ({ sku: String(row[skuIndex] ?? "").trim(), name: String(row[nameIndex] ?? "").trim(), brand: brandIndex >= 0 ? String(row[brandIndex] ?? "").trim() : "" }))
+        .filter((row) => row.sku && row.name);
+
+      let saved = 0;
+
+      for (let i = 0; i < rows.length; i += 300) {
+        const response = await fetch("/api/online/hepsiburada/names", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: rows.slice(i, i + 300) }),
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
+
+        saved += Number(payload.saved) || 0;
+      }
+
+      setMessage(`${saved} ürünün adı yüklendi.`);
+      onDone();
+    } catch (e: any) {
+      setMessage(e?.message || "Yüklenemedi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-[11px] font-bold text-slate-600">
+      <span>Ürün adları eksikse: Hepsiburada panelinden indirdiğiniz <b>&quot;Ürün Bilgisi&quot; Excel</b> dosyasını yükleyin (bir kez).</span>
+      <label className={`cursor-pointer rounded-lg bg-slate-800 px-3 py-2 text-[10px] font-black uppercase text-white ${busy ? "opacity-50" : "hover:bg-slate-900"}`}>
+        {busy ? "Yükleniyor..." : "Excel seç"}
+        <input type="file" accept=".xlsx,.xls" className="hidden" disabled={busy} onChange={(e) => void upload(e.target.files?.[0] ?? null)} />
+      </label>
+      {message && <span className="text-blue-700">{message}</span>}
+    </div>
+  );
+}
+
+// Adından bulunan WingSM ürün önerisi: tek tıkla onaylanır (elle eşleşme olarak kaydedilir).
+function SuggestionBox({ row, onChanged }: { row: Row; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const suggestion = row.suggestion;
+
+  if (!suggestion) return null;
+
+  const confirm = async () => {
+    setBusy(true);
+
+    try {
+      const response = await fetch("/api/online/hepsiburada/map", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hbSku: row.hepsiburadaSku, malKod: suggestion.malKod }),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (payload?.success) onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1 flex max-w-[300px] items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] font-semibold text-amber-800">
+      <span className="flex-1">
+        Öneri (%{Math.round(suggestion.score * 100)}): {suggestion.malAd}
+        <span className="block font-mono text-[9px] text-amber-600">{suggestion.malKod} · WingSM {suggestion.adet} adet</span>
+      </span>
+      <button type="button" disabled={busy} onClick={() => void confirm()} className="rounded bg-amber-600 px-2 py-1 text-[9px] font-black uppercase text-white disabled:opacity-50">
+        Onayla
+      </button>
     </div>
   );
 }
@@ -400,6 +504,37 @@ export default function Hepsiburada() {
         </div>
       </div>
 
+      {tab === "urunler" && (
+        <div className="space-y-3">
+          <NameUpload onDone={() => void load(tab, offset)} />
+          {rows.some((row) => row.suggestion && row.suggestion.score >= 0.85) && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                const sure = rows.filter((row) => row.suggestion && row.suggestion.score >= 0.85);
+
+                if (!window.confirm(`${sure.length} ürün için yüksek güvenli öneri (%85 ve üstü) onaylanacak. Devam edilsin mi?`)) return;
+
+                for (const row of sure) {
+                  await fetch("/api/online/hepsiburada/map", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hbSku: row.hepsiburadaSku, malKod: row.suggestion.malKod }),
+                  });
+                }
+
+                void load(tab, offset);
+              }}
+              className="h-9 rounded-lg bg-amber-600 px-4 text-[11px] font-black uppercase text-white disabled:opacity-50"
+            >
+              Bu sayfadaki yüksek güvenli önerileri onayla ({rows.filter((row) => row.suggestion && row.suggestion.score >= 0.85).length})
+            </button>
+          )}
+        </div>
+      )}
+
       {tab === "adaylar" && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-bold text-slate-600">
           <span>
@@ -512,13 +647,15 @@ export default function Hepsiburada() {
               {filtered.map((row, index) => (
                 <tr key={`${row.hepsiburadaSku ?? index}`}>
                   <td className="px-4 py-3">
-                    <div className="text-[12px] font-semibold text-slate-800">{row.productName || "-"}</div>
+                    <div className={`text-[12px] font-semibold ${row.nameSource === "HEPSIBURADA" ? "italic text-slate-500" : "text-slate-800"}`}>{row.productName || "-"}</div>
                     {row.wingClass && <div className="text-[10px] font-semibold text-slate-400">sınıf: {row.wingClass}</div>}
+                    {row.nameSource === "HEPSIBURADA" && <div className="text-[10px] font-semibold text-slate-400">Hepsiburada adı{row.brand ? ` · ${row.brand}` : ""}</div>}
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.hepsiburadaSku}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSku}</td>
                   <td className="px-4 py-3">
                     <WingPicker row={row} onChanged={() => void load(tab, offset)} />
+                    <SuggestionBox row={row} onChanged={() => void load(tab, offset)} />
                   </td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.availableStock ?? "-"}</td>
                   <td
