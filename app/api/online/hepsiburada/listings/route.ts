@@ -1,7 +1,7 @@
 // app/api/online/hepsiburada/listings/route.ts
 //
 // CNETMOBIL - Hepsiburada ürün (listing) listesi + WingSM eşleşmesi (SALT OKUNUR)
-// GET ?offset=0&limit=50&q=iphone&filter=all|salable|soldout|matched|unmatched
+// GET ?offset=0&limit=50&q=iphone&filter=all|salable|soldout
 //   Hepsiburada'daki TÜM listing'leri alır (sayfa sayfa), her ürün için WingSM sıfır ürün eşleşmesini (elle/SKU/stok kodu),
 //   Hepsiburada adını ve adından WingSM önerisini ekler; sonra aramayı (q) ve filtreyi TÜM ürünlerde uygular, en sonda sayfalar.
 // Hiçbir şey yazılmaz. SADECE YÖNETİCİ.
@@ -124,15 +124,11 @@ export async function GET(request: NextRequest) {
       all: all.length,
       salable: all.filter((row) => row.isSalable === true).length,
       soldout: all.filter((row) => Number(row.availableStock ?? 0) === 0).length,
-      matched: all.filter((row) => row.malKod).length,
-      unmatched: all.filter((row) => !row.malKod).length,
     };
 
     const filtered = all.filter((row) => {
       if (filter === "salable" && row.isSalable !== true) return false;
       if (filter === "soldout" && Number(row.availableStock ?? 0) !== 0) return false;
-      if (filter === "matched" && !row.malKod) return false;
-      if (filter === "unmatched" && row.malKod) return false;
 
       if (!q) return true;
 

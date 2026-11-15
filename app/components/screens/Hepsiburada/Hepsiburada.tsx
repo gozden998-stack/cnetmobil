@@ -433,8 +433,6 @@ export default function Hepsiburada() {
               ["all", "Tümü"],
               ["salable", "Satışta"],
               ["soldout", "Tükendi (stok 0)"],
-              ["matched", "Eşleşmiş"],
-              ["unmatched", "Eşleşmemiş"],
             ] as Array<[string, string]>).map(([key, label]) => (
               <button
                 key={key}
